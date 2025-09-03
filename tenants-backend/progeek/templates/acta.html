@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Acta de entrega/recepción</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 14mm 20mm 14mm;
+      @bottom-center {
+        content: "Página " counter(page) " de " counter(pages) " · Generado: " string(gen_date);
+        font-size: 9pt;
+        color: #666;
+      }
+    }
+    :root {
+      --brand: {{ brand_color|default:"#0e7afe" }};
+      --text: #222;
+      --muted: #666;
+      --border: #e5e7eb;
+      --bg: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: var(--text); }
+    h1,h2,h3 { margin: 0; }
+    .header {
+      display: flex; align-items: center; gap: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--brand);
+    }
+    .logo { height: 40px; }
+    .title-wrap { flex: 1; }
+    .title { font-size: 22px; letter-spacing: 0.3px; }
+    .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .meta { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+    .card h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+    .kv { font-size: 12px; line-height: 1.4; }
+    .kv b { color: #111; }
+    .banner {
+      margin: 14px 0; padding: 10px 12px; border: 1px dashed var(--brand); color: var(--brand);
+      background: #f0f7ff; font-size: 12px; border-radius: 8px; text-align: center;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid var(--border); padding: 8px; font-size: 11px; vertical-align: top; }
+    th { background: #f3f4f6; text-align: left; font-weight: 600; }
+    tfoot td { font-weight: 700; }
+    .right { text-align: right; }
+    .small { font-size: 10px; color: var(--muted); }
+    .flex { display: flex; gap: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .signs { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sign-box {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px; min-height: 90px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .sign-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .sign-line { border-top: 1px dotted var(--border); margin-top: 24px; padding-top: 6px; font-size: 11px; }
+    .qr-ref { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+    .qr-ref img { width: 64px; height: 64px; }
+    .ref-block { font-size: 10px; color: var(--muted); word-break: break-all; }
+    .legal { margin-top: 10px; font-size: 9.5px; color: var(--muted); line-height: 1.35; }
+  </style>
+</head>
+<body>
+  <div style="string-set: gen_date content('{{ now|date:"Y-m-d H:i" }}')"></div>
+
+  <!-- CABECERA -->
+  <div class="header">
+    {% if logo_url %}
+      <img class="logo" src="{{ logo_url }}" alt="Logo" />
+    {% endif %}
+    <div class="title-wrap">
+      <h1 class="title">ACTA DE ENTREGA / RECEPCIÓN</h1>
+      <div class="subtitle">
+        {% if acta_id %} Referencia acta: <b>{{ acta_id }}</b> · {% endif %}
+        Fecha: <b>{{ now|date:"d/m/Y H:i" }}</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATOS EMPRESA / CLIENTE -->
+  <div class="meta">
+    <div class="card">
+      <h3>Empresa</h3>
+      <div class="kv">
+        {{ contrato.contrato_datos.empresa.nombre }}<br/>
+        {{ contrato.contrato_datos.empresa.nif }}<br/>
+        {{ contrato.contrato_datos.empresa.direccion }}<br/>
+        {{ contrato.contrato_datos.empresa.email }}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Cliente</h3>
+      <div class="kv">
+        {{ contrato.contrato_datos.cliente.nombre }}<br/>
+        DNI/NIE: {{ contrato.dni }}<br/>
+        {{ contrato.contrato_datos.cliente.direccion }}<br/>
+        {{ contrato.email }}
+      </div>
+    </div>
+  </div>
+
+  {% if preview or not firmado %}
+  <div class="banner">
+    Documento de acta en PREVISUALIZACIÓN o pendiente de firma digital por OTP.
+  </div>
+  {% endif %}
+
+  <!-- DISPOSITIVOS -->
+  <h2 style="margin: 12px 0 6px 0;">Detalle de dispositivos</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 34%;">Descripción</th>
+        <th style="width: 18%;">IMEI / Serie</th>
+        <th style="width: 10%;">Estado</th>
+        <th style="width: 28%;">Observaciones</th>
+        <th class="right" style="width: 10%;">Precio (€)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in contrato.contrato_datos.dispositivos %}
+      <tr>
+        <td>{{ d.descripcion }}</td>
+        <td>
+          {% if d.imei %}<div>IMEI: {{ d.imei }}</div>{% endif %}
+          {% if d.serie %}<div>Serie: {{ d.serie }}</div>{% endif %}
+        </td>
+        <td>{{ d.estado }}</td>
+         <td>
+            {{ d.observaciones }}
+            {% if d.accesorios and d.accesorios|length > 0 %}
+                <div style="margin-top:6px;">
+                <span class="small">Accesorios:</span>
+                <ul style="margin:6px 0 0 14px; padding:0; font-size:10.5px;">
+                    {% for a in d.accesorios %}
+                    <li>
+                        <b>{{ a.nombre }}</b>
+                        {% if a.estado %} ({{ a.estado }}){% endif %}
+                        {% if a.incluido is not none %}
+                        — {% if a.incluido %}incluido{% else %}no incluido{% endif %}
+                        {% endif %}
+                        {% if a.obs %} — {{ a.obs }}{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                </div>
+            {% endif %}
+        </td>
+        <td class="right">{{ d.precio|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" class="right">TOTAL</td>
+        <td class="right">{{ contrato.contrato_datos.total|floatformat:2 }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- OBSERVACIONES -->
+  {% if contrato.contrato_datos.observaciones %}
+  <div class="card" style="margin-top: 10px;">
+    <h3>Observaciones</h3>
+    <div class="kv">{{ contrato.contrato_datos.observaciones }}</div>
+  </div>
+  {% endif %}
+
+  <!-- REFERENCIA AL CONTRATO MARCO -->
+  <div class="qr-ref">
+    {% if qr_sha_url %}
+      <img src="{{ qr_sha_url }}" alt="QR" />
+    {% endif %}
+    <div class="ref-block">
+      Referencia criptográfica del contrato marco (SHA-256):<br/>
+      <b>{{ contrato.contrato_datos.ref_sha256 }}</b>
+      {% if contrato.pdf_sha256 %}
+        <br/>Hash del presente documento (SHA-256): <b>{{ contrato.pdf_sha256 }}</b>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- FIRMAS -->
+  <div class="signs">
+    <div class="sign-box">
+      <div class="sign-title">Partner / Comprador</div>
+      {% if firmado %}
+        <div class="small">Firmado digitalmente por OTP.</div>
+      {% else %}
+        <div class="small">Pendiente de firma por OTP.</div>
+      {% endif %}
+      <div class="sign-line">Nombre y firma</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-title">Cliente / Vendedor</div>
+      {% if firmado %}
+        <div class="small">Firmado digitalmente por OTP.</div>
+      {% else %}
+        <div class="small">Pendiente de firma por OTP.</div>
+      {% endif %}
+      <div class="sign-line">Nombre y firma</div>
+    </div>
+  </div>
+
+  <!-- NOTA LEGAL -->
+  <div class="legal">
+    La eficacia de la presente acta queda condicionada a la verificación satisfactoria de identidad (KYC) y
+    a las condiciones del contrato marco referenciado. En caso de discrepancia, prevalecerá el contenido del
+    contrato marco (SHA: {{ contrato.contrato_datos.ref_sha256 }}).
+  </div>
+</body>
+</html>

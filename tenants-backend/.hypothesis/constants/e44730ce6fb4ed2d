@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/estados_operaciones.py
+# hypothesis_version: 6.136.7
+
+['Aceptado', 'Cancelado', 'Check in OK', 'Contrato', 'Devolución iniciada', 'En revisión', 'En tránsito', 'Equipo enviado', 'Factura recibida', 'Nueva oferta', 'Nueva oferta enviada', 'Nuevo contrato', 'Oferta confirmada', 'Pagado', 'Pendiente', 'Pendiente de pago', 'Pendiente factura', 'Rechazada', 'Recibido', 'abiertas', 'canceladas', 'cerradas', 'confirmadas', 'pagadas']

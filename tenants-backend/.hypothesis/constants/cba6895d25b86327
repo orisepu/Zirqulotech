@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/notificaciones/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+[100, 300, '-creada', 'Cambio de estado', 'Estado prolongado', 'ID', 'Notificacion', 'Otro', 'Plazo de pago', 'creada', 'estado_cambiado', 'estado_prolongado', 'id', 'leida', 'mensaje', 'notificaciones', 'ordering', 'otro', 'plazo_pago', 'schema', 'tipo', 'url_relacionada', 'usuario']

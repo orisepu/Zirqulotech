@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/users/admin.py
+# hypothesis_version: 6.136.7
+
+[' ✅', ', ', 'Estado', 'Nueva contraseña', 'Permisos por tenant', 'Tenants', 'Tenants OK', '__all__', 'desactivar_usuarios', 'email', 'estado_activo', 'groups', 'hacer_staff', 'id', 'is_active', 'is_staff', 'is_superuser', 'is_verified', 'name', 'object_id', 'password1', 'profile', 'profile__email', 'public', 'quitar_staff', 'tenant_list_display', 'tenants', 'tenants_con_permiso', 'user_permissions', '✅', '✅ Activo', '❌', '❌ Inactivo']

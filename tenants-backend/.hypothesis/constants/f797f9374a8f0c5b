@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/utils/documentos.py
+# hypothesis_version: 6.136.7
+
+['.', '0', 'cliente', 'cliente_id', 'desconocido', 'documentos', 'lote', 'nombre', 'razon_social', 'schema_name', 'sin-cliente', 'sin-tienda', 'tienda']

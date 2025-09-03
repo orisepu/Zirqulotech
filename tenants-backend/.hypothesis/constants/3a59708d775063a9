@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0002_initial.py
+# hypothesis_version: 6.136.7
+
+['0001_initial', 'autor', 'capacidad', 'checkouters', 'checkouters.cliente', 'cliente', 'comentariocliente', 'comentarios', 'consultacliente', 'dispositivo', 'dispositivos', 'documento', 'documentos', 'historial', 'historialcambio', 'modelo', 'notainterna', 'notas_internas', 'oportunidad', 'oportunidades', 'productos', 'productos.capacidad', 'productos.modelo', 'reparacion', 'reparaciones', 'subido_por', 'tecnico', 'usuario', 'valoracion', 'valoraciones']

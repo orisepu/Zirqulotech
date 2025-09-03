@@ -1,0 +1,589 @@
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+from productos.models import Modelo, Capacidad
+from django.db.models import PROTECT
+from django.utils import timezone
+from django.core.validators import MinValueValidator
+from tenant_users.permissions.models import UserTenantPermissions
+from checkouters.storage import PrivateDocumentStorage
+from checkouters.utils.documentos import ruta_documento
+from django.contrib.auth import get_user_model
+import uuid
+from hashids import Hashids
+from django.db.models import Q
+from django.core.validators import RegexValidator
+from django.core.exceptions import ValidationError
+import re
+hashids = Hashids(
+    salt=settings.SECRET_KEY,
+    min_length=10,
+    alphabet="0123456789ABCDEF"  # ✅ tiene 16 caracteres únicos
+
+)
+try:
+    from checkouters.storage_backends import PrivateMediaStorage
+    PRIVATE_STORAGE = PrivateMediaStorage()
+except Exception:
+    PRIVATE_STORAGE = None  # usa DEFAULT_FILE_STORAGE si no hay clase
+def upload_path_anverso(instance, filename):
+    return f"kyc/dni/{instance.id}/anverso/{filename}"
+
+def upload_path_reverso(instance, filename):
+    return f"kyc/dni/{instance.id}/reverso/{filename}"
+
+def validar_imei(imei: str):
+    s = re.sub(r'\D', '', imei or '')
+    if not s:
+        return
+    if len(s) != 15:
+        raise ValidationError('El IMEI debe tener 15 dígitos.')
+    # Luhn para IMEI
+    def luhn_ok(x):
+        total = 0
+        for i, ch in enumerate(x[::-1]):
+            d = int(ch)
+            if i % 2 == 1:
+                d = d * 2
+                if d > 9: d -= 9
+            total += d
+        return total % 10 == 0
+    if not luhn_ok(s):
+        raise ValidationError('IMEI inválido (dígito de control).')
+    
+class Oportunidad(models.Model):
+    ESTADOS = [
+    ('Pendiente', 'Pendiente'),
+    ('Aceptado', 'Aceptado'),
+    ('Cancelado', 'Cancelado'),
+    ('Recogida solicitada', 'Recogida solicitada'),
+    ('Recogida generada', 'Recogida generada'),
+    ('En tránsito', 'En tránsito'),
+    ('Recibido', 'Recibido'),
+    ('Check in OK','Check in OK'),
+    ('En revisión', 'En revisión'),
+    ('Oferta confirmada', 'Oferta confirmada'),
+    ('Pendiente factura', 'Pendiente factura'),
+    ('Factura recibida', 'Factura recibida'),
+    ('Pendiente de pago', 'Pendiente de pago'),
+    ('Pagado', 'Pagado'),
+    ('Nueva oferta enviada', 'Nueva oferta enviada'),
+    ('Rechazada', 'Rechazada'),
+    ('Devolución iniciada', 'Devolución iniciada'),
+    ('Equipo enviado', 'Equipo enviado'),
+    ('Recibido por el cliente', 'Recibido por el cliente'),
+    ('Nueva oferta enviada', 'Nueva oferta enviada'),
+    ('Nueva oferta confirmada', 'Nueva oferta confirmada'),
+    ('Nuevo contrato', 'Nuevo contrato'),
+    ('Contrato', 'Contrato'),
+    ]
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    tienda = models.ForeignKey('Tienda', on_delete=models.CASCADE, null=True, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=PROTECT)
+    cliente = models.ForeignKey("checkouters.Cliente", on_delete=models.CASCADE, related_name="oportunidades")
+    nombre = models.CharField(max_length=100, blank=True, null=True)
+    estado = models.CharField(max_length=50, choices=ESTADOS, default='Pendiente')
+    dispositivos = models.ManyToManyField('Dispositivo', related_name='oportunidades_dispositivo')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    calle = models.CharField(max_length=255, blank=True, null=True)
+    numero = models.CharField(max_length=10, blank=True, null=True)
+    piso = models.CharField(max_length=10, blank=True, null=True)
+    puerta = models.CharField(max_length=10, blank=True, null=True)
+    codigo_postal = models.CharField(max_length=10, blank=True, null=True)
+    poblacion = models.CharField(max_length=100, blank=True, null=True)
+    provincia = models.CharField(max_length=100, blank=True, null=True)
+    persona_contacto = models.CharField(max_length=255, blank=True, null=True)
+    telefono_contacto = models.CharField(max_length=50, blank=True, null=True)
+    horario_recogida = models.CharField(max_length=100, blank=True, null=True)
+    instrucciones = models.TextField(blank=True, null=True)
+    plazo_pago_dias = models.IntegerField(null=True, blank=True, help_text="Días máximo de pago tras cambiar a 'Pendiente de pago'")
+    fecha_inicio_pago = models.DateTimeField(null=True, blank=True, help_text="Fecha en que se cambió a 'Pendiente de pago'")
+    numero_seguimiento = models.CharField(max_length=100,blank=True,null=True,help_text="Número de seguimiento del envío")
+    url_seguimiento = models.URLField(max_length=300,blank=True,null=True,help_text="Enlace de seguimiento proporcionado por el transportista")
+    correo_recogida = models.EmailField(max_length=255, blank=True, null=True, help_text="Correo electrónico de contacto para la recogida")
+
+    class Meta:
+        db_table = 'checkouters_oportunidad'  # nombre de tabla ya renombrada desde DBeaver
+
+    def __str__(self):
+        return f"Oportunidad {self.id} - {self.nombre or 'Sin nombre'}"
+
+    @property
+    def hashid(self) -> str:
+        return hashids.encode(self.id)
+
+
+class Dispositivo(models.Model):
+    TIPO_EQUIPO = [
+        ('iPhone', 'iPhone'),
+        ('MacBook Air', 'MacBook Air'),
+        ('MacBook Pro', 'MacBook Pro'),
+        ('iMac', 'iMac'),
+        ('iPad', 'iPad'),
+        ('Mac Pro','Mac Pro'),
+        ('Mac Studio', 'Mac Studio'),
+        ('Mac mini','Mac mini'),
+        ('Otro', 'Otro'),
+    ]
+    ESTADOS_FISICOS = [
+        ('perfecto', 'Perfecto'),
+        ('bueno', 'Bueno'),
+        ('regular', 'Regular'),
+        ('dañado', 'Dañado'),
+    ]
+    ESTADOS_FUNCIONALES = [
+        ('funciona', 'Funciona correctamente'),
+        ('no_enciende', 'No enciende'),
+        ('pantalla_rota', 'Pantalla rota'),
+        ('error_hardware', 'Error de hardware'),
+    ]
+    ESTADOS_VALORACION = [
+        ('excelente', 'Excelente'),
+        ('muy_bueno', 'Muy bueno'),
+        ('bueno', 'Bueno'),
+        ("a_revision", "A revisión"),
+    ]
+
+    imei = models.CharField(max_length=15, blank=True, null=True, db_index=True,help_text="IMEI declarado por el cliente.")
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=PROTECT, related_name='dispositivos')
+    tipo = models.CharField(max_length=20, choices=TIPO_EQUIPO)
+    modelo = models.ForeignKey("productos.Modelo", on_delete=models.CASCADE, related_name="dispositivos")
+    capacidad = models.ForeignKey(Capacidad, on_delete=models.SET_NULL, null=True, blank=True, related_name='dispositivos')
+    año = models.IntegerField(blank=True, null=True)
+    imei = models.CharField(max_length=50, blank=True, null=True)
+    numero_serie = models.CharField(max_length=100, blank=True, null=True)
+    estado_fisico = models.CharField(max_length=20, choices=ESTADOS_FISICOS, blank=True, null=True)
+    estado_funcional = models.CharField(max_length=30, choices=ESTADOS_FUNCIONALES, blank=True, null=True)
+    comentarios_cliente = models.TextField(blank=True, null=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    oportunidad = models.ForeignKey(Oportunidad, null=True, blank=True, on_delete=models.SET_NULL, related_name='dispositivos_oportunidad')
+    estado_valoracion = models.CharField(max_length=20, choices=ESTADOS_VALORACION, blank=True, null=True)
+    precio_orientativo = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    fecha_valoracion = models.DateTimeField(blank=True, null=True)
+    fecha_caducidad = models.DateTimeField(blank=True, null=True)
+    cantidad = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    precio_orientativoexcelente = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    
+    def save(self, *args, **kwargs):
+        if self.modelo and not self.tipo:
+            self.tipo = self.modelo.tipo
+        if not self.fecha_creacion:
+            self.fecha_creacion = timezone.now()
+        if not self.fecha_caducidad:
+            self.fecha_caducidad = self.fecha_creacion + timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.tipo} {self.modelo.descripcion} de {self.usuario}"
+    def clean(self):
+        super().clean()
+        if self.imei:
+            validar_imei(self.imei)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['oportunidad', 'imei'],
+                name='uniq_imei_por_oportunidad_plan',
+                condition=Q(imei__isnull=False) & ~Q(imei=''),  # solo aplica si hay IMEI
+            ),
+        ]
+
+
+class Valoracion(models.Model):
+    ESTADO_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('en_proceso', 'En Proceso'),
+        ('valorado', 'Valorado'),
+        ('aceptado', 'Aceptado'),
+        ('rechazado', 'Rechazado'),
+    ]
+
+    dispositivo = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='valoraciones')
+    tecnico = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    precio_final = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    comentarios_tecnico = models.TextField(blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
+    fecha_valoracion = models.DateTimeField(blank=True, null=True)
+    fecha_respuesta_cliente = models.DateTimeField(blank=True, null=True)
+
+
+class Reparacion(models.Model):
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('en_proceso', 'En Proceso'),
+        ('finalizada', 'Finalizada'),
+        ('cancelada', 'Cancelada'),
+    ]
+
+    dispositivo = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='reparaciones')
+    descripcion_problema = models.TextField()
+    partes_necesarias = models.TextField(blank=True, null=True)
+    costo_estimado = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='Pendiente')
+    fecha_inicio = models.DateTimeField(blank=True, null=True)
+    fecha_fin = models.DateTimeField(blank=True, null=True)
+
+
+class Documento(models.Model):
+    TIPO_CHOICES = [
+        ("factura", "Factura"),
+        ("otro", "Otro"),
+    ]
+
+    dispositivo = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='documentos', null=True, blank=True)
+    oportunidad = models.ForeignKey("Oportunidad", on_delete=models.CASCADE, related_name="documentos", null=True, blank=True)
+    archivo = models.FileField(upload_to=ruta_documento,storage=PrivateDocumentStorage())
+    nombre_original = models.CharField(max_length=255, blank=True)
+    descripcion = models.CharField(max_length=255, blank=True)
+    tipo = models.CharField(max_length=50, choices=TIPO_CHOICES, default="factura")
+    subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    fecha_subida = models.DateTimeField(auto_now_add=True)
+    def save(self, *args, **kwargs):
+        if self.archivo and not self.nombre_original:
+            self.nombre_original = self.archivo.name
+        super().save(*args, **kwargs)
+
+
+
+class ConsultaCliente(models.Model):
+    cliente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    asunto = models.CharField(max_length=255)
+    mensaje = models.TextField()
+    estado = models.CharField(max_length=20, choices=[('pendiente', 'Pendiente'), ('respondida', 'Respondida')], default='pendiente')
+    respuesta = models.TextField(blank=True, null=True)
+    fecha_envio = models.DateTimeField(auto_now_add=True)
+    fecha_respuesta = models.DateTimeField(blank=True, null=True)
+
+
+class NotaInterna(models.Model):
+    dispositivo = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='notas_internas')
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    nota = models.TextField()
+    fecha = models.DateTimeField(auto_now_add=True)
+
+
+class HistorialCambio(models.Model):
+    dispositivo = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='historial')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    accion = models.CharField(max_length=100)
+    detalle = models.TextField()
+    fecha = models.DateTimeField(default=timezone.now)
+
+class Cliente(models.Model):
+    class TipoCliente(models.TextChoices):
+        EMPRESA = "empresa", "Empresa"
+        AUTONOMO = "autonomo", "Autónomo"
+        PARTICULAR = "particular", "Particular"
+    class Canal(models.TextChoices):
+        B2B = "b2b", "B2B"
+        B2C = "b2c", "B2C"
+
+    canal = models.CharField(
+        max_length=4,
+        choices=Canal.choices,
+        default=Canal.B2B,
+        db_index=True,
+        help_text="Canal del cliente (B2B/B2C).")
+    
+    tipo_cliente = models.CharField(
+        max_length=20,
+        choices=TipoCliente.choices,
+        default=TipoCliente.EMPRESA,
+        help_text="Empresa / Autónomo / Particular"
+    )
+    razon_social = models.CharField("Razón social", max_length=255,blank=True)
+    cif = models.CharField("CIF", max_length=20,blank=True)
+    contacto = models.CharField("Persona de contacto", max_length=100,blank=True)
+    posicion = models.CharField("Posición", max_length=100,blank=True)
+
+    # Contacto general
+    correo = models.EmailField("Correo electrónico")
+    telefono = models.CharField(max_length=30, blank=True)
+    tienda = models.ForeignKey('Tienda', on_delete=models.CASCADE,null=True, blank=True)
+
+    # Autónomo / Particular
+    nombre = models.CharField(max_length=100, blank=True)
+    apellidos = models.CharField(max_length=150, blank=True)
+    dni_nie = models.CharField("DNI/NIE", max_length=20, blank=True)
+    nif = models.CharField("NIF", max_length=20, blank=True)
+    nombre_comercial = models.CharField("Nombre comercial", max_length=150, blank=True)
+
+    # Contacto financiero (empresa normalmente)
+    contacto_financiero = models.CharField(max_length=100, blank=True)
+    telefono_financiero = models.CharField(max_length=20, blank=True)
+    correo_financiero = models.EmailField(blank=True)
+
+     # Datos de empresa
+    numero_empleados = models.PositiveIntegerField(null=True, blank=True)
+
+    # Dirección fiscal
+    direccion_calle = models.CharField(max_length=255, blank=True)
+    direccion_piso = models.CharField(max_length=50, blank=True)
+    direccion_puerta = models.CharField(max_length=50, blank=True)
+    direccion_cp = models.CharField(max_length=10, blank=True)
+    direccion_poblacion = models.CharField(max_length=100, blank=True)
+    direccion_provincia = models.CharField(max_length=100, blank=True)
+    direccion_pais = models.CharField(max_length=100, blank=True)   
+
+   # Consentimientos / GDPR (versionados)
+    aceptaciones = models.JSONField(default=dict, blank=True)
+
+    # Sector
+    vertical = models.CharField(max_length=100, blank=True)
+    vertical_secundaria = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                name="cliente_canal_consistente",
+                check=(
+                    Q(tipo_cliente="particular", canal="b2c") |
+                    Q(tipo_cliente__in=["empresa", "autonomo"], canal="b2b")
+                ),
+            ),
+        ]
+    def __str__(self):
+        # Empresa
+        if self.tipo_cliente == self.TipoCliente.EMPRESA and self.razon_social:
+            extra = f" ({self.contacto})" if self.contacto else ""
+            return f"{self.razon_social}{extra}"
+        # Autónomo
+        if self.tipo_cliente == self.TipoCliente.AUTONOMO:
+            base = f"{(self.nombre or '').strip()} {(self.apellidos or '').strip()}".strip() or "Autónomo"
+            if self.nombre_comercial:
+                base = f"{base} · {self.nombre_comercial}"
+            return base
+        # Particular
+        base = f"{(self.nombre or '').strip()} {(self.apellidos or '').strip()}".strip() or "Particular"
+        return base
+    
+class ComentarioOportunidad(models.Model):
+    oportunidad = models.ForeignKey("Oportunidad", on_delete=models.CASCADE, related_name="comentarios", null=True)
+    texto = models.TextField()
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comentario de {self.autor} en oportunidad {self.oportunidad.id}"
+    
+class ComentarioCliente(models.Model):
+    cliente = models.ForeignKey("checkouters.Cliente", on_delete=models.CASCADE, related_name="comentarios")
+    texto = models.TextField()
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+class Tienda(models.Model):
+    nombre = models.CharField(max_length=100)
+
+    # Dirección fiscal
+    direccion_calle = models.CharField(max_length=255, blank=True)
+    direccion_piso = models.CharField(max_length=50, blank=True)
+    direccion_puerta = models.CharField(max_length=50, blank=True)
+    direccion_cp = models.CharField(max_length=10, blank=True)
+    direccion_poblacion = models.CharField(max_length=100, blank=True)
+    direccion_provincia = models.CharField(max_length=100, blank=True)
+    direccion_pais = models.CharField(max_length=100, blank=True)
+
+    # Responsable: usuario del tenant
+    responsable = models.ForeignKey(
+        get_user_model(),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tiendas_responsables"
+    )
+
+    def __str__(self):
+        return self.nombre
+    
+class UserTenantExtension(models.Model):
+    user_permissions = models.OneToOneField(
+        UserTenantPermissions,
+        on_delete=models.CASCADE,
+        related_name='extension',
+    )
+    tienda = models.ForeignKey(Tienda, null=True, blank=True, on_delete=models.SET_NULL)
+    es_manager = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user_permissions.profile.email} ({'Manager' if self.es_manager else 'Tienda'})"
+    
+class HistorialOportunidad(models.Model):
+    oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name="historial")
+    tipo_evento = models.CharField(max_length=50)  # "creacion", "comentario", "cambio_estado"
+    descripcion = models.TextField()
+    estado_anterior = models.CharField(max_length=50, blank=True, null=True)
+    estado_nuevo = models.CharField(max_length=50, blank=True, null=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+
+class DispositivoReal(models.Model):
+    
+    oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name='dispositivos_reales')
+    origen = models.ForeignKey(Dispositivo, null=True, blank=True, on_delete=models.SET_NULL, related_name='dispositivo_real')
+    
+    modelo = models.ForeignKey("productos.Modelo", on_delete=models.CASCADE, related_name="dispositivos_reales")
+    capacidad = models.ForeignKey(Capacidad, on_delete=models.SET_NULL, null=True, blank=True, related_name='dispositivos_reales')
+    año = models.IntegerField(blank=True, null=True)
+    imei = models.CharField(max_length=15, blank=True, null=True)
+    numero_serie = models.CharField(max_length=100, blank=True, null=True)
+
+    estado_fisico = models.CharField(max_length=20, choices=Dispositivo.ESTADOS_FISICOS, blank=True, null=True)
+    estado_funcional = models.CharField(max_length=30, choices=Dispositivo.ESTADOS_FUNCIONALES, blank=True, null=True)
+    observaciones = models.TextField(blank=True, null=True)
+    precio_final = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
+    recibido = models.BooleanField(default=True)
+    auditado = models.BooleanField(default=False)
+    fecha_recepcion = models.DateTimeField(auto_now_add=True)
+    fecha_auditoria = models.DateTimeField(null=True, blank=True)
+    usuario_auditor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='auditorias_realizadas'
+    )
+    def __str__(self):
+        return f"{self.modelo.descripcion} (Real)"
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['oportunidad', 'imei'],
+                name='uniq_imei_por_oportunidad_real',
+                condition=Q(imei__isnull=False) & ~Q(imei=''),
+            ),
+        ]
+
+class B2CContrato(models.Model):
+    ESTADO = (
+        ("pendiente", "Pendiente"),
+        ("otp_enviado", "OTP enviado"),
+        ("firmado", "Firmado"),
+        ("expirado", "Expirado"),
+        ("cancelado", "Cancelado"),
+    )
+    # Relación opcional con Oportunidad/Cliente si aplica en tu dominio
+    TIPO = (("marco", "Contrato marco"), ("acta", "Acta de recepción"))
+    tipo = models.CharField(max_length=10, choices=TIPO, default="marco")
+    principal = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="anexos"
+    )
+    oportunidad_id = models.UUIDField(null=True, blank=True)
+    email = models.EmailField()
+    telefono = models.CharField(max_length=32, blank=True)
+    dni = models.CharField(
+        max_length=16,
+        validators=[RegexValidator(r"^[0-9XYZxyz][0-9]{7}[A-Za-z]$|^[A-Za-z0-9\-\.]{5,}$", "DNI/NIE no válido")]
+    )
+    dni_anverso = models.ImageField(
+        upload_to=upload_path_anverso,
+        storage=PRIVATE_STORAGE,
+        blank=True,
+        null=True,
+    )
+    dni_reverso = models.ImageField(
+        upload_to=upload_path_reverso,
+        storage=PRIVATE_STORAGE,
+        blank=True,
+        null=True,
+    )
+    kyc_token = models.UUIDField(unique=True, null=True, blank=True)
+    kyc_expires_at = models.DateTimeField(null=True, blank=True)
+    kyc_completado = models.BooleanField(default=False)           
+    kyc_completed_at = models.DateTimeField(null=True, blank=True)
+    kyc_revocado_at = models.DateTimeField(null=True, blank=True)
+    kyc_estado = models.CharField(
+        max_length=20,
+        choices=[
+            ("pendiente", "Pendiente"),
+            ("docs_recibidos", "Docs recibidos"),
+            ("verificado", "Verificado"),
+            ("mismatch", "No coincide"),
+            ("rechazado", "Rechazado"),
+        ],
+        default="pendiente",
+        db_index=True,
+    )
+    kyc_motivo = models.TextField(blank=True, default="")
+    kyc_verificado_en = models.DateTimeField(null=True, blank=True)
+    kyc_verificado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="kyc_verificados"
+    )
+    pago_bloqueado_por_kyc = models.BooleanField(default=True)  
+    # flags opcionales
+    tiene_dni_anverso = models.BooleanField(default=False)         
+    tiene_dni_reverso = models.BooleanField(default=False)        
+    kyc_retenido_hasta = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha hasta la que se retiene la documentación KYC."
+    )
+
+    def marcar_retencion(self, dias=1825):
+        self.kyc_retenido_hasta = timezone.now() + timezone.timedelta(days=dias)
+    # Texto del contrato renderizado (snapshot) o datos necesarios para renderizar
+    contrato_datos = models.JSONField(default=dict, blank=True)
+
+    # OTP
+    otp_hash = models.CharField(max_length=128, blank=True)
+    otp_expires_at = models.DateTimeField(null=True, blank=True)
+    otp_intentos = models.PositiveSmallIntegerField(default=0)
+    otp_max_intentos = models.PositiveSmallIntegerField(default=5)
+    estado = models.CharField(max_length=16, choices=ESTADO, default="pendiente")
+    ultimo_envio_otp = models.DateTimeField(null=True, blank=True)
+
+    # Firma
+    firmado_en = models.DateTimeField(null=True, blank=True)
+    firmado_por = models.CharField(max_length=255, blank=True)  # email o teléfono
+    ip_firmante = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+
+    # PDF
+    pdf = models.FileField(storage=PRIVATE_STORAGE, upload_to="contratos/", blank=True)
+    pdf_sha256 = models.CharField(max_length=64, blank=True)
+    pdf_generado_en = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    @property
+    def es_marco(self): return self.tipo == "marco"
+
+    @property
+    def es_acta(self):  return self.tipo == "acta"
+    
+    def otp_vigente(self):
+        return self.otp_expires_at and timezone.now() < self.otp_expires_at
+    
+    @property
+    def pdf_listo(self) -> bool:
+        return bool(self.pdf)
+
+    def marcar_firmado(self, firmante: str = "", ip: str = "", ua: str = ""):
+        self.estado = "firmado"
+        self.firmado_en = timezone.now()
+        self.firmado_por = firmante or self.firmado_por
+        self.ip_firmante = ip or self.ip_firmante
+        self.user_agent = ua or self.user_agent
+    
+class LegalTemplate(models.Model):  # por-tenant o global según namespace
+    namespace  = models.SlugField(default="default", help_text='p.ej. "default" o "tenant:<uuid>"', db_index=True)
+    slug       = models.SlugField()          # ej. "b2c-condiciones"
+    title      = models.CharField(max_length=200, blank=True)
+    version    = models.CharField(max_length=20, default="v1")
+    content    = models.TextField(help_text="Markdown/HTML simple con {{ variables }}")
+    is_active  = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("namespace", "slug", "is_active")]
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.namespace}:{self.slug} [{self.version}]{' *' if self.is_active else ''}"

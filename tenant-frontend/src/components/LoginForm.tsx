@@ -1,0 +1,267 @@
+// [código antiguo] -> [código nuevo] -> [código antiguo]
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import api, { login as loginRequest } from "@/services/api";
+import {
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Typography,
+  CircularProgress,
+  Box,
+  InputAdornment,
+  IconButton,
+  Checkbox,
+  FormControlLabel,
+  Snackbar,
+  Alert,alpha,
+  useTheme,
+} from "@mui/material";
+import BusinessIcon from "@mui/icons-material/Business";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
+
+export default function LoginForm() {
+  const router = useRouter();
+  const theme = useTheme(); // ← para claro/oscuro
+
+  // —— estado del formulario ——
+  const [empresa, setEmpresa] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberEmpresa, setRememberEmpresa] = useState(true);
+
+  // —— UI/UX ——
+  const [error, setError] = useState("");
+  const [showError, setShowError] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+
+  // Precargar empresa recordada
+  useEffect(() => {
+    const storedEmpresa = localStorage.getItem("rememberedEmpresa");
+    if (storedEmpresa) setEmpresa(storedEmpresa);
+  }, []);
+
+  // Validación simple
+  const isValid = useMemo(() => {
+    const okEmpresa = empresa.trim().length > 0;
+    const okEmail = /\S+@\S+\.\S+/.test(email);
+    const okPass = password.length >= 4;
+    return okEmpresa && okEmail && okPass;
+  }, [empresa, email, password]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValid) return;
+
+    setLoading(true);
+    setError("");
+    setShowError(false);
+
+    try {
+      const res = await loginRequest(empresa.trim(), email.trim(), password);
+
+      const { access, refresh, user, schema, tenantAccess } = res.data;
+
+      localStorage.setItem("access", access);
+      localStorage.setItem("refresh", refresh);
+      localStorage.setItem("schema", schema);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("tenantAccess", JSON.stringify(tenantAccess));
+      if (rememberEmpresa) {
+        localStorage.setItem("rememberedEmpresa", empresa.trim());
+      } else {
+        localStorage.removeItem("rememberedEmpresa");
+      }
+
+      router.push("/dashboard");
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Error al iniciar sesión o credenciales incorrectas.";
+      setError(detail);
+      setShowError(true);
+      // console.error("[login] error:", err); // quitar en producción
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fondo adaptable claro/oscuro (sutil)
+  const bgGradient =
+    theme.palette.mode === "dark"
+      ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${theme.palette.background.paper} 100%)`
+      : `linear-gradient(135deg, ${theme.palette.grey[100]} 0%, ${theme.palette.background.default} 100%)`;
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100dvh",
+        display: "grid",
+        placeItems: "center",
+        px: 2,
+        bgcolor: "background.default", // ← fondo sólido del tema (oscuro/claro)
+      }}
+    >
+      <Card
+        elevation={8}
+        sx={{
+          width: "100%",
+          maxWidth: 420,
+          borderRadius: 3,
+          // Fondo del card: usa paper; en dark añadimos un pelín de alpha para separarlo del bg
+          bgcolor:
+            theme.palette.mode === "dark"
+              ? alpha(theme.palette.background.paper, 0.9)
+              : theme.palette.background.paper,
+          // Borde sutil para contraste en dark
+          border:
+            theme.palette.mode === "dark"
+              ? `1px solid ${alpha(theme.palette.common.white, 0.06)}`
+              : `1px solid ${alpha(theme.palette.common.black, 0.06)}`,
+        }}
+      >
+        <CardContent
+          component="form"
+          onSubmit={handleLogin}
+          noValidate
+          autoComplete="on"
+          sx={{ p: 4 }}
+        >
+          <Typography variant="h5" fontWeight={700} gutterBottom>
+            Iniciar sesión en la app
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Accede con tus credenciales de empresa.
+          </Typography>
+
+          {/* Empresa */}
+          <TextField
+            label="Empresa"
+            fullWidth
+            margin="normal"
+            value={empresa}
+            onChange={(e) => setEmpresa(e.target.value)}
+            required
+            autoFocus
+            autoComplete="organization"
+            // Mejoramos contraste de label/placeholder en dark
+            InputLabelProps={{
+              sx: { color: "text.secondary" }, // // quitar en producción si no te gusta
+            }}
+            FormHelperTextProps={{ sx: { color: "text.secondary" } }}
+            // (adornos como los tenías)
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <BusinessIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          {/* Email */}
+          <TextField
+            label="Email"
+            type="email"
+            fullWidth
+            margin="normal"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            InputLabelProps={{ sx: { color: "text.secondary" } }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <MailOutlineIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          {/* Contraseña */}
+          <TextField
+            label="Contraseña"
+            type={showPass ? "text" : "password"}
+            fullWidth
+            margin="normal"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            InputLabelProps={{ sx: { color: "text.secondary" } }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    onClick={() => setShowPass((v) => !v)}
+                    edge="end"
+                  >
+                    {showPass ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            helperText="Mínimo 6 caracteres"
+          />
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={rememberEmpresa}
+                onChange={(e) => setRememberEmpresa(e.target.checked)}
+              />
+            }
+            label="Recordar empresa"
+            sx={{ mt: 1, color: "text.secondary" }}
+          />
+
+          {/* Botón: refuerzo de contraste cuando está deshabilitado en dark */}
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            fullWidth
+            sx={{
+              mt: 2,
+              "&.Mui-disabled": {
+                // En dark, el disabled de MUI puede verse muy apagado; elevamos un poco
+                bgcolor:
+                  theme.palette.mode === "dark"
+                    ? alpha(theme.palette.primary.main, 0.25)
+                    : undefined,
+                color:
+                  theme.palette.mode === "dark"
+                    ? alpha(theme.palette.primary.contrastText, 0.7)
+                    : undefined,
+              },
+            }}
+            disabled={loading || !isValid}
+          >
+            {loading ? <CircularProgress size={24} /> : "Entrar"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Snackbar de error sin cambios */}
+      <Snackbar
+        open={showError}
+        autoHideDuration={4000}
+        onClose={() => setShowError(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={() => setShowError(false)} severity="error" variant="filled" sx={{ width: "100%" }}>
+          {error}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}

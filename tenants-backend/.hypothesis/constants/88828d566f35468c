@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/admin.py
+# hypothesis_version: 6.136.7
+
+['Selecciona un tenant', '__all__', 'auditado', 'comentarios_auditor', 'dispositivo_id', 'es_empleado_interno', 'es_superadmin', 'estado', 'estado_fisico_real', 'fecha_creacion', 'fields', 'imei_confirmado', 'lote_id', 'nombre_lote', 'precio_estimado', 'public', 'tenant_slug', 'tienda_id', 'user', 'user__email']

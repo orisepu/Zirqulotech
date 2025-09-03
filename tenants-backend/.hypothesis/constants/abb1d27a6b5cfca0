@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0018_oportunidad_fecha_inicio_pago_and_more.py
+# hypothesis_version: 6.136.7
+
+['checkouters', 'fecha_inicio_pago', 'oportunidad', 'plazo_pago_dias']

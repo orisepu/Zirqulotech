@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0017_documento_nombre_original_alter_documento_archivo.py
+# hypothesis_version: 6.136.7
+
+[255, '0016_documento_tipo', 'archivo', 'checkouters', 'documento', 'nombre_original']

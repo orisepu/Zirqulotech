@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/middleware/tenant_logging.py
+# hypothesis_version: 6.136.7
+
+[1000, ',', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_TENANT', 'REMOTE_ADDR', '_start_time', '—']

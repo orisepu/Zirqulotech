@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/urls.py
+# hypothesis_version: 6.136.7
+
+['cambiar-contraseña', 'cambiar-contraseña/', 'cambiar-password/', 'capacidades', 'cliente', 'clientes', 'comentariocliente', 'comentarios-cliente', 'dashboard/manager/', 'descargar_documento', 'dispositivos', 'facturas/subir/', 'get', 'list', 'mi-dashboard', 'mi-dashboard/', 'modelos', 'oportunidad', 'oportunidades', 'subir-factura', 'tiendas', 'usuarios-tenant']

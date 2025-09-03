@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/admin.py
+# hypothesis_version: 6.136.7
+
+['admin@progeek.es', 'domain', 'error', 'is_primary', 'owner', 'schema_name', 'slug', 'tenant', 'tenant__schema_name']

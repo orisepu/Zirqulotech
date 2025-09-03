@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0004_alter_oportunidad_estado.py
+# hypothesis_version: 6.136.7
+
+['Aceptada', 'Aceptado', 'Cancelado', 'En tránsito', 'Factura recibida', 'Oferta final', 'Pagado', 'Pendiente', 'Recibido', 'aceptada', 'aceptado', 'cancelado', 'checkouters', 'en_transito', 'estado', 'factura_recibida', 'oferta_final', 'oportunidad', 'pagado', 'pendiente', 'recibido']

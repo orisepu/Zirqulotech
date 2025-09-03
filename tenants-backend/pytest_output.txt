@@ -1,0 +1,644 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.7, pytest-8.4.1, pluggy-1.6.0 -- /home/oriol/checkouters/backend/django-tenant-users/env/bin/python3.12
+cachedir: .pytest_cache
+hypothesis profile 'default'
+django: version: 5.2.4, settings: django_test_app.settings (from ini)
+rootdir: /home/oriol/checkouters/backend/django-tenant-users
+configfile: pytest.ini
+plugins: hypothesis-6.136.7, anyio-4.9.0, Faker-37.5.3, django-4.11.1
+collecting ... collected 54 items
+
+checkouters/tests/test_dispositivos.py::test_crear_dispositivo_autenticado FAILED [  1%]
+checkouters/tests/test_enpoints.py::test_get_dispositivos ERROR          [  3%]
+checkouters/tests/test_enpoints.py::test_mi_dashboard ERROR              [  5%]
+checkouters/tests/test_enpoints.py::test_cambiar_contraseña ERROR        [  7%]
+checkouters/tests/test_enpoints.py::test_capacidades_sin_auth FAILED     [  9%]
+checkouters/tests/test_enpoints.py::test_post_dispositivo_real_global ERROR [ 11%]
+checkouters/tests/test_enpoints.py::test_delete_dispositivo_real_global ERROR [ 12%]
+tests/test_tenants/test_backend.py::test_get_group_permissions PASSED    [ 14%]
+tests/test_tenants/test_commands.py::test_create_public_tenant_command_success PASSED [ 16%]
+tests/test_tenants/test_commands.py::test_create_public_tenant_command_failure PASSED [ 18%]
+tests/test_tenants/test_functional.py::test_tenant_cached_property_basic_behavior PASSED [ 20%]
+tests/test_tenants/test_functional.py::test_tenant_cached_property_uses_a_dedicated_cache PASSED [ 22%]
+tests/test_tenants/test_functional.py::test_tenant_cached_property_value_is_not_recalculated PASSED [ 24%]
+tests/test_tenants/test_functional.py::test_tenant_cached_property_instance_none PASSED [ 25%]
+tests/test_tenants/test_middleware.py::TestTenantAccessMiddleware::test_authenticated_user_has_access PASSED [ 27%]
+tests/test_tenants/test_middleware.py::TestTenantAccessMiddleware::test_authenticated_user_no_access PASSED [ 29%]
+tests/test_tenants/test_middleware.py::TestTenantAccessMiddleware::test_unauthenticated PASSED [ 31%]
+tests/test_tenants/test_middleware.py::TestTenantAccessMiddleware::test_custom_error_message PASSED [ 33%]
+tests/test_tenants/test_models/test_profilemanager.py::test_create_user_in_tenant_schema PASSED [ 35%]
+tests/test_tenants/test_models/test_profilemanager.py::test_create_user_no_email PASSED [ 37%]
+tests/test_tenants/test_models/test_profilemanager.py::test_create_user_with_password PASSED [ 38%]
+tests/test_tenants/test_models/test_profilemanager.py::test_create_user_without_password PASSED [ 40%]
+tests/test_tenants/test_models/test_profilemanager.py::test_create_duplicate_user PASSED [ 42%]
+tests/test_tenants/test_models/test_profilemanager.py::test_delete_user FAILED [ 44%]
+tests/test_tenants/test_models/test_profilemanager.py::test_delete_public_owner PASSED [ 46%]
+tests/test_tenants/test_models/test_profilemanager.py::test_delete_tenant_owner PASSED [ 48%]
+tests/test_tenants/test_models/test_signals.py::test_user_created_signal PASSED [ 50%]
+tests/test_tenants/test_models/test_signals.py::test_user_deleted_signal FAILED [ 51%]
+tests/test_tenants/test_models/test_userprofile.py::test_model_properties PASSED [ 53%]
+tests/test_tenants/test_models/test_userprofile.py::test_user_delete FAILED [ 55%]
+tests/test_tenants/test_multitypes.py::test_provision_tenant_with_valid_tenant_type PASSED [ 57%]
+tests/test_tenants/test_multitypes.py::test_provision_tenant_with_invalid_tenant_type PASSED [ 59%]
+tests/test_tenants/test_permission_models.py::test_permissions_mixin_facade FAILED [ 61%]
+tests/test_tenants/test_tasks.py::test_provision_tenant PASSED           [ 62%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_with_subfolder PASSED [ 64%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_inactive_user PASSED [ 66%]
+tests/test_tenants/test_tasks.py::test_duplicate_tenant_url PASSED       [ 68%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_tenant_creation_exception PASSED [ 70%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_domain_creation_exception PASSED [ 72%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_user_add_exception PASSED [ 74%]
+tests/test_tenants/test_tasks.py::test_provision_tenant_with_tenant_extras PASSED [ 75%]
+tests/test_tenants/test_tenants_models.py::test_add_guid_based_user_to_tenant PASSED [ 77%]
+tests/test_tenants/test_tenants_models.py::test_provision_with_schema_name PASSED [ 79%]
+tests/test_tenants/test_tenants_models.py::test_deleting_a_provision_tenant PASSED [ 81%]
+tests/test_tenants/test_tenants_models.py::test_delete_provisioned_tenant_with_assigned_user_roles PASSED [ 83%]
+tests/test_tenants/test_tenants_models.py::test_transfer_ownership_to_existing_user PASSED [ 85%]
+tests/test_tenants/test_utils.py::test_get_current_tenant PASSED         [ 87%]
+tests/test_tenants/test_utils.py::test_duplicate_tenant_url PASSED       [ 88%]
+tests/test_tenants/test_utils.py::test_create_public_tenant PASSED       [ 90%]
+tests/test_tenants/test_utils.py::test_create_public_tenant_with_specified_password PASSED [ 92%]
+tests/test_tenants/test_utils.py::test_tenant_public_tenant_with_multitype PASSED [ 94%]
+tests/test_tenants/test_utils.py::test_tenant_public_tenant_with_multitype_missing_public PASSED [ 96%]
+tests/test_tenants/test_utils.py::test_create_public_tenant_with_tenant_extras PASSED [ 98%]
+tests/test_tenants/test_utils.py::test_tenant_public_tenant_save_verbosity PASSED [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at setup of test_get_dispositivos ____________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+
+The above exception was the direct cause of the following exception:
+checkouters/tests/test_enpoints.py:26: in superadmin_user
+    get_tenant_model().objects.create(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:663: in create
+    obj.save(force_insert=True, using=self.db)
+env/lib/python3.12/site-packages/django_tenants/models.py:114: in save
+    super().save(*args, **kwargs)
+env/lib/python3.12/site-packages/django/db/models/base.py:902: in save
+    self.save_base(
+env/lib/python3.12/site-packages/django/db/models/base.py:1008: in save_base
+    updated = self._save_table(
+env/lib/python3.12/site-packages/django/db/models/base.py:1169: in _save_table
+    results = self._do_insert(
+env/lib/python3.12/site-packages/django/db/models/base.py:1210: in _do_insert
+    return manager._insert(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.IntegrityError: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+_____________________ ERROR at setup of test_mi_dashboard ______________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+
+The above exception was the direct cause of the following exception:
+checkouters/tests/test_enpoints.py:26: in superadmin_user
+    get_tenant_model().objects.create(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:663: in create
+    obj.save(force_insert=True, using=self.db)
+env/lib/python3.12/site-packages/django_tenants/models.py:114: in save
+    super().save(*args, **kwargs)
+env/lib/python3.12/site-packages/django/db/models/base.py:902: in save
+    self.save_base(
+env/lib/python3.12/site-packages/django/db/models/base.py:1008: in save_base
+    updated = self._save_table(
+env/lib/python3.12/site-packages/django/db/models/base.py:1169: in _save_table
+    results = self._do_insert(
+env/lib/python3.12/site-packages/django/db/models/base.py:1210: in _do_insert
+    return manager._insert(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.IntegrityError: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+__________________ ERROR at setup of test_cambiar_contraseña ___________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+
+The above exception was the direct cause of the following exception:
+checkouters/tests/test_enpoints.py:26: in superadmin_user
+    get_tenant_model().objects.create(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:663: in create
+    obj.save(force_insert=True, using=self.db)
+env/lib/python3.12/site-packages/django_tenants/models.py:114: in save
+    super().save(*args, **kwargs)
+env/lib/python3.12/site-packages/django/db/models/base.py:902: in save
+    self.save_base(
+env/lib/python3.12/site-packages/django/db/models/base.py:1008: in save_base
+    updated = self._save_table(
+env/lib/python3.12/site-packages/django/db/models/base.py:1169: in _save_table
+    results = self._do_insert(
+env/lib/python3.12/site-packages/django/db/models/base.py:1210: in _do_insert
+    return manager._insert(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.IntegrityError: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+_____________ ERROR at setup of test_post_dispositivo_real_global ______________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+
+The above exception was the direct cause of the following exception:
+checkouters/tests/test_enpoints.py:26: in superadmin_user
+    get_tenant_model().objects.create(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:663: in create
+    obj.save(force_insert=True, using=self.db)
+env/lib/python3.12/site-packages/django_tenants/models.py:114: in save
+    super().save(*args, **kwargs)
+env/lib/python3.12/site-packages/django/db/models/base.py:902: in save
+    self.save_base(
+env/lib/python3.12/site-packages/django/db/models/base.py:1008: in save_base
+    updated = self._save_table(
+env/lib/python3.12/site-packages/django/db/models/base.py:1169: in _save_table
+    results = self._do_insert(
+env/lib/python3.12/site-packages/django/db/models/base.py:1210: in _do_insert
+    return manager._insert(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.IntegrityError: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+____________ ERROR at setup of test_delete_dispositivo_real_global _____________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+
+The above exception was the direct cause of the following exception:
+checkouters/tests/test_enpoints.py:26: in superadmin_user
+    get_tenant_model().objects.create(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:663: in create
+    obj.save(force_insert=True, using=self.db)
+env/lib/python3.12/site-packages/django_tenants/models.py:114: in save
+    super().save(*args, **kwargs)
+env/lib/python3.12/site-packages/django/db/models/base.py:902: in save
+    self.save_base(
+env/lib/python3.12/site-packages/django/db/models/base.py:1008: in save_base
+    updated = self._save_table(
+env/lib/python3.12/site-packages/django/db/models/base.py:1169: in _save_table
+    results = self._do_insert(
+env/lib/python3.12/site-packages/django/db/models/base.py:1210: in _do_insert
+    return manager._insert(
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.IntegrityError: duplicate key value violates unique constraint "companies_company_schema_name_key"
+E   DETAIL:  Key (schema_name)=(public) already exists.
+=================================== FAILURES ===================================
+______________________ test_crear_dispositivo_autenticado ______________________
+checkouters/tests/test_dispositivos.py:13: in test_crear_dispositivo_autenticado
+    capacidad = Capacidad.objects.create(modelo=modelo, tamaño="128 GB", precio_estimado=500)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/base.py:569: in __init__
+    raise TypeError(
+E   TypeError: Capacidad() got unexpected keyword arguments: 'precio_estimado'
+---------------------------- Captured stderr setup -----------------------------
+Creating test database for alias 'default'...
+__________________________ test_capacidades_sin_auth ___________________________
+checkouters/tests/test_enpoints.py:65: in test_capacidades_sin_auth
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <HttpResponseNotFound status_code=404, "text/html; charset=utf-8">.status_code
+----------------------------- Captured stdout call -----------------------------
+🧭 Middleware activado. Cargando tenant: None
+🛠️ Admin URLs loaded
+[33m⚠️ [404] GET /capacidades-por-modelo/ | 142ms | IP: 127.0.0.1 | Host: testserver | X-Tenant: —
+Not Found: /capacidades-por-modelo/
+Not Found: /capacidades-por-modelo/
+------------------------------ Captured log call -------------------------------
+INFO     django_test_app.logging_utils:logging_utils.py:18 [33m⚠️ [404] GET /capacidades-por-modelo/ | 142ms | IP: 127.0.0.1 | Host: testserver | X-Tenant: —
+WARNING  django.request:log.py:253 Not Found: /capacidades-por-modelo/
+_______________________________ test_delete_user _______________________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+
+The above exception was the direct cause of the following exception:
+tests/test_tenants/test_models/test_profilemanager.py:58: in test_delete_user
+    TenantUser.objects.delete_user(tenant_user)
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:380: in delete_user
+    tenant.remove_user(user_obj)
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+___________________________ test_user_deleted_signal ___________________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+
+The above exception was the direct cause of the following exception:
+tests/test_tenants/test_models/test_signals.py:23: in test_user_deleted_signal
+    TenantUser.objects.delete_user(tenant_user)
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:380: in delete_user
+    tenant.remove_user(user_obj)
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+_______________________________ test_user_delete _______________________________
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_models/test_userprofile.py", line 28, in test_user_delete
+  |     @given(django.from_model(TenantUser))
+  |                    ^^^
+  |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/hypothesis/core.py", line 2087, in wrapped_test
+  |     raise the_error_hypothesis_found
+  | ExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    |     return getattr(self.get_queryset(), name)(*args, **kwargs)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 946, in get_or_create
+    |     return self.get(**kwargs), False
+    |            ^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 629, in get
+    |     num = len(clone)
+    |           ^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 366, in __len__
+    |     self._fetch_all()
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 1949, in _fetch_all
+    |     self._result_cache = list(self._iterable_class(self))
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    |     results = compiler.execute_sql(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1623, in execute_sql
+    |     cursor.execute(sql, params)
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    |     return self._execute_with_wrappers(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    |     return executor(sql, params, many, context)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    |     with self.db.wrap_database_errors:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    |     raise dj_exc_value.with_traceback(traceback) from exc_value
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | while generating 'instance' from from_model(TenantUser)
+    +---------------- 2 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    |     return getattr(self.get_queryset(), name)(*args, **kwargs)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 946, in get_or_create
+    |     return self.get(**kwargs), False
+    |            ^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 629, in get
+    |     num = len(clone)
+    |           ^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 366, in __len__
+    |     self._fetch_all()
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 1949, in _fetch_all
+    |     self._result_cache = list(self._iterable_class(self))
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    |     results = compiler.execute_sql(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1623, in execute_sql
+    |     cursor.execute(sql, params)
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    |     return self._execute_with_wrappers(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    |     return executor(sql, params, many, context)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    |     with self.db.wrap_database_errors:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    |     raise dj_exc_value.with_traceback(traceback) from exc_value
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | while generating 'instance' from from_model(TenantUser)
+    +------------------------------------
+________________________ test_permissions_mixin_facade _________________________
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+
+The above exception was the direct cause of the following exception:
+tests/test_tenants/test_permission_models.py:32: in test_permissions_mixin_facade
+    public_tenant.remove_user(tenant_user)
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E   LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                ^
+=============================== warnings summary ===============================
+env/lib/python3.12/site-packages/_pytest/config/__init__.py:1533
+  /home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/_pytest/config/__init__.py:1533: PytestConfigWarning: No files were found in testpaths; consider removing or adjusting your testpaths configuration. Searching recursively from the current directory instead.
+    self.args, self.args_source = self._decide_args(
+
+env/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:445
+  /home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:445: PytestRemovedIn9Warning: Marks applied to fixtures have no effect
+  See docs: https://docs.pytest.org/en/stable/deprecations.html#applying-a-mark-to-a-fixture-function
+    return _orig_call(self, function)
+
+tests/test_tenants/test_utils.py:33
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:33: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:52
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:52: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:69
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:69: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:91
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:91: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:108
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:108: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:127
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED checkouters/tests/test_dispositivos.py::test_crear_dispositivo_autenticado
+FAILED checkouters/tests/test_enpoints.py::test_capacidades_sin_auth - assert...
+FAILED tests/test_tenants/test_models/test_profilemanager.py::test_delete_user
+FAILED tests/test_tenants/test_models/test_signals.py::test_user_deleted_signal
+FAILED tests/test_tenants/test_models/test_userprofile.py::test_user_delete
+FAILED tests/test_tenants/test_permission_models.py::test_permissions_mixin_facade
+ERROR checkouters/tests/test_enpoints.py::test_get_dispositivos - django.db.u...
+ERROR checkouters/tests/test_enpoints.py::test_mi_dashboard - django.db.utils...
+ERROR checkouters/tests/test_enpoints.py::test_cambiar_contraseña - django.db...
+ERROR checkouters/tests/test_enpoints.py::test_post_dispositivo_real_global
+ERROR checkouters/tests/test_enpoints.py::test_delete_dispositivo_real_global
+======== 6 failed, 43 passed, 8 warnings, 5 errors in 93.27s (0:01:33) =========

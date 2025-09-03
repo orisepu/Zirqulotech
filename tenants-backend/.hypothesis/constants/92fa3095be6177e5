@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+[100, 253, 'B2B', 'B2C', 'Business to Business', 'Business to Consumer', 'Company', 'Domain', 'ID', 'Tenant URL Name', 'abstract', 'created', 'description', 'domain', 'id', 'is_primary', 'modified', 'name', 'schema_name', 'slug', 'tipo_cliente', 'type', 'type1']

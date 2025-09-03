@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0021_remove_tienda_ubicacion_tienda_direccion_calle_and_more.py
+# hypothesis_version: 6.136.7
+
+[100, 255, 'checkouters', 'direccion_calle', 'direccion_cp', 'direccion_pais', 'direccion_piso', 'direccion_poblacion', 'direccion_provincia', 'direccion_puerta', 'responsable', 'tienda', 'tiendas_responsables', 'ubicacion']

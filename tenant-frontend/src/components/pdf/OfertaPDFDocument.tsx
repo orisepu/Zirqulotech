@@ -1,0 +1,177 @@
+import {
+  Document, Page, Text, View, StyleSheet, Image
+} from '@react-pdf/renderer';
+
+const styles = StyleSheet.create({
+  page: { padding: 30, fontSize: 10, fontFamily: 'Helvetica' },
+  logo: { width: 100, marginBottom: 10, alignSelf: 'center' },
+  title: { fontSize: 16, marginBottom: 12, fontWeight: 'bold', textAlign: 'center' },
+  subinfo: { fontSize: 10, marginBottom: 2 },
+  sectionHeader: { fontSize: 12, fontWeight: 'bold', marginTop: 20, marginBottom: 6 },
+  twoColumns: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f0f0f0',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    borderBottomStyle: 'solid',
+    paddingVertical: 5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e0e0e0',
+    borderBottomStyle: 'solid',
+    paddingVertical: 4,
+  },
+  cellModelo: { flex: 9, paddingRight: 15 },
+  cellCapacidad: { flex: 2, paddingRight: 5 },
+  cellImei: { flex: 4, paddingRight: 5 },
+  cellPrecio: { flex: 2, textAlign: 'right', paddingRight: 5 },
+  total: {
+    marginTop: 10,
+    fontSize: 11,
+    textAlign: 'right',
+    fontWeight: 'bold',
+    backgroundColor: '#f6f6f6',
+    padding: 4,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 30,
+    right: 30,
+    fontSize: 8,
+    textAlign: 'left',
+  },
+});
+
+export default function OfertaPDFDocument({
+  dispositivos,
+  total,
+  nombre,
+  oportunidad,
+  tienda,
+  fecha = new Date(),
+  logoUrl,
+}: {
+  dispositivos: any[],
+  total: number,
+  nombre: string,
+  oportunidad?: any,
+  tienda?: any,
+  cif?: any,
+  calle?: string,
+  fecha?: Date,
+  logoUrl?: string,
+}) {
+  const fechaTexto = fecha.toLocaleDateString('es-ES');
+  const cliente = oportunidad.cliente;
+  const contacto = oportunidad.persona_contacto;
+  const correo = oportunidad.correo_recogida;
+  const direccion = [
+    oportunidad.calle,
+    oportunidad.piso && `Piso ${oportunidad.piso}`,
+    oportunidad.puerta && `Puerta ${oportunidad.puerta}`,
+    oportunidad.poblacion,
+    oportunidad.provincia,
+    oportunidad.codigo_postal
+  ].filter(Boolean).join(', ');
+
+  const renderTableHeader = () => (
+    <View style={styles.tableHeader} wrap={false}>
+      <Text style={styles.cellModelo}>Modelo</Text>
+      <Text style={styles.cellCapacidad}>Capacidad</Text>
+      <Text style={styles.cellImei}>IMEI / SN</Text>
+      <Text style={styles.cellPrecio}>Precio (€)</Text>
+    </View>
+  );
+
+  const renderTableRows = (items: any[]) =>
+    items.map((d, i) => (
+      <View style={styles.tableRow} key={i}>
+        <Text style={styles.cellModelo}>{d.modelo}</Text>
+        <Text style={styles.cellCapacidad}>{d.capacidad}</Text>
+        <Text style={styles.cellImei}>{d.imei || d.numero_serie || '—'}</Text>
+        <Text style={styles.cellPrecio}>
+          {new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0 }).format(d.precio || 0)} €
+        </Text>
+      </View>
+    ));
+
+  // --- Lógica para calcular bloques dinámicos ---
+  const MAX_LINEAS_POR_PAGINA = 20;
+
+  const bloques: any[][] = [];
+  let paginaActual: any[] = [];
+  let lineasActuales = 0;
+
+  dispositivos.forEach((d) => {
+    const lineas = d.modelo.length > 50 ? 2 : 1;
+
+    if (lineasActuales + lineas > MAX_LINEAS_POR_PAGINA) {
+      bloques.push(paginaActual);
+      paginaActual = [];
+      lineasActuales = 0;
+    }
+
+    paginaActual.push(d);
+    lineasActuales += lineas;
+  });
+
+  if (paginaActual.length > 0) {
+    bloques.push(paginaActual);
+  }
+
+  return (
+    <Document>
+      {bloques.map((bloque, idx) => (
+        <Page key={idx} style={styles.page}>
+          {logoUrl && <Image src={logoUrl} style={styles.logo} />}
+          <Text style={styles.title}>Oferta formal</Text>
+          <Text style={styles.subinfo}>Fecha: {fechaTexto}</Text>
+          {nombre && <Text style={styles.subinfo}>Oportunidad: {nombre}</Text>}
+
+          <View style={styles.twoColumns}>
+            <View>
+              <Text style={styles.sectionHeader}>Datos del cliente</Text>
+              <Text style={styles.subinfo}>Razón social: {cliente?.razon_social || '—'}</Text>
+              <Text style={styles.subinfo}>CIF: {cliente?.cif || '—'}</Text>
+              <Text style={styles.subinfo}>Dirección: {direccion || '—'}</Text>
+              <Text style={styles.subinfo}>Contacto: {contacto || '—'}</Text>
+              <Text style={styles.subinfo}>Email: {correo || '—'}</Text>
+            </View>
+            <View>
+              <Text style={styles.sectionHeader}>Nuestros datos</Text>
+              <Text style={styles.subinfo}>Progeek ReCommerce S.L.</Text>
+              <Text style={styles.subinfo}>CIF: B12345678</Text>
+              <Text style={styles.subinfo}>Calle Circular, 42</Text>
+              <Text style={styles.subinfo}>08080 Barcelona</Text>
+              <Text style={styles.subinfo}>info@progeek.es</Text>
+            </View>
+          </View>
+
+          <Text style={styles.sectionHeader}>Resumen de dispositivos</Text>
+          {renderTableHeader()}
+          {renderTableRows(bloque)}
+
+          {idx === bloques.length - 1 && (
+            <>
+              <Text style={styles.total}>Total: {new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0 }).format(total || 0)} €*</Text>
+              <Text style={{ fontSize: 8, marginTop: 4 }}>* Precios válidos durante 15 días naturales desde la fecha de emisión.</Text>
+            </>
+          )}
+
+          <View style={styles.footer} fixed>
+            <View>
+              <Text><Text style={{ fontWeight: 'bold' }}>Excelente:</Text> Sin marcas visibles, 100% funcional.</Text>
+              <Text><Text style={{ fontWeight: 'bold' }}>Muy bueno:</Text> Pequeños signos de uso, totalmente funcional.</Text>
+              <Text><Text style={{ fontWeight: 'bold' }}>Bueno:</Text> Signos visibles de uso, pero funcional.</Text>
+            </View>
+            <Text style={{ marginTop: 4, textAlign: "center" }}>Página {idx + 1} de {bloques.length}</Text>
+          </View>
+        </Page>
+      ))}
+    </Document>
+  );
+}

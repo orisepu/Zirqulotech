@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0026_oportunidad_numero_seguimiento_and_more.py
+# hypothesis_version: 6.136.7
+
+[100, 300, 'checkouters', 'numero_seguimiento', 'oportunidad', 'url_seguimiento']

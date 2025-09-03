@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/migrations/0002_initial.py
+# hypothesis_version: 6.136.7
+
+['0001_initial', 'companies', 'companies.company', 'company', 'domain', 'domains', 'owner', 'tenant']

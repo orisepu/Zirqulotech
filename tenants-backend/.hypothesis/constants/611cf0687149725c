@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/logging_utils.py
+# hypothesis_version: 6.136.7
+
+[300, 400, 500, '—', '⚠️', '✅', '❌', '🔄']

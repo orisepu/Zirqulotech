@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/migrations/0005_plantillacorreo.py
+# hypothesis_version: 6.136.7
+
+[255, 'Confirmación de pago', 'ID', 'Oferta aceptada', 'PlantillaCorreo', 'Recogida generada', 'activo', 'actualizado', 'asunto', 'creado', 'cuerpo', 'evento', 'id', 'oferta_aceptada', 'oferta_enviada', 'pago_realizado', 'progeek', 'recepcion_confirmada', 'recogida_generada', 'recordatorio_pago']

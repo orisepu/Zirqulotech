@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+[100, 255, 'Completado', 'Dispositivo auditado', 'DispositivoAuditado', 'En proceso', 'ID', 'Lote global', 'LoteGlobal', 'Lotes globales', 'No reparable', 'Pendiente', 'Reparacion', 'Valoracion', 'auditado', 'comentarios_auditor', 'completado', 'coste', 'descripcion', 'dispositivo_id', 'en_proceso', 'estado', 'estado_fisico_real', 'fecha', 'fecha_creacion', 'fecha_fin', 'fecha_inicio', 'fecha_recepcion', 'id', 'imei_confirmado', 'lote', 'lote_id', 'no_reparable', 'nombre_lote', 'notas', 'pendiente', 'precio_estimado', 'progeek.loteglobal', 'reparaciones', 'tecnico', 'tenant_slug', 'unique_together', 'valoracion', 'verbose_name', 'verbose_name_plural']

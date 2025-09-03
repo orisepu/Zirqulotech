@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0025_dispositivoreal_fecha_auditoria_and_more.py
+# hypothesis_version: 6.136.7
+
+['Aceptado', 'Cancelada', 'En Proceso', 'Finalizada', 'Pendiente', 'Rechazado', 'Valorado', 'aceptado', 'cancelada', 'checkouters', 'dispositivoreal', 'en_proceso', 'estado', 'fecha_auditoria', 'finalizada', 'pendiente', 'rechazado', 'reparacion', 'usuario_auditor', 'valoracion', 'valorado']

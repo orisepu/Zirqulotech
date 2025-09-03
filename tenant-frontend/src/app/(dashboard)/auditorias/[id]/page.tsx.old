@@ -1,0 +1,350 @@
+'use client';
+
+import { useParams, useSearchParams } from 'next/navigation';
+import { useState, useEffect,useMemo,useCallback} from 'react';
+import {
+  Box, Typography, CircularProgress, Snackbar, Alert,Button
+} from '@mui/material';
+import api from '@/services/api';
+import TablaReactiva from '@/components/TablaReactiva2';
+import { getColumnasAuditoria } from '@/components/TablaColumnas2';
+import { useQuery, useQueryClient,useMutation } from '@tanstack/react-query';
+import type { ColumnDef } from '@tanstack/react-table';
+import { useRouter } from 'next/navigation'
+
+type EstadoFisico = "perfecto" | "bueno" | "aceptable" | "dañado" | string;
+type EstadoFuncional = "funciona" | "no_enciende" | "pantalla_rota" | "otros" | string;
+type SnackbarKind = 'success' | 'error' | 'warning' | 'info';
+type SnackbarState = { open: boolean; message: string; type: SnackbarKind };
+type DispositivoEditable = {
+  id: number;
+  auditado?: boolean;
+  estado_fisico?: string;
+  estado_funcional?: string;
+  estado_valoracion?: string;
+  precio_orientativo?: number;
+  precio_final?: number | null;
+  precio_por_estado?: Record<string, number>;
+  observaciones?: string;
+  editado_por_usuario?: boolean;
+  [k: string]: any;
+};
+
+export default function AuditoriaDispositivosPage() {
+  const router = useRouter()
+  const { id } = useParams();
+  const searchParams = useSearchParams();
+  const tenant = searchParams.get('tenant');
+  const [filaEditando, setFilaEditando] = useState<string | null>(null);
+  const [dispositivosEditables, setDispositivosEditables] = useState<DispositivoEditable[]>([]);
+  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', type: 'success' });
+  const [auditoriaIniciada, setAuditoriaIniciada] = useState(false);
+  
+
+  const queryClient = useQueryClient();
+  
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: ['dispositivos-auditoria', tenant, id],
+    queryFn: async () => {
+      const res = await api.get(`/api/dispositivos-reales-globales/${tenant}/${id}/`);
+      return res.data;
+    },
+    enabled: !!tenant && !!id,
+  });
+
+  const estadoOportunidad = data?.estado || null;
+
+  useEffect(() => {
+    if (data?.dispositivos) {
+      setDispositivosEditables(data.dispositivos);
+    }
+  }, [data?.dispositivos]);
+
+  const calcularEstadoValoracion = useCallback((fisico: EstadoFisico, funcional: EstadoFuncional): string => {
+    const criticos: EstadoFuncional[] = ["no_enciende", "pantalla_rota", "otros"];
+    if (fisico === "dañado" || criticos.includes(funcional)) return "a_revision";
+    if (fisico === "perfecto" && funcional === "funciona") return "excelente";
+    return "bueno";
+  }, []);
+    
+  const mutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return api.put(`/api/dispositivos-reales-globales/${tenant}/editar/${payload.id}/`, payload);
+    },
+    onSuccess: () => {
+      refetch(); // Actualiza la tabla con datos frescos (precio, etc.)
+    },
+    onError: () => {
+      setSnackbar({ open: true, message: 'Error al guardar el estado', type: 'error' });
+    }
+  });
+  const [formTemporal, setFormTemporal] = useState<Record<number, any>>({});
+
+
+  const handleChange = useCallback((id: number, field: string, value: string | number | null) => {
+    setFormTemporal(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
+
+    setDispositivosEditables(prev =>
+      prev.map((d) => {
+        if (d.id !== id) return d;
+        const updated: DispositivoEditable = { ...d };
+
+        if (field === 'precio_final') {
+          // normaliza: "" | null -> null, "1.234,56" -> 1234.56
+          let parsed: number | null;
+          if (value === '' || value === null || value === undefined) {
+            parsed = null;
+          } else if (typeof value === 'number') {
+            parsed = Number.isFinite(value) ? value : null;
+          } else {
+            const n = Number(String(value).replace(/\./g, '').replace(',', '.'));
+            parsed = Number.isFinite(n) ? n : null;
+          }
+          updated.precio_final = parsed;
+          updated.editado_por_usuario = true;
+        } else {
+          (updated as any)[field] = value as any;
+        }
+
+        if (field === 'estado_fisico' || field === 'estado_funcional') {
+          const estado_fisico = field === 'estado_fisico' ? String(value) : updated.estado_fisico;
+          const estado_funcional = field === 'estado_funcional' ? String(value) : updated.estado_funcional;
+
+          if (estado_fisico && estado_funcional) {
+            const nuevaValoracion = calcularEstadoValoracion(
+              estado_fisico as EstadoFisico,
+              estado_funcional as EstadoFuncional
+            );
+            updated.estado_valoracion = nuevaValoracion;
+
+            if (!updated.editado_por_usuario && updated.precio_por_estado) {
+              const sugerido = updated.precio_por_estado[nuevaValoracion.toLowerCase()];
+              if (typeof sugerido !== 'undefined') updated.precio_final = sugerido;
+            }
+          }
+        }
+
+        return updated;
+      })
+    );
+  }, [calcularEstadoValoracion]);
+
+
+
+
+
+  
+  useEffect(() => {
+    if (data?.dispositivos) {
+      const ordenados = [...data.dispositivos].sort(
+        (a: DispositivoEditable, b: DispositivoEditable) => a.id - b.id
+      );
+
+      // Evita sobrescribir si los dispositivos ya son iguales
+      const mismosIds = JSON.stringify(ordenados.map(d => d.id)) === JSON.stringify(dispositivosEditables.map(d => d.id));
+      if (!mismosIds) {
+        
+        setDispositivosEditables(ordenados);
+      } 
+    }
+  }, [data?.dispositivos, dispositivosEditables]);
+
+
+  const guardarAuditoria = async (dispositivo: any, index: number, mostrarSnackbar = true) => {
+    if (!dispositivo.estado_fisico || !dispositivo.estado_funcional) {
+      if (mostrarSnackbar) {
+        setSnackbar({ open: true, message: 'Completa todos los campos', type: 'warning' });
+      }
+      return;
+    }
+    setFormTemporal(prev => {
+      const nuevo = { ...prev };
+      delete nuevo[dispositivo.id];
+      return nuevo;
+    });
+    try {
+      if (!auditoriaIniciada && estadoOportunidad == 'Check in OK') {
+        await api.patch(`/api/oportunidades-globales/${tenant}/${id}/cambiar-estado/`, {
+          estado: 'En revisión',
+          schema: tenant,
+        });
+        setAuditoriaIniciada(true);
+      }
+
+      await api.post(`/api/auditorias-globales/${tenant}/`, {
+        dispositivo_id: dispositivo.id,
+        estado_fisico: dispositivo.estado_fisico,
+        estado_funcional: dispositivo.estado_funcional,
+        observaciones: dispositivo.observaciones || '',
+        precio_final: dispositivo.precio_final || null,
+      });
+
+      setDispositivosEditables((prev) =>
+        prev.map((d) => d.id === dispositivo.id ? { ...d, ...dispositivo, auditado: true } : d)
+      );
+      if (mostrarSnackbar) {
+        setSnackbar({ open: true, message: 'Auditoría guardada', type: 'success' });
+      }
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: 'Error al guardar', type: 'error' });
+    }
+  };
+
+  const {columnas,zoom}  = useMemo(() =>
+    getColumnasAuditoria({
+      handleChange,
+      guardarAuditoria,
+      filaEditando,
+      setFilaEditando,
+      dispositivosEditables,
+      calcularEstadoValoracion,
+      formTemporal,           // ✅ Añadir
+      setFormTemporal 
+    }),
+    [handleChange, guardarAuditoria, filaEditando,dispositivosEditables, calcularEstadoValoracion,formTemporal]
+  );
+  const auditoriaCompleta = dispositivosEditables.every(
+    (d) =>
+      d.auditado &&
+      d.precio_final != null &&
+      d.estado_fisico &&
+      d.estado_funcional
+  );
+
+  const todosIguales = dispositivosEditables.every(
+    (d) => d.precio_final === d.precio_orientativo
+  );
+  const totalDispositivos = dispositivosEditables.length;
+  const dispositivosAuditados = dispositivosEditables.filter(
+    (d) =>
+      d.auditado &&
+      d.precio_final != null &&
+      d.estado_fisico &&
+      d.estado_funcional
+  ).length;
+  
+  
+  return (
+    <Box p={3}>
+      <Typography variant="h5" fontWeight="bold" gutterBottom>
+        Auditoría de dispositivos
+      </Typography>
+
+  
+{/* Zona superior: texto + botones alineados */}
+<Box display="flex" justifyContent="space-between" alignItems="center" gap={2} mb={2} flexWrap="wrap">
+  {/* Texto total auditados */}
+  <Typography variant="body2" color={auditoriaCompleta ? 'success.main' : 'error'}>
+    {auditoriaCompleta ? '✔' : '✖'} {dispositivosAuditados}/{totalDispositivos} auditados
+  </Typography>
+
+  {/* Botones: finalizar auditoría + reenviar */}
+  <Box display="flex" gap={2}>
+    {(estadoOportunidad === 'En revisión' || auditoriaCompleta) && (
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={async () => {
+          const nuevoEstado = todosIguales ? 'Oferta confirmada' : 'Nueva oferta enviada';
+          try {
+            await api.patch(`/api/oportunidades-globales/${tenant}/${id}/cambiar-estado/`, {
+              estado: nuevoEstado,
+              schema: tenant,
+            });
+
+            await api.post(`/api/oportunidades/${id}/enviar-correo-oferta/`, {
+              schema: tenant,
+              evento: "Oferta enviada",
+            });
+
+            // Navegar a la ficha global de la oportunidad
+            const oppId = Array.isArray(id) ? id[0] : String(id);
+            router.push(`/oportunidades/global/${tenant}/${oppId}`);
+          } catch (error) {
+            console.error(error);
+            setSnackbar({
+              open: true,
+              message: 'Error al finalizar la auditoría.',
+              type: 'error',
+            });
+          }
+        }}
+      >
+        Finalizar auditoría
+      </Button>
+    )}
+
+    {estadoOportunidad !== 'En revisión' && (
+      <Button
+        variant="outlined"
+        color="secondary"
+        onClick={async () => {
+          try {
+            await api.post(`/api/oportunidades/${id}/enviar-correo-oferta/`, {
+              schema: tenant,
+              evento: "Oferta enviada",
+            });
+
+            setSnackbar({
+              open: true,
+              message: 'Correo reenviado correctamente.',
+              type: 'success',
+            });
+          } catch (error) {
+            console.error(error);
+            setSnackbar({
+              open: true,
+              message: 'Error al reenviar el correo.',
+              type: 'error',
+            });
+          }
+        }}
+      >
+        Reenviar correo
+      </Button>
+    )}
+  </Box>
+</Box>
+
+{/* Alerta separada, solo si no está completa */}
+{!auditoriaCompleta && (
+  <Alert severity="warning" sx={{ mb: 2 }}>
+    Todos los dispositivos deben estar auditados para aceptar la auditoría.
+  </Alert>
+)}
+
+
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" my={4}><CircularProgress /></Box>
+      ) : (
+       
+        <TablaReactiva<DispositivoEditable>
+          oportunidades={dispositivosEditables}
+          columnas={columnas as unknown as ColumnDef<DispositivoEditable, any>[]}
+          meta={{ data: dispositivosEditables, setData: setDispositivosEditables, zoom }}
+          loading={loading}
+        />
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.type}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}

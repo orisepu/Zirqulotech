@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/users/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+[128, 254, '0001_initial', 'Email Address', 'GuidUser', 'ID', 'TenantUser', 'abstract', 'active', 'companies', 'companies.company', 'email', 'guid', 'guid_users_set', 'id', 'is_active', 'is_verified', 'last login', 'last_login', 'name', 'password', 'tenants', 'user_set', 'verified']

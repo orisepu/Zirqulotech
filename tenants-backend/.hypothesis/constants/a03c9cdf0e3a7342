@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/productos/models.py
+# hypothesis_version: 6.136.7
+
+[100, 255, 'año', 'capacidades', 'descripcion', 'modelo', 'pantalla', 'procesador', 'tamaño', 'tipo']

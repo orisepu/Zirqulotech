@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/migrations/0003_userglobalrole_roles_por_tenant.py
+# hypothesis_version: 6.136.7
+
+['0002_userglobalrole', 'progeek', 'roles_por_tenant', 'userglobalrole']

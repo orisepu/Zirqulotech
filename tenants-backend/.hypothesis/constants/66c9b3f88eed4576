@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0019_dispositivoreal.py
+# hypothesis_version: 6.136.7
+
+[100, '0001_initial', 'Bueno', 'Dañado', 'DispositivoReal', 'Error de hardware', 'ID', 'No enciende', 'Pantalla rota', 'Perfecto', 'Regular', 'auditado', 'año', 'bueno', 'capacidad', 'checkouters', 'dañado', 'dispositivo_real', 'dispositivos_reales', 'error_hardware', 'estado_fisico', 'estado_funcional', 'fecha_recepcion', 'funciona', 'id', 'imei', 'modelo', 'no_enciende', 'numero_serie', 'observaciones', 'oportunidad', 'origen', 'pantalla_rota', 'perfecto', 'productos', 'productos.capacidad', 'productos.modelo', 'recibido', 'regular']

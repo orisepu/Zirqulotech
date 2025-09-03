@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/admin.py
+# hypothesis_version: 6.136.7
+
+['accion', 'archivo', 'asunto', 'autor', 'año', 'cliente', 'costo_estimado', 'descripcion', 'dispositivo', 'es_manager', 'estado', 'estado_valoracion', 'fecha', 'fecha_creacion', 'fecha_envio', 'fecha_subida', 'imei', 'modelo', 'modelo__descripcion', 'nombre', 'numero_serie', 'precio_b2b', 'precio_orientativo', 'responsable', 'subido_por', 'tamaño', 'tienda', 'tipo', 'user_permissions', 'usuario', 'usuario__email']

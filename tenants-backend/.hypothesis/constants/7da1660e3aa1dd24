@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/serializers.py
+# hypothesis_version: 6.136.7
+
+['Desconocido', '__all__', 'activo', 'asunto', 'auditoria', 'auditoria.fecha', 'calle', 'cliente', 'codigo_postal', 'comentarios_auditor', 'cuerpo', 'dispositivo_id', 'email', 'estado', 'estado_fisico_real', 'evento', 'fecha', 'fecha_creacion', 'hashid', 'horario_recogida', 'id', 'imei_confirmado', 'instrucciones', 'name', 'nombre', 'numero', 'numero_seguimiento', 'persona_contacto', 'piso', 'poblacion', 'precio_estimado', 'provincia', 'puerta', 'tecnico', 'tecnico_nombre', 'telefono_contacto', 'tenant_slug', 'tienda', 'url_seguimiento', 'uuid', 'valor_total', 'valor_total_final']

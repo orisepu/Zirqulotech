@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/kpisutils.py
+# hypothesis_version: 6.136.7
+
+[0.0, 100, 400, '-total', '0.10', 'Cancelado', 'Factura recibida', 'Pagado', 'Pendiente', 'Pendiente de pago', 'Sin asignar', 'agrupacion_por', 'cancelado', 'cantidad', 'comision_total', 'detail', 'dispositivos', 'día', 'es_superadmin', 'estado', 'estado_estetico', 'estado_fisico', 'estado_funcional', 'estado_minimo', 'fecha', 'fecha_creacion', 'fecha_fin', 'fecha_inicio', 'granularidad', 'grupo', 'id', 'media_horas', 'mes', 'metrica', 'modelo', 'modelo__descripcion', 'numero_dispositivos', 'numero_oportunidades', 'numero_respuestas', 'oportunidad', 'oportunidades', 'porcentaje', 'precio_orientativo', 'rechazadas', 'schema', 'tasa', 'tienda', 'tienda_id', 'total', 'total_pagado', 'totales', 'usuario', 'usuario_id', 'valor', 'valor_total']

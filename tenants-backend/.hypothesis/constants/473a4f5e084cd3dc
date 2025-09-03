@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0003_dispositivo_cantidad.py
+# hypothesis_version: 6.136.7
+
+['0002_initial', 'cantidad', 'checkouters', 'dispositivo']

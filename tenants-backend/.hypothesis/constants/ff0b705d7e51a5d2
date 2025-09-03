@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/kpis.py
+# hypothesis_version: 6.136.7
+
+[0.0, 100, 400, 3600, '%B', '%d/%m/%Y', '-total', 'Aceptado', 'Cancelado', 'Contrato', 'Devolución iniciada', 'En revisión', 'En tránsito', 'Equipo enviado', 'Estado no válido', 'Factura recibida', 'Fechas inválidas', 'Nueva oferta enviada', 'Nuevo contrato', 'Oferta confirmada', 'Pagado', 'Pendiente', 'Pendiente de pago', 'Pendiente factura', 'Rechazada', 'Recibido', 'Recogida generada', 'Sin nombre', '__', '__orden', 'cambio_estado', 'cancelado', 'cantidad', 'dia', 'error', 'estado', 'estado_fin', 'estado_inicio', 'estado_minimo', 'fecha', 'fecha_creacion', 'fecha_fin', 'fecha_inicio', 'finalizadas', 'granularidad', 'grupo', 'id', 'mes', 'modelo__descripcion', 'pk', 'precio_orientativo', 'promedio', 'semana', 'tasa_conversion', 'tiempo', 'tiempo_medio_horas', 'tienda', 'total', 'usuario', 'usuario__name']

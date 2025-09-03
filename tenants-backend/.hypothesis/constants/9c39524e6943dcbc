@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/migrations/0004_remove_userglobalrole_roles_por_tenant_rolportenant.py
+# hypothesis_version: 6.136.7
+
+[100, 'Auditor', 'Empleado', 'ID', 'Manager', 'Rol por tenant', 'RolPorTenant', 'Roles por tenant', 'auditor', 'empleado', 'id', 'manager', 'progeek', 'rol', 'roles', 'roles_por_tenant', 'tenant_slug', 'tienda_id', 'unique_together', 'user_role', 'userglobalrole', 'verbose_name', 'verbose_name_plural']

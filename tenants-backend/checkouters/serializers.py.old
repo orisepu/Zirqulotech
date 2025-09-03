@@ -1,0 +1,810 @@
+from rest_framework import serializers
+from .models import (
+    Dispositivo, Oportunidad, UserTenantExtension, Tienda, HistorialOportunidad, DispositivoReal,
+    Documento, Cliente, ComentarioOportunidad, ComentarioCliente,B2CContrato,validar_imei,LegalTemplate
+    # Valoracion, Reparacion, ConsultaCliente, NotaInterna, HistorialCambio
+)
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from productos.models import Modelo, Capacidad
+from django_test_app.companies.models import Company
+from django.contrib.auth import get_user_model
+from .kpisutils import (
+    calcular_valores_por_usuario,
+    calcular_valores_por_tienda,
+      calcular_totales_generales,
+      calcular_tasa_conversion,
+      calcular_tiempo_respuesta,
+      calcular_tiempo_hasta_recogida,
+      obtener_pipeline,
+    obtener_rechazos,
+    obtener_ranking_productos,
+    calcular_resumen_por_usuario,
+    calcular_resumen_por_tienda,
+    calcular_porcentaje_rechazo,
+    calcular_series_temporales,
+    calcular_total_pagado,
+)
+from collections import OrderedDict
+from progeek.models import RolPorTenant
+from progeek.models import UserGlobalRole
+from django.db import connection
+from tenant_users.permissions.models import UserTenantPermissions
+from tenant_users.tenants.utils import get_current_tenant
+from hashids import Hashids
+from django.conf import settings
+from decimal import Decimal
+from django.db.models import Sum
+from django_tenants.utils import get_tenant_model, schema_context, get_public_schema_name
+from django.db.models import Q
+from django.utils import timezone
+from .utils.dni import validar_dni_nie, validar_cif, detectar_y_validar_documento
+import re
+hashids = Hashids(
+    salt=settings.SECRET_KEY,
+    min_length=10,
+    alphabet="0123456789ABCDEF"  # ✅ tiene 16 caracteres únicos
+
+)
+# Regex básico para DNI/NIE español (puedes adaptarlo)
+DNI_REGEX = re.compile(r"^[0-9XYZ][0-9]{7}[A-Z]$", re.IGNORECASE)
+# Teléfono simple: dígitos (permite + y espacios, los quitamos antes de validar)
+PHONE_REGEX = re.compile(r"^\+?\d{6,15}$")
+User = get_user_model()
+      
+class HashidRelatedField(serializers.RelatedField):
+    def to_representation(self, value):
+        return hashids.encode(value.id)
+
+    def to_internal_value(self, data):
+        try:
+            decoded = hashids.decode(data)
+            if not decoded:
+                raise serializers.ValidationError("Hashid inválido")
+            return self.get_queryset().get(id=decoded[0])
+        except Oportunidad.DoesNotExist:
+            raise serializers.ValidationError("No se encontró el objeto")
+        
+class DocumentoSerializer(serializers.ModelSerializer):
+    archivo = serializers.FileField(required=True)
+    oportunidad = serializers.PrimaryKeyRelatedField(queryset=Oportunidad.objects.all())
+
+    class Meta:
+        model = Documento
+        fields = [
+            "id", "archivo", "tipo", "fecha_subida",
+            "subido_por", "oportunidad"
+        ]
+        read_only_fields = ["id", "fecha_subida", "subido_por"]
+    def get_archivo(self, obj):
+        if obj.archivo:
+            url = obj.archivo.url
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(url).replace('http://', 'https://')
+            return settings.DOMAIN + url  # fallback
+        return None
+
+class ClienteSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cliente
+        fields = '__all__'
+
+class UsuarioPerfilSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "email")
+        read_only_fields = ("id", "username")
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['username'] = user.username
+        return token
+
+class ModeloSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Modelo
+        fields = '__all__'
+
+class CapacidadSerializer(serializers.ModelSerializer):
+    precio = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Capacidad
+        fields = ['id', 'tamaño', 'precio']
+
+    def get_precio(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+
+        # Leer oportunidad desde query (?oportunidad=7 o ?uuid=...)
+        opp_id = request.query_params.get('oportunidad')
+        opp_uuid = request.query_params.get('uuid')
+
+        canal = None
+        if opp_id or opp_uuid:
+            try:
+                if opp_id:
+                    opp = Oportunidad.objects.select_related('cliente').get(id=opp_id)
+                else:
+                    opp = Oportunidad.objects.select_related('cliente').get(uuid=opp_uuid)
+                canal_raw = (getattr(opp.cliente, 'canal', '') or '').upper()
+                if canal_raw in ('B2B','B2C'):
+                    canal = canal_raw
+                else:
+                    tipo = (getattr(opp.cliente, 'tipo_cliente','') or '').lower()
+                    canal = 'B2B' if tipo == 'empresa' else 'B2C'
+            except Oportunidad.DoesNotExist:
+                pass
+
+        # Elegir precio según canal; con fallbacks razonables
+        if canal == 'B2C':
+            return getattr(obj, 'precio_b2c', None) or getattr(obj, 'precio', None) or getattr(obj, 'precio_estimado', None)
+        # B2B por defecto
+        return getattr(obj, 'precio_b2b', None) or getattr(obj, 'precio_estimado', None) or getattr(obj, 'precio', None)
+
+class DispositivoSerializer(serializers.ModelSerializer):
+    modelo = ModeloSerializer(read_only=True)
+    modelo_id = serializers.PrimaryKeyRelatedField(
+        queryset=Modelo.objects.all(), write_only=True, source='modelo'
+    )
+
+    capacidad = CapacidadSerializer(read_only=True)
+    capacidad_id = serializers.PrimaryKeyRelatedField(
+        queryset=Capacidad.objects.all(), write_only=True, source='capacidad'
+    )
+    imei = serializers.CharField(allow_blank=True, required=False)
+    
+    def validate_imei(self, v):
+        v = (v or '').strip()
+        if not v:
+            return v
+        # si tienes validar_imei(v): úsalo aquí
+        # validar_imei(v)
+
+        oportunidad = self.initial_data.get('oportunidad') or getattr(self.instance, 'oportunidad_id', None)
+        if oportunidad:
+            exists = Dispositivo.objects.filter(
+                oportunidad_id=oportunidad, imei=v
+            ).exclude(pk=getattr(self.instance, 'pk', None)).exists()
+            if exists:
+                raise serializers.ValidationError('Este IMEI ya está en esta oportunidad.')
+        return v
+    class Meta:
+        model = Dispositivo
+        fields = [
+            'id', 'modelo', 'modelo_id', 'capacidad', 'capacidad_id',
+            'tipo', 'estado_fisico', 'estado_funcional', 'estado_valoracion',
+            'precio_orientativo', 'fecha_creacion', 'imei', 'numero_serie',
+            'fecha_caducidad', 'oportunidad', 'cantidad'
+        ]
+
+class ComentarioClienteSerializer(serializers.ModelSerializer):
+    autor_nombre = serializers.CharField(source="autor.get_full_name", read_only=True)
+
+    class Meta:
+        model = ComentarioCliente
+        fields = ["id", "texto", "autor", "autor_nombre", "fecha", "cliente"]
+        read_only_fields = ["autor", "fecha"]
+
+    def validate_cliente(self, value):
+        if not value:
+            raise serializers.ValidationError("El cliente es obligatorio.")
+        return value
+
+class ComentarioOportunidadSerializer(serializers.ModelSerializer):
+    autor_nombre = serializers.CharField(source='autor.get_full_name', read_only=True)
+
+    class Meta:
+        model = ComentarioOportunidad
+        fields = "__all__"
+        read_only_fields = ['fecha', 'autor_nombre']
+
+class OportunidadSerializer(serializers.ModelSerializer):
+    facturas = serializers.SerializerMethodField()
+    valor_total_final = serializers.SerializerMethodField()
+
+    dispositivos = DispositivoSerializer(
+        many=True,
+        read_only=True,
+        source="dispositivos_oportunidad",  # related_name en el modelo
+    )
+
+    comentarios = ComentarioOportunidadSerializer(many=True, read_only=True)
+    cliente = ClienteSimpleSerializer(read_only=True)
+    hashid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Oportunidad
+        fields = "__all__"
+        read_only_fields = ["usuario", "fecha_creacion"]
+
+    def get_hashid(self, obj):
+        return obj.hashid
+
+    def get_facturas(self, obj):
+        return DocumentoSerializer(
+            obj.documentos.filter(tipo="factura"), many=True, context=self.context
+        ).data
+
+    def get_valor_total_final(self, obj):
+        # Agregado en BD para evitar N+1 y problemas de precisión
+        agg = obj.dispositivos_reales.aggregate(s=Sum("precio_final"))
+        return float(agg["s"] or 0)      
+
+class ClienteSerializer(serializers.ModelSerializer):
+    comentarios = ComentarioClienteSerializer(many=True, read_only=True)
+    oportunidades = OportunidadSerializer(many=True, read_only=True)
+    tienda_nombre = serializers.CharField(source="tienda.nombre", read_only=True)
+    display_name = serializers.SerializerMethodField(read_only=True)
+    identificador_fiscal = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Cliente
+        # Nota: usamos lista explícita para incluir los MethodFields
+        fields = [
+            "id",
+            "canal", "tipo_cliente",
+            # Empresa
+            "razon_social", "cif", "contacto", "posicion",
+            # Autónomo / Particular
+            "nombre", "apellidos", "dni_nie", "nif", "nombre_comercial",
+            # Contacto general
+            "correo", "telefono", "tienda", "tienda_nombre",
+            # Contacto financiero
+            "contacto_financiero", "telefono_financiero", "correo_financiero",
+            # Empresa
+            "numero_empleados",
+            # Dirección fiscal
+            "direccion_calle", "direccion_piso", "direccion_puerta",
+            "direccion_cp", "direccion_poblacion", "direccion_provincia", "direccion_pais",
+            # Consentimientos / sector
+            "aceptaciones", "vertical", "vertical_secundaria",
+            # Relacionados (read-only)
+            "comentarios", "oportunidades",
+            # Derivados
+            "display_name", "identificador_fiscal",
+        ]
+        read_only_fields = ["tienda_nombre", "comentarios", "oportunidades"]
+
+    def validate(self, attrs):
+        # Tipo y canal actuales (payload o instancia)
+        tipo = attrs.get("tipo_cliente") or getattr(self.instance, "tipo_cliente", None)
+        canal = attrs.get("canal") or getattr(self.instance, "canal", None)
+
+        # 1) Reglas de obligatorios por tipo
+        requeridos = []
+        if tipo == Cliente.TipoCliente.EMPRESA:
+            requeridos = ["razon_social", "cif", "contacto", "correo"]
+        elif tipo == Cliente.TipoCliente.AUTONOMO:
+            requeridos = ["nombre", "apellidos", "nif", "correo"]
+        elif tipo == Cliente.TipoCliente.PARTICULAR:
+            requeridos = ["nombre", "apellidos", "dni_nie", "correo"]
+
+        missing = [f for f in requeridos if not (attrs.get(f) or getattr(self.instance, f, None))]
+        if missing:
+            raise serializers.ValidationError({f: "Campo obligatorio para este tipo de cliente." for f in missing})
+
+        # 2) Sincronizar canal con tipo_cliente para cumplir el CheckConstraint
+        esperado = "b2c" if tipo == Cliente.TipoCliente.PARTICULAR else "b2b"
+        if canal and canal != esperado:
+            # Si prefieres forzar en lugar de error, comenta la línea de error y deja la asignación
+            raise serializers.ValidationError({"canal": f"Para tipo_cliente={tipo}, el canal debe ser {esperado}."})
+        attrs["canal"] = canal or esperado
+
+        return attrs
+
+    def get_display_name(self, obj: Cliente) -> str:
+        if obj.tipo_cliente == Cliente.TipoCliente.EMPRESA and obj.razon_social:
+            return obj.razon_social
+        base = f"{(obj.nombre or '').strip()} {(obj.apellidos or '').strip()}".strip()
+        if obj.tipo_cliente == Cliente.TipoCliente.AUTONOMO and obj.nombre_comercial:
+            base = f"{base} · {obj.nombre_comercial}".strip(" ·")
+        return base or "—"
+
+    def get_identificador_fiscal(self, obj: Cliente) -> str:
+        return obj.cif or obj.nif or obj.dni_nie or ""
+
+class UsuarioTenantSerializer(serializers.ModelSerializer):
+    # escritura
+    rol = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    tienda_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    # lectura
+    rol_lectura = serializers.SerializerMethodField(read_only=True)
+    tienda_id_lectura = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = get_user_model()
+        fields = [
+            "id", "email", "name", "password", "rol", "tienda_id",  # escritura
+            "rol_lectura", "tienda_id_lectura", "is_active", "uuid" # lectura
+        ]
+
+    # ---------- helpers ----------
+    def _resolve_tenant_slug(self):
+        """
+        1) Usa request.tenant.schema_name (manager dentro de su tenant)
+        2) Si no hay, usa ?schema=...
+        3) Como último recurso, usa connection.schema_name
+        """
+        request = self.context.get("request")
+        schema = None
+        if request is not None:
+            schema = getattr(getattr(request, "tenant", None), "schema_name", None)
+            if not schema:
+                schema = request.query_params.get("schema")
+        schema = (schema or connection.schema_name or "").lower()
+        return schema or None
+
+    def _ensure_global_role(self, user):
+        return getattr(user, "global_role", None) or UserGlobalRole.objects.create(user=user)
+
+    def _get_role_obj(self, user, tenant_slug):
+        gr = self._ensure_global_role(user)
+        obj, _ = RolPorTenant.objects.get_or_create(
+            user_role=gr,
+            tenant_slug=tenant_slug,
+            defaults={"rol": "empleado", "tienda_id": None},
+        )
+        return obj
+
+    # ---------- lectura ----------
+    def get_rol_lectura(self, user):
+        tenant_slug = self._resolve_tenant_slug()
+        if not tenant_slug:
+            return None
+        try:
+            return user.global_role.roles.get(tenant_slug=tenant_slug).rol
+        except RolPorTenant.DoesNotExist:
+            return None
+
+    def get_tienda_id_lectura(self, user):
+        tenant_slug = self._resolve_tenant_slug()
+        if not tenant_slug:
+            return None
+        try:
+            return user.global_role.roles.get(tenant_slug=tenant_slug).tienda_id
+        except RolPorTenant.DoesNotExist:
+            return None
+
+    # ---------- escritura ----------
+    def create(self, validated_data):
+        tenant_slug = self._resolve_tenant_slug()
+        if not tenant_slug:
+            raise serializers.ValidationError("No se pudo resolver el tenant.")
+
+        rol = (validated_data.pop("rol", "") or "empleado").strip()
+        tienda_id = validated_data.pop("tienda_id", None)
+        password = (validated_data.pop("password", "") or "").strip()
+
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+
+        # 1) Crear usuario SIEMPRE en public
+        with schema_context(public_schema):
+            user = get_user_model().objects.create(
+                email=validated_data["email"],
+                name=validated_data["name"],
+            )
+            if password:
+                user.set_password(password)
+            else:
+                user.set_unusable_password()
+            user.save()
+
+            # asegurar objetos en public
+            gr = self._ensure_global_role(user)
+            # permiso base (tenant-users)
+            UserTenantPermissions.objects.get_or_create(profile=user, defaults={"is_staff": False})
+
+        # 2) vincular al tenant y asignar rol/tienda
+        tenant_model = get_tenant_model()
+        tenant = tenant_model.objects.filter(schema_name=tenant_slug).first()
+        if tenant is None:
+            raise serializers.ValidationError(f"Tenant '{tenant_slug}' no existe.")
+
+        with schema_context(public_schema):
+            user.tenants.add(tenant)  # relación M2M definida por django-tenant-users
+            rpt = self._get_role_obj(user, tenant_slug)
+            rpt.rol = rol
+            rpt.tienda_id = tienda_id
+            rpt.save()
+
+        return user
+
+    def update(self, instance, validated_data):
+        tenant_slug = self._resolve_tenant_slug()
+        if not tenant_slug:
+            raise serializers.ValidationError("No se pudo resolver el tenant.")
+
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+
+        # actualizar datos básicos + password en public
+        name = validated_data.get("name", None)
+        email = validated_data.get("email", None)
+        password = (validated_data.get("password", "") or "").strip()
+        is_active = validated_data.get("is_active", None)
+
+        request = self.context.get("request")
+        if is_active is not None and request and request.user.id == instance.id:
+            raise serializers.ValidationError("No puedes cambiar tu propio estado activo.")
+        
+        with schema_context(public_schema):
+            if name is not None:
+                instance.name = name
+            if email is not None:
+                instance.email = email
+            if password:
+                instance.set_password(password)
+            if is_active is not None:
+                instance.is_active = bool(is_active)
+            instance.save()
+
+            # rol / tienda (escritura opcional)
+            touching_role = False
+            rpt = self._get_role_obj(instance, tenant_slug)
+            if "rol" in validated_data:
+                rpt.rol = validated_data.get("rol")
+                touching_role = True
+            if "tienda_id" in validated_data:
+                rpt.tienda_id = validated_data.get("tienda_id")
+                touching_role = True
+            if touching_role:
+                rpt.save()
+
+        return instance
+
+class TiendaSerializer(serializers.ModelSerializer):
+    responsable = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        allow_null=True,
+        required=False
+    )
+    responsable_nombre = serializers.SerializerMethodField()
+    responsable_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Tienda
+        fields = [
+            "id", "nombre",
+            "direccion_calle", "direccion_piso", "direccion_puerta",
+            "direccion_cp", "direccion_poblacion", "direccion_provincia", "direccion_pais",
+            "responsable", "responsable_nombre",'responsable_email'
+        ]
+
+    def get_responsable_nombre(self, obj):
+        return obj.responsable.name if obj.responsable else None
+    def get_responsable_email(self, obj):
+        return obj.responsable.email if obj.responsable else None
+        
+class HistorialOportunidadSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HistorialOportunidad
+        fields = [
+            'id',
+            'tipo_evento',
+            'descripcion',
+            'estado_anterior',
+            'estado_nuevo',
+            'usuario_nombre',
+            'fecha'
+        ]
+
+    def get_usuario_nombre(self, obj):
+        if obj.usuario:
+            return f"{obj.usuario.name} ".strip() or obj.usuario.username
+        return "Sistema"
+    
+class DashboardManagerSerializer(serializers.Serializer):
+    @staticmethod
+    def collect(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad,agrupacion_por,metrica):
+        return {
+            "valores_por_usuario": calcular_valores_por_usuario(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad),
+            "valores_por_tienda": calcular_valores_por_tienda(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad),
+            "totales": calcular_totales_generales(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo),
+            "tasa_conversion": calcular_tasa_conversion(usuario_id, tienda_id, fecha_inicio, fecha_fin),
+            "tiempo_respuesta": calcular_tiempo_respuesta(usuario_id, tienda_id, fecha_inicio, fecha_fin),
+            "tiempo_hasta_recogida": calcular_tiempo_hasta_recogida(usuario_id, tienda_id, fecha_inicio, fecha_fin),
+            "pipeline": obtener_pipeline(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo),
+            "rechazos": obtener_rechazos(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo),
+            "ranking_productos": obtener_ranking_productos(usuario_id, tienda_id, fecha_inicio, fecha_fin),
+            "resumen_por_usuario": calcular_resumen_por_usuario(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad),
+            "resumen_por_tienda": calcular_resumen_por_tienda(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad),
+            "rechazo_total": calcular_porcentaje_rechazo(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad),
+            "series_temporales": calcular_series_temporales(usuario_id, tienda_id, fecha_inicio, fecha_fin, estado_minimo, granularidad, agrupacion_por, metrica),
+            
+        }
+    
+class DispositivoRealSerializer(serializers.ModelSerializer):
+    modelo_id = serializers.PrimaryKeyRelatedField(
+        queryset=Modelo.objects.all(), source='modelo', write_only=True
+    )
+    capacidad_id = serializers.PrimaryKeyRelatedField(
+        queryset=Capacidad.objects.all(), source='capacidad', write_only=True, required=False, allow_null=True
+    )
+
+    modelo = serializers.CharField(source='modelo.descripcion', read_only=True)
+    capacidad = serializers.CharField(source='capacidad.tamaño', read_only=True)
+    oportunidad = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=Oportunidad.objects.all()
+    )
+    precio_por_estado = serializers.SerializerMethodField()
+    estado_valoracion = serializers.SerializerMethodField()
+    precio_orientativo = serializers.SerializerMethodField()
+    precio_final = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        coerce_to_string=False
+    )
+    class Meta:
+        model = DispositivoReal
+        fields = '__all__'
+
+    def validate_imei(self, v):
+        v = (v or '').strip()
+        if not v:
+            return v
+        # si tienes validar_imei(v): úsalo aquí
+        # validar_imei(v)
+
+        oportunidad = self.initial_data.get('oportunidad') or getattr(self.instance, 'oportunidad_id', None)
+        if oportunidad:
+            exists = Dispositivo.objects.filter(
+                oportunidad_id=oportunidad, imei=v
+            ).exclude(pk=getattr(self.instance, 'pk', None)).exists()
+            if exists:
+                raise serializers.ValidationError('Este IMEI ya está en esta oportunidad.')
+        return v
+    def get_estado_valoracion(self, obj):
+        fisico = obj.estado_fisico
+        funcional = obj.estado_funcional
+        criticos = ['no_enciende', 'pantalla_rota', 'otros']
+        if fisico == 'dañado' or funcional in criticos:
+            return 'A revision'
+        if fisico == 'perfecto' and funcional == 'funciona':
+            return 'Excelente'
+        if fisico == 'bueno' and funcional == 'funciona':
+            return 'Muy bueno'
+        return 'Bueno'
+
+    def get_factor(self, precio):
+        if precio <= 100:
+            return Decimal('0.76')
+        elif precio <= 200:
+            return Decimal('0.77')
+        elif precio <= 300:
+            return Decimal('0.79')
+        elif precio <= 400:
+            return Decimal('0.81')
+        elif precio <= 500:
+            return Decimal('0.83')
+        elif precio <= 750:
+            return Decimal('0.85')
+        elif precio <= 1000:
+            return Decimal('0.87')
+        elif precio <= 1250:
+            return Decimal('0.88')
+        elif precio <= 1500:
+            return Decimal('0.88')
+        else:
+            return Decimal('0.89')
+
+    def get_precio_final(self, estado, base):
+        estado = estado.lower()
+        if not isinstance(base, Decimal):
+            base = Decimal(base)
+        factor = self.get_factor(base)
+        if estado == 'excelente':
+            return round(base)
+        if estado == 'muy bueno':
+            return round(base * factor)
+        if estado == 'bueno':
+            return round(base * factor * factor)
+        return 0
+    def get_precio_por_estado(self, obj):
+        origen = getattr(obj, 'origen', None)
+        if not origen or not origen.precio_orientativoexcelente:
+            return {}
+
+        try:
+            base = Decimal(origen.precio_orientativoexcelente)
+        except:
+            return {}
+
+        return OrderedDict({
+            "excelente": self.get_precio_final("excelente", base),
+            "muy_bueno": self.get_precio_final("muy bueno", base),
+            "bueno": self.get_precio_final("bueno", base),
+            "a_revision": 0,
+        })
+    def get_precio_orientativo(self, obj):
+        origen = getattr(obj, 'origen', None)
+        if not origen or not origen.precio_orientativoexcelente:
+            print(f"[DEBUG] DispositivoReal ID {obj.id}: sin origen asignado")
+            return None
+
+        estado = self.get_estado_valoracion(obj).lower()
+        base = origen.precio_orientativoexcelente
+        precio = self.get_precio_final(estado, base)
+        return precio
+
+class B2CContratoCreateSerializer(serializers.ModelSerializer):
+    cliente_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    oportunidad_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    class Meta:
+        model = B2CContrato
+        fields = "__all__"
+
+    def validate_dni_nie(self, value):
+        if value and not validar_dni_nie(value):
+            raise serializers.ValidationError("DNI/NIE inválido")
+        return value
+
+    def validate_nif(self, value):
+        # NIF persona física = misma validación que DNI
+        if value and not validar_dni_nie(value):
+            raise serializers.ValidationError("NIF inválido")
+        return value
+
+    def validate_cif(self, value):
+        if value and not validar_cif(value):
+            raise serializers.ValidationError("CIF inválido")
+        return value
+
+    # (Opcional) Reglas cruzadas: exigir al menos uno, o según tipo_cliente
+    def validate(self, attrs):
+        # Descomenta si quieres forzar que al menos uno esté presente:
+        if not attrs.get("dni") and not attrs.get("nif") and not attrs.get("cif"):
+             raise serializers.ValidationError("Debe indicar DNI/NIE o NIF o CIF.")
+        return super().validate(attrs)
+    def create(self, validated_data):
+        cliente_id = validated_data.pop("cliente_id", None)
+        oportunidad_id = validated_data.pop("oportunidad_id", None)
+        contrato = B2CContrato(**validated_data)
+        if cliente_id is not None:
+            contrato.cliente_id = cliente_id
+        if oportunidad_id is not None:
+            contrato.oportunidad_id = oportunidad_id
+        contrato.save()
+        return contrato
+
+def _mask_email(email: str) -> str:
+    if not email or "@" not in email:
+        return email or ""
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        masked_local = local[:1] + "•" * max(0, len(local) - 1)
+    else:
+        masked_local = local[0] + "•" * (len(local) - 2) + local[-1]
+    return f"{masked_local}@{domain}"
+
+class B2CContratoDetailSerializer(serializers.ModelSerializer):
+    estado_legible = serializers.SerializerMethodField()
+    dias_restantes_otp = serializers.SerializerMethodField()
+    otp_vigente = serializers.SerializerMethodField()
+    intentos_restantes = serializers.SerializerMethodField()
+    firmado = serializers.SerializerMethodField()
+    url_pdf_firmado = serializers.SerializerMethodField()
+    canal_envio = serializers.SerializerMethodField()
+
+
+    class Meta:
+        model = B2CContrato
+        fields = "__all__"
+        read_only_fields = [f.name for f in B2CContrato._meta.fields] + [
+            "estado_legible",
+            "dias_restantes_otp",
+            "otp_vigente",
+            "intentos_restantes",
+            "firmado",
+            "url_pdf_firmado",
+            "canal_envio","cliente_id", 
+        ]
+
+    def validate_dni_nie(self, value):
+        if value and not validar_dni_nie(value):
+            raise serializers.ValidationError("DNI/NIE inválido")
+        return value
+
+    def validate_nif(self, value):
+        if value and not validar_dni_nie(value):
+            raise serializers.ValidationError("NIF inválido")
+        return value
+
+    def validate_cif(self, value):
+        if value and not validar_cif(value):
+            raise serializers.ValidationError("CIF inválido")
+        return value
+
+    def validate(self, attrs):
+        return super().validate(attrs)
+    
+    def get_estado_legible(self, obj):
+        try:
+            return obj.get_estado_display()
+        except Exception:
+            return obj.estado
+
+    def get_dias_restantes_otp(self, obj):
+        if not getattr(obj, "otp_expires_at", None):
+            return 0
+        now = timezone.now()
+        if now >= obj.otp_expires_at:
+            return 0
+        delta = obj.otp_expires_at - now
+        return max(0, int(delta.total_seconds() // 86400 + (1 if delta.total_seconds() % 86400 else 0)))
+
+    def get_otp_vigente(self, obj):
+        try:
+            return bool(obj.otp_expires_at and timezone.now() < obj.otp_expires_at)
+        except Exception:
+            return False
+
+    def get_intentos_restantes(self, obj):
+        try:
+            return max(0, int(obj.otp_max_intentos) - int(obj.otp_intentos))
+        except Exception:
+            return 0
+
+    def get_firmado(self, obj):
+        return bool(getattr(obj, "firmado_en", None)) and obj.estado == "firmado"
+
+    def get_url_pdf_firmado(self, obj):
+        pdf = getattr(obj, "pdf", None)
+        if not pdf:
+            return None
+        try:
+            url = pdf.url
+        except Exception:
+            return None
+        request = self.context.get("request")
+        return request.build_absolute_uri(url) if request else url
+
+    def get_canal_envio(self, obj):
+        if getattr(obj, "email", None):
+            return _mask_email(obj.email)
+        return getattr(obj, "telefono", None) or ""
+    
+class B2CContratoKYCFlagsSerializer(serializers.ModelSerializer):
+    tiene_dni_anverso = serializers.SerializerMethodField()
+    tiene_dni_reverso = serializers.SerializerMethodField()
+
+    class Meta:
+        model = B2CContrato
+        fields = ("id", "tiene_dni_anverso", "tiene_dni_reverso", "kyc_requerido")
+
+    def get_tiene_dni_anverso(self, obj):
+        return bool(getattr(obj, "dni_anverso", None))
+
+    def get_tiene_dni_reverso(self, obj):
+        return bool(getattr(obj, "dni_reverso", None))
+    
+class B2CContratoSerializer(serializers.ModelSerializer):
+    pdf_url = serializers.SerializerMethodField()
+    pdf_listo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = B2CContrato
+        fields = "__all__"  # o tus campos explícitos + 'pdf_url' y 'pdf_listo'
+
+    def get_pdf_url(self, obj):
+        try:
+            return obj.pdf.url if obj.pdf else None
+        except Exception:
+            return None
+
+    def get_pdf_listo(self, obj):
+        return obj.pdf_listo
+    
+class LegalTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LegalTemplate
+        fields = ["namespace", "slug", "title", "version", "content", "is_active", "updated_at"]
+

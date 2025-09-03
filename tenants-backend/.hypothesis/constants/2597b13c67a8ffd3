@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0010_alter_dispositivo_tipo.py
+# hypothesis_version: 6.136.7
+
+['Mac Pro', 'MacBook', 'Otro', 'checkouters', 'dispositivo', 'iMac', 'iPad', 'iPhone', 'tipo']

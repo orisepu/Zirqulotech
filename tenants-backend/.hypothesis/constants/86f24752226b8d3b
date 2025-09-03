@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/chat/urls.py
+# hypothesis_version: 6.136.7
+
+['cerrar_chat', 'chat/soporte/', 'chats/abiertos/']

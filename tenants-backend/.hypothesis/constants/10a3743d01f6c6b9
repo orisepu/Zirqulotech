@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/utils/createpdf.py
+# hypothesis_version: 6.136.7
+
+[0.5, 0.76, 0.77, 0.79, 0.81, 0.83, 0.85, 0.87, 0.88, 0.89, 100, 120, 160, 170, 200, 230, 270, 300, 400, 500, 750, 1000, 1250, 1500, ' €', '%d/%m/%Y', ',', '.', '0.00', '0.01', '08080 Barcelona', '<b>Bueno (€)</b>', '<b>Cantidad</b>', '<b>Capacidad</b>', '<b>Estado equipo</b>', '<b>Excelente (€)</b>', '<b>Modelo</b>', '<b>Muy bueno (€)</b>', '<b>Total (€)</b>', 'ALIGN', 'BACKGROUND', 'BOTTOMPADDING', 'CENTER', 'CIF: B12345678', 'Calle Circular, 42', 'CellStyle', 'FONTNAME', 'FONTSIZE', 'GRID', 'Heading3', 'Heading4', 'Helvetica-Bold', 'LEFT', 'Normal', 'TEXTCOLOR', 'TOP', 'TOTAL:', 'Title', 'VALIGN', 'cantidad', 'es_ES.UTF-8', 'usuario', '—']

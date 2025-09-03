@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@mui/icons-material": "^7.2.0",
+    "@mui/lab": "^7.0.0-beta.14",
+    "@mui/x-date-pickers": "^8.8.0",
+    "@tanstack/react-table": "^8.21.3",
+    "ag-grid-community": "^34.0.2",
+    "ag-grid-react": "^34.0.2",
+    "dayjs": "^1.11.13",
+    "papaparse": "^5.5.3"
+  }
+}

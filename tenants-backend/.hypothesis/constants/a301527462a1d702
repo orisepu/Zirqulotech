@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/migrations/0006_plantillacorreo_destinatario.py
+# hypothesis_version: 6.136.7
+
+[255, '0005_plantillacorreo', 'destinatario', 'plantillacorreo', 'progeek']

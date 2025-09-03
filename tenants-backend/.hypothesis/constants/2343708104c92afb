@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/productos/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+[100, 255, 'Capacidad', 'ID', 'Modelo', 'año', 'capacidades', 'descripcion', 'id', 'modelo', 'ordering', 'pantalla', 'precio_b2b', 'precio_b2c', 'procesador', 'productos.modelo', 'tamaño', 'tipo', 'unique_together']

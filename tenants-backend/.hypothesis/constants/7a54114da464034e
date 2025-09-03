@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0006_oportunidad_tienda_usertenantextension.py
+# hypothesis_version: 6.136.7
+
+['0001_initial', '0005_tienda', 'ID', 'UserTenantExtension', 'checkouters', 'checkouters.tienda', 'es_manager', 'extension', 'id', 'oportunidad', 'permissions', 'tienda', 'user_permissions']

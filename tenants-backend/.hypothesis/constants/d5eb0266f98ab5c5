@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/users/views.py
+# hypothesis_version: 6.136.7
+
+['Faltan datos.', 'Usuario inactivo.', 'access', 'detail', 'email', 'empresa', 'es_empleado_interno', 'es_superadmin', 'global_role', 'id', 'name', 'password', 'progeek', 'public', 'refresh', 'rol', 'rol_actual', 'roles_por_tenant', 'schema', 'schema_name', 'tenantAccess', 'tienda_id', 'tipo_usuario', 'user']

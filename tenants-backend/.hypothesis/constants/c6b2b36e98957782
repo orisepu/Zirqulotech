@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/settings.py
+# hypothesis_version: 6.136.7
+
+[587, 6379, '/', '/static/', '127.0.0.1', '192.168.1.177', '5432', 'APP_DIRS', 'Authorization', 'BACKEND', 'CONFIG', 'DEBUG', 'DIRS', 'ENGINE', 'HOST', 'INFO', 'NAME', 'OPTIONS', 'PASSWORD', 'PORT', 'USER', 'UTC', 'chat', 'checkouters', 'class', 'companies.Company', 'companies.Domain', 'console', 'context_processors', 'corsheaders', 'default', 'django', 'django.contrib.admin', 'django.contrib.auth', 'django_tenants', 'django_test_app', 'django_test_app.urls', 'es-es', 'format', 'formatters', 'gtrt chye lmis dvmw', 'handlers', 'hosts', 'https://progeek.es', 'level', 'localhost', 'loggers', 'media', 'notificaciones', 'orisepu@gmail.com', 'productos', 'progeek', 'progeek.es', 'propagate', 'root', 'simple', 'smtp.gmail.com', 'static', 'stream', 'style', 'tenant_users.tenants', 'tenantdb', 'tenantpass', 'tenantuser', 'users.TenantUser', 'version', '{']

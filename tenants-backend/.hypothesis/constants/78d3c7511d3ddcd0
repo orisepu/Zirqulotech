@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/urls.py
+# hypothesis_version: 6.136.7
+
+['api-usuarios-list', 'busqueda-global/', 'crear-company', 'crear-company/', 'listar_tenants', 'lotes-globales', 'plantillas-correo', 'plantillascorreo', 'resumen-global/', 'resumen_global', 'tenant_detail', 'tenants/', 'tenants/<int:id>/', 'usuarios/', 'yo', 'yo/']

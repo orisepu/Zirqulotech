@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/chat/views.py
+# hypothesis_version: 6.136.7
+
+[400, 403, 404, 'Chat no encontrado', 'Chat no encontrado.', 'GET', 'No autorizado.', 'POST', 'Sistema', 'autor', 'cliente', 'cliente_id', 'detail', 'enviado', 'error', 'global_role', 'ok', 'oportunidad_id', 'public', 'tenant', 'texto']

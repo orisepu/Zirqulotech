@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/migrations/0005_company_correo_comercial_company_correo_financiero.py
+# hypothesis_version: 6.136.7
+
+[254, '0004_company_goal', 'companies', 'company', 'correo_comercial', 'correo_financiero']

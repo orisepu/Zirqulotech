@@ -1,0 +1,6 @@
+2025-09-03 13:39:33,330 🚀 Descargando Likewize…
+2025-09-03 13:39:37,950 🔑 Cookies obtenidas
+2025-09-03 13:39:38,691 ✅ 82 modelos iPhone
+2025-09-03 13:39:39,372 ✅ 167 modelos iPad
+2025-09-03 13:39:40,226 ✅ 488 modelos Mac
+2025-09-03 13:39:41,239 ❌ ERROR: cannot access local variable 'soft_filter' where it is not associated with a value

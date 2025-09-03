@@ -1,0 +1,7 @@
+2025-09-03 12:59:23,591 🚀 Descargando Likewize…
+2025-09-03 12:59:27,907 🔑 Cookies obtenidas
+2025-09-03 12:59:28,839 ✅ 82 modelos iPhone
+2025-09-03 12:59:29,558 ✅ 167 modelos iPad
+2025-09-03 12:59:30,422 ✅ 488 modelos Mac
+2025-09-03 12:59:35,549 ℹ️ Items no mapeados a capacidad_id: 5
+2025-09-03 12:59:35,549 ✅ Staging completado. Listo para comparar y aplicar desde UI.

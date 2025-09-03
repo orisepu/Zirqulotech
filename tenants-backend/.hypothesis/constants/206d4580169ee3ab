@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0013_oportunidad_direccion_recogida_and_more.py
+# hypothesis_version: 6.136.7
+
+[100, 255, 'checkouters', 'direccion_recogida', 'horario_recogida', 'instrucciones', 'oportunidad', 'persona_contacto', 'telefono_contacto']

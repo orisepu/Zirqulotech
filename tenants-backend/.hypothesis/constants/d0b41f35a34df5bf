@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0014_rename_direccion_recogida_oportunidad_calle_and_more.py
+# hypothesis_version: 6.136.7
+
+[100, 'calle', 'checkouters', 'codigo_postal', 'direccion_recogida', 'numero', 'oportunidad', 'piso', 'poblacion', 'provincia', 'puerta']

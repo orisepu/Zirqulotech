@@ -1,0 +1,111 @@
+'use client'
+import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton } from '@mui/material'
+import { useTheme, alpha } from '@mui/material/styles'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts'
+import { useMemo, useState,useCallback } from 'react'
+
+type Row = { estado: string; count: number; valor: number }
+
+function formatEuro(n: number) {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n || 0)
+}
+
+function formatInt(n: number) {
+  return new Intl.NumberFormat('es-ES').format(Math.round(n || 0))
+}
+
+function CustomTooltip({ active, payload, label, metric }: any) {
+  if (!active || !payload?.length) return null
+  const v = payload[0].value
+  return (
+    <Box sx={{ p: 1, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, boxShadow: 1 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div>{metric === 'valor' ? formatEuro(v) : `${formatInt(v)} ops`}</div>
+    </Box>
+  )
+}
+
+export default function PipelineChart({ data }: { data: Row[] }) {
+  const theme = useTheme()
+  const [metric, setMetric] = useState<'count' | 'valor'>('valor')
+
+  // Orden opcional de estados (ajústalo a tu pipeline real)
+  const ORDER = ['Aceptada', 'Recogida generada', 'En tránsito', 'Recibido', 'En revisión', 'Oferta confirmada', 'Pendiente factura']
+  const sorted = useMemo(() => {
+    if (!data?.length) return []
+    const byOrder = new Map(ORDER.map((e, i) => [e, i]))
+    return [...data].sort((a, b) => (byOrder.get(a.estado) ?? 999) - (byOrder.get(b.estado) ?? 999))
+  }, [data])
+  const labelFormatter = useCallback(
+    (label: React.ReactNode) => {
+      const n = typeof label === 'number' ? label : Number(label ?? 0)
+      return metric === 'valor' ? formatEuro(n) : formatInt(n)
+    },
+    [metric]
+  )
+  const yTickFormatter = (v: number) => (metric === 'valor' ? new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : formatInt(v))
+  const showLabels = (sorted?.length ?? 0) <= 10
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+      <CardHeader
+        title="Pipeline por estado"
+        action={
+          <ToggleButtonGroup size="small" value={metric} exclusive onChange={(_, v) => v && setMetric(v)}>
+            <ToggleButton value="valor">€</ToggleButton>
+            <ToggleButton value="count">Ops</ToggleButton>
+          </ToggleButtonGroup>
+        }
+        sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }}
+      />
+      <CardContent sx={{ height: 320 }}>
+        <Box sx={{ width: '100%', height: '100%' }}>
+          {sorted.length === 0 ? (
+            <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
+              Sin datos para este filtro
+            </Box>
+          ) : (
+            <ResponsiveContainer>
+              <BarChart
+                data={sorted}
+                margin={{ top: 8, right: 16, left: 8, bottom: 24 }}
+                barCategoryGap={18}
+                barGap={4}
+              >
+                {/* Gradiente ligado al tema */}
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={alpha(theme.palette.primary.main, 0.85)} />
+                    <stop offset="100%" stopColor={alpha(theme.palette.primary.main, 0.55)} />
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="estado" tick={{ fontSize: 12 }} interval={0} angle={-15} dy={10} />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={yTickFormatter} />
+                <Tooltip content={<CustomTooltip metric={metric} />} />
+
+                <Bar
+                  dataKey={metric}
+                  fill="url(#barGradient)"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={48}
+                  background={{ fill: alpha(theme.palette.primary.main, 0.06) }}
+                >
+                  {showLabels && (
+                    <LabelList
+                      dataKey={metric}
+                      position="top"
+                      formatter={labelFormatter}
+                      style={{ fontSize: 11 }}
+                    />
+                  )}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  )
+}

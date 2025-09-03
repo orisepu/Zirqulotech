@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/tenant_users/tenants/models.py
+# hypothesis_version: 6.136.7
+
+['0123456789ABCDEF', 'B2B', 'B2C', 'Business to Business', 'Business to Consumer', 'Email Address', 'Tenant URL Name', 'User already exists!', 'active', 'email', 'is_active', 'is_superuser', 'owner', 'tenants', 'user_set', 'verified']

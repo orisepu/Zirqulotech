@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/progeek/plantillas_por_defecto.py
+# hypothesis_version: 6.136.7
+
+['Oferta aceptada', 'Oferta enviada', 'Pago realizado', 'Recepcion confirmada', 'Recogida generada', 'Recogida programada', 'Recordatorio pago', 'Tu oferta está lista', 'asunto', 'cuerpo']

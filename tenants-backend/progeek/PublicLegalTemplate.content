@@ -1,0 +1,42 @@
+{
+  "format": "blocks_v1",
+  "blocks": [
+    { "type": "heading", "level": 1, "text": "CONTRATO DE COMPRA DE DISPOSITIVOS (B2C)" },
+    { "type": "columns", "widths": [0.5, 0.5], "gutter_mm": 4,
+      "left_md": "**Comprador**: {{ operador.nombre }} (CIF {{ operador.cif }})",
+      "right_md": "**Vendedor**: {{ cliente.nombre }} {{ cliente.apellidos }} (DNI {{ cliente.dni_nie }})"
+    },
+    { "type": "spacer", "mm": 4 },
+
+    { "type": "table",
+      "cols": [
+        { "header": "Dispositivo",        "width_mm": 80 },
+        { "header": "IMEI / Nº Serie",    "width_mm": 45 },
+        { "header": "Estado",             "width_mm": 30, "fmt": "capfirst" },
+        { "header": "Precio",             "width_mm": 25, "align": "right", "fmt": "money" }
+      ],
+      "rows": [
+        {
+          "for": { "each": "dispositivos", "as": "d" },
+          "cells": [
+            "{{ d.descripcion|default:d.modelo }}",
+            "{{ d.imei|default:d.serie }}",
+            "{{ d.estado_declarado }}",
+            "{{ d.precio_provisional }}"
+          ]
+        },
+        {
+          "cells": ["", "", "**Total**", "{{ total_dispositivos }}"],
+          "row_style": { "bold": true }
+        }
+      ]
+    },
+
+    { "type": "spacer", "mm": 6 },
+    { "type": "paragraph_md", "text_md": "**Fecha**: {{ now_local|date:\"d/m/Y H:i\" }} · **Nº Contrato**: {{ contrato.numero }}" },
+
+    { "type": "spacer", "mm": 6 },
+    { "type": "heading", "level": 2, "text": "Firma" },
+    { "type": "paragraph_md", "text_md": "El documento se firmará mediante **OTP**. Huella: {{ contrato.otp_hash }} · Ref. KYC: {{ contrato.kyc_ref }}" }
+  ]
+}

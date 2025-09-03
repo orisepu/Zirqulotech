@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/checkouters/migrations/0005_tienda.py
+# hypothesis_version: 6.136.7
+
+[100, 200, 'ID', 'Tienda', 'checkouters', 'id', 'nombre', 'ubicacion']

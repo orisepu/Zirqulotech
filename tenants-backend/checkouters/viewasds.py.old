@@ -1,0 +1,3217 @@
+from rest_framework import viewsets, permissions, generics,serializers
+import logging
+from rest_framework.exceptions import PermissionDenied
+from tenant_users.permissions.models import UserTenantPermissions
+from .models import (
+    Dispositivo, UserTenantExtension, Tienda, HistorialOportunidad, Documento, DispositivoReal,
+    Oportunidad, Cliente, ComentarioCliente, ComentarioOportunidad,B2CContrato,LegalTemplate
+    # Valoracion, Reparacion, ConsultaCliente, NotaInterna, HistorialCambio
+)
+from productos.models import (Modelo, Capacidad)
+from decimal import Decimal, ROUND_HALF_UP
+from .serializers import (
+    DispositivoSerializer, ComentarioOportunidadSerializer, DocumentoSerializer, DispositivoRealSerializer,LegalTemplateSerializer,
+    UsuarioTenantSerializer, TiendaSerializer, HistorialOportunidadSerializer,B2CContratoKYCFlagsSerializer,
+    OportunidadSerializer, ModeloSerializer, CapacidadSerializer, ClienteSerializer, ComentarioClienteSerializer,B2CContratoCreateSerializer, B2CContratoDetailSerializer
+    # ValoracionSerializer, ReparacionSerializer, ConsultaClienteSerializer, NotaInternaSerializer, HistorialCambioSerializer
+)
+from progeek.models import PublicLegalTemplate
+from django.utils.timezone import now
+from checkouters.mixins import SchemaAwareCreateMixin
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from checkouters.permissions import EsTecnicoOAdmin
+from rest_framework.decorators import api_view, permission_classes, renderer_classes, action
+from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer
+from rest_framework import status
+from rest_framework.exceptions import ValidationError
+from rest_framework import filters
+from datetime import timedelta
+from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
+from checkouters.utils.createpdf import generar_pdf_oportunidad
+from django.http import HttpResponse,JsonResponse
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth, TruncWeek, TruncDay
+from rest_framework.views import APIView
+from django.utils.dateparse import parse_date
+from django.db.models import F
+from django.db.models import Count
+from datetime import timedelta, datetime,time
+from collections import defaultdict
+from django.utils.timezone import make_aware
+from progeek.models import UserGlobalRole
+from django.contrib.auth import get_user_model
+from django.db import connection
+from progeek.models import RolPorTenant
+from progeek.utils import enviar_correo
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework.generics import ListAPIView
+from django.views.decorators.csrf import csrf_exempt
+from notificaciones.helpers import notificar_internos_aceptacion
+from checkouters.estado_oportunidad import obtener_transiciones
+from django_tenants.utils import get_tenant_model, schema_context
+from django.db.models import Sum, F, Value, DecimalField,When, IntegerField,Case
+from django.db.models.functions import Coalesce
+from django_tenants.utils import get_public_schema_name
+from .permissions import IsTenantManagerOrSuper
+from .utils.otp import generar_otp, hash_otp, check_otp
+from .utils.pdf import generar_pdf_contrato,persistir_pdf_final
+from ipware import get_client_ip
+from django.core.mail import send_mail
+from django.core.files.base import ContentFile
+from django.conf import settings
+from .utils.images import sanitize_image
+from progeek.models import B2CKycIndex
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
+import django_filters
+from django.core.mail import EmailMessage
+import hashlib
+import uuid
+import re
+import io
+from io import BytesIO
+from pypdf import PdfReader, PdfWriter
+from .services.legal_pdfs import build_condiciones_b2c_pdf
+from django.template import Template, Context,TemplateSyntaxError
+from markdown import markdown
+from django.utils.timezone import localdate
+from django.template import engines
+from django.template import Engine, Context
+import hmac
+from django.shortcuts import redirect
+
+import re, html as html_module
+from reportlab.platypus import Paragraph, Table, TableStyle, Spacer
+from reportlab.lib import colors
+
+
+try:
+    from bs4 import BeautifulSoup  # pip install beautifulsoup4
+except Exception:
+    BeautifulSoup = None
+
+ALLOWED_INLINE = {"b","strong","i","em","u","br","font","a"}
+
+def _sanitize_inline_html(h: str) -> str:
+    if not h:
+        return ""
+    # <strong>/<em> → <b>/<i>
+    h = re.sub(r"<(/?)strong>", r"<\1b>", h, flags=re.I)
+    h = re.sub(r"<(/?)em>", r"<\1i>", h, flags=re.I)
+    # <br> → <br/>
+    h = re.sub(r"<br(?!/)>", "<br/>", h, flags=re.I)
+    # figure.table → su contenido interno
+    h = re.sub(r"<figure[^>]*class=['\"]table['\"][^>]*>(.*?)</figure>", r"\1", h, flags=re.I|re.S)
+
+    # Elimina cualquier tag no permitido (dejamos solo b,i,u,br)
+    def _repl(m):
+        tag = (m.group(1) or "").lower().strip("/")
+        return m.group(0) if tag in ALLOWED_INLINE else ""
+    h = re.sub(r"<\s*/?\s*([a-z0-9]+)(\s+[^>]*)?>", _repl, h, flags=re.I)
+
+    # &nbsp; → NBSP que entiende ReportLab
+    h = h.replace("&nbsp;", "\u00A0")
+    return h.strip()
+
+def _html_cell_to_text(cell_html: str) -> str:
+    # Para celdas de tabla: permitimos <br>, <b>, <i>, <u>
+    cell_html = _sanitize_inline_html(cell_html or "")
+    # Como medida de seguridad, elimina atributos/otras etiquetas que hayan pasado
+    cell_html = re.sub(r"<(?!/?(?:b|i|u|br)\b)[^>]+>", "", cell_html, flags=re.I)
+    return cell_html or "\u00A0"
+
+def _parse_table_html(table_html: str):
+    """
+    Devuelve (data, is_header_present)
+    """
+    inner = re.search(r"<table[^>]*>(.*?)</table>", table_html, flags=re.I|re.S)
+    if not inner:
+        return [[]], False
+    inner = inner.group(1)
+
+    # Cabecera opcional
+    headers = []
+    thead = re.search(r"<thead[^>]*>(.*?)</thead>", inner, flags=re.I|re.S)
+    if thead:
+        hdr_rows = re.findall(r"<tr[^>]*>(.*?)</tr>", thead.group(1), flags=re.I|re.S)
+        for r in hdr_rows:
+            cells = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", r, flags=re.I|re.S)
+            headers = [Paragraph(f"<b>{_html_cell_to_text(c)}</b>", _SAFE_STYLES["Small"]) for c in cells]
+            break  # usamos solo la primera fila de thead
+
+    # Cuerpo
+    body = []
+    tbody = re.search(r"<tbody[^>]*>(.*?)</tbody>", inner, flags=re.I|re.S)
+    tbody_html = tbody.group(1) if tbody else inner  # si no hay tbody, parsea directamente
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tbody_html, flags=re.I|re.S)
+    for r in rows:
+        cells = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", r, flags=re.I|re.S)
+        row = [Paragraph(_html_cell_to_text(c), _SAFE_STYLES["Small"]) for c in cells]
+        if row:
+            body.append(row)
+
+    data = []
+    if headers:
+        data.append(headers)
+    data.extend(body)
+
+    return (data or [[]]), bool(headers)
+
+def editor_html_to_flowables(html: str, styles) -> list:
+    """
+    Convierte el HTML (ya renderizado por Django templates) del editor
+    en una lista de flowables de ReportLab.
+    """
+    global _SAFE_STYLES
+    _SAFE_STYLES = styles  # cache local para _parse_table_html
+
+    flow = []
+    if not html:
+        return flow
+
+    # Normalización rápida
+    html = html.strip()
+    html = re.sub(r"<br(?!/)>", "<br/>", html, flags=re.I)
+    html = html.replace("&nbsp;", "\u00A0")
+
+    # Sustituye cada <table> por un marcador para poder intercalar párrafos y tablas
+    tables = []
+    def _capture_table(m):
+        tables.append(m.group(0))
+        return f"@@TABLE@@{len(tables)-1}@@"
+
+    skeleton = re.sub(r"<table[^>]*>.*?</table>", _capture_table, html, flags=re.I|re.S)
+
+    # Divide por el marcador @@TABLE@@N@@
+    parts = re.split(r"@@TABLE@@(\d+)@@", skeleton)
+
+    i = 0
+    while i < len(parts):
+        if i % 2 == 0:
+            # trozo de párrafo(s) HTML
+            chunk = (parts[i] or "").strip()
+            if chunk:
+                # Rompe por <p>…</p>. Si no hay <p>, mételo tal cual en un párrafo.
+                ps = re.findall(r"<p[^>]*>(.*?)</p>", chunk, flags=re.I|re.S)
+                if ps:
+                    for raw in ps:
+                        txt = _sanitize_inline_html(raw)
+                        if txt:
+                            flow.append(Paragraph(txt, styles["Normal"]))
+                            flow.append(Spacer(1, 6))
+                else:
+                    txt = _sanitize_inline_html(chunk)
+                    if txt:
+                        flow.append(Paragraph(txt, styles["Normal"]))
+                        flow.append(Spacer(1, 6))
+        else:
+            # índice de tabla capturada
+            idx = int(parts[i])
+            table_html = tables[idx]
+            data, has_header = _parse_table_html(table_html)
+
+            # Auto ancho de columnas sencillo: reparte por número de columnas
+            ncols = max((len(r) for r in data), default=1)
+            col_widths = None  # deja que ReportLab calcule; si quieres, pon una lista de anchos
+
+            t = Table(data, colWidths=col_widths, hAlign="LEFT")
+            style_cmds = [
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+                ("LEFTPADDING", (0,0), (-1,-1), 4),
+                ("RIGHTPADDING", (0,0), (-1,-1), 4),
+                ("TOPPADDING", (0,0), (-1,-1), 2),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 2),
+            ]
+            if has_header:
+                style_cmds += [
+                    ("BACKGROUND", (0,0), (-1,0), colors.whitesmoke),
+                    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ]
+            # Heurística: última columna = importes → alineada a derecha
+            try:
+                last_col = max(0, ncols-1)
+                style_cmds.append(("ALIGN", (last_col, 1 if has_header else 0), (last_col, -1), "RIGHT"))
+            except Exception:
+                pass
+
+            t.setStyle(TableStyle(style_cmds))
+            flow.append(t)
+            flow.append(Spacer(1, 8))
+        i += 1
+
+    return flow
+
+def _normalize_editor_html(html: str) -> str:
+    if not html:
+        return ""
+    h = str(html)
+
+    # Quitar el wrapper de CKEditor para tablas
+    h = re.sub(r'<figure[^>]*\bclass=("|\')table\1[^>]*>(.*?)</figure>', r'\2', h, flags=re.I|re.S)
+
+    # <br> → <br/> (ReportLab espera self-closing)
+    h = re.sub(r'<br\s*>', '<br/>', h, flags=re.I)
+
+    # &nbsp; → espacio normal (Paragraph a veces no lo traga bien)
+    h = h.replace("&nbsp;", " ")
+
+    # <div> como párrafos
+    h = re.sub(r'</?div[^>]*>', '', h, flags=re.I)
+
+    # Conseguir saltos: <p></p> → doble salto
+    h = re.sub(r'<p[^>]*>\s*</p>', '<br/><br/>', h, flags=re.I)
+    # El resto de <p> … </p> → mantener contenido + salto
+    h = re.sub(r'<p[^>]*>', '', h, flags=re.I)
+    h = re.sub(r'</p>', '<br/>', h, flags=re.I)
+
+    # headings a bold + salto
+    h = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'<b>\1</b><br/>', h, flags=re.I|re.S)
+
+    # Enlaces: "texto (url)"
+    def _a_to_text(m):
+        href = m.group(1) or ""
+        txt  = re.sub(r"<[^>]+>", "", m.group(2) or "").strip()
+        return f"{txt} ({href})" if txt and href else (txt or href)
+    h = re.sub(r'<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>', _a_to_text, h, flags=re.I|re.S)
+
+    return h.strip()
+
+def _strip_unknown_inline(html: str) -> str:
+    # Elimina cualquier tag que no sea inline permitido (dejamos <table> aparte)
+    def repl(m):
+        tag = (m.group(1) or "").lower().strip("/")
+        return m.group(0) if tag in ALLOWED_INLINE else ""
+    return re.sub(r"<\s*/?\s*([a-z0-9]+)(\s+[^>]*)?>", repl, html, flags=re.I)
+
+def _build_table_from_soup(table, styles):
+    # Construye un Table de ReportLab desde <table>
+    rows = []
+    # thead
+    thead = table.find("thead")
+    if thead:
+        for tr in thead.find_all("tr"):
+            rows.append([ (th.get_text(" ", strip=True) or "") for th in tr.find_all(["th","td"]) ])
+    # tbody / tr sueltos
+    bodies = table.find_all("tbody") or [table]
+    for body in bodies:
+        for tr in body.find_all("tr", recursive=False):
+            cells = []
+            for td in tr.find_all(["td","th"], recursive=False):
+                cells.append(td.get_text(" ", strip=True) or "")
+            if cells:
+                rows.append(cells)
+
+    if not rows:
+        return None
+
+    from reportlab.platypus import Table, TableStyle, Paragraph
+    from reportlab.lib import colors
+    # Ancho por columnas aproximado (ajústalo si quieres)
+    n = max(len(r) for r in rows)
+    # intenta detectar si hay una columna de importe al final para alinear a la derecha
+    col_widths = None  # deja que ReportLab auto-calibre
+
+    t = Table(rows, colWidths=col_widths, hAlign="LEFT")
+    ts = TableStyle([
+        ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("BACKGROUND", (0,0), (-1,0), colors.whitesmoke),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("RIGHTPADDING", (0,0), (-1,-1), 6),
+        ("LEFTPADDING",  (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING",(0,0), (-1,-1), 4),
+    ])
+    # ultima col a la derecha si parece "Precio"
+    try:
+        if rows and (rows[0][-1].lower().startswith("precio") or rows[0][-1].lower().startswith("importe")):
+            ts.add("ALIGN", (-1,1), (-1,-1), "RIGHT")
+    except Exception:
+        pass
+
+    t.setStyle(ts)
+    return t
+
+def editor_html_to_flowables(rendered_html: str, styles):
+    """
+    Convierte el CUERPO HTML ya renderizado por Django template a flowables.
+    Respeta tablas y procesa el resto como Paragraph con <br/>.
+    """
+    from reportlab.platypus import Paragraph, Spacer
+    items = []
+    html = _normalize_editor_html(rendered_html)
+
+    if BeautifulSoup:
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 1) Tablas tal cual
+        for fig in soup.find_all("figure", {"class":"table"}):
+            fig.unwrap()
+        # Procesa por bloques: table → Table; otros → Paragraph
+        for node in soup.contents:
+            if isinstance(node, str):
+                txt = node.strip()
+                if txt:
+                    safe = _strip_unknown_inline(txt)
+                    items.append(Paragraph(safe, styles["Small"]))
+                    items.append(Spacer(1, 2))
+                continue
+
+            if node.name == "table":
+                tbl = _build_table_from_soup(node, styles)
+                if tbl:
+                    items.append(tbl)
+                    items.append(Spacer(1, 6))
+                continue
+
+            # Resto como párrafo (preservando <br/>)
+            safe_html = _strip_unknown_inline(str(node))
+            if safe_html.strip():
+                items.append(Paragraph(safe_html, styles["Small"]))
+                items.append(Spacer(1, 2))
+    else:
+        # Fallback sin BeautifulSoup: partir por <table>…</table> con regex
+        parts = re.split(r'(<table.*?>.*?</table>)', html, flags=re.I|re.S)
+        for chunk in parts:
+            if not chunk.strip():
+                continue
+            if chunk.strip().lower().startswith("<table"):
+                # elimina etiquetas y simplifica a texto tabulado (fallback simple)
+                rows = re.findall(r"<tr[^>]*>(.*?)</tr>", chunk, flags=re.I|re.S)
+                data = []
+                for r in rows:
+                    cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", r, flags=re.I|re.S)
+                    data.append([re.sub(r"<[^>]+>", "", c).strip() for c in cells])
+                from reportlab.platypus import Table, TableStyle
+                from reportlab.lib import colors
+                t = Table(data)
+                t.setStyle(TableStyle([
+                    ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+                    ("BACKGROUND", (0,0), (-1,0), colors.whitesmoke),
+                ]))
+                items.append(t); from reportlab.platypus import Spacer; items.append(Spacer(1,6))
+            else:
+                safe = _strip_unknown_inline(chunk)
+                from reportlab.platypus import Paragraph, Spacer
+                items.append(Paragraph(safe, styles["Small"]))
+                items.append(Spacer(1,2))
+
+    return items
+UUID_REGEX = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
+NUM_REGEX = re.compile(r"^\d+$")
+User = get_user_model()
+OTP_TTL_MINUTES = getattr(settings, "OTP_TTL_MINUTES", 10)
+OTP_COOLDOWN_SECONDS = getattr(settings, "OTP_COOLDOWN_SECONDS", 60)
+logger = logging.getLogger(__name__)
+DEFAULT_NAMESPACE = "default"
+DEFAULT_SLUG = "b2c-condiciones"
+DEFAULT_TEMPLATE_TEXT ="""CONTRATO DE COMPRA DE DISPOSITIVOS (B2C)
+
+Entre:
+- El OPERADOR: {{ operador.nombre }} (CIF {{ operador.cif }}), con domicilio en {{ operador.direccion }}, email {{ operador.email }} y teléfono {{ operador.telefono }}{% if operador.web %}, web: {{ operador.web }}{% endif %}.
+- La EMPRESA (partner): {{ empresa.nombre }}{% if empresa.cif %} (CIF {{ empresa.cif }}){% endif %}, domicilio {{ empresa.direccion }}{% if empresa.email %}, email {{ empresa.email }}{% endif %}{% if empresa.telefono %}, teléfono {{ empresa.telefono }}{% endif %}.
+- El CLIENTE (vendedor): {{ cliente.nombre }} {{ cliente.apellidos }} (DNI/NIE {{ cliente.dni_nie }}), domicilio {{ cliente.direccion }}, email {{ cliente.email }}, teléfono {{ cliente.telefono }}.
+
+Fecha: {{ contrato.fecha }} | Nº Contrato: {{ contrato.numero }}
+
+1. Objeto
+El Cliente vende a la Empresa/Operador los dispositivos descritos en este contrato, con transmisión de la propiedad y del derecho de uso, por el precio acordado.
+
+2. Relación de dispositivos y precio
+{% for d in dispositivos -%}
+- {{ forloop.counter }}. {{ d.modelo }}{% if d.capacidad %} {{ d.capacidad }}{% endif %} | IMEI/Serie: {{ d.imei_serial }} | Estado físico: {{ d.estado_fisico }} | Estado funcional: {{ d.estado_funcional }} | Precio: {{ d.precio }} €
+{% endfor -%}
+Importe total estimado: {{ contrato.importe_total }} €.
+
+3. Diagnóstico y verificación
+La Empresa/Operador verificará IMEI/serie, funcionalidad y estado. Posible segunda oferta en {{ contrato.validez_dias|default:"7" }} días.
+
+4. Propiedad y datos
+El Cliente declara titularidad legítima. Posible borrado certificado de datos.
+
+5. Pago
+Se efectuará tras verificación, o aceptación de segunda oferta.
+
+8. Protección de datos
+Responsables: {{ operador.nombre }}{% if empresa.nombre and empresa.nombre != operador.nombre %} y {{ empresa.nombre }}{% endif %}. Derechos en {{ operador.email }}{% if empresa.email %} y {{ empresa.email }}{% endif %}.
+
+11. Firma electrónica (OTP)
+Huella: {{ contrato.otp_hash }} | Ref KYC: {{ contrato.kyc_ref }}.
+"""
+
+
+    
+def get_or_create_active(namespace, slug):
+    tpl = PublicLegalTemplate.objects.filter(namespace=namespace, slug=slug, is_active=True).first()
+    if not tpl:
+        tpl = PublicLegalTemplate.objects.create(
+            namespace=namespace, slug=slug, title="Plantilla B2C por defecto",
+            version="v1", content=DEFAULT_TEMPLATE_TEXT, is_active=True
+        )
+    return tpl
+
+def _now():
+    return timezone.now()
+
+def _short(obj, n=220):
+    try:
+        s = json.dumps(obj, ensure_ascii=False)
+    except Exception:
+        s = str(obj)
+    return s if len(s) <= n else s[:n] + "…"
+
+def anexar_condiciones(pdf_principal: bytes, tenant_slug: str, version="v1.3", lang="es") -> bytes:
+    with schema_context(tenant_slug):
+        cond = build_condiciones_b2c_pdf(tenant=type("T",(),{"schema_name":tenant_slug,"name":tenant_slug}),
+                                         version=version, lang=lang)
+
+    w = PdfWriter()
+    main = PdfReader(BytesIO(pdf_principal))
+    cond_r = PdfReader(BytesIO(cond["bytes"]))
+    for p in main.pages: w.add_page(p)
+    for p in cond_r.pages: w.add_page(p)
+    out = BytesIO(); w.write(out); out.seek(0)
+    return out.read(), cond["sha256"]
+
+def _deepmerge(a: dict, b: dict) -> dict:
+    out = dict(a or {})
+    for k, v in (b or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deepmerge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+def _load_contrato_via_index(token: str, for_update: bool = False):
+    """
+    Devuelve (contrato, link) si OK o (None, motivo_410) si no.
+    IMPORTANTE: solo LEE dentro del schema del tenant. Cualquier SAVE posterior
+    también debe hacerse dentro de schema_context(link.tenant_slug).
+    """
+    # 1) Resolver en PUBLIC
+    with schema_context(get_public_schema_name()):
+        try:
+            link = B2CKycIndex.objects.get(token=token)
+        except B2CKycIndex.DoesNotExist:
+            return None, "Token no válido."
+
+        if (link.expires_at and _now() >= link.expires_at) or link.revoked_at:
+            return None, "Enlace expirado o ya utilizado."
+        if not link.tenant_slug or not link.contrato_id:
+            return None, "Token sin destino válido."
+
+    # 2) Cargar el contrato en el schema del tenant
+    with schema_context(link.tenant_slug):
+        qs = B2CContrato.objects.all()
+        if for_update:
+            qs = qs.select_for_update()
+        try:
+            contrato = qs.get(id=link.contrato_id)
+        except B2CContrato.DoesNotExist:
+            return None, "Contrato no encontrado."
+
+    return (contrato, link), None
+
+def _load_link(token: str):
+    """
+    Lee en PUBLIC y devuelve (link, None) si OK o (None, motivo_410) si no.
+    NO usa select_for_update aquí.
+    """
+    with schema_context(get_public_schema_name()):
+        try:
+            link = B2CKycIndex.objects.get(token=token)
+        except B2CKycIndex.DoesNotExist:
+            return None, "Token no válido."
+
+        if (link.expires_at and timezone.now() >= link.expires_at) or link.revoked_at:
+            return None, "Enlace expirado o ya utilizado."
+
+        if not link.tenant_slug or not link.contrato_id:
+            return None, "Token sin destino válido."
+
+    return link, None
+
+def generar_pdf_view(request, pk):
+    logger.info(f"➡️ Generando PDF para oportunidad {pk}...")
+
+    try:
+        oportunidad = Oportunidad.objects.select_related('cliente').prefetch_related('dispositivos').get(pk=pk)
+    except Oportunidad.DoesNotExist:
+        logger.error(f"❌ Oportunidad con ID {pk} no encontrada")
+        raise Http404("Oportunidad no encontrada")
+
+    try:
+        pdf_buffer = generar_pdf_oportunidad(oportunidad)
+        logger.info(f"✅ PDF generado correctamente para oportunidad {pk}")
+    except Exception as e:
+        logger.exception(f"❌ Error al generar el PDF para oportunidad {pk}: {e}")
+        return HttpResponse("Error interno al generar el PDF", status=500)
+
+    response = HttpResponse(pdf_buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename=oportunidad_{pk}.pdf'
+    return response
+
+
+def build_acta_snapshot_from_devices(marco, devices):
+    """
+    devices: queryset/list de dispositivos reales asociados al marco/oportunidad.
+    Devuelve (datos_acta, total_dec).
+    """
+    lineas = []
+    total = Decimal("0.00")
+
+    for d in devices:
+        precio = Decimal(str(getattr(d, "precio_acordado", 0) or 0))
+        linea = {
+            "descripcion": getattr(d, "descripcion", "") or f"{d.marca} {d.modelo}".strip(),
+            "imei": getattr(d, "imei", None),
+            "serie": getattr(d, "serie", None),
+            "estado": getattr(d, "grading", None) or getattr(d, "estado", None),
+            "precio": float(precio),
+            "observaciones": getattr(d, "observaciones", "") or "",
+            "accesorios": [
+                # elementos tipo:
+                # {"nombre": "Cargador USB-C 20W", "estado": "Bueno", "incluido": True, "obs": "Original"}
+            ],
+        }
+        lineas.append(linea)
+        total += precio
+
+    datos_acta = {
+        "empresa": marco.contrato_datos.get("empresa", {}),
+        "cliente": marco.contrato_datos.get("cliente", {}),
+        "dispositivos": lineas,
+        "total": float(total),
+        "observaciones": "",
+        "ref_sha256": marco.pdf_sha256,
+        "accesorios_extra": [
+            # {"nombre": "Caja original", "cantidad": 2, "estado": "Correcto", "obs": ""}
+        ],
+    }
+    return datos_acta, total
+
+def get_b2x_from_oportunidad(oportunidad):
+    """Obtiene 'B2B' o 'B2C' priorizando cliente.canal.
+    Fallback por cliente.tipo_cliente: empresa->B2B, particular->B2C.
+    Por defecto 'B2B' si no hay datos."""
+    try:
+        cliente = getattr(oportunidad, "cliente", None)
+        canal = (getattr(cliente, "canal", None) or "").strip().upper()
+        if canal in ("B2B", "B2C"):
+            return canal
+        tipo_cliente = (getattr(cliente, "tipo_cliente", None) or "").strip().lower()
+        if tipo_cliente == "empresa":
+            return "B2B"
+        if tipo_cliente == "particular":
+            return "B2C"
+    except Exception:
+        pass
+    return "B2B"
+
+class DispositivoViewSet(viewsets.ModelViewSet):
+    queryset = Dispositivo.objects.all()
+    serializer_class = DispositivoSerializer
+
+    @staticmethod
+    def _asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente):
+        """
+        Asigna precio_orientativoexcelente desde capacidad según tipo_cliente.
+        """
+        if not capacidad:
+            return
+        print(f"[DEBUG] Precio B2B: {capacidad.precio_b2b}, Precio B2C: {capacidad.precio_b2c}, tipo_cliente={tipo_cliente}")
+        if tipo_cliente == "B2B" and capacidad.precio_b2b:
+            dispositivo.precio_orientativoexcelente = capacidad.precio_b2b
+            print(f"[DEBUG] Asignado precio_orientativoexcelente (B2B): {dispositivo.precio_orientativoexcelente}")
+        elif tipo_cliente == "B2C" and capacidad.precio_b2c:
+            dispositivo.precio_orientativoexcelente = capacidad.precio_b2c
+            print(f"[DEBUG] Asignado precio_orientativoexcelente (B2C): {dispositivo.precio_orientativoexcelente}")
+        else:
+            print("[DEBUG] No se asignó precio_orientativoexcelente (capacidad sin precio para ese tipo)")
+
+    def get_queryset(self):
+        return Dispositivo.objects.all()
+
+    def perform_create(self, serializer):
+        modelo_id = self.request.data.get("modelo_id")
+        capacidad_id = self.request.data.get("capacidad_id")
+        oportunidad_id = self.request.data.get("oportunidad")
+
+        try:
+            modelo = Modelo.objects.get(id=modelo_id)
+            capacidad = Capacidad.objects.get(id=capacidad_id)
+        except (Modelo.DoesNotExist, Capacidad.DoesNotExist):
+            raise ValidationError("Modelo o capacidad no encontrados.")
+
+        oportunidad = None
+        if oportunidad_id:
+            try:
+                oportunidad = Oportunidad.objects.get(id=oportunidad_id)
+            except Oportunidad.DoesNotExist:
+                raise ValidationError("Oportunidad no encontrada.")
+
+        dispositivo = serializer.save(
+            usuario=self.request.user,
+            modelo=modelo,
+            capacidad=capacidad,
+            oportunidad=oportunidad,
+        )
+
+        # Asignación de precio excelente basada en el tipo de cliente (B2B/B2C) de la Oportunidad
+        if oportunidad:
+            tipo_cliente = get_b2x_from_oportunidad(oportunidad)
+        else:
+            tipo_cliente = "B2B"
+        self._asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente)
+
+        if oportunidad:
+            oportunidad.dispositivos.add(dispositivo)
+
+        if not dispositivo.fecha_caducidad:
+            dispositivo.fecha_caducidad = dispositivo.fecha_creacion + timedelta(days=7)
+        dispositivo.save()
+
+    @action(detail=True, methods=['POST'])
+    def recalcular_precio(self, request, pk=None):
+        dispositivo = self.get_object()
+
+        def get_factor(precio):
+            if precio <= 100:
+                return 0.76
+            elif precio <= 200:
+                return 0.77
+            elif precio <= 300:
+                return 0.79
+            elif precio <= 400:
+                return 0.81
+            elif precio <= 500:
+                return 0.83
+            elif precio <= 750:
+                return 0.85
+            elif precio <= 1000:
+                return 0.87
+            elif precio <= 1250:
+                return 0.88
+            elif precio <= 1500:
+                return 0.88
+            else:
+                return 0.89
+
+        capacidad = dispositivo.capacidad
+        if not capacidad or not capacidad.precio_estimado:
+            return Response({"error": "No se puede calcular el precio sin capacidad o precio base."}, status=400)
+
+        precio_base = capacidad.precio_estimado
+        factor = get_factor(precio_base)
+        if dispositivo.estado_valoracion == 'Excelente':
+            precio_orientativo = precio_base
+        elif dispositivo.estado_valoracion == 'muy_bueno':
+            precio_orientativo = round(precio_base * factor, 2)
+        elif dispositivo.estado_valoracion == 'Bueno':
+            muy_bueno = precio_base * factor
+            precio_orientativo = round(muy_bueno * factor, 2)
+        else:
+            precio_orientativo = None
+
+        dias_caducidad = 7
+        dispositivo.precio_orientativo = precio_orientativo
+        dispositivo.fecha_valoracion = timezone.now()
+        dispositivo.fecha_caducidad = dispositivo.fecha_valoracion + timedelta(days=dias_caducidad)
+        dispositivo.save()
+
+        return Response({
+            "precio_orientativo": dispositivo.precio_orientativo,
+            "fecha_valoracion": dispositivo.fecha_valoracion,
+            "fecha_caducidad": dispositivo.fecha_caducidad
+        })
+
+    def actualizar_precio_excelente(self, dispositivo):
+        capacidad = dispositivo.capacidad
+        if not capacidad:
+            return
+        oportunidad = getattr(dispositivo, "oportunidad", None)
+        tipo_cliente = self._get_b2x_from_oportunidad(oportunidad) if oportunidad else "B2B"
+        self._asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente)
+        dispositivo.save()
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        self.actualizar_precio_excelente(self.get_object())
+        return response
+
+    def partial_update(self, request, *args, **kwargs):
+        response = super().partial_update(request, *args, **kwargs)
+        self.actualizar_precio_excelente(self.get_object())
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Autenticación requerida."}, status=status.HTTP_401_UNAUTHORIZED)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
+    def para_crear_oportunidad(self, request):
+        from django.utils import timezone
+        dispositivos = Dispositivo.objects.filter(
+            usuario=request.user,
+            oportunidad__isnull=True,
+            fecha_caducidad__gte=timezone.now()
+        )
+        serializer = self.get_serializer(dispositivos, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def crearvarios(self, request):
+        dispositivos_data = request.data.get('dispositivos', [])
+        oportunidad_global_id = request.data.get('oportunidad')
+        oportunidad_global = None
+
+        if oportunidad_global_id:
+            try:
+                oportunidad_global = Oportunidad.objects.get(id=oportunidad_global_id)
+            except Oportunidad.DoesNotExist:
+                return Response({"error": "Oportunidad global no encontrada."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not dispositivos_data:
+            return Response({"error": "No se proporcionaron dispositivos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        dispositivos = []
+        for dispositivo_data in dispositivos_data:
+            modelo_id = dispositivo_data.get("modelo")
+            capacidad_id = dispositivo_data.get("capacidad")
+            oportunidad_id = dispositivo_data.get("oportunidad") or (oportunidad_global.id if oportunidad_global else None)
+
+            try:
+                modelo = Modelo.objects.get(id=modelo_id)
+                capacidad = Capacidad.objects.get(id=capacidad_id)
+            except (Modelo.DoesNotExist, Capacidad.DoesNotExist):
+                return Response({"error": "Modelo o capacidad no encontrados."}, status=status.HTTP_400_BAD_REQUEST)
+
+            oportunidad = None
+            if oportunidad_id:
+                try:
+                    oportunidad = Oportunidad.objects.get(id=oportunidad_id)
+                except Oportunidad.DoesNotExist:
+                    return Response({"error": f"Oportunidad {oportunidad_id} no encontrada."}, status=status.HTTP_400_BAD_REQUEST)
+
+            payload = {
+                "modelo": modelo,
+                "capacidad": capacidad,
+                "usuario": request.user,
+            }
+            for k in ("estado_valoracion", "imei", "numero_serie", "cantidad", "oportunidad"):
+                if k in dispositivo_data:
+                    payload[k] = dispositivo_data[k]
+            if oportunidad:
+                payload["oportunidad"] = oportunidad
+
+            dispositivo = Dispositivo.objects.create(**payload)
+
+            tipo_cliente = self._get_b2x_from_oportunidad(oportunidad) if oportunidad else "B2B"
+            self._asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente)
+            dispositivo.save()
+            dispositivos.append(dispositivo)
+
+        return Response(DispositivoSerializer(dispositivos, many=True).data, status=status.HTTP_201_CREATED)
+   
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def dispositivos_global_oportunidad(request, tenant, uuid):
+    user = request.user
+
+    if not (getattr(user.global_role, "es_superadmin", False) or getattr(user.global_role, "es_empleado_interno", False)):
+        return Response({"detail": "No autorizado"}, status=403)
+
+    with schema_context(tenant):
+        try:
+            oportunidad = Oportunidad.objects.get(uuid=uuid)
+        except Oportunidad.DoesNotExist:
+            return Response({"detail": "Oportunidad no encontrada"}, status=404)
+
+        if request.method == "GET":
+            dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
+            serializer = DispositivoSerializer(dispositivos, many=True)
+            return Response(serializer.data)
+
+        elif request.method == "POST":
+            serializer = DispositivoSerializer(data=request.data)
+            if serializer.is_valid():
+                modelo_id = request.data.get("modelo_id")
+                capacidad_id = request.data.get("capacidad_id")
+
+                try:
+                    modelo = Modelo.objects.get(id=modelo_id)
+                    capacidad = Capacidad.objects.get(id=capacidad_id)
+                except (Modelo.DoesNotExist, Capacidad.DoesNotExist):
+                    return Response({"error": "Modelo o capacidad no encontrados."}, status=400)
+
+                dispositivo = serializer.save(
+                    usuario=request.user,
+                    modelo=modelo,
+                    capacidad=capacidad,
+                    oportunidad=oportunidad
+                )
+                # ✅ Lógica para asignar precio_orientativoexcelente
+                print(f"[DEBUG GLOBAL] Precio B2B: {capacidad.precio_b2b}, Precio B2C: {capacidad.precio_b2c}")
+                # El precio depende del canal del cliente de la oportunidad
+                tipo_cliente = get_b2x_from_oportunidad(oportunidad)
+                if tipo_cliente == "B2B" and capacidad.precio_b2b is not None:
+                    dispositivo.precio_orientativoexcelente = capacidad.precio_b2b
+                    print(f"[DEBUG GLOBAL] Asignado precio_orientativoexcelente (B2B): {dispositivo.precio_orientativoexcelente}")
+                elif tipo_cliente == "B2C" and capacidad.precio_b2c is not None:
+                    dispositivo.precio_orientativoexcelente = capacidad.precio_b2c
+                    print(f"[DEBUG GLOBAL] Asignado precio_orientativoexcelente (B2C): {dispositivo.precio_orientativoexcelente}")
+                else:
+                    print("[DEBUG GLOBAL] No se asignó precio_orientativoexcelente")
+
+                # Fecha de caducidad si no está definida
+                if not dispositivo.fecha_caducidad:
+                    dispositivo.fecha_caducidad = dispositivo.fecha_creacion + timedelta(days=7)
+
+                dispositivo.save()
+                return Response(DispositivoSerializer(dispositivo).data, status=201)
+
+            return Response(serializer.errors, status=400)
+        
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def dispositivo_global_detalle(request, tenant, id):
+    user = request.user
+
+    if not (getattr(user.global_role, "es_superadmin", False) or getattr(user.global_role, "es_empleado_interno", False)):
+        return Response({"detail": "No autorizado"}, status=403)
+
+    with schema_context(tenant):
+        try:
+            dispositivo = Dispositivo.objects.get(id=id)
+        except Dispositivo.DoesNotExist:
+            return Response({"detail": "Dispositivo no encontrado"}, status=404)
+
+        if request.method == "PUT":
+            serializer = DispositivoSerializer(dispositivo, data=request.data, partial=True)
+            if serializer.is_valid():
+                modelo_id = request.data.get("modelo_id")
+                capacidad_id = request.data.get("capacidad_id")
+
+                if modelo_id:
+                    try:
+                        modelo = Modelo.objects.get(id=modelo_id)
+                        dispositivo.modelo = modelo
+                    except Modelo.DoesNotExist:
+                        return Response({"error": "Modelo no encontrado"}, status=400)
+
+                if capacidad_id:
+                    try:
+                        capacidad = Capacidad.objects.get(id=capacidad_id)
+                        dispositivo.capacidad = capacidad
+                    except Capacidad.DoesNotExist:
+                        return Response({"error": "Capacidad no encontrada"}, status=400)
+
+                serializer.save()
+                return Response(serializer.data)
+
+            return Response(serializer.errors, status=400)
+
+        elif request.method == "DELETE":
+            dispositivo.delete()
+            return Response(status=204)
+
+class OportunidadViewSet(viewsets.ModelViewSet):
+    serializer_class = OportunidadSerializer
+  
+
+    def get_object(self):
+        """
+        Acepta /api/oportunidades/<id>/  (id numérico)
+                /api/oportunidades/<uuid>/ (uuid v4/v1)
+        """
+        lookup_value = self.kwargs.get(self.lookup_field)  # normalmente 'pk'
+        qs = self.get_queryset()
+
+        if lookup_value is None:
+            # fallback DRF (no debería ocurrir)
+            return super().get_object()
+
+        s = str(lookup_value)
+        if NUM_REGEX.fullmatch(s):
+            return get_object_or_404(qs, pk=int(s))
+        if UUID_REGEX.fullmatch(s):
+            return get_object_or_404(qs, uuid=s.lower())
+
+        # Si quieres soportar también hashid (opcional):
+        # if re.fullmatch(r"^[A-Za-z0-9]+$", s) and len(s) in (8, 10, 12):
+        #     return get_object_or_404(qs, hashid=s)
+
+        # Por claridad devolvemos 404 estándar
+        return get_object_or_404(qs, pk=-1)
+    
+    @action(detail=True, methods=["post"], url_path="generar-contrato")
+    def generar_contrato(self, request, pk=None):
+        """
+        Genera el contrato (PDF) para la oportunidad del tenant autenticado.
+        Devuelve url + hash. Idempotente (puede regenerar si quieres).
+        """
+        oportunidad = self.get_object()
+
+        # TODO: Reglas de negocio mínimas (ajusta):
+        # - Solo estados >= 'Oferta confirmada', o tras KYC completado, etc.
+        # - Permisos: manager/empleado del tenant que posee la oportunidad
+        # if oportunidad.estado not in ["Oferta confirmada", "Pendiente factura", "Factura recibida", "Pendiente de pago", "Pagado"]:
+        #     return Response({"detail": "Estado no válido para generar contrato."}, status=400)
+
+        # Llama a tu servicio real de generación:
+        # pdf_url, sha256_hash = generar_contrato_pdf(oportunidad)
+        # Simulación temporal:
+        pdf_url = f"{request.build_absolute_uri('/').rstrip('/')}/media/contratos/{oportunidad.id}.pdf"
+        sha256_hash = "fake_sha256_demo"
+
+        # Guarda en BD si tienes campos:
+        if hasattr(oportunidad, "contrato_pdf_url"):
+            oportunidad.contrato_pdf_url = pdf_url
+        if hasattr(oportunidad, "contrato_pdf_sha256"):
+            oportunidad.contrato_pdf_sha256 = sha256_hash
+        oportunidad.save(update_fields=[f for f in ["contrato_pdf_url","contrato_pdf_sha256"] if hasattr(oportunidad, f)])
+
+        return Response({"ok": True, "pdf_url": pdf_url, "sha256": sha256_hash}, status=status.HTTP_200_OK)
+
+    # =========================
+    # Queryset con filtros
+    # =========================
+    def get_queryset(self):
+        
+        user = self.request.user
+        schema = self.request.query_params.get("schema")
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        base_qs = (
+            Oportunidad.objects.select_related("cliente", "tienda", "usuario")
+            .prefetch_related("comentarios", "dispositivos_oportunidad", "dispositivos_reales")
+        )
+
+        cliente = self.request.query_params.get("cliente") or ""
+        fecha_inicio = self.request.query_params.get("fecha_inicio")
+        fecha_fin = self.request.query_params.get("fecha_fin")
+
+        # Soporta ?estado=a&estado=b y ?estado=a,b
+        estados = self.request.query_params.getlist("estado")
+        if len(estados) == 1 and "," in estados[0]:
+            estados = [e.strip() for e in estados[0].split(",") if e.strip()]
+
+        def _apply_filters(qs):
+            if estados:
+                qs = qs.filter(estado__in=estados)
+            if cliente:
+                qs = qs.filter(cliente__razon_social__icontains=cliente)
+            if fecha_inicio:
+                try:
+                    fi = datetime.fromisoformat(fecha_inicio)
+                    qs = qs.filter(fecha_creacion__gte=fi)
+                except Exception:
+                    qs = qs.filter(fecha_creacion__gte=fecha_inicio)
+            if fecha_fin:
+                # Inclusivo hasta el final del día
+                try:
+                    ff = datetime.fromisoformat(fecha_fin)
+                    ff = datetime.combine(ff.date(), time(23, 59, 59, 999999))
+                    qs = qs.filter(fecha_creacion__lte=ff)
+                except Exception:
+                    qs = qs.filter(fecha_creacion__lte=fecha_fin)
+            return qs.order_by("-fecha_creacion")
+
+        # Acceso global con schema explícito (superadmin/soporte)
+        if es_super and schema:
+            try:
+                with schema_context(schema):
+                    return _apply_filters(base_qs.all())
+            except Exception:
+                return Oportunidad.objects.none()
+
+        tenant_slug = getattr(self.request.tenant, "schema_name", "").lower()
+        qs = _apply_filters(base_qs)
+
+        # Acceso global en su propio tenant
+        if es_super:
+            return qs
+
+        # Acceso por rol
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except RolPorTenant.DoesNotExist:
+            return Oportunidad.objects.none()
+
+        if rol.rol == "manager":
+            return qs
+        elif rol.tienda_id:
+            return qs.filter(tienda_id=rol.tienda_id)
+
+        return Oportunidad.objects.none()
+
+    # =========================
+    # Crear
+    # =========================
+    def perform_create(self, serializer):
+        user = self.request.user
+        schema = self.request.data.get("schema")
+        cliente_id = self.request.data.get("cliente")
+
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if es_super and schema:
+            with schema_context(schema):
+                if not cliente_id:
+                    raise serializers.ValidationError({"cliente": "Este campo es obligatorio."})
+                serializer.save(usuario=user, cliente_id=cliente_id)
+                return
+
+        tenant_slug = getattr(self.request.tenant, "schema_name", "").lower()
+
+        if not cliente_id:
+            raise serializers.ValidationError({"cliente": "Este campo es obligatorio."})
+
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except RolPorTenant.DoesNotExist:
+            raise serializers.ValidationError("No tienes permisos para crear oportunidades.")
+
+        if rol.rol == "manager":
+            serializer.save(usuario=user, cliente_id=cliente_id)
+            return
+
+        if not rol.tienda_id:
+            raise serializers.ValidationError("Debes tener una tienda asignada para crear oportunidades.")
+
+        serializer.save(usuario=user, tienda_id=rol.tienda_id, cliente_id=cliente_id)
+
+    # =========================
+    # Update (transiciones y side-effects)
+    # =========================
+    import logging
+    logger = logging.getLogger("checkouters")
+
+    def perform_update(self, serializer):
+        nuevo_estado = self.request.data.get("estado")
+        schema = self.request.data.get("schema")
+        es_super = (
+            getattr(getattr(self.request.user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(self.request.user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        def _run_update(instance, tenant_schema_name: str):
+            estado_anterior = instance.estado
+            tipo_cliente = getattr(getattr(instance, "cliente", None), "canal", None) or \
+                getattr(getattr(instance, "cliente", None), "tipo_cliente", None)
+
+            trans = obtener_transiciones(tipo_cliente, instance.estado, user=self.request.user)
+            transiciones_validas = trans.get("transiciones", trans if isinstance(trans, list) else [])
+
+            self.logger.warning(
+                f"[TRANSICION] Tenant: {tenant_schema_name} - Tipo cliente: {tipo_cliente} - "
+                f"Estado actual: {instance.estado} - Nuevo estado: {nuevo_estado}"
+            )
+            print(f"[DEBUG] Transiciones válidas: {transiciones_validas}", flush=True)
+
+            if nuevo_estado and nuevo_estado != instance.estado and nuevo_estado not in transiciones_validas:
+                raise serializers.ValidationError({
+                    "estado": [
+                        f"No puedes pasar de {instance.estado} a {nuevo_estado}. "
+                        f"Transiciones permitidas: {', '.join(transiciones_validas) if transiciones_validas else 'ninguna'}"
+                    ]
+                })
+
+            with transaction.atomic():
+                instancia = serializer.save()
+
+                if nuevo_estado == "Pendiente de pago" and estado_anterior != nuevo_estado:
+                    plazo = self.request.data.get("plazo_pago_dias", 30)
+                    instancia.plazo_pago_dias = plazo
+                    instancia.fecha_inicio_pago = timezone.now()
+                    instancia.save(update_fields=["plazo_pago_dias", "fecha_inicio_pago"])
+
+                if nuevo_estado and nuevo_estado != estado_anterior:
+                    HistorialOportunidad.objects.create(
+                        oportunidad=instancia,
+                        tipo_evento="cambio_estado",
+                        descripcion=f"Estado cambiado de {estado_anterior} a {nuevo_estado}",
+                        estado_anterior=estado_anterior,
+                        estado_nuevo=nuevo_estado,
+                        usuario=self.request.user,
+                    )
+
+                # if nuevo_estado == "Aceptado":
+                #     notificar_internos_aceptacion(instancia, tenant_schema_name)
+
+        if es_super and schema:
+            with schema_context(schema):
+                return _run_update(self.get_object(), schema)
+
+        return _run_update(self.get_object(), self.request.tenant.schema_name)
+
+    # =========================
+    # Acciones adicionales
+    # =========================
+    @action(detail=True, methods=["post"], url_path="asociar-dispositivos")
+    def asociar_dispositivos(self, request, pk=None):
+        dispositivos_ids = request.data.get("dispositivos", [])
+        borrado_certificado = request.data.get("borrado_certificado", False)
+
+        if not dispositivos_ids:
+            return Response({"error": "No se proporcionaron dispositivos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        oportunidad = self.get_object()
+        dispositivos = Dispositivo.objects.filter(id__in=dispositivos_ids, oportunidad__isnull=True)
+
+        if dispositivos.count() != len(dispositivos_ids):
+            return Response({"error": "Algunos dispositivos no existen o ya están asignados."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                for dispositivo in dispositivos:
+                    dispositivo.oportunidad = oportunidad
+                    dispositivo.borrado_certificado = borrado_certificado
+                    dispositivo.save()
+                oportunidad.dispositivos.add(*dispositivos)
+            return Response({"detalle": "Dispositivos añadidos correctamente."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=["get"], url_path="transiciones-validas")
+    def transiciones_validas(self, request, pk=None):
+        oportunidad = self.get_object()
+        tipo_cliente = getattr(oportunidad.cliente, "canal", None) or getattr(oportunidad.cliente, "tipo_cliente", None)
+        transiciones = obtener_transiciones(tipo_cliente, oportunidad.estado, user=request.user)
+        return Response({"disponibles": transiciones})
+
+    @action(detail=True, methods=["get"])
+    def generar_oferta(self, request, pk=None):
+        schema = request.query_params.get("schema")
+        user = request.user
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if es_super and schema:
+            with schema_context(schema):
+                return self._oferta(pk)
+        return self._oferta(pk)
+
+    def _oferta(self, pk):
+        dispositivos = DispositivoReal.objects.select_related("modelo", "capacidad").filter(oportunidad_id=pk)
+        lista = []
+        total = 0
+
+        for d in dispositivos:
+            precio = d.calcular_precio_orientativo()
+            lista.append({
+                "modelo": d.modelo.descripcion,
+                "capacidad": d.capacidad.tamaño,
+                "estado": d.estado,
+                "imei": d.imei,
+                "numero_serie": d.numero_serie,
+                "precio": round(precio or 0, 2),
+            })
+            total += precio or 0
+
+        return Response({
+            "oportunidad_id": pk,
+            "dispositivos": lista,
+            "valor_total": round(total, 2),
+        })
+    
+class ModeloViewSet(viewsets.ModelViewSet):
+    queryset = Modelo.objects.all()
+    serializer_class = ModeloSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['tipo']
+    search_fields = ['descripcion', 'tipo']
+
+class CapacidadViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Capacidad.objects.all()
+    serializer_class = CapacidadSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['modelo__descripcion']  # Esto es para búsqueda por texto
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        modelo_id = self.request.query_params.get("modelo")
+        if modelo_id:
+            queryset = queryset.filter(modelo_id=modelo_id)
+        return queryset
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@renderer_classes([JSONRenderer])
+def mi_dashboard(request):
+    user = request.user
+    data = {
+        "usuario": getattr(user, "username", user.email),
+    }
+
+    
+    return Response(data)
+
+@api_view(['GET'])
+def capacidades_por_modelo(request):
+    modelo_id = request.GET.get('modelo')
+    if modelo_id:
+        capacidades = Capacidad.objects.filter(modelo_id=modelo_id)
+    else:
+        capacidades = Capacidad.objects.all()
+    serializer = CapacidadSerializer(capacidades, many=True, context={"request": request})
+    return Response(serializer.data)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cambiar_contraseña(request):
+    user = request.user
+    current_password = request.data.get("current_password")
+    new_password = request.data.get("new_password")
+
+    # 1. Verifica que todos los campos estén presentes
+    if not current_password or not new_password:
+        return Response({"detail": "Debes rellenar todos los campos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Verifica la contraseña actual
+    if not user.check_password(current_password):
+        return Response({"detail": "La contraseña actual es incorrecta."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. Opcional: valida la nueva contraseña (ejemplo: longitud mínima)
+    if len(new_password) < 6:
+        return Response({"detail": "La nueva contraseña debe tener al menos 6 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 4. Cambia la contraseña usando el método seguro de Django
+    user.set_password(new_password)
+    user.save()
+
+    return Response({"detail": "Contraseña cambiada correctamente."}, status=status.HTTP_200_OK)
+
+class ClienteViewSet(viewsets.ModelViewSet):
+    serializer_class = ClienteSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = [
+        "razon_social", "cif", "contacto", "correo",
+        "nombre", "apellidos", "nombre_comercial",
+        "nif", "dni_nie", "telefono",
+    ]
+    ordering_fields = ["razon_social", "nombre", "apellidos", "id", "tienda_id"]
+
+    def _es_super(self, user):
+        try:
+            gr = user.global_role
+            return bool(gr.es_superadmin or gr.es_empleado_interno)
+        except UserGlobalRole.DoesNotExist:
+            return False
+        
+    def _qs_filtrado(self, qs):
+        """Aplica filtros comunes por query params."""
+        tipo = self.request.query_params.get("tipo_cliente")
+        if tipo:
+            qs = qs.filter(tipo_cliente=tipo)
+
+        canal = self.request.query_params.get("canal")
+        if canal in ("b2b", "b2c"):
+            qs = qs.filter(canal=canal)
+
+        tienda_id = self.request.query_params.get("tienda_id")
+        if tienda_id:
+            qs = qs.filter(tienda_id=tienda_id)
+
+        return qs   
+    def get_queryset(self):
+        user = self.request.user
+        schema = self.request.query_params.get("schema")
+        es_super = self._es_super(user)
+
+        # Superadmin: permitir pivotar a otro schema con ?schema=
+        if es_super and schema:
+            with schema_context(schema):
+                qs = Cliente.objects.all()
+                return self._qs_filtrado(qs).order_by("id")
+            
+        tenant_slug = self.request.tenant.schema_name.lower()
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except (UserGlobalRole.DoesNotExist, RolPorTenant.DoesNotExist):
+            raise PermissionDenied("No tienes permisos en este tenant.")
+
+        if rol.rol == "manager":
+            qs = Cliente.objects.all()
+        elif rol.tienda_id:
+            qs = Cliente.objects.filter(tienda_id=rol.tienda_id)
+        else:
+            qs = Cliente.objects.none()
+
+        return self._qs_filtrado(qs).order_by("id")
+
+    # Crear en otro schema si superadmin + ?schema=
+    def create(self, request, *args, **kwargs):
+        schema = request.query_params.get("schema")
+        if self._es_super(request.user) and schema:
+            with schema_context(schema):
+                return super().create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
+    
+    # Actualizar parcial en otro schema si superadmin + ?schema=
+    def partial_update(self, request, *args, **kwargs):
+        schema = request.query_params.get("schema")
+        if self._es_super(request.user) and schema:
+            with schema_context(schema):
+                return super().partial_update(request, *args, **kwargs)
+        return super().partial_update(request, *args, **kwargs)
+    
+
+    def perform_create(self, serializer):
+        """Asignar tienda según rol (en schema actual)."""
+        user = self.request.user
+        tenant_slug = self.request.tenant.schema_name.lower()
+
+        # Si es super y viene ?schema=, ya se ejecutó dentro del contexto arriba
+        # y no conocemos rol por tienda: no autoasignamos tienda aquí.
+        if self._es_super(user) and self.request.query_params.get("schema"):
+            serializer.save()
+            return
+
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except (UserGlobalRole.DoesNotExist, RolPorTenant.DoesNotExist):
+            raise PermissionDenied("No tienes permisos en este tenant.")
+
+        if not rol.tienda_id:
+            raise serializers.ValidationError("No tienes tienda asignada.")
+
+        serializer.save(tienda_id=rol.tienda_id)
+
+class ComentarioClienteViewSet(viewsets.ModelViewSet):
+    serializer_class = ComentarioClienteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        tenant_slug = self.request.tenant.schema_name.lower()
+
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except RolPorTenant.DoesNotExist:
+            return ComentarioCliente.objects.none()
+
+        if rol.rol == "manager":
+            return ComentarioCliente.objects.all()
+        elif rol.tienda_id:
+            return ComentarioCliente.objects.filter(cliente__tienda_id=rol.tienda_id)
+        else:
+            return ComentarioCliente.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(autor=self.request.user)
+
+class ComentarioOportunidadViewSet(SchemaAwareCreateMixin, viewsets.ModelViewSet):
+    serializer_class = ComentarioOportunidadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        tenant_param = self.request.query_params.get("schema")
+        es_super = getattr(user.global_role, "es_superadmin", False) or getattr(user.global_role, "es_empleado_interno", False)
+
+        if es_super and tenant_param:
+            try:
+                with schema_context(tenant_param):
+                    return ComentarioOportunidad.objects.all()
+            except Exception:
+                return ComentarioOportunidad.objects.none()
+
+        # Modo normal (tenant ya activo)
+        tenant_slug = self.request.tenant.schema_name.lower()
+
+        try:
+            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
+        except RolPorTenant.DoesNotExist:
+            return ComentarioOportunidad.objects.none()
+
+        if rol.rol == "manager":
+            return ComentarioOportunidad.objects.all()
+        elif rol.tienda_id:
+            return ComentarioOportunidad.objects.filter(oportunidad__tienda_id=rol.tienda_id)
+        else:
+            return ComentarioOportunidad.objects.none()
+
+class UsuarioTenantViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsTenantManagerOrSuper]
+    serializer_class = UsuarioTenantSerializer
+
+    # -------- helpers --------
+    def _resolve_tenant_slug(self, request):
+        """
+        1) request.tenant.schema_name (manager dentro de su tenant)
+        2) ?schema=...
+        3) connection.schema_name (fallback)
+        """
+        schema = getattr(getattr(request, "tenant", None), "schema_name", None)
+        if not schema:
+            schema = request.query_params.get("schema")
+        schema = (schema or connection.schema_name or "").lower()
+        return schema or None
+
+    def _get_users_for_tenant(self, tenant_slug):
+        # Filtra usuarios que tengan RolPorTenant en este tenant
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        with schema_context(public_schema):
+            user_ids = RolPorTenant.objects.filter(
+                tenant_slug=tenant_slug,
+                rol__in=["manager", "empleado"],
+            ).values_list("user_role__user_id", flat=True)
+            return get_user_model().objects.filter(id__in=user_ids)
+
+    # -------- queryset --------
+    def get_queryset(self):
+        tenant_slug = self._resolve_tenant_slug(self.request)
+        if not tenant_slug:
+            return get_user_model().objects.none()
+        return self._get_users_for_tenant(tenant_slug).order_by("id")
+
+    # -------- create --------
+    def create(self, request, *args, **kwargs):
+        """
+        Ya no exigimos ?schema= si eres manager: resolveremos el tenant automáticamente.
+        Delegamos la lógica en el serializer (que crea en public y asigna rol/tienda).
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()  # el serializer usa request en context
+        out = self.get_serializer(instance).data
+        return Response(out, status=status.HTTP_201_CREATED)
+
+    # -------- partial_update --------
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Delega en el serializer.update() para tocar password/name/email en public
+        y rol/tienda en RolPorTenant del tenant actual.
+        """
+        pk = kwargs.get("pk")
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        with schema_context(public_schema):
+            instance = get_object_or_404(get_user_model(), id=pk)
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        out = self.get_serializer(instance).data
+        return Response(out, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cambiar_contraseña_usuario(request):
+    user_id = request.data.get('user_id')
+    new_password = request.data.get('new_password')
+    tenant_slug = request.tenant.schema_name.lower()
+
+    if not user_id or not new_password:
+        return Response({"error": "Faltan datos"}, status=400)
+
+    try:
+        rol = request.user.global_role.roles.get(tenant_slug=tenant_slug)
+    except (AttributeError, RolPorTenant.DoesNotExist):
+        return Response({"error": "No tienes permisos."}, status=403)
+
+    if rol.rol != "manager":
+        return Response({"error": "Solo los managers pueden cambiar contraseñas."}, status=403)
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "Usuario no encontrado"}, status=404)
+
+    user.set_password(new_password)
+    user.save()
+
+    return Response({"success": "Contraseña actualizada"})
+
+class TiendaViewSet(viewsets.ModelViewSet):
+    serializer_class = TiendaSerializer
+
+    def get_queryset(self):
+        tenant_slug = self.request.query_params.get("schema") or getattr(getattr(self.request, "tenant", None), "schema_name", None)
+        if not tenant_slug:
+            return Tienda.objects.none()
+
+        with schema_context(tenant_slug):
+            return Tienda.objects.all()
+    
+    def list(self, request, *args, **kwargs):
+        tenant_slug = request.query_params.get("schema") or getattr(getattr(request, "tenant", None), "schema_name", None)
+        print("Listando tiendas para schema:", tenant_slug)
+
+        if not tenant_slug:
+            return Response([], status=200)
+
+        with schema_context(tenant_slug):
+            queryset = self.filter_queryset(Tienda.objects.all())
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        
+    def create(self, request, *args, **kwargs):
+        tenant_slug = request.query_params.get("schema")
+        if not tenant_slug:
+            return Response({"detail": "Debe proporcionar el parámetro ?schema="}, status=400)
+
+        with schema_context(tenant_slug):
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response(serializer.data, status=201)
+    def update(self, request, *args, **kwargs):
+        tenant_slug = request.query_params.get("schema")
+        if not tenant_slug:
+            return Response({"detail": "Debe proporcionar el parámetro ?schema="}, status=400)
+
+        with schema_context(tenant_slug):
+            return super().update(request, *args, **kwargs)
+
+class HistorialOportunidadViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = HistorialOportunidadSerializer
+
+    def _get_lookup_value(self):
+        # según tu router puede llegar como 'oportunidad_id', 'oportunidad_pk' o 'pk'
+        return (
+            self.kwargs.get("oportunidad_id")
+            or self.kwargs.get("oportunidad_pk")
+            or self.kwargs.get("pk")
+        )
+
+    def get_queryset(self):
+        raw = str(self._get_lookup_value() or "")
+        qs = HistorialOportunidad.objects.select_related("oportunidad", "usuario")
+
+        if NUM_REGEX.fullmatch(raw):
+            return qs.filter(oportunidad_id=int(raw)).order_by("-fecha")
+        if UUID_REGEX.fullmatch(raw):
+            return qs.filter(oportunidad__uuid=raw.lower()).order_by("-fecha")
+        # if HASHID_REGEX.fullmatch(raw):
+        #     return qs.filter(oportunidad__hashid=raw).order_by("-fecha")
+
+        # si no coincide con nada, devolvemos vacío en vez de 500
+        return qs.none()
+    
+class ValorPorTiendaAPIView(APIView):
+    def get(self, request):
+        estado_minimo = request.query_params.get("estado_minimo", "Oferta confirmada")
+        fecha_inicio_raw = request.query_params.get("fecha_inicio")
+        fecha_fin_raw = request.query_params.get("fecha_fin")
+
+        fecha_inicio = parse_date(fecha_inicio_raw)
+        fecha_fin = parse_date(fecha_fin_raw)
+
+        if not fecha_inicio or not fecha_fin:
+            return Response({"error": "Fechas inválidas"}, status=400)
+
+        fecha_inicio = make_aware(datetime.combine(fecha_inicio, time.min))
+        fecha_fin = make_aware(datetime.combine(fecha_fin, time.max))
+
+        granularidad = request.query_params.get("granularidad", "mes")
+
+        ESTADOS = [
+            "Pendiente", "Aceptado", "Cancelado", "Recogida generada", "En tránsito", "Recibido",
+            "En revisión", "Oferta confirmada", "Pendiente factura", "Factura recibida", "Pendiente de pago",
+            "Pagado", "Nueva oferta enviada", "Rechazada", "Devolución iniciada", "Equipo enviado",
+            "Recibido por el cliente", "Nueva oferta confirmada", "Nuevo contrato", "Contrato",
+        ]
+         # ⛔ Estados que NO deben computar en el total de valor
+        ESTADOS_EXCLUIDOS_VALOR = [
+            "Nueva oferta enviada","Rechazada", "Devolución iniciada", "Equipo enviado", "Recibido por el cliente","Pendiente",
+            "Aceptado", "Cancelado", "Recogida generada", "En tránsito", "Recibido","En revisión",
+        ]
+
+        if estado_minimo not in ESTADOS:
+            return Response({"error": "Estado no válido"}, status=400)
+
+        idx = ESTADOS.index(estado_minimo)
+        estados_filtrados = ESTADOS[idx:]
+
+        truncador = {
+            "dia": TruncDay,
+            "semana": TruncWeek,
+            "mes": TruncMonth,
+        }.get(granularidad, TruncMonth)
+
+        logger.info(f"📥 estado_minimo: {estado_minimo}")
+        logger.info(f"📆 fecha_inicio: {fecha_inicio}")
+        logger.info(f"📆 fecha_fin: {fecha_fin}")
+        logger.info(f"🔍 granularidad: {granularidad}")
+        logger.info(f"📌 Estados filtrados: {estados_filtrados}")
+
+        tiendas = list(Tienda.objects.values_list("nombre", flat=True))
+        logger.info(f"🏪 Tiendas detectadas: {tiendas}")
+
+        # 1. Valor total
+        valores = DispositivoReal.objects.filter(
+            oportunidad__estado__in=estados_filtrados,
+            oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
+        ).exclude(
+            oportunidad__estado__in=ESTADOS_EXCLUIDOS_VALOR
+        ).annotate(
+            grupo=truncador("oportunidad__fecha_creacion")
+        ).values(
+            "grupo", "oportunidad__tienda__nombre"
+        ).annotate(
+            total=Sum(Coalesce("precio_final", Value(0), output_field=DecimalField(max_digits=12, decimal_places=0)))
+        )
+
+        # 2. Dispositivos
+        dispositivos = Dispositivo.objects.filter(
+            oportunidad__estado__in=estados_filtrados,
+            oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
+        ).annotate(
+            grupo=truncador("oportunidad__fecha_creacion")
+        ).values(
+            "grupo", "oportunidad__tienda__nombre"
+        ).annotate(
+            cantidad_dispositivos=Sum("cantidad")
+        )
+
+        # 3. Oportunidades
+        oportunidades = Oportunidad.objects.filter(
+            estado__in=estados_filtrados,
+            fecha_creacion__range=[fecha_inicio, fecha_fin]
+        ).annotate(
+            grupo=truncador("fecha_creacion")
+        ).values(
+            "grupo", "tienda__nombre"
+        ).annotate(
+            cantidad_oportunidades=Count("id", distinct=True)
+        )
+
+        logger.info(f"📈 valores: {list(valores)}")
+        logger.info(f"📦 dispositivos: {list(dispositivos)}")
+        logger.info(f"📋 oportunidades: {list(oportunidades)}")
+
+        data = {}
+
+        def format_grupo(dt):
+            if granularidad == "dia":
+                return dt.strftime("%d/%m/%Y")
+            elif granularidad == "semana":
+                return f"Semana {dt.strftime('%W')} ({dt.strftime('%d/%m')})"
+            else:
+                return dt.strftime("%B")
+
+        def init_mes():
+            d = {f"{t}": 0.0 for t in tiendas}
+            d.update({f"{t}__n_dispositivos": 0 for t in tiendas})
+            d.update({f"{t}__n_oportunidades": 0 for t in tiendas})
+            return d
+
+        # A. Valor total
+        for row in valores:
+            clave = format_grupo(row["grupo"])
+            tienda = row["oportunidad__tienda__nombre"] or "Sin tienda"
+            data.setdefault(clave, init_mes())
+            data[clave][tienda] = float(row["total"] or 0)
+            data[clave]["__orden"] = row["grupo"]
+
+        # B. Dispositivos
+        for row in dispositivos:
+            clave = format_grupo(row["grupo"])
+            tienda = row["oportunidad__tienda__nombre"] or "Sin tienda"
+            data.setdefault(clave, init_mes())
+            data[clave][f"{tienda}__n_dispositivos"] = int(row["cantidad_dispositivos"] or 0)
+            data[clave]["__orden"] = row["grupo"]
+
+        # C. Oportunidades
+        for row in oportunidades:
+            clave = format_grupo(row["grupo"])
+            tienda = row["tienda__nombre"] or "Sin tienda"
+            data.setdefault(clave, init_mes())
+            data[clave][f"{tienda}__n_oportunidades"] = int(row["cantidad_oportunidades"] or 0)
+            data[clave]["__orden"] = row["grupo"]
+
+            # Generar todas las claves posibles con sus fechas reales para ordenarlas luego
+            claves_posibles = {}
+            actual = fecha_inicio
+            while actual <= fecha_fin:
+                if granularidad == "dia":
+                    clave = format_grupo(actual)
+                    claves_posibles[clave] = actual
+                    actual += timedelta(days=1)
+                elif granularidad == "semana":
+                    clave = format_grupo(actual)
+                    claves_posibles[clave] = actual
+                    actual += timedelta(weeks=1)
+                else:
+                    primer_dia = actual.replace(day=1)
+                    clave = format_grupo(primer_dia)
+                    claves_posibles[clave] = primer_dia
+                    next_month = primer_dia.replace(day=28) + timedelta(days=4)
+                    actual = next_month.replace(day=1)
+
+            # Rellenar claves faltantes
+            for clave, fecha in claves_posibles.items():
+                if clave not in data:
+                    data[clave] = init_mes()
+                    data[clave]["__orden"] = fecha
+
+        # Ordenar y preparar respuesta
+        final = []
+        for clave, contenido in sorted(data.items(), key=lambda x: x[1].get("__orden", datetime.min)):
+            fila = {"mes": clave}
+            fila.update({k: v for k, v in contenido.items() if not k.startswith("__")})
+            final.append(fila)
+
+        logger.info("✅ Resultado final:")
+        for f in final:
+            logger.info(f"→ {f}")
+
+        return Response(final)
+
+class SubirFacturaView(generics.CreateAPIView):
+    serializer_class = DocumentoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        oportunidad = serializer.validated_data.get("oportunidad")
+        logger.info(f"📥 Intentando subir factura para oportunidad ID {oportunidad.id if oportunidad else 'None'}")
+        logger.info(f"📎 Usuario: {self.request.user} | Datos recibidos: {self.request.data}")
+
+        if not oportunidad:
+            logger.warning("❌ Oportunidad no proporcionada en el formulario")
+            raise serializers.ValidationError("Se requiere una oportunidad válida.")
+
+        serializer.save(subido_por=self.request.user, tipo="factura")
+        logger.info(f"✅ Factura subida correctamente para oportunidad ID {oportunidad.id}")
+         # Registrar en historial
+        HistorialOportunidad.objects.create(
+            oportunidad=oportunidad,
+            tipo_evento="factura_subida",
+            descripcion=f"{self.request.user.get_full_name() or self.request.user.email} subió una factura",
+            usuario=self.request.user
+        )
+        logger.info("📝 Evento de historial 'factura_subida' creado")
+
+        # Cambiar estado solo si está en "pendiente_factura"
+        if oportunidad.estado == "Pendiente factura":
+            estado_anterior = oportunidad.estado
+            oportunidad.estado = "Pendiente factura"
+            oportunidad.save(update_fields=["estado"])
+            logger.info(f"🔄 Estado de la oportunidad {oportunidad.id} actualizado a 'Factura recibida'")
+            # Registrar cambio de estado también (opcional)
+            HistorialOportunidad.objects.create(
+                oportunidad=oportunidad,
+                tipo_evento="cambio_estado",
+                descripcion=f"Estado cambiado de {estado_anterior} a Factura recibida",
+                estado_anterior=estado_anterior,
+                estado_nuevo="Factura recibida",
+                usuario=self.request.user
+            )
+        else:
+            logger.info(f"🟡 Estado actual '{oportunidad.estado}' no cambia — se mantiene sin modificar.")
+            
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def descargar_documento(request, documento_id):
+    logger.info(f"📥 Petición de descarga del documento ID {documento_id} por el usuario {request.user}")
+
+    doc = get_object_or_404(Documento, id=documento_id)
+    logger.debug(f"📄 Documento encontrado: {doc.id}, tipo: {doc.tipo}, nombre original: {doc.nombre_original}")
+
+    try:
+        if doc.oportunidad:
+            logger.debug(f"🔗 Documento asociado a oportunidad ID {doc.oportunidad.id}")
+        elif doc.dispositivo and doc.dispositivo.lote:
+            logger.debug(f"🔗 Documento asociado a dispositivo ID {doc.dispositivo.id}")
+        else:
+            logger.warning("❌ Documento sin relación válida.")
+            raise Http404("Documento sin relación válida.")
+    except Exception as e:
+        logger.error(f"❌ Error accediendo al documento: {e}")
+        raise Http404("Documento inválido")
+
+    logger.info(f"✅ Acceso autorizado. Iniciando descarga de {doc.nombre_original}")
+    return FileResponse(
+        doc.archivo.open(),
+        as_attachment=True,
+        filename=doc.nombre_original
+    )
+
+class DispositivoRealCreateAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        tenant = request.data.get("tenant")
+        if not tenant:
+            return Response({"detail": "Schema (tenant) requerido"}, status=400)
+
+        with schema_context(tenant):
+            serializer = DispositivoRealSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+   
+class DispositivosRealesDeOportunidadView(ListAPIView):
+    serializer_class = DispositivoRealSerializer
+
+    def get_queryset(self):
+        raw = str(self.kwargs.get("oportunidad_id", "")).strip()
+        qs = DispositivoReal.objects.select_related("modelo", "capacidad")
+
+        if NUM_REGEX.fullmatch(raw):
+            # PK entero
+            return qs.filter(oportunidad_id=int(raw))
+        elif UUID_REGEX.fullmatch(raw):
+            # UUID
+            return qs.filter(oportunidad__uuid=raw.lower())
+        # elif HASHID_REGEX.fullmatch(raw):
+        #     return qs.filter(oportunidad__hashid=raw)
+
+        return qs.none()
+    
+@permission_classes([IsAuthenticated])
+class DispositivosRealesDeOportunidadGlobalView(ListAPIView):
+    serializer_class = DispositivoRealSerializer
+
+    def list(self, request, *args, **kwargs):
+        tenant = self.kwargs["tenant"]
+        uuid = self.kwargs["oportunidad_id"]
+        user = request.user
+
+        global_role = getattr(user, "global_role", None)
+        if not global_role or not (global_role.es_superadmin or global_role.es_empleado_interno):
+            logger.warning(f"⛔ Acceso denegado a dispositivos reales del tenant {tenant}")
+            return Response([], status=403)
+
+        with schema_context(tenant):
+            try:
+                oportunidad = Oportunidad.objects.get(uuid=uuid)
+            except Oportunidad.DoesNotExist:
+                return Response({"detail": "Oportunidad no encontrada"}, status=404)
+            
+            queryset = DispositivoReal.objects.filter(oportunidad=oportunidad)
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                "dispositivos": serializer.data,
+                "estado": oportunidad.estado
+            })
+    
+class ConfirmarRecepcionGlobalView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, schema, oportunidad_id):
+        user = request.user
+        role = getattr(user, "global_role", None)
+
+        if not role or not role.es_empleado_interno:
+            return Response(
+                {"detail": "Solo usuarios internos pueden confirmar recepción"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with schema_context(schema):
+            oportunidad = get_object_or_404(Oportunidad, uuid=oportunidad_id)
+
+            if not DispositivoReal.objects.filter(oportunidad=oportunidad).exists():
+                return Response(
+                    {"detail": "No se ha registrado ningún dispositivo real"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            estado_anterior = oportunidad.estado
+            oportunidad.estado = "Check in OK"
+            oportunidad.save()
+
+            HistorialOportunidad.objects.create(
+                oportunidad=oportunidad,
+                tipo_evento="confirmacion",
+                descripcion="Recepción confirmada por el usuario.",
+                estado_anterior=oportunidad.estado,
+                estado_nuevo="Check in OK",
+                usuario=request.user
+            )
+
+            return Response({
+                "detail": "Recepción confirmada correctamente en el tenant.",
+                "nuevo_estado": oportunidad.estado
+            })
+    
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def borrar_dispositivo_real(request, tenant):
+    imei = request.data.get("imei")
+    numero_serie = request.data.get("numero_serie")
+    oportunidad_id = request.data.get("oportunidad")
+
+    if not oportunidad_id:
+        return Response({"error": "Oportunidad requerida"}, status=400)
+
+    with schema_context(tenant):
+        oportunidad = get_object_or_404(Oportunidad, uuid=oportunidad_id)
+        query = DispositivoReal.objects.filter(oportunidad=oportunidad)
+        if imei:
+            query = query.filter(imei=imei)
+        if numero_serie:
+            query = query.filter(numero_serie=numero_serie)
+
+        eliminados, _ = query.delete()
+
+        if eliminados == 0:
+            return Response({"error": "No se encontró ningún dispositivo a eliminar"}, status=404)
+
+        return Response({"detail": "Dispositivo eliminado"}, status=204)
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def crear_dispositivo_real_global(request, tenant):
+    """
+    Crea un DispositivoReal en el schema del tenant.
+    Solo permitido para superadmin o empleados internos.
+    """
+    if not (
+        getattr(request.user.global_role, "es_superadmin", False)
+        or getattr(request.user.global_role, "es_empleado_interno", False)
+    ):
+        return Response({"error": "No autorizado"}, status=403)
+
+    logger.info(f"➕ [GLOBAL] Creando DispositivoReal en '{tenant}'...")
+
+    with schema_context(tenant):
+        serializer = DispositivoRealSerializer(data=request.data)
+        if serializer.is_valid():
+            dispositivo = serializer.save()
+            logger.info(f"✅ DispositivoReal creado: ID {dispositivo.id}")
+            return Response(DispositivoRealSerializer(dispositivo).data, status=201)
+        else:
+            logger.warning(f"❌ Error de validación: {serializer.errors}")
+            return Response(serializer.errors, status=400)
+
+@csrf_exempt
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def actualizar_dispositivo_real_global(request, tenant, id):
+    """Actualiza un DispositivoReal existente en el schema del tenant."""
+    if not (
+        getattr(request.user.global_role, "es_superadmin", False)
+        or getattr(request.user.global_role, "es_empleado_interno", False)
+    ):
+        return Response({"error": "No autorizado"}, status=403)
+
+    with schema_context(tenant):
+        try:
+            dispositivo = DispositivoReal.objects.get(id=id)
+        except DispositivoReal.DoesNotExist:
+            return Response({"detail": "Dispositivo no encontrado"}, status=404)
+
+        serializer = DispositivoRealSerializer(dispositivo, data=request.data, partial=True)
+        if serializer.is_valid():
+            dispositivo = serializer.save()
+            return Response(DispositivoRealSerializer(dispositivo).data)
+        else:
+            return Response(serializer.errors, status=400)
+
+def _verify_otp(contrato: B2CContrato, code: str) -> bool:
+    """
+    Verifica el OTP comparando el sha256 del código recibido con el hash guardado
+    y comprobando la vigencia del OTP.
+    Ajusta esto si tu formato real de otp_hash es distinto.
+    """
+    if not code or not contrato.otp_hash:
+        return False
+    try:
+        digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
+        ok_hash = hmac.compare_digest(contrato.otp_hash, digest)
+    except Exception:
+        return False
+    return ok_hash and bool(contrato.otp_vigente())
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def enviar_correo_oferta(request, id):
+    schema = request.data.get("schema")
+    evento = request.data.get("evento")
+    if not schema:
+        return Response({"detail": "Falta el parámetro 'schema'"}, status=400)
+
+    with schema_context(schema):
+        try:
+            oportunidad = Oportunidad.objects.select_related("cliente", "tienda").get(uuid=id)  # ← usamos uuid correctamente
+        except Oportunidad.DoesNotExist:
+            return Response({"detail": f"Oportunidad no encontrada en schema '{schema}'"}, status=404)
+
+        cliente = oportunidad.cliente
+        tienda = oportunidad.tienda
+        creador = oportunidad.usuario
+        contexto = {
+            "nombre_cliente": cliente.razon_social if cliente else "Cliente",
+            "cliente_email": getattr(cliente, "email", "") or getattr(cliente, "correo", ""),
+            "creador_oportunidad": getattr(creador, "email", ""),
+            "nombre_oportunidad": oportunidad.nombre or "",
+            "nombre_creador": (f"{getattr(creador, 'first_name', '')} {getattr(creador, 'last_name', '')}".strip()
+                if creador
+                else ""
+            ),
+            "fecha_oferta": oportunidad.fecha_oferta.strftime("%d/%m/%Y") if getattr(oportunidad, "fecha_oferta", None) else timezone.now().strftime("%d/%m/%Y"),
+            # Puedes agregar más si la plantilla los necesita
+        }
+
+        enviar_correo(evento, contexto)
+        print("[DEBUG EMAIL] Contexto:", contexto)
+    
+        return Response({"ok": True})
+
+class B2CContratoFilter(django_filters.FilterSet):
+    oportunidad = django_filters.UUIDFilter(field_name="oportunidad_id")
+
+    class Meta:
+        model = B2CContrato
+        fields = ["oportunidad", "estado", "kyc_token", "email", "telefono"]
+
+class B2CContratoViewSet(viewsets.ModelViewSet):
+    """
+    Flujo B2C con OTP:
+    - POST /b2c/contratos/ (create) → crea el contrato (requiere DNI en datos del contrato/cliente).
+    - POST /b2c/contratos/{id}/subir-dni/ → sube anverso/reverso (privado, requiere login).
+    - POST /b2c/contratos/kyc/<token>/subir-dni/ → subida pública por token (móvil).
+    - POST /b2c/contratos/{id}/enviar-otp/ → genera y envía OTP (email/SMS), cooldown, TTL, resetea intentos.
+    - POST /b2c/contratos/{id}/verificar-otp/ → valida OTP, firma, genera PDF y devuelve URL + SHA-256.
+    """
+    queryset = B2CContrato.objects.all().order_by("-creado_en")
+    http_method_names = ["post", "get", "patch"]
+    lookup_field = "id"
+
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    ordering_fields = ["creado_en", "id"]
+    filterset_class = B2CContratoFilter
+    
+    @action(detail=False, methods=["get"], url_path=r"kyc/(?P<token>[0-9a-f\-]{36})/info", permission_classes=[AllowAny])
+    def kyc_info(self, request, token=None, *args, **kwargs):
+        """
+        Devuelve info básica del contrato a firmar por token.
+        200: ok
+        404: token no reconocido / contrato no encontrado
+        410: token expirado o revocado
+        """
+        # 1) Resolver token en public
+        with schema_context(get_public_schema_name()):
+            idx = B2CKycIndex.objects.filter(token=token).order_by("-expires_at").first()
+            if not idx:
+                return Response({"detail": "Token no reconocido."}, status=404)
+
+            now = timezone.now()
+            if (idx.expires_at and idx.expires_at < now) or idx.revoked_at:
+                return Response({"detail": "Enlace expirado o ya utilizado."}, status=410)
+
+            tenant_slug = idx.tenant_slug
+            contrato_id = idx.contrato_id
+
+        # 2) Cargar contrato en el schema del tenant
+        from checkouters.models import B2CContrato
+        with schema_context(tenant_slug):
+            c = B2CContrato.objects.filter(id=contrato_id).first()
+            if not c:
+                return Response({"detail": "Contrato no encontrado."}, status=404)
+
+            data = {
+                "tipo": c.tipo,                          # "marco" | "acta"
+                "requiere_dni": (c.tipo != "acta"),      # las actas no requieren DNI
+                "estado": c.estado,                      # "pendiente", "firmado", ...
+                "tenant_slug": tenant_slug,
+                "contrato_id": c.id,
+                # extras útiles (opcionales):
+                "email": c.email,
+                "cliente": (c.contrato_datos or {}).get("cliente"),
+                "empresa": (c.contrato_datos or {}).get("empresa"),
+                "kyc_expires_at": getattr(c, "kyc_expires_at", None),
+            }
+
+        return Response(data, status=200)
+   
+    @action(detail=True, methods=["post"], url_path="kyc/verificar", permission_classes=[EsTecnicoOAdmin])
+    def kyc_verificar(self, request, pk=None):
+        c: B2CContrato = self.get_object()
+        c.kyc_estado = "verificado"
+        c.kyc_verificado_en = timezone.now()
+        c.kyc_verificado_por = request.user
+        c.pago_bloqueado_por_kyc = False
+        c.kyc_motivo = ""
+        c.save(update_fields=["kyc_estado","kyc_verificado_en","kyc_verificado_por",
+                            "pago_bloqueado_por_kyc","kyc_motivo"])
+        return Response({"ok": True, "kyc_estado": c.kyc_estado})
+
+    @action(detail=True, methods=["post"], url_path="kyc/mismatch", permission_classes=[EsTecnicoOAdmin])
+    def kyc_mismatch(self, request, pk=None):
+        c: B2CContrato = self.get_object()
+        c.kyc_estado = "mismatch"
+        c.pago_bloqueado_por_kyc = True
+        c.kyc_motivo = request.data.get("motivo", "Discrepancia en datos del DNI")
+        c.save(update_fields=["kyc_estado","pago_bloqueado_por_kyc","kyc_motivo"])
+        return Response({"ok": True, "kyc_estado": c.kyc_estado})
+
+    @action(detail=True, methods=["post"], url_path="kyc/rechazar", permission_classes=[EsTecnicoOAdmin])
+    def kyc_rechazar(self, request, pk=None):
+        c: B2CContrato = self.get_object()
+        c.kyc_estado = "rechazado"
+        c.pago_bloqueado_por_kyc = True
+        c.kyc_motivo = request.data.get("motivo", "KYC rechazado")
+        c.save(update_fields=["kyc_estado","pago_bloqueado_por_kyc","kyc_motivo"])
+        return Response({"ok": True, "kyc_estado": c.kyc_estado})
+
+    @action(detail=True, methods=["post"], url_path="verificar-otp")
+    @transaction.atomic
+    def verificar_otp(self, request, pk=None):
+        """
+        POST body: { "otp": "123456", "firmante": "email@dominio" }
+        - Valida OTP y estado
+        - Marca firmado
+        - Genera y persiste el PDF final
+        - Devuelve contrato + pdf_url
+        """
+        contrato: B2CContrato = self.get_object()
+
+        if contrato.estado not in ("pendiente", "otp_enviado"):
+            return Response({"detail": "Estado inválido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp = (request.data.get("otp") or "").strip()
+        if not _verify_otp(contrato, otp):
+            contrato.otp_intentos = (contrato.otp_intentos or 0) + 1
+            contrato.save(update_fields=["otp_intentos"])
+            return Response({"ok": False, "detail": "OTP inválido o caducado"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Marcar firmado
+        contrato.marcar_firmado(
+            firmante=request.data.get("firmante") or contrato.email,
+            ip=request.META.get("REMOTE_ADDR", ""),
+            ua=request.META.get("HTTP_USER_AGENT", ""),
+        )
+        contrato.save(update_fields=["estado", "firmado_en", "firmado_por", "ip_firmante", "user_agent"])
+
+        # Generar y persistir PDF final
+        pdf_url = persistir_pdf_final(contrato)
+
+        data = self.get_serializer(contrato).data
+        data.update({"ok": True, "pdf_url": pdf_url})
+        return Response(data, status=status.HTTP_200_OK)
+    
+    
+    @action(detail=False, methods=["get"], url_path=r"por-oportunidad/(?P<opp>[0-9a-f-]+)")
+    def por_oportunidad(self, request, opp=None):
+        qs = B2CContrato.objects.filter(oportunidad_id=opp)
+
+        # Opcional: permitir ?tipo=marco|acta
+        tipo = request.query_params.get("tipo")
+        if tipo in ("marco", "acta"):
+            qs = qs.filter(tipo=tipo)
+
+        # Preferir firmados primero y, dentro de cada grupo, el más reciente
+        qs = qs.annotate(
+            prioridad=Case(
+                When(estado="firmado", then=0),
+                default=1,
+                output_field=IntegerField(),
+            )
+        ).order_by("prioridad", "-creado_en")
+
+        contrato = qs.first()
+        if not contrato:
+            return Response({"detail": "No hay contrato"}, status=status.HTTP_404_NOT_FOUND)
+
+        data = B2CContratoDetailSerializer(contrato, context={"request": request}).data
+        return Response(data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=["post"], url_path="generar-acta", permission_classes=[permissions.IsAuthenticated])
+    def generar_acta(self, request, id=None, **kwargs):
+        marco: B2CContrato = self.get_object()
+        if not marco.es_marco:
+            return Response({"detail": "Sólo se puede generar acta desde un contrato marco."}, status=400)
+        if marco.estado != "firmado":
+            return Response({"detail": "El contrato marco debe estar firmado antes de generar el acta."}, status=400)
+
+        payload = request.data or {}
+        dispositivos = payload.get("dispositivos", [])  # [{descripcion, imei/serie, estado, precio}]
+        total = payload.get("total")  # opcional si quieres calcular en backend
+        observaciones = payload.get("observaciones", "")
+
+        # Construye el snapshot del acta
+        datos_acta = {
+            "empresa": marco.contrato_datos.get("empresa", {}),
+            "cliente": marco.contrato_datos.get("cliente", {}),
+            "dispositivos": dispositivos,
+            "total": total if total is not None else sum([(d.get("precio") or 0) for d in dispositivos]),
+            "observaciones": observaciones,
+            "ref_sha256": marco.pdf_sha256,  # referenciamos el marco
+        }
+
+        acta = B2CContrato.objects.create(
+            tipo="acta",
+            principal=marco,
+            email=marco.email,
+            telefono=marco.telefono,
+            dni=marco.dni,
+            contrato_datos=datos_acta,
+            estado="pendiente",
+            kyc_token=uuid.uuid4(),                 # reutilizamos tu mecanismo público
+            kyc_expires_at=timezone.now() + timedelta(days=7),
+        )
+
+        # Si quieres: enviar OTP ya aquí (o deja que el agente dispare /enviar-otp/)
+        # self._enviar_otp_interno(acta)  # opcional
+
+        data = B2CContratoDetailSerializer(acta, context={"request": request}).data
+        return Response(data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=["get"], url_path="pdf-preview")
+    def pdf_preview(self, request, **kwargs):
+        contrato = self.get_object()
+
+        # 1) Generar el cuerpo (file-like)
+        fileobj, sha = generar_pdf_contrato(contrato, preview=True)
+        fileobj.seek(0)
+        pdf_bytes = fileobj.read()
+
+        # 2) (Opcional) anexa condiciones
+        tenant_slug = (
+            getattr(getattr(request, "tenant", None), "schema_name", None)
+            or request.query_params.get("schema")
+            or getattr(connection, "schema_name", "public")
+        )
+        pdf_bytes, _ = anexar_condiciones(pdf_bytes, tenant_slug=tenant_slug, version="v1", lang="es")
+
+        # 3) Respuesta
+        bio = io.BytesIO(pdf_bytes)
+        resp = FileResponse(bio, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="contrato_preview_{contrato.id}.pdf"'
+        resp["Content-Length"] = str(len(pdf_bytes))
+        resp["Accept-Ranges"] = "bytes"
+        resp["Cache-Control"] = "private, max-age=0, no-store"
+        resp["X-Document-SHA256"] = sha
+        resp["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
+    
+    def _get_contrato_by_token(self, token):
+        """
+        Busca el contrato por token iterando los tenants.
+        Devuelve (schema_name, contrato) o (None, None) si no existe.
+        """
+        Tenant = get_tenant_model()
+        with schema_context(get_public_schema_name()):
+            schemas = list(Tenant.objects.values_list("schema_name", flat=True))
+
+        for s in schemas:
+            with schema_context(s):
+                c = B2CContrato.objects.filter(kyc_token=token).first()
+                if c:
+                    return s, c
+        return None, None
+    
+    def get_serializer_class(self):
+        if self.action in ["create"]:
+            return B2CContratoCreateSerializer
+        return B2CContratoDetailSerializer
+
+    # --- generar token KYC al crear ---
+    def perform_create(self, serializer):
+        contrato = serializer.save()
+        if not getattr(contrato, "kyc_token", None):
+            contrato.kyc_token = uuid.uuid4()
+        contrato.kyc_expires_at = timezone.now() + timedelta(days=3)
+        contrato.save(update_fields=["kyc_token", "kyc_expires_at"])
+
+        base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
+        enlace = f"{base}/kyc-upload/{contrato.kyc_token}"
+        try:
+            if contrato.email:
+                send_mail(
+                    subject="Completa tu verificación de identidad",
+                    message=("Hola,\n\n"
+                    "Para completar tu contrato de compra-venta, sube las fotos de tu DNI en el siguiente enlace:\n"
+                    f"{enlace}\n\n"
+                    "Este enlace caduca en 3 días. Si no solicitaste este proceso, ignora este mensaje.\n\n"
+                    "Gracias."),
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@tu-dominio.com"),
+                    recipient_list=[contrato.email],
+                    fail_silently=False,
+                )
+        except Exception:
+            # Si falla, no interrumpimos la creación, pero podrías loguearlo
+            pass
+        from django_tenants.utils import get_public_schema_name, schema_context
+        from progeek.models import B2CKycIndex
+        tenant_slug = getattr(getattr(self.request, "tenant", None), "schema_name", None) or self.request.query_params.get("schema")
+        if tenant_slug:
+            with schema_context(get_public_schema_name()):
+                B2CKycIndex.objects.update_or_create(
+                    token=contrato.kyc_token,
+                    defaults={
+                        "tenant_slug": tenant_slug,
+                        "contrato_id": contrato.id,
+                        "expires_at": contrato.kyc_expires_at,
+                        "revoked_at": None,
+                    },
+                )
+    # --- subida privada (requiere login) ---
+    @action(detail=True, methods=["post"], url_path="subir-dni", permission_classes=[permissions.IsAuthenticated])
+    def subir_dni(self, request, **kwargs):
+        """
+        multipart/form-data: lado=anverso|reverso, imagen=<file>
+        """
+        contrato: B2CContrato = self.get_object()
+        lado = (request.data.get("lado") or "").strip().lower()
+        file = request.FILES.get("imagen")
+
+        if lado not in ("anverso", "reverso"):
+            return Response({"detail": "Parametro 'lado' debe ser 'anverso' o 'reverso'."}, status=400)
+        if not file:
+            return Response({"detail": "Falta el archivo 'imagen'."}, status=400)
+
+        try:
+            cleaned = sanitize_image(file)  # strip EXIF, limita tamaño, re-encode
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        filename = f"dni_{lado}.jpg"
+        content = ContentFile(cleaned.read(), name=filename)
+
+        if lado == "anverso":
+            contrato.dni_anverso.save(filename, content, save=False)
+        else:
+            contrato.dni_reverso.save(filename, content, save=False)
+
+        if not contrato.kyc_retenido_hasta:
+            contrato.marcar_retencion(dias=1825)  # 5 años, como definiste
+
+        contrato.save()
+        data = B2CContratoKYCFlagsSerializer(contrato, context={"request": request}).data
+        return Response(data, status=200)
+
+    @action(detail=True, methods=["delete"], url_path=r"dni/(?P<lado>anverso|reverso)", permission_classes=[permissions.IsAuthenticated])
+    def borrar_dni(self, request, lado=None, **kwargs):
+        contrato: B2CContrato = self.get_object()
+        if lado == "anverso" and contrato.dni_anverso:
+            contrato.dni_anverso.delete(save=False)
+            contrato.dni_anverso = None
+        elif lado == "reverso" and contrato.dni_reverso:
+            contrato.dni_reverso.delete(save=False)
+            contrato.dni_reverso = None
+        else:
+            return Response({"detail": "Nada que borrar."}, status=404)
+        contrato.save()
+        return Response({"detail": "Imagen borrada."}, status=200)
+
+    # --- subida pública por token (sin login) ---
+    @action(detail=False,methods=["post"],url_path=r"kyc/(?P<token>[0-9a-f-]+)/subir-dni",permission_classes=[AllowAny], authentication_classes=[])
+    def kyc_public_upload(self, request, token=None):
+        from django_tenants.utils import get_public_schema_name, schema_context
+        from progeek.models import B2CKycIndex
+
+        # 1) Resolver tenant + contrato en PUBLIC
+        with schema_context(get_public_schema_name()):
+            idx = get_object_or_404(B2CKycIndex, token=token)
+            if getattr(idx, "revoked_at", None) or (idx.expires_at and idx.expires_at < timezone.now()):
+                return Response({"detail": "KYC token expirado"}, status=410)
+            tenant_slug, contrato_id = idx.tenant_slug, idx.contrato_id
+
+        # 2) TODO lo que toque BD DEL CONTRATO dentro del TENANT
+        lado = (request.data.get("lado") or "").strip().lower()
+        file = request.FILES.get("imagen")
+        if lado not in ("anverso", "reverso"):
+            return Response({"detail": "Parametro 'lado' debe ser 'anverso' o 'reverso'."}, status=400)
+        if not file:
+            return Response({"detail": "Falta el archivo 'imagen'."}, status=400)
+
+        try:
+            cleaned = sanitize_image(file)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        filename = f"dni_{lado}.jpg"
+        data_bytes = cleaned.read() if hasattr(cleaned, "read") else cleaned
+        content = ContentFile(data_bytes, name=filename)
+
+        with schema_context(tenant_slug):
+            contrato = get_object_or_404(B2CContrato, pk=contrato_id)
+
+            if lado == "anverso":
+                contrato.dni_anverso.save(filename, content, save=False)
+            else:
+                contrato.dni_reverso.save(filename, content, save=False)
+
+            if not contrato.kyc_retenido_hasta:
+                contrato.marcar_retencion(dias=1825)
+
+            # Mensaje + lógica si ya están ambos lados
+            msg = "Imagen subida correctamente."
+            ambos = bool(contrato.dni_anverso) and bool(contrato.dni_reverso)
+            if ambos:
+                msg = "Imagen subida. KYC listo (ambos lados)."
+
+            contrato.save()
+
+       
+
+        return Response({
+            "detail": msg,
+            "tiene_dni_anverso": True if lado == "anverso" else bool(contrato.dni_anverso),
+            "tiene_dni_reverso": True if lado == "reverso" else bool(contrato.dni_reverso),
+        }, status=200)
+
+   
+    # --- OTP por TOKEN: enviar ---
+    @action(detail=False,methods=["post"],url_path=r"kyc/(?P<token>[0-9a-f\-]{36})/enviar-otp",permission_classes=[AllowAny],authentication_classes=[])
+    def enviar_otp_token(self, request, token=None, **kwargs):
+        link, err = _load_link(token)
+        if err:
+            return Response({"detail": err}, status=410)
+
+        # Lee y valida dentro del tenant (lectura + escrituras)
+        with schema_context(link.tenant_slug):
+            contrato = B2CContrato.objects.get(id=link.contrato_id)
+
+            # === ACTA: no requiere DNI ===
+            # Si existe un flag explícito lo respetamos; si no, por defecto:
+            #   - marco  -> requiere DNI
+            #   - acta   -> NO requiere DNI
+            requiere_dni_flag = getattr(contrato, "kyc_requerido", None)
+            requiere_dni = requiere_dni_flag if requiere_dni_flag is not None else (contrato.tipo != "acta")
+
+            if contrato.estado == "firmado":
+                return Response({"detail": "Este contrato ya está firmado."}, status=400)
+
+            # Para marcos (requiere_dni=True) seguimos exigiendo imágenes + DNI
+            if requiere_dni:
+                if not (contrato.dni_anverso and contrato.dni_reverso):
+                    return Response({"detail": "Debes subir anverso y reverso del DNI antes de enviar el OTP."}, status=400)
+                if not contrato.dni:
+                    return Response({"detail": "El DNI es obligatorio antes de enviar el código."}, status=400)
+
+            # Cooldown
+            if contrato.ultimo_envio_otp:
+                diff = (timezone.now() - contrato.ultimo_envio_otp).total_seconds()
+                if diff < OTP_COOLDOWN_SECONDS:
+                    restante = int(OTP_COOLDOWN_SECONDS - diff)
+                    return Response(
+                        {
+                            "detail": f"Espera {restante}s para solicitar un nuevo código.",
+                            "cooldown_segundos": restante,
+                            "cooldown": restante,
+                        },
+                        status=429,
+                    )
+
+            otp = generar_otp(6)
+            contrato.otp_hash = hash_otp(otp)
+            contrato.otp_expires_at = timezone.now() + timedelta(minutes=OTP_TTL_MINUTES)
+            contrato.otp_intentos = 0
+            contrato.estado = "otp_enviado"
+            contrato.ultimo_envio_otp = timezone.now()
+            contrato.save(update_fields=[
+                "otp_hash", "otp_expires_at", "otp_intentos", "estado", "ultimo_envio_otp"
+            ])
+
+            # Guarda estos valores para el email fuera del bloque si quieres
+            email_dest = contrato.email
+            kyc_token = contrato.kyc_token
+
+        try:
+            if email_dest:
+                send_mail(
+                    subject="Tu código de firma",
+                    message=(f"Tu código es: {otp} (válido {OTP_TTL_MINUTES} minutos).\n"
+                            f"Si aún no has subido tu DNI: {getattr(settings,'FRONTEND_BASE_URL','').rstrip('/')}/kyc-upload/{kyc_token}"),
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@tu-dominio.com"),
+                    recipient_list=[email_dest],
+                    fail_silently=False,
+                )
+        except Exception:
+            return Response({"detail": "No se pudo enviar el código. Inténtalo más tarde."}, status=500)
+
+        return Response({"detail": "Código enviado.",
+                        "ttl_minutos": OTP_TTL_MINUTES,
+                        "cooldown_segundos": OTP_COOLDOWN_SECONDS,
+                        "cooldown": OTP_COOLDOWN_SECONDS}, status=200)
+
+    # --- OTP por TOKEN: verificar ---
+    @action(detail=False,methods=["post"],url_path=r"kyc/(?P<token>[0-9a-f\-]{36})/verificar-otp",permission_classes=[AllowAny],authentication_classes=[])
+    def verificar_otp_token(self, request, token=None, **kwargs):
+        link, err = _load_link(token)
+        if err:
+            return Response({"detail": err}, status=410)
+
+        with schema_context(link.tenant_slug), transaction.atomic():
+            contrato = (B2CContrato.objects.select_for_update().get(id=link.contrato_id))
+
+            if contrato.estado == "firmado":
+                return Response({"detail": "Este contrato ya está firmado."}, status=400)
+            if contrato.estado not in ["pendiente", "otp_enviado"]:
+                return Response({"detail": f"No se puede verificar en estado {contrato.estado}."}, status=400)
+            if not contrato.otp_expires_at or timezone.now() >= contrato.otp_expires_at:
+                contrato.estado = "expirado"
+                contrato.save(update_fields=["estado"])
+                return Response({"detail": "Código caducado. Solicita uno nuevo."}, status=400)
+            if contrato.otp_intentos >= contrato.otp_max_intentos:
+                return Response({"detail": "Has superado el número de intentos. Solicita un nuevo código."}, status=429)
+
+            otp = (request.data.get("otp") or "").strip()
+            if not otp or not check_otp(otp, contrato.otp_hash):
+                contrato.otp_intentos += 1
+                contrato.save(update_fields=["otp_intentos"])
+                restantes = max(0, contrato.otp_max_intentos - contrato.otp_intentos)
+                return Response({"detail": f"Código incorrecto. Intentos restantes: {restantes}."}, status=400)
+
+            # ✅ OTP correcto → firmar + PDF
+            ip, _ = get_client_ip(request)
+            contrato.firmado_en = timezone.now()
+            contrato.firmado_por = contrato.email or contrato.telefono
+            contrato.ip_firmante = ip
+            contrato.user_agent = request.META.get("HTTP_USER_AGENT", "")[:1000]
+            contrato.estado = "firmado"
+            pdf_file, sha = generar_pdf_contrato(contrato,preview=False)         # PDF final
+            contrato.pdf.save(f"contrato_{contrato.id}.pdf", pdf_file, save=False)
+            contrato.pdf_sha256 = sha
+            
+
+            # Limpieza OTP
+            contrato.otp_hash = ""
+            contrato.otp_expires_at = None
+            contrato.otp_intentos = 0
+            contrato.ultimo_envio_otp = None
+
+            contrato.save()
+            
+            # Datos para email (extraídos DENTRO del schema)
+            email_dest = contrato.email
+            pdf_path = contrato.pdf.path if hasattr(contrato.pdf, "path") else None
+            pdf_url  = contrato.pdf.url if contrato.pdf else None
+            sha256   = contrato.pdf_sha256
+            contrato_id = contrato.id
+            tenant_slug = link.tenant_slug
+
+            # Enviar email tras commit (para no dispararlo si hay rollback)
+            def _send_signed_email():
+                # Si prefieres link presignado en vez de adjunto:
+                # url = build_presigned_pdf_url(pdf_url) if pdf_url else None
+
+                subject = "Contrato firmado — Confirmación"
+                body = (
+                    "Hola,\n\n"
+                    "Tu contrato ha sido firmado correctamente.\n\n"
+                    f"Referencia: {contrato_id}\n"
+                    f"SHA-256 del PDF: {sha256}\n\n"
+                    "Adjuntamos el documento firmado para tu referencia.\n"
+                    "Gracias.\n"
+                )
+                if not email_dest:
+                    return
+
+                msg = EmailMessage(
+                    subject=subject,
+                    body=body,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@tu-dominio.com"),
+                    to=[email_dest],
+                )
+                # Adjuntar si podemos leer el fichero localmente; si usas S3 sin disco local,
+                # mejor envía solo el enlace (o descarga a memoria y adjunta).
+                try:
+                    if pdf_path:
+                        with open(pdf_path, "rb") as f:
+                            msg.attach(f"contrato_{contrato_id}.pdf", f.read(), "application/pdf")
+                    # else: si no hay path, deja solo el cuerpo (o añade la URL)
+                    # if pdf_url: body += f"\nDescarga: {pdf_url}\n"
+                    msg.send(fail_silently=True)
+                except Exception:
+                    # registra/loggea, pero no rompas el flujo de respuesta
+                    pass
+
+            transaction.on_commit(_send_signed_email)
+
+            # Para respuesta fuera del bloque
+            pdf_url = contrato.pdf.url if contrato.pdf else None
+            firmado_en = contrato.firmado_en
+            sha256 = contrato.pdf_sha256
+
+        # Revocar el índice en PUBLIC
+        with schema_context(get_public_schema_name()):
+            B2CKycIndex.objects.filter(token=token, revoked_at__isnull=True)\
+                .update(revoked_at=timezone.now())
+
+        if not pdf_url:
+            return Response({"detail": "Contrato firmado, pero no se pudo generar el PDF."}, status=500)
+
+        return Response({
+            "detail": "Contrato firmado.",
+            "firmado": True,
+            "pdf": pdf_url,
+            "sha256": sha256,
+            "firmado_en": firmado_en,
+        }, status=200)
+   
+    @action(detail=True, methods=["post"])
+    def finalizar(self, request, id=None):
+        contrato = self.get_object()
+        contrato.estado = "finalizado"
+        contrato.save(update_fields=["estado"])
+        return Response({"estado": contrato.estado}, status=200) 
+    
+class B2CContratoFlagsAPIView(APIView):
+    authentication_classes = []  # público (la seguridad la da el token + caducidad)
+    permission_classes = []
+
+    def get(self, request, token):
+        from django_tenants.utils import get_public_schema_name, schema_context
+        from progeek.models import B2CKycIndex
+        with schema_context(get_public_schema_name()):
+            idx = get_object_or_404(B2CKycIndex, token=token)
+            exp = idx.expires_at
+            if getattr(idx, "revoked_at", None) or (exp and exp < now()):
+                return Response({"detail": "KYC token expirado"}, status=410)
+            tenant_slug, contrato_id = idx.tenant_slug, idx.contrato_id
+        # saltar a schema del tenant
+        with schema_context(tenant_slug):
+            contrato = get_object_or_404(B2CContrato, pk=contrato_id)
+
+        # Revocado o caducado → 410
+        if (contrato.kyc_revocado_at is not None) or (
+            contrato.kyc_expires_at and contrato.kyc_expires_at < now()
+        ):
+            return Response({"detail": "KYC token expirado"}, status=410)
+
+        return Response({
+            "tiene_dni_anverso": bool(contrato.tiene_dni_anverso),
+            "tiene_dni_reverso": bool(contrato.tiene_dni_reverso),
+        })
+    
+class B2CContratoKycFinalizarAPIView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, token):
+            from django_tenants.utils import get_public_schema_name, schema_context
+            from progeek.models import B2CKycIndex
+            from django.utils.timezone import now
+
+            # 1) Resolver tenant/contrato en PUBLIC
+            with schema_context(get_public_schema_name()):
+                idx = get_object_or_404(B2CKycIndex, token=token)
+                exp = idx.expires_at
+                if exp and exp < now():
+                    return Response({"detail": "KYC token expirado"}, status=410)
+                tenant_slug, contrato_id = idx.tenant_slug, idx.contrato_id
+
+            # 2) Trabajar en el schema del TENANT
+            with schema_context(tenant_slug):
+                contrato = get_object_or_404(B2CContrato, pk=contrato_id)
+
+                ya_estaba = bool(getattr(contrato, "kyc_completado", False))
+                # idempotencia
+                if getattr(contrato, "kyc_completado", False):
+                    return Response({"ok": True, "estado": getattr(contrato, "estado", None)}, status=200)
+                # exige ambos lados
+                if not contrato.dni_anverso or not contrato.dni_reverso:
+                    return Response({"detail": "Falta anverso y/o reverso del DNI."}, status=400)
+
+                contrato.kyc_completado = True
+                if not getattr(contrato, "kyc_completed_at", None):
+                    contrato.kyc_completed_at = now()
+                contrato.kyc_revocado_at = now()
+                if hasattr(contrato, "estado"):
+                    try:
+                        contrato.estado = "KYC completado"
+                    except Exception:
+                        pass
+                contrato.save()
+
+            # 3) Reflejar revocación en PUBLIC
+            with schema_context(get_public_schema_name()):
+                B2CKycIndex.objects.filter(token=token).update(revoked_at=now())
+
+            # 4) Email solo primera vez
+            if not ya_estaba and getattr(contrato, "email", None):
+                try:
+                    send_mail(
+                        subject="Hemos recibido tu documentación",
+                        message=("Gracias por completar el proceso de verificación.\n"
+                                "Revisaremos tu documentación y te avisaremos por correo."),
+                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                        recipient_list=[contrato.email],
+                        fail_silently=True,
+                    )
+                except Exception:
+                    pass
+
+            return Response({"ok": True, "estado": getattr(contrato, "estado", None)}, status=200)
+    
+class B2CContratoRenovarKYCApiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        contrato = get_object_or_404(B2CContrato, pk=pk)
+
+        dias = int(request.data.get("dias", 7))
+        regenerar = bool(request.data.get("regenerar_token", True))
+
+        # tenant actual (petición privada del panel)
+        tenant_slug = getattr(getattr(request, "tenant", None), "schema_name", None) or getattr(connection, "schema_name", None)
+
+        # Actualizar CONTRATO (en el schema actual del tenant)
+        if regenerar or not getattr(contrato, "kyc_token", None):
+            contrato.kyc_token = uuid.uuid4()
+        nueva = now() + timedelta(days=dias)
+        contrato.kyc_expires_at = nueva
+        if hasattr(contrato, "kyc_revocado_at"):
+            contrato.kyc_revocado_at = None
+        contrato.save(update_fields=["kyc_token", "kyc_expires_at", "kyc_revocado_at"])
+
+        # Actualizar ÍNDICE en PUBLIC
+        with schema_context(get_public_schema_name()):
+            B2CKycIndex.objects.update_or_create(
+                token=contrato.kyc_token,
+                defaults={
+                    "tenant_slug": tenant_slug,
+                    "contrato_id": contrato.id,
+                    "expires_at": nueva,
+                    "revoked_at": None,
+                },
+            )
+
+        url = f"{getattr(settings, 'FRONTEND_BASE_URL', 'https://progeek.es').rstrip('/')}/kyc-upload/{contrato.kyc_token}"
+        return Response({"ok": True, "kyc_token": str(contrato.kyc_token), "url": url, "expira_en_dias": dias}, status=200)
+    
+class B2CContratoReenviarKYCApiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        contrato = get_object_or_404(B2CContrato, pk=pk)
+
+        dias = int(request.data.get("dias", 7))
+        regenerar = bool(request.data.get("regenerar_token", True))
+        destinatario = request.data.get("email") or getattr(contrato, "email", None)
+        if not destinatario:
+            return Response({"detail": "No hay email del cliente."}, status=400)
+
+        from django.db import connection
+        tenant_slug = getattr(getattr(request, "tenant", None), "schema_name", None) or getattr(connection, "schema_name", None)
+
+        # CONTRATO (tenant)
+        if regenerar or not getattr(contrato, "kyc_token", None):
+            contrato.kyc_token = uuid.uuid4()
+        nueva = now() + timedelta(days=dias)
+        contrato.kyc_expires_at = nueva
+        if hasattr(contrato, "kyc_revocado_at"):
+            contrato.kyc_revocado_at = None
+        contrato.save(update_fields=["kyc_token", "kyc_expires_at", "kyc_revocado_at"])
+
+        # ÍNDICE (public)
+        from django_tenants.utils import get_public_schema_name, schema_context
+        from progeek.models import B2CKycIndex
+        with schema_context(get_public_schema_name()):
+            B2CKycIndex.objects.update_or_create(
+                token=contrato.kyc_token,
+                defaults={
+                    "tenant_slug": tenant_slug,
+                    "contrato_id": contrato.id,
+                    "expires_at": nueva,
+                    "revoked_at": None,
+                },
+            )
+
+        url = f"{getattr(settings, 'FRONTEND_BASE_URL', 'https://progeek.es').rstrip('/')}/kyc-upload/{contrato.kyc_token}"
+
+        try:
+            send_mail(
+                subject="Accede de nuevo a tu verificación KYC",
+                message=(f"Hola,\n\nTe dejamos un nuevo enlace para continuar la verificación:\n{url}\n\n"
+                         f"El enlace caduca en {dias} día(s)."),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@progeek.es"),
+                recipient_list=[destinatario],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+
+        return Response({"ok": True, "email": destinatario, "url": url, "expira_en_dias": dias}, status=200)   
+
+class B2CContratoPdfPublicAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, kyc_token):
+        contrato = get_object_or_404(B2CContrato, kyc_token=kyc_token)
+        if not contrato.pdf:
+            return Response({"detail": "PDF no disponible"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Si el storage es público:
+        try:
+            return redirect(contrato.pdf.url)
+        except Exception:
+            pass
+
+        # Si es privado (PRIVATE_STORAGE) o no hay URL pública:
+        return FileResponse(contrato.pdf.open("rb"), content_type="application/pdf")
+    
+try:
+    from checkouters.utils.legal_context import build_legal_context
+except Exception:
+    # Fallback básico: construye un contexto mínimo desde el contrato
+    from django.utils import timezone
+    def build_legal_context(contrato, overlay=None):
+        datos = getattr(contrato, "contrato_datos", {}) or {}
+        dispositivos = (
+            datos.get("dispositivos")
+            or datos.get("dispositivos_estimados")
+            or []
+        )
+        total = datos.get("total") or sum((d.get("precio") or d.get("precio_provisional") or 0) for d in dispositivos)
+        return {
+            "operador": (overlay or {}).get("operador", {}),
+            "empresa": datos.get("empresa", {}) or {},
+            "cliente": datos.get("cliente", {}) or {},
+            "contrato": {
+                "numero": datos.get("contrato", {}).get("numero") or getattr(contrato, "id", None),
+                "fecha": (getattr(contrato, "firmado_en", None) or timezone.now()).date().isoformat(),
+                "otp_hash": datos.get("contrato", {}).get("otp_hash") or "",
+                "kyc_ref": datos.get("contrato", {}).get("kyc_ref") or "",
+                "importe_total": total,
+                "validez_dias": datos.get("contrato", {}).get("validez_dias") or 7,
+            },
+            "dispositivos": dispositivos,
+        }
+MINIMAL_BODY_FALLBACK = """
+<h2>Datos del contrato</h2>
+<p><b>Operador:</b> {{ operador.nombre }} (CIF {{ operador.cif }})<br/>
+{{ operador.direccion }}<br/>Email: {{ operador.email }}{% if operador.telefono %} · Tel: {{ operador.telefono }}{% endif %}</p>
+
+<p><b>Cliente:</b> {{ cliente.nombre }} {{ cliente.apellidos }}{% if cliente.dni_nie %} (DNI/NIE {{ cliente.dni_nie }}){% endif %}<br/>
+{% if cliente.direccion %}{{ cliente.direccion }}{% endif %}{% if cliente.email %}<br/>Email: {{ cliente.email }}{% endif %}{% if cliente.telefono %} · Tel: {{ cliente.telefono }}{% endif %}</p>
+
+<h3>Dispositivoss</h3>
+
+"""
+
+def load_active_plain_template(tenant, slug: str, namespace_hint: str | None = None) -> str:
+    """
+    Lee el cuerpo de LegalTemplate ACTIVO desde el SCHEMA PUBLIC.
+    - Busca por slug (case-insensitive) + namespaces efectivos del tenant (y 'default').
+    - LOGs muy verbosos para diagnosticar por qué no se encuentra.
+    """
+    s = (slug or "").strip()
+    ns = []
+    if namespace_hint:
+        ns.append(namespace_hint.strip())
+    try:
+        if tenant and hasattr(tenant, "effective_legal_namespaces"):
+            ns += list(tenant.effective_legal_namespaces() or [])
+    except Exception:
+        pass
+    if "default" not in ns:
+        ns.append("default")
+
+    pub = get_public_schema_name()
+    try:
+        with schema_context(pub):
+            logger.info("[TPL] probe START schema=%s slug='%s' namespaces=%s", pub, s, ns)
+            # 1) Activa, slug+ns exactos (robusto a may/min)
+            row = (
+                PublicLegalTemplate.objects
+                .filter(slug__iexact=s, is_active=True, namespace__in=ns)
+                .order_by("-updated_at", "-id")
+                .first()
+            )
+            if row:
+                content = (row.content or "").strip()
+                logger.info("[TPL] HIT active slug='%s' ns=%s ver=%s bytes=%d",
+                            row.slug, row.namespace, row.version, len(content.encode("utf-8")))
+                return content
+
+            # 2) Plan B: activa por slug, ignorando namespace (para detectar mismatch de ns)
+            row_any_ns = (
+                PublicLegalTemplate.objects
+                .filter(slug__iexact=s, is_active=True)
+                .order_by("-updated_at", "-id")
+                .first()
+            )
+            if row_any_ns:
+                content = (row_any_ns.content or "").strip()
+                logger.warning("[TPL] HIT active-any-ns slug='%s' ns=%s ver=%s (tu ns=%s no tenía activa) bytes=%d",
+                               row_any_ns.slug, row_any_ns.namespace, row_any_ns.version, ns, len(content.encode("utf-8")))
+                return content
+
+            # 3) Plan C: última versión por slug aunque NO esté activa (para diagnosticar)
+            row_last = (
+                PublicLegalTemplate.objects
+                .filter(slug__iexact=s)
+                .order_by("-updated_at", "-id")
+                .first()
+            )
+            if row_last:
+                logger.warning("[TPL] MISS active. Found non-active slug='%s' ns=%s ver=%s is_active=%s",
+                               row_last.slug, row_last.namespace, row_last.version, row_last.is_active)
+
+            # 4) LOG extra: cuántas hay por slug
+            total = PublicLegalTemplate.objects.filter(slug__iexact=s).count()
+            total_active = PublicLegalTemplate.objects.filter(slug__iexact=s, is_active=True).count()
+            logger.warning("[TPL] MISS total_by_slug=%d total_active_by_slug=%d schema=%s", total, total_active, pub)
+
+            return ""
+    except Exception:
+        logger.exception("[TPL] ERROR loading slug='%s' from schema=%s", s, pub)
+        return ""
+
+class B2CContratoPdfPreviewByToken(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []  # público
+
+    def get(self, request, token: str):
+        # 1) Resolver token en PUBLIC
+        with schema_context(get_public_schema_name()):
+            idx = (
+                B2CKycIndex.objects.filter(token=token)
+                .order_by("-expires_at")
+                .first()
+            )
+            if not idx:
+                return JsonResponse({"detail": "Token no reconocido."}, status=404)
+            if idx.revoked_at:
+                return JsonResponse({"detail": "Token revocado."}, status=410)
+            if idx.expires_at and timezone.now() > idx.expires_at:
+                return JsonResponse({"detail": "Token caducado."}, status=410)
+
+        # 2) Render de CUERPO + PDF dentro del tenant
+        with schema_context(idx.tenant_slug):
+            contrato = get_object_or_404(B2CContrato, pk=idx.contrato_id)
+
+            # Contexto (operador/cliente/contrato/dispositivos…)
+            try:
+                tenant = get_tenant_model().objects.get(schema_name=idx.tenant_slug)
+            except Exception:
+                tenant = None
+            try:
+                overlay = (tenant.legal_overlay() or {}) if tenant else {}
+            except Exception:
+                overlay = {}
+
+            ctx = build_legal_context(contrato, overlay)
+
+            # -- Blindar dispositivos para evitar "Failed lookup"
+            dispositivos = list(ctx.get("dispositivos") or [])
+            for d in dispositivos:
+                # alias comunes
+                if "numero_serie" in d and not d.get("serie"):
+                    d["serie"] = d.get("numero_serie") or ""
+                if "imei_serial" in d and not d.get("imei"):
+                    d["imei"] = d.get("imei_serial") or ""
+                if not d.get("descripcion") and d.get("modelo"):
+                    d["descripcion"] = d["modelo"]
+                # claves usadas por plantillas
+                d.setdefault("serie", "")
+                d.setdefault("imei", "")
+                d.setdefault("descripcion", "")
+                d.setdefault("estado_declarado", "")
+                d.setdefault("precio_provisional", None)
+            ctx["dispositivos"] = dispositivos
+
+            # 2.1 Elegir SLUG de cuerpo (primero decidir si es acta)
+            es_acta = bool(getattr(contrato, "es_acta", False) or getattr(contrato, "tipo", "") == "acta")
+            chosen_slug = "b2c-acta-cabecera" if es_acta else "b2c-contrato-cabecera"
+
+            # 2.2 Fuente del HTML del cuerpo: contrato → contrato_datos → plantilla activa → fallback
+            body_tpl = (
+                getattr(contrato, "cuerpo_html", None)
+                or (getattr(contrato, "contrato_datos", {}) or {}).get("cuerpo_html")
+                or load_active_plain_template(tenant, chosen_slug)
+                or MINIMAL_BODY_FALLBACK
+            )
+            origin = (
+                "contrato.cuerpo_html" if getattr(contrato, "cuerpo_html", None) else
+                ("contrato_datos.cuerpo_html" if (getattr(contrato, "contrato_datos", {}) or {}).get("cuerpo_html") else
+                 (f"template:{chosen_slug}" if body_tpl != MINIMAL_BODY_FALLBACK else "fallback:MINIMAL_BODY_FALLBACK"))
+            )
+
+            logger.info(
+                "[KYC PREVIEW] tenant=%s contrato_id=%s tipo=%s",
+                idx.tenant_slug, getattr(contrato, "id", None), getattr(contrato, "tipo", None)
+            )
+            logger.info(
+                "[KYC PREVIEW] body.origin=%s slug=%s size=%d",
+                origin, chosen_slug, len((body_tpl or "").encode("utf-8"))
+            )
+            logger.debug("[KYC PREVIEW] body.content:\n%s", body_tpl)
+
+            # 2.3 Render del CUERPO (usar motor Django y dict plano)
+            try:
+                django_engine = engines["django"]
+                rendered_body = django_engine.from_string(body_tpl).render(ctx)
+            except Exception as ex:
+                logger.exception("[KYC PREVIEW] render de cuerpo FALLÓ: %s", ex)
+                return JsonResponse({"detail": f"Fallo al renderizar cuerpo: {ex}"}, status=400)
+
+            # 2.4 Generar PDF (cuerpo primero; legales después)
+            content_file, sha = generar_pdf_contrato(
+                contrato,
+                preview=True,
+                override_cuerpo_html=rendered_body  # <- el generador convierte <br> y tablas del editor a ReportLab
+            )
+            content_file.seek(0)
+            pdf_bytes = content_file.read()
+
+        # 3) Stream inline
+        bio = io.BytesIO(pdf_bytes)
+        resp = FileResponse(bio, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="contrato_preview_{contrato.pk}.pdf"'
+        resp["Content-Length"] = str(len(pdf_bytes))
+        resp["Accept-Ranges"] = "bytes"
+        resp["Cache-Control"] = "private, max-age=0, no-store"
+        resp["X-Document-SHA256"] = sha
+        resp["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def condiciones_b2c_pdf(request):
+    tenant_slug = request.query_params.get("tenant_slug")
+    version = request.query_params.get("v", "v1")
+    lang = request.query_params.get("lang", "es")
+    if not tenant_slug:
+        return HttpResponse("tenant_slug requerido", status=400)
+    with schema_context(tenant_slug):
+        out = build_condiciones_b2c_pdf(tenant=type("T",(),{"schema_name":tenant_slug,"name":tenant_slug}))
+    resp = HttpResponse(out["bytes"], content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="condiciones-b2c-{version}.pdf"'
+    resp["ETag"] = out["sha256"]
+    resp["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+class LegalTemplateView(APIView):
+    """
+    GET  -> devuelve activa (crea si no existe)
+    PUT  -> actualiza la activa (title/version/content)
+    """
+    def get(self, request):
+        ns = request.query_params.get("namespace") or DEFAULT_NAMESPACE
+        sl = request.query_params.get("slug") or DEFAULT_SLUG
+        tpl = get_or_create_active(ns, sl)
+        return Response(LegalTemplateSerializer(tpl).data)
+
+    def put(self, request):
+        ns = request.query_params.get("namespace") or DEFAULT_NAMESPACE
+        sl = request.query_params.get("slug") or DEFAULT_SLUG
+        tpl = get_or_create_active(ns, sl)
+        for f in ("title", "version", "content"):
+            if f in request.data:
+                setattr(tpl, f, request.data.get(f) or "")
+        tpl.save(update_fields=["title", "version", "content", "updated_at"])
+        return Response(LegalTemplateSerializer(tpl).data, status=status.HTTP_200_OK)
+
+class LegalTemplatePublishView(APIView):
+    """
+    POST body: {namespace, slug, title?, version?, content?}
+    Desactiva la activa actual y crea una nueva activa (nueva versión).
+    """
+    @transaction.atomic
+    def post(self, request):
+        ns = (request.data.get("namespace") or DEFAULT_NAMESPACE).strip()
+        sl = (request.data.get("slug") or DEFAULT_SLUG).strip()
+        current = LegalTemplate.objects.filter(namespace=ns, slug=sl, is_active=True).first()
+        if current:
+            current.is_active = False
+            current.save(update_fields=["is_active", "updated_at"])
+        new = LegalTemplate.objects.create(
+            namespace=ns,
+            slug=sl,
+            title=request.data.get("title") or (current.title if current else "Plantilla B2C"),
+            version=request.data.get("version") or (current.version if current else "v1"),
+            content=request.data.get("content") or (current.content if current else DEFAULT_TEMPLATE_TEXT),
+            is_active=True,
+        )
+        return Response(LegalTemplateSerializer(new).data, status=status.HTTP_201_CREATED)
+
+class LegalTemplateVersionsView(APIView):
+    def get(self, request):
+        ns = request.query_params.get("namespace") or DEFAULT_NAMESPACE
+        sl = request.query_params.get("slug") or DEFAULT_SLUG
+        qs = LegalTemplate.objects.filter(namespace=ns, slug=sl).order_by("-updated_at", "-id")
+        return Response(LegalTemplateSerializer(qs, many=True).data)
+
+class LegalRenderPreviewView(APIView):
+    """
+    POST body:
+      {
+        "content": "... markdown con {{ variables }} ...",
+        "ctx": { ... overrides opcionales ... },
+        "mode": "md" | "html"   # opcional; por defecto "md"
+      }
+    Respuesta:
+      { "rendered": "...", "as": "markdown" | "html" }
+    """
+    def post(self, request):
+        content = request.data.get("content") or DEFAULT_TEMPLATE_TEXT
+        mode = (request.data.get("mode") or "md").lower()
+        ctx_in = request.data.get("ctx") or {}
+
+        # Defaults globales (operador) + overrides de la request
+        defaults = (get_or_create_global().default_overrides or {})
+        operador_defaults = defaults.get("operador", {})
+        operador_req = (ctx_in.get("operador") or {})
+        operador = _deepmerge(operador_defaults, operador_req)
+
+        # Contexto demo coherente (puedes ajustarlo a tu gusto)
+        demo_ctx = {
+            "operador": operador,
+            "empresa": {
+                "nombre": "Dr Frog S.L.", "cif": "B32490123",
+                "direccion": "C/ Demo 1, Barcelona",
+                "email": "info@drfrog.es", "telefono": "+34 600 111 222"
+            },
+            "cliente": {
+                "nombre": "Luis", "apellidos": "Pérez",
+                "dni_nie": "12345678Z",
+                "direccion": "Av. Demo 123",
+                "email": "luis@example.com", "telefono": "+34 612 345 678"
+            },
+            "contrato": {
+                "numero": "B2C-2025-000123",
+                "fecha": localdate().isoformat(),  # YYYY-MM-DD local
+                "otp_hash": "abc123", "kyc_ref": "KYC-999",
+                "importe_total": 325.00, "validez_dias": 7
+            },
+            "dispositivos": [
+                {
+                    "descripcion": "iPhone 13 128GB",
+                    "imei": "3567...",
+                    "estado_fisico": "Muy bueno",
+                    "estado_funcional": "OK",
+                    "precio": 200.00,
+                }
+            ],
+            "condiciones": ["Borrado certificado de datos"]
+        }
+
+        # Merge final (demo + ctx_in), respetando anidados
+        ctx = _deepmerge(demo_ctx, ctx_in)
+        # aseguramos que el operador final sea el merge que hicimos arriba
+        ctx["operador"] = operador
+
+        try:
+            rendered_md = Template(content).render(Context(ctx))
+        except TemplateSyntaxError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if mode == "html":
+            html = markdown(rendered_md, extensions=["extra", "sane_lists"])
+            return Response({"rendered": html, "as": "html"})
+        else:
+            return Response({"rendered": rendered_md, "as": "markdown"})

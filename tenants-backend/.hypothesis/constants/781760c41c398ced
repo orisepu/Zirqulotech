@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/chat/migrations/0001_initial.py
+# hypothesis_version: 6.136.7
+
+['0016_documento_tipo', 'Chat', 'ID', 'Mensaje', 'autor', 'cerrado', 'chat', 'chat.chat', 'chats', 'checkouters', 'cliente', 'creado', 'dispositivo', 'enviado', 'es_bot', 'id', 'mensajes', 'oportunidad', 'texto']

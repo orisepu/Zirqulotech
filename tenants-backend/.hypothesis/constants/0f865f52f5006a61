@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/migrations/0003_company_contacto_comercial_and_more.py
+# hypothesis_version: 6.136.7
+
+[100, 255, '0002_initial', 'companies', 'company', 'contacto_comercial', 'contacto_financiero', 'description', 'direccion_calle', 'direccion_cp', 'direccion_pais', 'direccion_piso', 'direccion_poblacion', 'direccion_provincia', 'direccion_puerta', 'facturacion_anual', 'logo', 'logos/', 'name', 'numero_empleados', 'telefono_comercial', 'telefono_financiero', 'vertical', 'vertical_secundaria', 'web_corporativa']

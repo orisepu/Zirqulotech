@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/users/models.py
+# hypothesis_version: 6.136.7
+
+['guid_users_set', 'tenants']

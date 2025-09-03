@@ -1,0 +1,1430 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.7, pytest-8.4.1, pluggy-1.6.0
+django: version: 5.2.4, settings: django_test_app.settings (from ini)
+rootdir: /home/oriol/checkouters/backend/django-tenant-users
+configfile: pytest.ini
+plugins: hypothesis-6.136.7, anyio-4.9.0, Faker-37.5.3, django-4.11.1
+collected 54 items
+
+checkouters/tests/test_dispositivos.py F                                 [  1%]
+checkouters/tests/test_enpoints.py EEEFEE                                [ 12%]
+tests/test_tenants/test_backend.py .                                     [ 14%]
+tests/test_tenants/test_commands.py ..                                   [ 18%]
+tests/test_tenants/test_functional.py ....                               [ 25%]
+tests/test_tenants/test_middleware.py ....                               [ 33%]
+tests/test_tenants/test_models/test_profilemanager.py .....F..           [ 48%]
+tests/test_tenants/test_models/test_signals.py .F                        [ 51%]
+tests/test_tenants/test_models/test_userprofile.py .F                    [ 55%]
+tests/test_tenants/test_multitypes.py ..                                 [ 59%]
+tests/test_tenants/test_permission_models.py F                           [ 61%]
+tests/test_tenants/test_tasks.py ........                                [ 75%]
+tests/test_tenants/test_tenants_models.py .....                          [ 85%]
+tests/test_tenants/test_utils.py ........                                [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at setup of test_get_dispositivos ____________________
+
+    @pytest.fixture
+    @pytest.mark.django_db
+    def superadmin_user():
+        with schema_context("public"):
+            user = User.objects.create_user(
+                email="superadmin@test.com",
+                password="12345678",
+                is_active=True,
+            )
+            from progeek.models import UserGlobalRole
+            UserGlobalRole.objects.create(user=user, es_superadmin=True)
+    
+>           get_tenant_model().objects.create(
+                schema_name="public",
+                name="Public Tenant",
+                owner=user,
+                tipo_cliente="B2B",
+                tipo_partner="type1",
+            )
+
+checkouters/tests/test_enpoints.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Company: Public Tenant>, args = (), kwargs = {'tipo_partner': 'type1'}
+cls = <class 'django_test_app.companies.models.Company'>
+opts = <Options for Company>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec54919420>, val = None
+field = <django.db.models.fields.files.ImageField: logo>
+is_related_object = False, rel_obj = <TenantUser: superadmin@test.com>
+property_names = frozenset({'hashid', 'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Company() got unexpected keyword arguments: 'tipo_partner'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+_____________________ ERROR at setup of test_mi_dashboard ______________________
+
+    @pytest.fixture
+    @pytest.mark.django_db
+    def superadmin_user():
+        with schema_context("public"):
+            user = User.objects.create_user(
+                email="superadmin@test.com",
+                password="12345678",
+                is_active=True,
+            )
+            from progeek.models import UserGlobalRole
+            UserGlobalRole.objects.create(user=user, es_superadmin=True)
+    
+>           get_tenant_model().objects.create(
+                schema_name="public",
+                name="Public Tenant",
+                owner=user,
+                tipo_cliente="B2B",
+                tipo_partner="type1",
+            )
+
+checkouters/tests/test_enpoints.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Company: Public Tenant>, args = (), kwargs = {'tipo_partner': 'type1'}
+cls = <class 'django_test_app.companies.models.Company'>
+opts = <Options for Company>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec54919660>, val = None
+field = <django.db.models.fields.files.ImageField: logo>
+is_related_object = False, rel_obj = <TenantUser: superadmin@test.com>
+property_names = frozenset({'hashid', 'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Company() got unexpected keyword arguments: 'tipo_partner'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+__________________ ERROR at setup of test_cambiar_contraseña ___________________
+
+    @pytest.fixture
+    @pytest.mark.django_db
+    def superadmin_user():
+        with schema_context("public"):
+            user = User.objects.create_user(
+                email="superadmin@test.com",
+                password="12345678",
+                is_active=True,
+            )
+            from progeek.models import UserGlobalRole
+            UserGlobalRole.objects.create(user=user, es_superadmin=True)
+    
+>           get_tenant_model().objects.create(
+                schema_name="public",
+                name="Public Tenant",
+                owner=user,
+                tipo_cliente="B2B",
+                tipo_partner="type1",
+            )
+
+checkouters/tests/test_enpoints.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Company: Public Tenant>, args = (), kwargs = {'tipo_partner': 'type1'}
+cls = <class 'django_test_app.companies.models.Company'>
+opts = <Options for Company>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec5491a050>, val = None
+field = <django.db.models.fields.files.ImageField: logo>
+is_related_object = False, rel_obj = <TenantUser: superadmin@test.com>
+property_names = frozenset({'hashid', 'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Company() got unexpected keyword arguments: 'tipo_partner'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+_____________ ERROR at setup of test_post_dispositivo_real_global ______________
+
+    @pytest.fixture
+    @pytest.mark.django_db
+    def superadmin_user():
+        with schema_context("public"):
+            user = User.objects.create_user(
+                email="superadmin@test.com",
+                password="12345678",
+                is_active=True,
+            )
+            from progeek.models import UserGlobalRole
+            UserGlobalRole.objects.create(user=user, es_superadmin=True)
+    
+>           get_tenant_model().objects.create(
+                schema_name="public",
+                name="Public Tenant",
+                owner=user,
+                tipo_cliente="B2B",
+                tipo_partner="type1",
+            )
+
+checkouters/tests/test_enpoints.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Company: Public Tenant>, args = (), kwargs = {'tipo_partner': 'type1'}
+cls = <class 'django_test_app.companies.models.Company'>
+opts = <Options for Company>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec5448f2e0>, val = None
+field = <django.db.models.fields.files.ImageField: logo>
+is_related_object = False, rel_obj = <TenantUser: superadmin@test.com>
+property_names = frozenset({'hashid', 'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Company() got unexpected keyword arguments: 'tipo_partner'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+____________ ERROR at setup of test_delete_dispositivo_real_global _____________
+
+    @pytest.fixture
+    @pytest.mark.django_db
+    def superadmin_user():
+        with schema_context("public"):
+            user = User.objects.create_user(
+                email="superadmin@test.com",
+                password="12345678",
+                is_active=True,
+            )
+            from progeek.models import UserGlobalRole
+            UserGlobalRole.objects.create(user=user, es_superadmin=True)
+    
+>           get_tenant_model().objects.create(
+                schema_name="public",
+                name="Public Tenant",
+                owner=user,
+                tipo_cliente="B2B",
+                tipo_partner="type1",
+            )
+
+checkouters/tests/test_enpoints.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Company: Public Tenant>, args = (), kwargs = {'tipo_partner': 'type1'}
+cls = <class 'django_test_app.companies.models.Company'>
+opts = <Options for Company>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec5448ea70>, val = None
+field = <django.db.models.fields.files.ImageField: logo>
+is_related_object = False, rel_obj = <TenantUser: superadmin@test.com>
+property_names = frozenset({'hashid', 'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Company() got unexpected keyword arguments: 'tipo_partner'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+=================================== FAILURES ===================================
+______________________ test_crear_dispositivo_autenticado ______________________
+
+    @pytest.mark.django_db
+    def test_crear_dispositivo_autenticado():
+        user = User.objects.create_user(email="test@example.com", password="1234")
+        modelo = Modelo.objects.create(descripcion="iPhone 13")
+>       capacidad = Capacidad.objects.create(modelo=modelo, tamaño="128 GB", precio_estimado=500)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+checkouters/tests/test_dispositivos.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+env/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:661: in create
+    obj = self.model(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Capacidad: iPhone 13 - 128 GB>, args = ()
+kwargs = {'precio_estimado': 500}, cls = <class 'productos.models.Capacidad'>
+opts = <Options for Capacidad>, _setattr = <built-in function setattr>
+_DEFERRED = <Deferred field>
+fields_iter = <tuple_iterator object at 0x7cec54e063b0>, val = None
+field = <django.db.models.fields.DecimalField: precio_b2c>
+is_related_object = False, rel_obj = <Modelo: iPhone 13 (None)>
+property_names = frozenset({'pk'})
+
+    def __init__(self, *args, **kwargs):
+        # Alias some things as locals to avoid repeat global lookups
+        cls = self.__class__
+        opts = self._meta
+        _setattr = setattr
+        _DEFERRED = DEFERRED
+        if opts.abstract:
+            raise TypeError("Abstract models cannot be instantiated.")
+    
+        pre_init.send(sender=cls, args=args, kwargs=kwargs)
+    
+        # Set up the storage for instance state
+        self._state = ModelState()
+    
+        # There is a rather weird disparity here; if kwargs, it's set, then args
+        # overrides it. It should be one or the other; don't duplicate the work
+        # The reason for the kwargs check is that standard iterator passes in by
+        # args, and instantiation for iteration is 33% faster.
+        if len(args) > len(opts.concrete_fields):
+            # Daft, but matches old exception sans the err msg.
+            raise IndexError("Number of args exceeds number of fields")
+    
+        if not kwargs:
+            fields_iter = iter(opts.concrete_fields)
+            # The ordering of the zip calls matter - zip throws StopIteration
+            # when an iter throws it. So if the first iter throws it, the second
+            # is *not* consumed. We rely on this, so don't change the order
+            # without changing the logic.
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+        else:
+            # Slower, kwargs-ready version.
+            fields_iter = iter(opts.fields)
+            for val, field in zip(args, fields_iter):
+                if val is _DEFERRED:
+                    continue
+                _setattr(self, field.attname, val)
+                if kwargs.pop(field.name, NOT_PROVIDED) is not NOT_PROVIDED:
+                    raise TypeError(
+                        f"{cls.__qualname__}() got both positional and "
+                        f"keyword arguments for field '{field.name}'."
+                    )
+    
+        # Now we're left with the unprocessed fields that *must* come from
+        # keywords, or default.
+    
+        for field in fields_iter:
+            is_related_object = False
+            # Virtual field
+            if field.column is None or field.generated:
+                continue
+            if kwargs:
+                if isinstance(field.remote_field, ForeignObjectRel):
+                    try:
+                        # Assume object instance was passed in.
+                        rel_obj = kwargs.pop(field.name)
+                        is_related_object = True
+                    except KeyError:
+                        try:
+                            # Object instance wasn't passed in -- must be an ID.
+                            val = kwargs.pop(field.attname)
+                        except KeyError:
+                            val = field.get_default()
+                else:
+                    try:
+                        val = kwargs.pop(field.attname)
+                    except KeyError:
+                        # This is done with an exception rather than the
+                        # default argument on pop because we don't want
+                        # get_default() to be evaluated, and then not used.
+                        # Refs #12057.
+                        val = field.get_default()
+            else:
+                val = field.get_default()
+    
+            if is_related_object:
+                # If we are passed a related instance, set it using the
+                # field.name instead of field.attname (e.g. "user" instead of
+                # "user_id") so that the object gets properly cached (and type
+                # checked) by the RelatedObjectDescriptor.
+                if rel_obj is not _DEFERRED:
+                    _setattr(self, field.name, rel_obj)
+            else:
+                if val is not _DEFERRED:
+                    _setattr(self, field.attname, val)
+    
+        if kwargs:
+            property_names = opts._property_names
+            unexpected = ()
+            for prop, value in kwargs.items():
+                # Any remaining kwargs must correspond to properties or virtual
+                # fields.
+                if prop in property_names:
+                    if value is not _DEFERRED:
+                        _setattr(self, prop, value)
+                else:
+                    try:
+                        opts.get_field(prop)
+                    except FieldDoesNotExist:
+                        unexpected += (prop,)
+                    else:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+            if unexpected:
+                unexpected_names = ", ".join(repr(n) for n in unexpected)
+>               raise TypeError(
+                    f"{cls.__name__}() got unexpected keyword arguments: "
+                    f"{unexpected_names}"
+                )
+E               TypeError: Capacidad() got unexpected keyword arguments: 'precio_estimado'
+
+env/lib/python3.12/site-packages/django/db/models/base.py:569: TypeError
+__________________________ test_capacidades_sin_auth ___________________________
+
+api_client = <rest_framework.test.APIClient object at 0x7cec54919a60>
+
+    @pytest.mark.django_db
+    def test_capacidades_sin_auth(api_client):
+        response = api_client.get("/capacidades-por-modelo/")
+>       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = <HttpResponseNotFound status_code=404, "text/html; charset=utf-8">.status_code
+
+checkouters/tests/test_enpoints.py:65: AssertionError
+----------------------------- Captured stdout call -----------------------------
+🧭 Middleware activado. Cargando tenant: None
+🛠️ Admin URLs loaded
+[33m⚠️ [404] GET /capacidades-por-modelo/ | 142ms | IP: 127.0.0.1 | Host: testserver | X-Tenant: —
+Not Found: /capacidades-por-modelo/
+Not Found: /capacidades-por-modelo/
+------------------------------ Captured log call -------------------------------
+INFO     django_test_app.logging_utils:logging_utils.py:18 [33m⚠️ [404] GET /capacidades-por-modelo/ | 142ms | IP: 127.0.0.1 | Host: testserver | X-Tenant: —
+WARNING  django.request:log.py:253 Not Found: /capacidades-por-modelo/
+_______________________________ test_delete_user _______________________________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec545744d0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (44,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec545744d0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: UndefinedTable
+
+The above exception was the direct cause of the following exception:
+
+tenant_user = <TenantUser: tenant-user@test.com>
+
+    @pytest.mark.django_db()
+    def test_delete_user(tenant_user):
+        """Ensure deleted user is inactive."""
+>       TenantUser.objects.delete_user(tenant_user)
+
+tests/test_tenants/test_models/test_profilemanager.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:380: in delete_user
+    tenant.remove_user(user_obj)
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec545744d0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (44,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec545744d0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: ProgrammingError
+___________________________ test_user_deleted_signal ___________________________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec545474d0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (51,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec545474d0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: UndefinedTable
+
+The above exception was the direct cause of the following exception:
+
+mock = <MagicMock name='send' id='137354468937936'>
+tenant_user = <TenantUser: tenant-user@test.com>
+
+    @pytest.mark.django_db()
+    @patch("tenant_users.tenants.models.tenant_user_deleted.send")
+    def test_user_deleted_signal(mock, tenant_user):
+        """Ensure signal is sent for delete_user()."""
+>       TenantUser.objects.delete_user(tenant_user)
+
+tests/test_tenants/test_models/test_signals.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:380: in delete_user
+    tenant.remove_user(user_obj)
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec545474d0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (51,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec545474d0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: ProgrammingError
+_______________________________ test_user_delete _______________________________
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_models/test_userprofile.py", line 28, in test_user_delete
+  |     @given(django.from_model(TenantUser))
+  |                    ^^^
+  |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/hypothesis/core.py", line 2087, in wrapped_test
+  |     raise the_error_hypothesis_found
+  | ExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    |     return getattr(self.get_queryset(), name)(*args, **kwargs)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 946, in get_or_create
+    |     return self.get(**kwargs), False
+    |            ^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 629, in get
+    |     num = len(clone)
+    |           ^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 366, in __len__
+    |     self._fetch_all()
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 1949, in _fetch_all
+    |     self._result_cache = list(self._iterable_class(self))
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    |     results = compiler.execute_sql(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1623, in execute_sql
+    |     cursor.execute(sql, params)
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    |     return self._execute_with_wrappers(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    |     return executor(sql, params, many, context)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    |     with self.db.wrap_database_errors:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    |     raise dj_exc_value.with_traceback(traceback) from exc_value
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | while generating 'instance' from from_model(TenantUser)
+    +---------------- 2 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    |     return getattr(self.get_queryset(), name)(*args, **kwargs)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 946, in get_or_create
+    |     return self.get(**kwargs), False
+    |            ^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 629, in get
+    |     num = len(clone)
+    |           ^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 366, in __len__
+    |     self._fetch_all()
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 1949, in _fetch_all
+    |     self._result_cache = list(self._iterable_class(self))
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    |     results = compiler.execute_sql(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1623, in execute_sql
+    |     cursor.execute(sql, params)
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    |     return self._execute_with_wrappers(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    |     return executor(sql, params, many, context)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    |     with self.db.wrap_database_errors:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    |     raise dj_exc_value.with_traceback(traceback) from exc_value
+    |   File "/home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    |     return self.cursor.execute(sql, params)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+    | 
+    | while generating 'instance' from from_model(TenantUser)
+    +------------------------------------
+________________________ test_permissions_mixin_facade _________________________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec54d479e0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (59,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec54d479e0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               psycopg2.errors.UndefinedTable: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: UndefinedTable
+
+The above exception was the direct cause of the following exception:
+
+public_tenant = <Company: Public Tenant>
+tenant_user = <TenantUser: tenant-user@test.com>
+
+    def test_permissions_mixin_facade(public_tenant, tenant_user):
+    
+        owner = public_tenant.owner
+    
+        assert (
+            tenant_user != owner
+        ), "The tenant_user should not be equal to the owner of the tenant because he cannot be removed."
+    
+        user_tenant_perms: UserTenantPermissions = tenant_user.tenant_perms
+        assert user_tenant_perms.is_active is True
+        assert user_tenant_perms.is_anonymous is False
+        assert user_tenant_perms.is_authenticated is True
+        user_tenant_perms.is_superuser = True
+        user_tenant_perms.is_staff = True
+        user_tenant_perms.save(update_fields=["is_superuser", "is_staff"])
+        # Test permision of a member user
+    
+        assert tenant_user.is_superuser == True
+        assert tenant_user.is_staff == True
+        assert tenant_user.has_tenant_permissions() == True
+        assert tenant_user.has_perm(perm="can_test") == True
+        assert tenant_user.has_perms(perm_list=["can_test"]) == True
+        assert tenant_user.has_module_perms(app_label="companies") == True
+    
+>       public_tenant.remove_user(tenant_user)
+
+tests/test_tenants/test_permission_models.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tenant_users/tenants/models.py:68: in inner
+    result = func(self, *args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/contextlib.py:81: in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+tenant_users/tenants/models.py:171: in remove_user
+    UserTenantPermissions.objects.filter(pk=user_tenant_perms.pk).delete()
+env/lib/python3.12/site-packages/django/db/models/query.py:1198: in delete
+    collector.collect(del_query)
+env/lib/python3.12/site-packages/django/db/models/deletion.py:343: in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:398: in __bool__
+    self._fetch_all()
+env/lib/python3.12/site-packages/django/db/models/query.py:1949: in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/models/query.py:91: in __iter__
+    results = compiler.execute_sql(
+env/lib/python3.12/site-packages/django/db/models/sql/compiler.py:1623: in execute_sql
+    cursor.execute(sql, params)
+env/lib/python3.12/site-packages/django/db/backends/utils.py:79: in execute
+    return self._execute_with_wrappers(
+env/lib/python3.12/site-packages/django/db/backends/utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/backends/utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+env/lib/python3.12/site-packages/django/db/utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <django.db.backends.utils.CursorWrapper object at 0x7cec54d479e0>
+sql = 'SELECT "checkouters_usertenantextension"."id", "checkouters_usertenantextension"."user_permissions_id", "checkouters_..._manager" FROM "checkouters_usertenantextension" WHERE "checkouters_usertenantextension"."user_permissions_id" IN (%s)'
+params = (59,)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x7cec54d479e0>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               django.db.utils.ProgrammingError: relation "checkouters_usertenantextension" does not exist
+E               LINE 1: ...heckouters_usertenantextension"."es_manager" FROM "checkoute...
+E                                                                            ^
+
+env/lib/python3.12/site-packages/django/db/backends/utils.py:105: ProgrammingError
+=============================== warnings summary ===============================
+env/lib/python3.12/site-packages/_pytest/config/__init__.py:1533
+  /home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/_pytest/config/__init__.py:1533: PytestConfigWarning: No files were found in testpaths; consider removing or adjusting your testpaths configuration. Searching recursively from the current directory instead.
+    self.args, self.args_source = self._decide_args(
+
+env/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:445
+  /home/oriol/checkouters/backend/django-tenant-users/env/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:445: PytestRemovedIn9Warning: Marks applied to fixtures have no effect
+  See docs: https://docs.pytest.org/en/stable/deprecations.html#applying-a-mark-to-a-fixture-function
+    return _orig_call(self, function)
+
+tests/test_tenants/test_utils.py:33
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:33: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:52
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:52: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:69
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:69: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:91
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:91: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:108
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:108: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+tests/test_tenants/test_utils.py:127
+  /home/oriol/checkouters/backend/django-tenant-users/tests/test_tenants/test_utils.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.no_db_setup - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.no_db_setup()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED checkouters/tests/test_dispositivos.py::test_crear_dispositivo_autenticado
+FAILED checkouters/tests/test_enpoints.py::test_capacidades_sin_auth - assert...
+FAILED tests/test_tenants/test_models/test_profilemanager.py::test_delete_user
+FAILED tests/test_tenants/test_models/test_signals.py::test_user_deleted_signal
+FAILED tests/test_tenants/test_models/test_userprofile.py::test_user_delete
+FAILED tests/test_tenants/test_permission_models.py::test_permissions_mixin_facade
+ERROR checkouters/tests/test_enpoints.py::test_get_dispositivos - TypeError: ...
+ERROR checkouters/tests/test_enpoints.py::test_mi_dashboard - TypeError: Comp...
+ERROR checkouters/tests/test_enpoints.py::test_cambiar_contraseña - TypeError...
+ERROR checkouters/tests/test_enpoints.py::test_post_dispositivo_real_global
+ERROR checkouters/tests/test_enpoints.py::test_delete_dispositivo_real_global
+======== 6 failed, 43 passed, 8 warnings, 5 errors in 93.06s (0:01:33) =========

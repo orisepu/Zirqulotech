@@ -1,0 +1,759 @@
+Modelo,Almacenamiento,PrecioB2B,PrecioB2C,Tipo,Pantalla,Año,Procesador
+"MacBook Air (13 pulgadas, 2017) A1466 Core i5 1.8",128 GB,50 €,55 €,MacBook Air,13 pulgadas,2017,Core i5 1.8
+"MacBook Air (13 pulgadas, 2017) A1466 Core i5 1.8",256 GB,60 €,65 €,MacBook Air,13 pulgadas,2017,Core i5 1.8
+"MacBook Air (13 pulgadas, 2017) A1466 Core i5 1.8",512 GB,70 €,75 €,MacBook Air,13 pulgadas,2017,Core i5 1.8
+"MacBook Air (13 pulgadas, 2017) A1466 Core i7 2.2",128 GB,55 €,60 €,MacBook Air,13 pulgadas,2017,Core i7 2.2
+"MacBook Air (13 pulgadas, 2017) A1466 Core i7 2.2",256 GB,60 €,65 €,MacBook Air,13 pulgadas,2017,Core i7 2.2
+"MacBook Air (13 pulgadas, 2017) A1466 Core i7 2.2",512 GB,70 €,75 €,MacBook Air,13 pulgadas,2017,Core i7 2.2
+"MacBook Air (Retina, 13 pulgadas, 2018) A1932 Core i5 1.6",128 GB,120 €,125 €,MacBook Air,13 pulgadas,2018,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2018) A1932 Core i5 1.6",256 GB,135 €,140 €,MacBook Air,13 pulgadas,2018,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2018) A1932 Core i5 1.6",512 GB,140 €,145 €,MacBook Air,13 pulgadas,2018,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2018) A1932 Core i5 1.6",1.5 TB,150 €,155 €,MacBook Air,13 pulgadas,2018,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2019) A1932 Core i5 1.6",128 GB,155 €,160 €,MacBook Air,13 pulgadas,2019,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2019) A1932 Core i5 1.6",256 GB,165 €,170 €,MacBook Air,13 pulgadas,2019,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2019) A1932 Core i5 1.6",512 GB,175 €,180 €,MacBook Air,13 pulgadas,2019,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2019) A1932 Core i5 1.6",1 TB,185 €,190 €,MacBook Air,13 pulgadas,2019,Core i5 1.6
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i3 1.1",256 GB,170 €,175 €,MacBook Air,13 pulgadas,2020,Core i3 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i3 1.1",512 GB,175 €,180 €,MacBook Air,13 pulgadas,2020,Core i3 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i3 1.1",1 TB,180 €,185 €,MacBook Air,13 pulgadas,2020,Core i3 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i3 1.1",2 TB,185 €,190 €,MacBook Air,13 pulgadas,2020,Core i3 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i5 1.1",256 GB,190 €,195 €,MacBook Air,13 pulgadas,2020,Core i5 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i5 1.1",512 GB,195 €,200 €,MacBook Air,13 pulgadas,2020,Core i5 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i5 1.1",1 TB,205 €,210 €,MacBook Air,13 pulgadas,2020,Core i5 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i5 1.1",2 TB,215 €,220 €,MacBook Air,13 pulgadas,2020,Core i5 1.1
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i7 1.2",256 GB,200 €,205 €,MacBook Air,13 pulgadas,2020,Core i7 1.2
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i7 1.2",512 GB,225 €,230 €,MacBook Air,13 pulgadas,2020,Core i7 1.2
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i7 1.2",1 TB,250 €,255 €,MacBook Air,13 pulgadas,2020,Core i7 1.2
+"MacBook Air (Retina, 13 pulgadas, 2020) A2179 Core i7 1.2",2 TB,260 €,265 €,MacBook Air,13 pulgadas,2020,Core i7 1.2
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 7 Core GPU",128 GB,230 €,235 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 7 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 7 Core GPU",256 GB,230 €,235 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 7 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 7 Core GPU",512 GB,255 €,260 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 7 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 7 Core GPU",1 TB,265 €,270 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 7 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 7 Core GPU",2 TB,305 €,310 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 7 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 8 Core GPU",512 GB,265 €,270 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 8 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 8 Core GPU",1 TB,270 €,275 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 8 Core GPU
+"MacBook Air (M1, 13 pulgadas 2020) A2337 8 Core CPU 8 Core GPU",2 TB,315 €,320 €,MacBook Air,13 pulgadas,2020,M1 8 Core GPU 8 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 8 Core GPU",256 GB,290 €,295 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 8 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 8 Core GPU",512 GB,330 €,335 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 8 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 8 Core GPU",1 TB,335 €,340 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 8 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 8 Core GPU",2 TB,395 €,400 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 8 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 10 Core GPU",256 GB,295 €,300 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 10 Core GPU",512 GB,330 €,335 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 10 Core GPU",1 TB,340 €,345 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Air (M2, 13 pulgadas 2022) A2681 8 Core CPU 10 Core GPU",2 TB,395 €,400 €,MacBook Air,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Air (15 pulgadas, M2, 2023) A2941 8 Core CPU 10 Core GPU",256 GB,295 €,300 €,MacBook Air,15 pulgadas,2023,M2 8 Core CPU 10 Core GPU
+"MacBook Air (15 pulgadas, M2, 2023) A2941 8 Core CPU 10 Core GPU",512 GB,330 €,335 €,MacBook Air,15 pulgadas,2023,M2 8 Core CPU 10 Core GPU
+"MacBook Air (15 pulgadas, M2, 2023) A2941 8 Core CPU 10 Core GPU",1 TB,355 €,360 €,MacBook Air,15 pulgadas,2023,M2 8 Core CPU 10 Core GPU
+"MacBook Air (15 pulgadas, M2, 2023) A2941 8 Core CPU 10 Core GPU",2 TB,400 €,405 €,MacBook Air,15 pulgadas,2023,M2 8 Core CPU 10 Core GPU
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.7",128 GB,40 €,45 €,MacBook Pro,13 pulgadas,2015,Core i5 2.7
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.7",256 GB,50 €,55 €,MacBook Pro,13 pulgadas,2015,Core i5 2.7
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.7",512 GB,60 €,65 €,MacBook Pro,13 pulgadas,2015,Core i5 2.7
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.7",1 TB,80 €,85 €,MacBook Pro,13 pulgadas,2015,Core i5 2.7
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.9",128 GB,55 €,60 €,MacBook Pro,13 pulgadas,2015,Core i5 2.9
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.9",256 GB,65 €,70 €,MacBook Pro,13 pulgadas,2015,Core i5 2.9
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.9",512 GB,70 €,75 €,MacBook Pro,13 pulgadas,2015,Core i5 2.9
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i5 2.9",1 TB,85 €,90 €,MacBook Pro,13 pulgadas,2015,Core i5 2.9
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i7 3.1",128 GB,75 €,80 €,MacBook Pro,13 pulgadas,2015,Core i7 3.1
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i7 3.1",256 GB,85 €,90 €,MacBook Pro,13 pulgadas,2015,Core i7 3.1
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i7 3.1",512 GB,95 €,100 €,MacBook Pro,13 pulgadas,2015,Core i7 3.1
+"MacBook Pro (Retina, 13 pulgadas, principios de 2015) A1502 Core i7 3.1",1 TB,110 €,115 €,MacBook Pro,13 pulgadas,2015,Core i7 3.1
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i5",256 GB,90 €,95 €,MacBook Pro,13 pulgadas,2016,Core i5
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i5",512 GB,90 €,95 €,MacBook Pro,13 pulgadas,2016,Core i5
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i5",1 TB,95 €,100 €,MacBook Pro,13 pulgadas,2016,Core i5
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 2.4",256 GB,95 €,100 €,MacBook Pro,13 pulgadas,2016,Core i7 2.4
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 2.4",512 GB,105 €,110 €,MacBook Pro,13 pulgadas,2016,Core i7 2.4
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 2.4",1 TB,115 €,120 €,MacBook Pro,13 pulgadas,2016,Core i7 2.4
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 3.3",256 GB,125 €,130 €,MacBook Pro,13 pulgadas,2016,Core i7 3.3
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 3.3",512 GB,135 €,140 €,MacBook Pro,13 pulgadas,2016,Core i7 3.3
+"MacBook Pro (13 pulgadas, 2016) A1708 Core i7 3.3",1 TB,140 €,145 €,MacBook Pro,13 pulgadas,2016,Core i7 3.3
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i5 2.3",128 GB,100 €,105 €,MacBook Pro,13 pulgadas,2017,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i5 2.3",256 GB,100 €,105 €,MacBook Pro,13 pulgadas,2017,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i5 2.3",512 GB,110 €,115 €,MacBook Pro,13 pulgadas,2017,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i5 2.3",1 TB,130 €,135 €,MacBook Pro,13 pulgadas,2017,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.1",256 GB,105 €,110 €,MacBook Pro,13 pulgadas,2017,Core i5 3.1
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.1",512 GB,110 €,115 €,MacBook Pro,13 pulgadas,2017,Core i5 3.1
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.1",1 TB,130 €,135 €,MacBook Pro,13 pulgadas,2017,Core i5 3.1
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.3",256 GB,125 €,130 €,MacBook Pro,13 pulgadas,2017,Core i5 3.3
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.3",512 GB,140 €,145 €,MacBook Pro,13 pulgadas,2017,Core i5 3.3
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i5 3.3",1 TB,140 €,145 €,MacBook Pro,13 pulgadas,2017,Core i5 3.3
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i7 2.5",128 GB,125 €,130 €,MacBook Pro,13 pulgadas,2017,Core i7 2.5
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i7 2.5",256 GB,125 €,130 €,MacBook Pro,13 pulgadas,2017,Core i7 2.5
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i7 2.5",512 GB,125 €,130 €,MacBook Pro,13 pulgadas,2017,Core i7 2.5
+"MacBook Pro (13 pulgadas, 2017, dos puertos Thunderbolt 3) A1708 Core i7 2.5",1 TB,130 €,135 €,MacBook Pro,13 pulgadas,2017,Core i7 2.5
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i7 3.5",256 GB,125 €,130 €,MacBook Pro,13 pulgadas,2017,Core i7 3.5
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i7 3.5",512 GB,140 €,145 €,MacBook Pro,13 pulgadas,2017,Core i7 3.5
+"MacBook Pro (13 pulgadas, 2017, cuatro puertos Thunderbolt 3) A1706 Core i7 3.5",1 TB,140 €,145 €,MacBook Pro,13 pulgadas,2017,Core i7 3.5
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i5 2.3",256 GB,150 €,155 €,MacBook Pro,13 pulgadas,2018,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i5 2.3",512 GB,175 €,180 €,MacBook Pro,13 pulgadas,2018,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i5 2.3",1 TB,190 €,195 €,MacBook Pro,13 pulgadas,2018,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i5 2.3",2 TB,195 €,200 €,MacBook Pro,13 pulgadas,2018,Core i5 2.3
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i7 2.7",256 GB,180 €,185 €,MacBook Pro,13 pulgadas,2018,Core i7 2.7
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i7 2.7",512 GB,180 €,185 €,MacBook Pro,13 pulgadas,2018,Core i7 2.7
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i7 2.7",1 TB,190 €,195 €,MacBook Pro,13 pulgadas,2018,Core i7 2.7
+"MacBook Pro (13 pulgadas, 2018, cuatro puertos Thunderbolt 3) A1989 Core i7 2.7",2 TB,195 €,200 €,MacBook Pro,13 pulgadas,2018,Core i7 2.7
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i5 1.4",128 GB,135 €,140 €,MacBook Pro,13 pulgadas,2019,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i5 1.4",256 GB,165 €,170 €,MacBook Pro,13 pulgadas,2019,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i5 1.4",512 GB,190 €,195 €,MacBook Pro,13 pulgadas,2019,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i5 1.4",1 TB,190 €,195 €,MacBook Pro,13 pulgadas,2019,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i5 1.4",2 TB,210 €,215 €,MacBook Pro,13 pulgadas,2019,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i5 2.4",256 GB,175 €,180 €,MacBook Pro,13 pulgadas,2019,Core i5 2.4
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i5 2.4",512 GB,190 €,195 €,MacBook Pro,13 pulgadas,2019,Core i5 2.4
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i5 2.4",1 TB,225 €,230 €,MacBook Pro,13 pulgadas,2019,Core i5 2.4
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i5 2.4",2 TB,235 €,240 €,MacBook Pro,13 pulgadas,2019,Core i5 2.4
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i7 1.7",128 GB,175 €,180 €,MacBook Pro,13 pulgadas,2019,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i7 1.7",256 GB,175 €,180 €,MacBook Pro,13 pulgadas,2019,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i7 1.7",512 GB,190 €,195 €,MacBook Pro,13 pulgadas,2019,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i7 1.7",1 TB,200 €,205 €,MacBook Pro,13 pulgadas,2019,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2019, dos puertos Thunderbolt 3) A2159 Core i7 1.7",2 TB,210 €,215 €,MacBook Pro,13 pulgadas,2019,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i7 2.8",256 GB,210 €,215 €,MacBook Pro,13 pulgadas,2019,Core i7 2.8
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i7 2.8",512 GB,220 €,225 €,MacBook Pro,13 pulgadas,2019,Core i7 2.8
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i7 2.8",1 TB,245 €,250 €,MacBook Pro,13 pulgadas,2019,Core i7 2.8
+"MacBook Pro (13 pulgadas, 2019, cuatro puertos Thunderbolt 3) A1989 Core i7 2.8",2 TB,250 €,255 €,MacBook Pro,13 pulgadas,2019,Core i7 2.8
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i5 1.4",256 GB,170 €,175 €,MacBook Pro,13 pulgadas,2020,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i5 1.4",512 GB,210 €,215 €,MacBook Pro,13 pulgadas,2020,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i5 1.4",1 TB,240 €,245 €,MacBook Pro,13 pulgadas,2020,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i5 1.4",2 TB,275 €,280 €,MacBook Pro,13 pulgadas,2020,Core i5 1.4
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i5 2.0",512 GB,240 €,245 €,MacBook Pro,13 pulgadas,2020,Core i5 2.0
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i5 2.0",1 TB,255 €,260 €,MacBook Pro,13 pulgadas,2020,Core i5 2.0
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i5 2.0",2 TB,280 €,285 €,MacBook Pro,13 pulgadas,2020,Core i5 2.0
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i5 2.0",4 TB,285 €,290 €,MacBook Pro,13 pulgadas,2020,Core i5 2.0
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i7 1.7",256 GB,245 €,250 €,MacBook Pro,13 pulgadas,2020,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i7 1.7",512 GB,290 €,295 €,MacBook Pro,13 pulgadas,2020,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i7 1.7",1 TB,320 €,325 €,MacBook Pro,13 pulgadas,2020,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2020, dos puertos Thunderbolt 3) A2289 Core i7 1.7",2 TB,325 €,330 €,MacBook Pro,13 pulgadas,2020,Core i7 1.7
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i7 2.3",512 GB,290 €,295 €,MacBook Pro,13 pulgadas,2020,Core i7 2.3
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i7 2.3",1 TB,330 €,335 €,MacBook Pro,13 pulgadas,2020,Core i7 2.3
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i7 2.3",2 TB,330 €,335 €,MacBook Pro,13 pulgadas,2020,Core i7 2.3
+"MacBook Pro (13 pulgadas, 2020, cuatro puertos Thunderbolt 3) A2251 Core i7 2.3",4 TB,355 €,360 €,MacBook Pro,13 pulgadas,2020,Core i7 2.3
+"MacBook Pro (13 pulgadas, M1, 2020) A2338 8 Core CPU 8 Core GPU",256 GB,260 €,265 €,MacBook Pro,13 pulgadas,2020,M1 8 Core CPU 8 Core GPU
+"MacBook Pro (13 pulgadas, M1, 2020) A2338 8 Core CPU 8 Core GPU",512 GB,345 €,350 €,MacBook Pro,13 pulgadas,2020,M1 8 Core CPU 8 Core GPU
+"MacBook Pro (13 pulgadas, M1, 2020) A2338 8 Core CPU 8 Core GPU",1 TB,395 €,400 €,MacBook Pro,13 pulgadas,2020,M1 8 Core CPU 8 Core GPU
+"MacBook Pro (13 pulgadas, M1, 2020) A2338 8 Core CPU 8 Core GPU",2 TB,405 €,410 €,MacBook Pro,13 pulgadas,2020,M1 8 Core CPU 8 Core GPU
+"MacBook Pro (13 pulgadas, M2, 2022) A2338 8 Core CPU 10 Core GPU",256 GB,425 €,430 €,MacBook Pro,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Pro (13 pulgadas, M2, 2022) A2338 8 Core CPU 10 Core GPU",512 GB,480 €,485 €,MacBook Pro,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Pro (13 pulgadas, M2, 2022) A2338 8 Core CPU 10 Core GPU",1 TB,665 €,670 €,MacBook Pro,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Pro (13 pulgadas, M2, 2022) A2338 8 Core CPU 10 Core GPU",2 TB,735 €,740 €,MacBook Pro,13 pulgadas,2022,M2 8 Core CPU 10 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 8 Core CPU 14 Core GPU",512 GB,695 €,700 €,MacBook Pro,14 pulgadas,2021,M1 Pro 8 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 8 Core CPU 14 Core GPU",1 TB,745 €,750 €,MacBook Pro,14 pulgadas,2021,M1 Pro 8 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 8 Core CPU 14 Core GPU",2 TB,760 €,765 €,MacBook Pro,14 pulgadas,2021,M1 Pro 8 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 8 Core CPU 14 Core GPU",4 TB,835 €,840 €,MacBook Pro,14 pulgadas,2021,M1 Pro 8 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 8 Core CPU 14 Core GPU",8 TB,920 €,925 €,MacBook Pro,14 pulgadas,2021,M1 Pro 8 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 14 Core GPU",512 GB,745 €,750 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 14 Core GPU",1 TB,780 €,785 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 14 Core GPU",2 TB,815 €,820 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 14 Core GPU",4 TB,855 €,860 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 14 Core GPU",8 TB,920 €,925 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 16 Core GPU",512 GB,780 €,785 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 16 Core GPU",1 TB,825 €,830 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 16 Core GPU",2 TB,825 €,830 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 16 Core GPU",4 TB,860 €,865 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Pro 10 Core CPU 16 Core GPU",8 TB,920 €,925 €,MacBook Pro,14 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 24 Core GPU",512 GB,785 €,790 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 24 Core GPU",1 TB,920 €,925 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 24 Core GPU",2 TB,960 €,965 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 24 Core GPU",4 TB,1.070 €,1.075 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 24 Core GPU",8 TB,1.200 €,1.205 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 32 Core GPU 14",512 GB,785 €,790 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 32 Core GPU 14",1 TB,960 €,965 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 32 Core GPU 14",2 TB,1.015 €,1.020 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 32 Core GPU 14",4 TB,1.120 €,1.125 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (14 pulgadas, 2021) A2442 M1 Max 10 Core CPU 32 Core GPU 14",8 TB,1.235 €,1.240 €,MacBook Pro,14 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 10 Core CPU 16 Core GPU",512 GB,760 €,765 €,MacBook Pro,14 pulgadas,2023,M2 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 10 Core CPU 16 Core GPU",1 TB,915 €,920 €,MacBook Pro,14 pulgadas,2023,M2 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 10 Core CPU 16 Core GPU",2 TB,995 €,1.000 €,MacBook Pro,14 pulgadas,2023,M2 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 10 Core CPU 16 Core GPU",4 TB,1.095 €,1.100 €,MacBook Pro,14 pulgadas,2023,M2 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 10 Core CPU 16 Core GPU",8 TB,1.200 €,1.205 €,MacBook Pro,14 pulgadas,2023,M2 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 12 Core CPU 19 Core GPU",512 GB,765 €,770 €,MacBook Pro,14 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 12 Core CPU 19 Core GPU",1 TB,915 €,920 €,MacBook Pro,14 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 12 Core CPU 19 Core GPU",2 TB,995 €,1.000 €,MacBook Pro,14 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 12 Core CPU 19 Core GPU",4 TB,1.130 €,1.135 €,MacBook Pro,14 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Pro 12 Core CPU 19 Core GPU",8 TB,1.240 €,1.245 €,MacBook Pro,14 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 30 Core GPU",512 GB,1.005 €,1.010 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 30 Core GPU",1 TB,1.070 €,1.075 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 30 Core GPU",2 TB,1.150 €,1.155 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 30 Core GPU",4 TB,1.240 €,1.245 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 30 Core GPU",8 TB,1.345 €,1.350 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 38 Core GPU",512 GB,1.040 €,1.045 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 38 Core GPU",1 TB,1.100 €,1.105 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 38 Core GPU",2 TB,1.235 €,1.240 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 38 Core GPU",4 TB,1.335 €,1.340 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (14 pulgadas, 2023) A2779 M2 Max 12 Core CPU 38 Core GPU",8 TB,1.395 €,1.400 €,MacBook Pro,14 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2918 M3 8 Core CPU 10 Core GPU",512 GB,485 €,490 €,MacBook Pro,14 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2918 M3 8 Core CPU 10 Core GPU",1 TB,695 €,700 €,MacBook Pro,14 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2918 M3 8 Core CPU 10 Core GPU",2 TB,825 €,830 €,MacBook Pro,14 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 11 Core CPU 14 Core GPU",512 GB,765 €,770 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 11 Core CPU 14 Core GPU",1 TB,960 €,965 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 11 Core CPU 14 Core GPU",2 TB,1.035 €,1.040 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 11 Core CPU 14 Core GPU",4 TB,1.140 €,1.145 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 14 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 12 Core CPU 18 Core GPU",512 GB,900 €,905 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 18 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 12 Core CPU 18 Core GPU",1 TB,980 €,985 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 18 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 12 Core CPU 18 Core GPU",2 TB,1.080 €,1.085 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 18 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Pro 12 Core CPU 18 Core GPU",4 TB,1.245 €,1.250 €,MacBook Pro,14 pulgadas,2023,M3 Pro 11 Core CPU 18 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 14 Core CPU 30 Core GPU",512 GB,1.065 €,1.070 €,MacBook Pro,14 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 14 Core CPU 30 Core GPU",1 TB,1.130 €,1.135 €,MacBook Pro,14 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 14 Core CPU 30 Core GPU",2 TB,1.365 €,1.370 €,MacBook Pro,14 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 14 Core CPU 30 Core GPU",4 TB,1.525 €,1.530 €,MacBook Pro,14 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 14 Core CPU 30 Core GPU",8 TB,1.945 €,1.950 €,MacBook Pro,14 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 16 Core CPU 40 Core GPU",512 GB,1.240 €,1.245 €,MacBook Pro,14 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 16 Core CPU 40 Core GPU",1 TB,1.465 €,1.470 €,MacBook Pro,14 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 16 Core CPU 40 Core GPU",2 TB,1.615 €,1.620 €,MacBook Pro,14 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 16 Core CPU 40 Core GPU",4 TB,1.845 €,1.850 €,MacBook Pro,14 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (14 pulgadas, M3, noviembre de 2023) A2992 M3 Max 16 Core CPU 40 Core GPU",8 TB,2.070 €,2.075 €,MacBook Pro,14 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.2",256 GB,85 €,90 €,MacBook Pro,15 pulgadas,2015,Core i7 2.2
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.2",512 GB,100 €,105 €,MacBook Pro,15 pulgadas,2015,Core i7 2.2
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.2",1 TB,110 €,115 €,MacBook Pro,15 pulgadas,2015,Core i7 2.2
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.5",256 GB,95 €,100 €,MacBook Pro,15 pulgadas,2015,Core i7 2.5
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.5",512 GB,105 €,110 €,MacBook Pro,15 pulgadas,2015,Core i7 2.5
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.5",1 TB,110 €,115 €,MacBook Pro,15 pulgadas,2015,Core i7 2.5
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.8",256 GB,100 €,105 €,MacBook Pro,15 pulgadas,2015,Core i7 2.8
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.8",512 GB,115 €,120 €,MacBook Pro,15 pulgadas,2015,Core i7 2.8
+"MacBook Pro (Retina, 15 pulgadas, mediados de 2015) A1398 Core i7 2.8",1 TB,120 €,125 €,MacBook Pro,15 pulgadas,2015,Core i7 2.8
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.6",256 GB,95 €,100 €,MacBook Pro,15 pulgadas,2016,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.6",512 GB,105 €,110 €,MacBook Pro,15 pulgadas,2016,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.6",1 TB,115 €,120 €,MacBook Pro,15 pulgadas,2016,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.6",2 TB,115 €,120 €,MacBook Pro,15 pulgadas,2016,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.7",256 GB,115 €,120 €,MacBook Pro,15 pulgadas,2016,Core i7 2.7
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.7",512 GB,120 €,125 €,MacBook Pro,15 pulgadas,2016,Core i7 2.7
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.7",1 TB,125 €,130 €,MacBook Pro,15 pulgadas,2016,Core i7 2.7
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.7",2 TB,145 €,150 €,MacBook Pro,15 pulgadas,2016,Core i7 2.7
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.9",256 GB,135 €,140 €,MacBook Pro,15 pulgadas,2016,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.9",512 GB,150 €,155 €,MacBook Pro,15 pulgadas,2016,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.9",1 TB,155 €,160 €,MacBook Pro,15 pulgadas,2016,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2016) A1707 Core i7 2.9",2 TB,160 €,165 €,MacBook Pro,15 pulgadas,2016,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.8",256 GB,140 €,145 €,MacBook Pro,15 pulgadas,2017,Core i7 2.8
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.8",512 GB,155 €,160 €,MacBook Pro,15 pulgadas,2017,Core i7 2.8
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.8",1 TB,160 €,165 €,MacBook Pro,15 pulgadas,2017,Core i7 2.8
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.8",2 TB,165 €,170 €,MacBook Pro,15 pulgadas,2017,Core i7 2.8
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.9",256 GB,155 €,160 €,MacBook Pro,15 pulgadas,2017,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.9",512 GB,165 €,170 €,MacBook Pro,15 pulgadas,2017,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.9",1 TB,165 €,170 €,MacBook Pro,15 pulgadas,2017,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 2.9",2 TB,170 €,175 €,MacBook Pro,15 pulgadas,2017,Core i7 2.9
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 3.1",256 GB,155 €,160 €,MacBook Pro,15 pulgadas,2017,Core i7 3.1
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 3.1",512 GB,165 €,170 €,MacBook Pro,15 pulgadas,2017,Core i7 3.1
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 3.1",1 TB,165 €,170 €,MacBook Pro,15 pulgadas,2017,Core i7 3.1
+"MacBook Pro (15 pulgadas, 2017) A1707 Core i7 3.1",2 TB,175 €,180 €,MacBook Pro,15 pulgadas,2017,Core i7 3.1
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.2",256 GB,195 €,200 €,MacBook Pro,15 pulgadas,2018,Core i7 2.2
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.2",512 GB,215 €,220 €,MacBook Pro,15 pulgadas,2018,Core i7 2.2
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.2",1 TB,220 €,225 €,MacBook Pro,15 pulgadas,2018,Core i7 2.2
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.2",2 TB,230 €,235 €,MacBook Pro,15 pulgadas,2018,Core i7 2.2
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.2",4 TB,235 €,240 €,MacBook Pro,15 pulgadas,2018,Core i7 2.2
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.6",256 GB,205 €,210 €,MacBook Pro,15 pulgadas,2018,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.6",512 GB,220 €,225 €,MacBook Pro,15 pulgadas,2018,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.6",1 TB,235 €,240 €,MacBook Pro,15 pulgadas,2018,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.6",2 TB,245 €,250 €,MacBook Pro,15 pulgadas,2018,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i7 2.6",4 TB,270 €,275 €,MacBook Pro,15 pulgadas,2018,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i9 2.9",256 GB,260 €,265 €,MacBook Pro,15 pulgadas,2018,Core i9 2.9
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i9 2.9",512 GB,285 €,290 €,MacBook Pro,15 pulgadas,2018,Core i9 2.9
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i9 2.9",1 TB,305 €,310 €,MacBook Pro,15 pulgadas,2018,Core i9 2.9
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i9 2.9",2 TB,305 €,310 €,MacBook Pro,15 pulgadas,2018,Core i9 2.9
+"MacBook Pro (15 pulgadas, 2018) A1990 Core i9 2.9",4 TB,320 €,325 €,MacBook Pro,15 pulgadas,2018,Core i9 2.9
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i7 2.6",256 GB,230 €,235 €,MacBook Pro,15 pulgadas,2019,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i7 2.6",512 GB,250 €,255 €,MacBook Pro,15 pulgadas,2019,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i7 2.6",1 TB,250 €,255 €,MacBook Pro,15 pulgadas,2019,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i7 2.6",2 TB,260 €,265 €,MacBook Pro,15 pulgadas,2019,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i7 2.6",4 TB,285 €,290 €,MacBook Pro,15 pulgadas,2019,Core i7 2.6
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.3",256 GB,265 €,270 €,MacBook Pro,15 pulgadas,2019,Core i9 2.3
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.3",512 GB,270 €,275 €,MacBook Pro,15 pulgadas,2019,Core i9 2.3
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.3",1 TB,285 €,290 €,MacBook Pro,15 pulgadas,2019,Core i9 2.3
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.3",2 TB,290 €,295 €,MacBook Pro,15 pulgadas,2019,Core i9 2.3
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.3",4 TB,340 €,345 €,MacBook Pro,15 pulgadas,2019,Core i9 2.3
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.4",256 GB,270 €,275 €,MacBook Pro,15 pulgadas,2019,Core i9 2.4
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.4",512 GB,275 €,280 €,MacBook Pro,15 pulgadas,2019,Core i9 2.4
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.4",1 TB,285 €,290 €,MacBook Pro,15 pulgadas,2019,Core i9 2.4
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.4",2 TB,310 €,315 €,MacBook Pro,15 pulgadas,2019,Core i9 2.4
+"MacBook Pro (15 pulgadas, 2019) A1990 Core i9 2.4",4 TB,340 €,345 €,MacBook Pro,15 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i7 2.6",512 GB,265 €,270 €,MacBook Pro,16 pulgadas,2019,Core i7 2.6
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i7 2.6",1 TB,300 €,305 €,MacBook Pro,16 pulgadas,2019,Core i7 2.6
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i7 2.6",2 TB,310 €,315 €,MacBook Pro,16 pulgadas,2019,Core i7 2.6
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i7 2.6",4 TB,335 €,340 €,MacBook Pro,16 pulgadas,2019,Core i7 2.6
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i7 2.6",8 TB,355 €,360 €,MacBook Pro,16 pulgadas,2019,Core i7 2.6
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.3",1 TB,340 €,345 €,MacBook Pro,16 pulgadas,2019,Core i9 2.3
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.3",2 TB,350 €,355 €,MacBook Pro,16 pulgadas,2019,Core i9 2.3
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.3",4 TB,370 €,375 €,MacBook Pro,16 pulgadas,2019,Core i9 2.3
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.3",8 TB,400 €,405 €,MacBook Pro,16 pulgadas,2019,Core i9 2.3
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.4",512 GB,315 €,320 €,MacBook Pro,16 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.4",1 TB,340 €,345 €,MacBook Pro,16 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.4",2 TB,370 €,375 €,MacBook Pro,16 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.4",4 TB,450 €,455 €,MacBook Pro,16 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2019) A2141 Core i9 2.4",8 TB,465 €,470 €,MacBook Pro,16 pulgadas,2019,Core i9 2.4
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Pro 10 Core CPU 16 Core GPU",512 GB,810 €,815 €,MacBook Pro,16 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Pro 10 Core CPU 16 Core GPU",1 TB,880 €,885 €,MacBook Pro,16 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Pro 10 Core CPU 16 Core GPU",2 TB,940 €,945 €,MacBook Pro,16 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Pro 10 Core CPU 16 Core GPU",4 TB,1.035 €,1.040 €,MacBook Pro,16 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Pro 10 Core CPU 16 Core GPU",8 TB,1.170 €,1.175 €,MacBook Pro,16 pulgadas,2021,M1 Pro 10 Core CPU 16 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 24 Core GPU",512 GB,930 €,935 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 24 Core GPU",1 TB,1.030 €,1.035 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 24 Core GPU",2 TB,1.090 €,1.095 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 24 Core GPU",4 TB,1.180 €,1.185 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 24 Core GPU",8 TB,1.290 €,1.295 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 24 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 32 Core GPU",512 GB,990 €,995 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 32 Core GPU",1 TB,1.095 €,1.100 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 32 Core GPU",2 TB,1.170 €,1.175 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 32 Core GPU",4 TB,1.260 €,1.265 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (16 pulgadas, 2021) A2485 M1 Max 10 Core CPU 32 Core GPU",8 TB,1.390 €,1.395 €,MacBook Pro,16 pulgadas,2021,M1 Max 10 Core CPU 32 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Pro 12 Core CPU 19 Core GPU",512 GB,1.005 €,1.010 €,MacBook Pro,16 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Pro 12 Core CPU 19 Core GPU",1 TB,1.075 €,1.080 €,MacBook Pro,16 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Pro 12 Core CPU 19 Core GPU",2 TB,1.140 €,1.145 €,MacBook Pro,16 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Pro 12 Core CPU 19 Core GPU",4 TB,1.325 €,1.330 €,MacBook Pro,16 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Pro 12 Core CPU 19 Core GPU",8 TB,1.435 €,1.440 €,MacBook Pro,16 pulgadas,2023,M2 Pro 12 Core CPU 19 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 30 Core GPU",512 GB,1.205 €,1.210 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 30 Core GPU",1 TB,1.270 €,1.275 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 30 Core GPU",2 TB,1.340 €,1.345 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 30 Core GPU",4 TB,1.440 €,1.445 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 30 Core GPU",8 TB,1.545 €,1.550 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 38 Core GPU",512 GB,1.325 €,1.330 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 38 Core GPU",1 TB,1.385 €,1.390 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 38 Core GPU",2 TB,1.450 €,1.455 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 38 Core GPU",4 TB,1.555 €,1.560 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (16 pulgadas, 2023) A2780 M2 Max 12 Core CPU 38 Core GPU",8 TB,1.665 €,1.670 €,MacBook Pro,16 pulgadas,2023,M2 Max 12 Core CPU 38 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Pro 12 Core CPU 18 Core GPU",512 GB,960 €,965 €,MacBook Pro,16 pulgadas,2023,M3 Pro 12 Core CPU 18 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Pro 12 Core CPU 18 Core GPU",1 TB,1.115 €,1.120 €,MacBook Pro,16 pulgadas,2023,M3 Pro 12 Core CPU 18 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Pro 12 Core CPU 18 Core GPU",2 TB,1.250 €,1.255 €,MacBook Pro,16 pulgadas,2023,M3 Pro 12 Core CPU 18 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Pro 12 Core CPU 18 Core GPU",4 TB,1.395 €,1.400 €,MacBook Pro,16 pulgadas,2023,M3 Pro 12 Core CPU 18 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 14 Core CPU 30 Core GPU",512 GB,1.350 €,1.355 €,MacBook Pro,16 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 14 Core CPU 30 Core GPU",1 TB,1.650 €,1.655 €,MacBook Pro,16 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 14 Core CPU 30 Core GPU",2 TB,1.755 €,1.760 €,MacBook Pro,16 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 14 Core CPU 30 Core GPU",4 TB,1.915 €,1.920 €,MacBook Pro,16 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 14 Core CPU 30 Core GPU",8 TB,2.035 €,2.040 €,MacBook Pro,16 pulgadas,2023,M3 Max 14 Core CPU 30 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 16 Core CPU 40 Core GPU",512 GB,1.395 €,1.400 €,MacBook Pro,16 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 16 Core CPU 40 Core GPU",1 TB,1.770 €,1.775 €,MacBook Pro,16 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 16 Core CPU 40 Core GPU",2 TB,1.890 €,1.895 €,MacBook Pro,16 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 16 Core CPU 40 Core GPU",4 TB,2.065 €,2.070 €,MacBook Pro,16 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+"MacBook Pro (16 pulgadas, noviembre de 2023) A2991 M3 Max 16 Core CPU 40 Core GPU",8 TB,2.290 €,2.295 €,MacBook Pro,16 pulgadas,2023,M3 Max 16 Core CPU 40 Core GPU
+iPad (5.ª generación) Wi-Fi,32 GB,20 €,25 €,iPad,,,
+iPad (5.ª generación) Wi-Fi,128 GB,25 €,30 €,iPad,,,
+iPad (5.ª generación) Cellular,32 GB,20 €,25 €,iPad,,,
+iPad (5.ª generación) Cellular,128 GB,30 €,35 €,iPad,,,
+iPad (6.ª generación) Wi-Fi,32 GB,25 €,30 €,iPad,,,
+iPad (6.ª generación) Wi-Fi,128 GB,40 €,45 €,iPad,,,
+iPad (6.ª generación) Cellular,32 GB,30 €,35 €,iPad,,,
+iPad (6.ª generación) Cellular,128 GB,50 €,55 €,iPad,,,
+iPad (7.ª generación) Wi-Fi,32 GB,45 €,50 €,iPad,,,
+iPad (7.ª generación) Wi-Fi,128 GB,70 €,75 €,iPad,,,
+iPad (7.ª generación) Cellular,32 GB,50 €,55 €,iPad,,,
+iPad (7.ª generación) Cellular,128 GB,75 €,80 €,iPad,,,
+iPad (8.ª generación) Wi-Fi,32 GB,85 €,90 €,iPad,,,
+iPad (8.ª generación) Wi-Fi,128 GB,110 €,115 €,iPad,,,
+iPad (8.ª generación) Cellular,32 GB,95 €,100 €,iPad,,,
+iPad (8.ª generación) Cellular,128 GB,120 €,125 €,iPad,,,
+iPad (9.ª generación) Wi-Fi,64 GB,130 €,135 €,iPad,,,
+iPad (9.ª generación) Wi-Fi,256 GB,145 €,150 €,iPad,,,
+iPad (9.ª generación) Cellular,64 GB,140 €,145 €,iPad,,,
+iPad (9.ª generación) Cellular,256 GB,155 €,160 €,iPad,,,
+iPad (10.ª generación) Wi-Fi,64 GB,145 €,150 €,iPad,,,
+iPad (10.ª generación) Wi-Fi,256 GB,175 €,180 €,iPad,,,
+iPad (10.ª generación) Cellular,64 GB,155 €,160 €,iPad,,,
+iPad (10.ª generación) Cellular,256 GB,190 €,195 €,iPad,,,
+iPad Air (3.ª generación) Wi-Fi,64 GB,85 €,90 €,iPad,,,
+iPad Air (3.ª generación) Wi-Fi,256 GB,110 €,115 €,iPad,,,
+iPad Air (3.ª generación) Cellular,64 GB,95 €,100 €,iPad,,,
+iPad Air (3.ª generación) Cellular,256 GB,115 €,120 €,iPad,,,
+iPad Air (4.ª generación) Wi-Fi,64 GB,165 €,170 €,iPad,,,
+iPad Air (4.ª generación) Wi-Fi,256 GB,210 €,215 €,iPad,,,
+iPad Air (4.ª generación) Cellular,64 GB,180 €,185 €,iPad,,,
+iPad Air (4.ª generación) Cellular,256 GB,220 €,225 €,iPad,,,
+iPad Air (5.ª generación) Wi-Fi,64 GB,260 €,265 €,iPad,,,
+iPad Air (5.ª generación) Wi-Fi,256 GB,275 €,280 €,iPad,,,
+iPad Air (5.ª generación) Cellular,64 GB,265 €,270 €,iPad,,,
+iPad Air (5.ª generación) Cellular,256 GB,285 €,290 €,iPad,,,
+"iPad Pro (12,9 pulgadas) Wi-Fi",32 GB,50 €,55 €,iPad,,,
+"iPad Pro (12,9 pulgadas) Wi-Fi",128 GB,65 €,70 €,iPad,,,
+"iPad Pro (12,9 pulgadas) Wi-Fi",256 GB,70 €,75 €,iPad,,,
+"iPad Pro (12,9 pulgadas) Cellular",128 GB,70 €,75 €,iPad,,,
+"iPad Pro (12,9 pulgadas) Cellular",256 GB,75 €,80 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Wi-Fi",64 GB,115 €,120 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Wi-Fi",256 GB,130 €,135 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Wi-Fi",512 GB,135 €,140 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Cellular",64 GB,120 €,125 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Cellular",256 GB,135 €,140 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (2.ª generación) Cellular",512 GB,140 €,145 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Wi-Fi",64 GB,220 €,225 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Wi-Fi",256 GB,240 €,245 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Wi-Fi",512 GB,255 €,260 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Wi-Fi",1 TB,265 €,270 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Cellular",64 GB,230 €,235 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Cellular",256 GB,250 €,255 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Cellular",512 GB,255 €,260 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (3.ª generación) Cellular",1 TB,270 €,275 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Wi-Fi",128 GB,300 €,305 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Wi-Fi",256 GB,305 €,310 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Wi-Fi",512 GB,335 €,340 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Wi-Fi",1 TB,380 €,385 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Cellular",128 GB,305 €,310 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Cellular",256 GB,325 €,330 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Cellular",512 GB,345 €,350 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (4.ª generación) Cellular",1 TB,390 €,395 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Wi-Fi",128 GB,350 €,355 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Wi-Fi",256 GB,380 €,385 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Wi-Fi",512 GB,410 €,415 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Wi-Fi",1 TB,440 €,445 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Wi-Fi",2 TB,465 €,470 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Cellular",128 GB,370 €,375 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Cellular",256 GB,400 €,405 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Cellular",512 GB,430 €,435 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Cellular",1 TB,460 €,465 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (5.ª generación) Cellular",2 TB,485 €,490 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Wi-Fi",128 GB,440 €,445 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Wi-Fi",256 GB,455 €,460 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Wi-Fi",512 GB,475 €,480 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Wi-Fi",1 TB,515 €,520 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Wi-Fi",2 TB,615 €,620 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Cellular",128 GB,445 €,450 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Cellular",256 GB,465 €,470 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Cellular",512 GB,485 €,490 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Cellular",1 TB,535 €,540 €,iPad,,,
+"iPad Pro de 12,9 pulgadas (6.ª generación) Cellular",2 TB,635 €,640 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Wi-Fi",32 GB,20 €,25 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Wi-Fi",128 GB,35 €,40 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Wi-Fi",256 GB,45 €,50 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Cellular",32 GB,25 €,30 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Cellular",128 GB,45 €,50 €,iPad,,,
+"iPad Pro (9,7 pulgadas) Cellular",256 GB,55 €,60 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Wi-Fi",64 GB,80 €,85 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Wi-Fi",256 GB,95 €,100 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Wi-Fi",512 GB,105 €,110 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Cellular",64 GB,85 €,90 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Cellular",256 GB,100 €,105 €,iPad,,,
+"iPad Pro (10,5 pulgadas) Cellular",512 GB,110 €,115 €,iPad,,,
+iPad Pro de 11 pulgadas Wi-Fi,64 GB,150 €,155 €,iPad,,,
+iPad Pro de 11 pulgadas Wi-Fi,256 GB,170 €,175 €,iPad,,,
+iPad Pro de 11 pulgadas Wi-Fi,512 GB,190 €,195 €,iPad,,,
+iPad Pro de 11 pulgadas Wi-Fi,1 TB,210 €,215 €,iPad,,,
+iPad Pro de 11 pulgadas Cellular,64 GB,160 €,165 €,iPad,,,
+iPad Pro de 11 pulgadas Cellular,256 GB,175 €,180 €,iPad,,,
+iPad Pro de 11 pulgadas Cellular,512 GB,200 €,205 €,iPad,,,
+iPad Pro de 11 pulgadas Cellular,1 TB,220 €,225 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Wi-Fi,128 GB,200 €,205 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Wi-Fi,256 GB,215 €,220 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Wi-Fi,512 GB,235 €,240 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Wi-Fi,1 TB,275 €,280 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Cellular,128 GB,215 €,220 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Cellular,256 GB,220 €,225 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Cellular,512 GB,245 €,250 €,iPad,,,
+iPad Pro de 11 pulgadas (2.ª generación) Cellular,1 TB,280 €,285 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Wi-Fi,128 GB,250 €,255 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Wi-Fi,256 GB,275 €,280 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Wi-Fi,512 GB,300 €,305 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Wi-Fi,1 TB,305 €,310 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Wi-Fi,2 TB,315 €,320 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Cellular,128 GB,270 €,275 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Cellular,256 GB,295 €,300 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Cellular,512 GB,305 €,310 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Cellular,1 TB,310 €,315 €,iPad,,,
+iPad Pro de 11 pulgadas (3.ª generación) Cellular,2 TB,335 €,340 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Wi-Fi,128 GB,325 €,330 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Wi-Fi,256 GB,365 €,370 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Wi-Fi,512 GB,385 €,390 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Wi-Fi,1 TB,420 €,425 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Wi-Fi,2 TB,465 €,470 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Cellular,128 GB,350 €,355 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Cellular,256 GB,375 €,380 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Cellular,512 GB,395 €,400 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Cellular,1 TB,440 €,445 €,iPad,,,
+iPad Pro de 11 pulgadas (4.ª generación) Cellular,2 TB,485 €,490 €,iPad,,,
+iPad mini (5.ª generación) Wi-Fi,64 GB,115€,120 €,iPad,,,
+iPad mini (5.ª generación) Wi-Fi,256 GB,125€,130 €,iPad,,,
+iPad mini (5.ª generación) Cellular,64 GB,120€,125 €,iPad,,,
+iPad mini (5.ª generación) Cellular,256 GB,140€,145 €,iPad,,,
+iPad mini (6.ª generación) Wi-Fi,64 GB,145€,150 €,iPad,,,
+iPad mini (6.ª generación) Wi-Fi,256 GB,175€,180 €,iPad,,,
+iPad mini (6.ª generación) Cellular,64 GB,155€,160 €,iPad,,,
+iPad mini (6.ª generación) Cellular,256 GB,190€,195 €,iPad,,,
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i3 3.6",1 TB HDD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i3 3.6
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i3 3.6",1 TB Fusion Drive,145 €,150 €,iMac,21.5 pulgadas,2019,Core i3 3.6
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i3 3.6",256 GB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i3 3.6
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i3 3.6",512 GB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i3 3.6
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i3 3.6",1 TB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i3 3.6
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i5 3.0",1 TB Fusion Drive,145 €,150 €,iMac,21.5 pulgadas,2019,Core i5 3.0
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i5 3.0",256 GB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i5 3.0
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i5 3.0",512 GB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i5 3.0
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i5 3.0",1 TB SSD,145 €,150 €,iMac,21.5 pulgadas,2019,Core i5 3.0
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i7 3.2",1 TB HDD,190 €,195 €,iMac,21.5 pulgadas,2019,Core i7 3.2
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i7 3.2",1 TB Fusion Drive,220 €,225 €,iMac,21.5 pulgadas,2019,Core i7 3.2
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i7 3.2",256 GB SSD,190 €,195 €,iMac,21.5 pulgadas,2019,Core i7 3.2
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i7 3.2",512 GB SSD,220 €,225 €,iMac,21.5 pulgadas,2019,Core i7 3.2
+"iMac (Retina 4K, 21.5 pulgadas, 2019) A2116 Core i7 3.2",1 TB SSD,220 €,225 €,iMac,21.5 pulgadas,2019,Core i7 3.2
+"iMac (24 pulgadas, M1, 2021) A2439 M1 8 Core CPU 7 Core GPU",256 GB SSD,275 €,280 €,iMac,24 pulgadas,2021,M1 8 Core CPU 7 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2439 M1 8 Core CPU 7 Core GPU",512 GB SSD,300 €,305 €,iMac,24 pulgadas,2021,M1 8 Core CPU 7 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2439 M1 8 Core CPU 7 Core GPU",1 TB SSD,320 €,325 €,iMac,24 pulgadas,2021,M1 8 Core CPU 7 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2438 M1 8 Core CPU 8 Core GPU",256 GB SSD,280 €,285 €,iMac,24 pulgadas,2021,M1 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2438 M1 8 Core CPU 8 Core GPU",512 GB SSD,320 €,325 €,iMac,24 pulgadas,2021,M1 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2438 M1 8 Core CPU 8 Core GPU",1 TB SSD,340 €,345 €,iMac,24 pulgadas,2021,M1 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, M1, 2021) A2438 M1 8 Core CPU 8 Core GPU",2 TB SSD,350 €,355 €,iMac,24 pulgadas,2021,M1 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, 2023, dos puertos) A2874 M3 8 Core CPU 8 Core GPU",256 GB SSD,325 €,330 €,iMac,24 pulgadas,2023,M3 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, 2023, dos puertos) A2874 M3 8 Core CPU 8 Core GPU",512 GB SSD,355 €,360 €,iMac,24 pulgadas,2023,M3 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, 2023, dos puertos) A2874 M3 8 Core CPU 8 Core GPU",1 TB SSD,380 €,385 €,iMac,24 pulgadas,2023,M3 8 Core CPU 8 Core GPU
+"iMac (24 pulgadas, 2023, cuatro puertos) A2873 8 Core CPU 10 Core GPU",256 GB SSD,370 €,375 €,iMac,24 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"iMac (24 pulgadas, 2023, cuatro puertos) A2873 8 Core CPU 10 Core GPU",512 GB SSD,385 €,390 €,iMac,24 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"iMac (24 pulgadas, 2023, cuatro puertos) A2873 8 Core CPU 10 Core GPU",1 TB SSD,410 €,415 €,iMac,24 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"iMac (24 pulgadas, 2023, cuatro puertos) A2873 8 Core CPU 10 Core GPU",2 TB SSD,420 €,425 €,iMac,24 pulgadas,2023,M3 8 Core CPU 10 Core GPU
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.4",1 TB Fusion Drive,150 €,155 €,iMac,27 pulgadas,2017,Core i5 3.4
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.4",2 TB Fusion Drive,175 €,180 €,iMac,27 pulgadas,2017,Core i5 3.4
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.4",256 GB SSD,175 €,180 €,iMac,27 pulgadas,2017,Core i5 3.4
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.4",512 GB SSD,175 €,180 €,iMac,27 pulgadas,2017,Core i5 3.4
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.4",1 TB SSD,175 €,180 €,iMac,27 pulgadas,2017,Core i5 3.4
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",1 TB Fusion Drive,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",2 TB Fusion Drive,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",3 TB Fusion Drive,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",256 GB SSD,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",512 GB SSD,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.5",1 TB SSD,180 €,185 €,iMac,27 pulgadas,2017,Core i5 3.5
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.8",2 TB Fusion Drive,185 €,190 €,iMac,27 pulgadas,2017,Core i5 3.8
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.8",3TB Fusion Drive,185 €,190 €,iMac,27 pulgadas,2017,Core i5 3.8
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.8",512 GB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i5 3.8
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.8",1 TB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i5 3.8
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i5 3.8",2 TB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i5 3.8
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",1 TB Fusion Drive,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",2 TB Fusion Drive,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",3 TB Fusion Drive,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",256 GB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",512 GB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",1 TB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2017) A1419 Core i7 4.2",2 TB SSD,185 €,190 €,iMac,27 pulgadas,2017,Core i7 4.2
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.0",1 TB Fusion Drive,220 €,225 €,iMac,27 pulgadas,2019,Core i5 3.0
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.0",2 TB Fusion Drive,235 €,240 €,iMac,27 pulgadas,2019,Core i5 3.0
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.0",256 GB SSD,230 €,235 €,iMac,27 pulgadas,2019,Core i5 3.0
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.0",512 GB SSD,235 €,240 €,iMac,27 pulgadas,2019,Core i5 3.0
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.0",1 TB SSD,235 €,240 €,iMac,27 pulgadas,2019,Core i5 3.0
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",1 TB Fusion Drive,240 €,245 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",2 TB Fusion Drive,240 €,245 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",3 TB Fusion Drive,240 €,245 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",256 GB SSD,230 €,235 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",512 GB SSD,240 €,245 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.1",1 TB SSD,240 €,245 €,iMac,27 pulgadas,2019,Core i5 3.1
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.7",2 TB Fusion Drive,360 €,365 €,iMac,27 pulgadas,2019,Core i5 3.7
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.7",3 TB Fusion Drive,360 €,365 €,iMac,27 pulgadas,2019,Core i5 3.7
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.7",512 GB SSD,360 €,365 €,iMac,27 pulgadas,2019,Core i5 3.7
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.7",1 TB SSD,360 €,365 €,iMac,27 pulgadas,2019,Core i5 3.7
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i5 3.7",2 TB SSD,360 €,365 €,iMac,27 pulgadas,2019,Core i5 3.7
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",1 TB Fusion Drive,370 €,375 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",2 TB Fusion Drive,390 €,395 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",3 TB Fusion Drive,390 €,395 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",256 GB SSD,345 €,350 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",512 GB SSD,390 €,395 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",1 TB SSD,390 €,395 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina 5K, 27 pulgadas, 2019) A2115 Core i9 3.6",2 TB SSD,390 €,395 €,iMac,27 pulgadas,2019,Core i9 3.6
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i5 3.1",256 GB SSD,255 €,260 €,iMac,27 pulgadas,2020,Core i5 3.1
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i5 3.3",512 GB SSD,290 €,295 €,iMac,27 pulgadas,2020,Core i5 3.3
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i5 3.3",1 TB SSD,310 €,315 €,iMac,27 pulgadas,2020,Core i5 3.3
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i5 3.3",2 TB SSD,320 €,325 €,iMac,27 pulgadas,2020,Core i5 3.3
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i7 3.8",512 GB SSD,400 €,405 €,iMac,27 pulgadas,2020,Core i7 3.8
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i7 3.8",1 TB SSD,420 €,425 €,iMac,27 pulgadas,2020,Core i7 3.8
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i7 3.8",2 TB SSD,430 €,435 €,iMac,27 pulgadas,2020,Core i7 3.8
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i7 3.8",4 TB SSD,430 €,435 €,iMac,27 pulgadas,2020,Core i7 3.8
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i7 3.8",8 TB SSD,430 €,435 €,iMac,27 pulgadas,2020,Core i7 3.8
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i9 3.6",512 GB SSD,410 €,415 €,iMac,27 pulgadas,2020,Core i9 3.6
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i9 3.6",1 TB SSD,415 €,420 €,iMac,27 pulgadas,2020,Core i9 3.6
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i9 3.6",2 TB SSD,420 €,425 €,iMac,27 pulgadas,2020,Core i9 3.6
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i9 3.6",4 TB SSD,420 €,425 €,iMac,27 pulgadas,2020,Core i9 3.6
+"iMac (Retina, 5K, 27 pulgadas, 2020) A2115 Core i9 3.6",8 TB SSD,420 €,425 €,iMac,27 pulgadas,2020,Core i9 3.6
+iMac Pro (2017) A1862 Intel Xeon W 8 Core 3.2,1 TB SSD,230 €,235 €,iMac,27 pulgadas,2017,Intel Xeon W 8 Core 3.2
+iMac Pro (2017) A1862 Intel Xeon W 8 Core 3.2,2 TB SSD,250 €,255 €,iMac,27 pulgadas,2017,Intel Xeon W 8 Core 3.2
+iMac Pro (2017) A1862 Intel Xeon W 8 Core 3.2,4 TB SSD,270 €,275 €,iMac,27 pulgadas,2017,Intel Xeon W 8 Core 3.2
+iMac Pro (2017) A1862 Intel Xeon W 10 Core 3.0,1 TB SSD,460 €,465 €,iMac,27 pulgadas,2017,Intel Xeon W 10 Core 3.0
+iMac Pro (2017) A1862 Intel Xeon W 10 Core 3.0,2 TB SSD,460 €,465 €,iMac,27 pulgadas,2017,Intel Xeon W 10 Core 3.0
+iMac Pro (2017) A1862 Intel Xeon W 10 Core 3.0,4 TB SSD,545 €,550 €,iMac,27 pulgadas,2017,Intel Xeon W 10 Core 3.0
+iMac Pro (2017) A1862 Intel Xeon W 14 Core 2.5,1 TB SSD,435 €,440 €,iMac,27 pulgadas,2017,Intel Xeon W 14 Core 2.5
+iMac Pro (2017) A1862 Intel Xeon W 14 Core 2.5,2 TB SSD,435 €,440 €,iMac,27 pulgadas,2017,Intel Xeon W 14 Core 2.5
+iMac Pro (2017) A1862 Intel Xeon W 14 Core 2.5,4 TB SSD,545 €,550 €,iMac,27 pulgadas,2017,Intel Xeon W 14 Core 2.5
+iMac Pro (2017) A1862 Intel Xeon W 18 Core 2.3,1 TB SSD,365 €,370 €,iMac,27 pulgadas,2017,Intel Xeon W 18 Core 2.3
+iMac Pro (2017) A1862 Intel Xeon W 18 Core 2.3,2 TB SSD,365 €,370 €,iMac,27 pulgadas,2017,Intel Xeon W 18 Core 2.3
+iMac Pro (2017) A1862 Intel Xeon W 18 Core 2.3,4 TB SSD,400 €,405 €,iMac,27 pulgadas,2017,Intel Xeon W 18 Core 2.3
+Mac mini (2018) A1993 Core i3 3.6,128 GB SSD,60 €,65 €,Mac mini,,2018,Core i3 3.6
+Mac mini (2018) A1993 Core i3 3.6,256 GB SSD,65 €,70 €,Mac mini,,2018,Core i3 3.6
+Mac mini (2018) A1993 Core i3 3.6,512 GB SSD,75 €,80 €,Mac mini,,2018,Core i3 3.6
+Mac mini (2018) A1993 Core i3 3.6,1 TB SSD,80 €,85 €,Mac mini,,2018,Core i3 3.6
+Mac mini (2018) A1993 Core i3 3.6,2 TB SSD,85 €,90 €,Mac mini,,2018,Core i3 3.6
+Mac mini (2018) A1993 Core i5 3.0,128 GB SSD,65 €,70 €,Mac mini,,2018,Core i5 3.0
+Mac mini (2018) A1993 Core i5 3.0,256 GB SSD,90 €,95 €,Mac mini,,2018,Core i5 3.0
+Mac mini (2018) A1993 Core i5 3.0,512 GB SSD,100 €,105 €,Mac mini,,2018,Core i5 3.0
+Mac mini (2018) A1993 Core i5 3.0,1 TB SSD,110 €,115 €,Mac mini,,2018,Core i5 3.0
+Mac mini (2018) A1993 Core i5 3.0,2 TB SSD,115 €,120 €,Mac mini,,2018,Core i5 3.0
+Mac mini (2018) A1993 Core i7 3.2,128 GB SSD,65 €,70 €,Mac mini,,2018,Core i7 3.2
+Mac mini (2018) A1993 Core i7 3.2,256 GB SSD,100 €,105 €,Mac mini,,2018,Core i7 3.2
+Mac mini (2018) A1993 Core i7 3.2,512 GB SSD,115 €,120 €,Mac mini,,2018,Core i7 3.2
+Mac mini (2018) A1993 Core i7 3.2,1 TB SSD,120 €,125 €,Mac mini,,2018,Core i7 3.2
+Mac mini (2018) A1993 Core i7 3.2,2 TB SSD,120 €,125 €,Mac mini,,2018,Core i7 3.2
+Mac mini (2020) A1993 Core i3 3.6,256 GB SSD,65 €,70 €,Mac mini,,2020,Core i3 3.6
+Mac mini (2020) A1993 Core i3 3.6,512 GB SSD,75 €,80 €,Mac mini,,2020,Core i3 3.6
+Mac mini (2020) A1993 Core i3 3.6,1 TB SSD,80 €,85 €,Mac mini,,2020,Core i3 3.6
+Mac mini (2020) A1993 Core i3 3.6,2 TB SSD,95 €,100 €,Mac mini,,2020,Core i3 3.6
+Mac mini (2020) A1993 Core i5 3.0,512 GB SSD,105 €,110 €,Mac mini,,2020,Core i5 3.0
+Mac mini (2020) A1993 Core i5 3.0,1 TB SSD,110 €,115 €,Mac mini,,2020,Core i5 3.0
+Mac mini (2020) A1993 Core i5 3.0,2 TB SSD,115 €,120 €,Mac mini,,2020,Core i5 3.0
+Mac mini (2020) A1993 Core i7 3.2,256 GB SSD,100 €,105 €,Mac mini,,2020,Core i7 3.2
+Mac mini (2020) A1993 Core i7 3.2,512 GB SSD,115 €,120 €,Mac mini,,2020,Core i7 3.2
+Mac mini (2020) A1993 Core i7 3.2,1 TB SSD,120 €,125 €,Mac mini,,2020,Core i7 3.2
+Mac mini (2020) A1993 Core i7 3.2,2 TB SSD,120 €,125 €,Mac mini,,2020,Core i7 3.2
+"Mac mini (M1, 2020) A2348 M1 8 Core CPU 8 Core GPU",256 GB SSD,100 €,105 €,Mac mini,,2020,M1 8 Core CPU 8 Core GPU
+"Mac mini (M1, 2020) A2348 M1 8 Core CPU 8 Core GPU",512 GB SSD,115 €,120 €,Mac mini,,2020,M1 8 Core CPU 8 Core GPU
+"Mac mini (M1, 2020) A2348 M1 8 Core CPU 8 Core GPU",1 TB SSD,120 €,125 €,Mac mini,,2020,M1 8 Core CPU 8 Core GPU
+"Mac mini (M1, 2020) A2348 M1 8 Core CPU 8 Core GPU",2 TB SSD,125 €,130 €,Mac mini,,2020,M1 8 Core CPU 8 Core GPU
+Mac mini (2023) A2686 M2 8 Core CPU 10 Core GPU,256 GB SSD,110 €,115 €,Mac mini,,2023,M2 8 Core CPU 10 Core GPU
+Mac mini (2023) A2686 M2 8 Core CPU 10 Core GPU,512 GB SSD,170 €,175 €,Mac mini,,2023,M2 8 Core CPU 10 Core GPU
+Mac mini (2023) A2686 M2 8 Core CPU 10 Core GPU,1 TB SSD,225 €,230 €,Mac mini,,2023,M2 8 Core CPU 10 Core GPU
+Mac mini (2023) A2686 M2 8 Core CPU 10 Core GPU,2 TB SSD,275 €,280 €,Mac mini,,2023,M2 8 Core CPU 10 Core GPU
+Mac mini (2023) A2686 M2 Pro 10 Core CPU 16 Core GPU,512 GB SSD,260 €,265 €,Mac mini,,2023,M2 Pro 10 Core CPU 16 Core GPU
+Mac mini (2023) A2686 M2 Pro 10 Core CPU 16 Core GPU,1 TB SSD,270 €,275 €,Mac mini,,2023,M2 Pro 10 Core CPU 16 Core GPU
+Mac mini (2023) A2686 M2 Pro 10 Core CPU 16 Core GPU,2 TB SSD,275 €,280 €,Mac mini,,2023,M2 Pro 10 Core CPU 16 Core GPU
+Mac mini (2023) A2686 M2 Pro 10 Core CPU 16 Core GPU,4 TB SSD,280 €,285 €,Mac mini,,2023,M2 Pro 10 Core CPU 16 Core GPU
+Mac mini (2023) A2686 M2 Pro 10 Core CPU 16 Core GPU,8 TB SSD,290 €,295 €,Mac mini,,2023,M2 Pro 10 Core CPU 16 Core GPU
+Mac mini (2023) A2686 M2 Pro 12 Core CPU 19 Core GPU,512 GB SSD,310 €,315 €,Mac mini,,2023,M2 Pro 12 Core CPU 19 Core GPU
+Mac mini (2023) A2686 M2 Pro 12 Core CPU 19 Core GPU,1 TB SSD,315 €,320 €,Mac mini,,2023,M2 Pro 12 Core CPU 19 Core GPU
+Mac mini (2023) A2686 M2 Pro 12 Core CPU 19 Core GPU,2 TB SSD,315 €,320 €,Mac mini,,2023,M2 Pro 12 Core CPU 19 Core GPU
+Mac mini (2023) A2686 M2 Pro 12 Core CPU 19 Core GPU,4 TB SSD,315 €,320 €,Mac mini,,2023,M2 Pro 12 Core CPU 19 Core GPU
+Mac mini (2023) A2686 M2 Pro 12 Core CPU 19 Core GPU,8 TB SSD,315 €,320 €,Mac mini,,2023,M2 Pro 12 Core CPU 19 Core GPU
+Mac Pro (2019)  Intel Xeon W 8 Core 3.5,256 GB SSD,470 €,475 €,Mac Pro,,2019,Intel Xeon W 8 Core 3.5
+Mac Pro (2019)  Intel Xeon W 8 Core 3.5,1 TB SSD,510 €,515 €,Mac Pro,,2019,Intel Xeon W 8 Core 3.5
+Mac Pro (2019)  Intel Xeon W 8 Core 3.5,2 TB SSD,535 €,540 €,Mac Pro,,2019,Intel Xeon W 8 Core 3.5
+Mac Pro (2019)  Intel Xeon W 8 Core 3.5,4 TB SSD,555 €,560 €,Mac Pro,,2019,Intel Xeon W 8 Core 3.5
+Mac Pro (2019)  Intel Xeon W 8 Core 3.5,8 TB SSD,590 €,595 €,Mac Pro,,2019,Intel Xeon W 8 Core 3.5
+Mac Pro (2019)  Intel Xeon W 12 Core 3.3,256 GB SSD,490 €,495 €,Mac Pro,,2019,Intel Xeon W 12 Core 3.3
+Mac Pro (2019)  Intel Xeon W 12 Core 3.3,1 TB SSD,555 €,560 €,Mac Pro,,2019,Intel Xeon W 12 Core 3.3
+Mac Pro (2019)  Intel Xeon W 12 Core 3.3,2 TB SSD,590 €,595 €,Mac Pro,,2019,Intel Xeon W 12 Core 3.3
+Mac Pro (2019)  Intel Xeon W 12 Core 3.3,4 TB SSD,655 €,660 €,Mac Pro,,2019,Intel Xeon W 12 Core 3.3
+Mac Pro (2019)  Intel Xeon W 12 Core 3.3,8 TB SSD,725 €,730 €,Mac Pro,,2019,Intel Xeon W 12 Core 3.3
+Mac Pro (2019)  Intel Xeon W 16 Core 3.2,256 GB SSD,555 €,560 €,Mac Pro,,2019,Intel Xeon W 16 Core 3.2
+Mac Pro (2019)  Intel Xeon W 16 Core 3.2,1 TB SSD,620 €,625 €,Mac Pro,,2019,Intel Xeon W 16 Core 3.2
+Mac Pro (2019)  Intel Xeon W 16 Core 3.2,2 TB SSD,655 €,660 €,Mac Pro,,2019,Intel Xeon W 16 Core 3.2
+Mac Pro (2019)  Intel Xeon W 16 Core 3.2,4 TB SSD,725 €,730 €,Mac Pro,,2019,Intel Xeon W 16 Core 3.2
+Mac Pro (2019)  Intel Xeon W 16 Core 3.2,8 TB SSD,760 €,765 €,Mac Pro,,2019,Intel Xeon W 16 Core 3.2
+Mac Pro (2019)  Intel Xeon W 24 Core 2.7,256 GB SSD,610 €,615 €,Mac Pro,,2019,Intel Xeon W 24 Core 2.7
+Mac Pro (2019)  Intel Xeon W 24 Core 2.7,1 TB SSD,665 €,670 €,Mac Pro,,2019,Intel Xeon W 24 Core 2.7
+Mac Pro (2019)  Intel Xeon W 24 Core 2.7,2 TB SSD,675 €,680 €,Mac Pro,,2019,Intel Xeon W 24 Core 2.7
+Mac Pro (2019)  Intel Xeon W 24 Core 2.7,4 TB SSD,760 €,765 €,Mac Pro,,2019,Intel Xeon W 24 Core 2.7
+Mac Pro (2019)  Intel Xeon W 24 Core 2.7,8 TB SSD,775 €,780 €,Mac Pro,,2019,Intel Xeon W 24 Core 2.7
+Mac Pro (2019)  Intel Xeon W 28 Core 2.5,256 GB SSD,660 €,665 €,Mac Pro,,2019,Intel Xeon W 28 Core 2.5
+Mac Pro (2019)  Intel Xeon W 28 Core 2.5,1 TB SSD,725 €,730 €,Mac Pro,,2019,Intel Xeon W 28 Core 2.5
+Mac Pro (2019)  Intel Xeon W 28 Core 2.5,2 TB SSD,760 €,765 €,Mac Pro,,2019,Intel Xeon W 28 Core 2.5
+Mac Pro (2019)  Intel Xeon W 28 Core 2.5,4 TB SSD,820 €,825 €,Mac Pro,,2019,Intel Xeon W 28 Core 2.5
+Mac Pro (2019)  Intel Xeon W 28 Core 2.5,8 TB SSD,820 €,825 €,Mac Pro,,2019,Intel Xeon W 28 Core 2.5
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 60 Core GPU,1 TB SSD,3.000 €,3.005 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 60 Core GPU,2 TB SSD,3.110 €,3.115 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 60 Core GPU,4 TB SSD,3.270 €,3.275 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 60 Core GPU,8 TB SSD,3.590 €,3.595 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 76 Core GPU,1 TB SSD,3.270 €,3.275 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 76 Core GPU,2 TB SSD,3.375 €,3.380 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 76 Core GPU,4 TB SSD,3.535 €,3.540 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Pro (2023) A2786 M2 Ultra 24 Core CPU 76 Core GPU,8 TB SSD,3.860 €,3.865 €,Mac Pro,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 24 Core GPU,512 GB SSD,590 €,595 €,Mac Studio,,2022,M1 Max 10 Core CPU 24 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 24 Core GPU,1 TB SSD,685 €,690 €,Mac Studio,,2022,M1 Max 10 Core CPU 24 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 24 Core GPU,2 TB SSD,735 €,740 €,Mac Studio,,2022,M1 Max 10 Core CPU 24 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 24 Core GPU,4 TB SSD,765 €,770 €,Mac Studio,,2022,M1 Max 10 Core CPU 24 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 24 Core GPU,8 TB SSD,805 €,810 €,Mac Studio,,2022,M1 Max 10 Core CPU 24 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 32 Core GPU,512 GB SSD,620 €,625 €,Mac Studio,,2022,M1 Max 10 Core CPU 32 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 32 Core GPU,1 TB SSD,735 €,740 €,Mac Studio,,2022,M1 Max 10 Core CPU 32 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 32 Core GPU,2 TB SSD,765 €,770 €,Mac Studio,,2022,M1 Max 10 Core CPU 32 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 32 Core GPU,4 TB SSD,795 €,800 €,Mac Studio,,2022,M1 Max 10 Core CPU 32 Core GPU
+Mac Studio (2022) A2615 M1 Max 10 Core CPU 32 Core GPU,8 TB SSD,825 €,830 €,Mac Studio,,2022,M1 Max 10 Core CPU 32 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 48 Core GPU,1 TB SSD,1.035 €,1.040 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 48 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 48 Core GPU,2 TB SSD,1.110 €,1.115 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 48 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 48 Core GPU,4 TB SSD,1.190 €,1.195 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 48 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 48 Core GPU,8 TB SSD,1.235 €,1.240 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 48 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 64 Core GPU,1 TB SSD,1.235 €,1.240 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 64 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 64 Core GPU,2 TB SSD,1.285 €,1.290 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 64 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 64 Core GPU,4 TB SSD,1.320 €,1.325 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 64 Core GPU
+Mac Studio (2022) A2615 M1 Ultra 20 Core CPU 64 Core GPU,8 TB SSD,1.370 €,1.375 €,Mac Studio,,2022,M1 Ultra 20 Core CPU 64 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 30 Core GPU,512 GB SSD,765 €,770 €,Mac Studio,,2023,M2 Max 12 Core CPU 30 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 30 Core GPU,1 TB SSD,905 €,910 €,Mac Studio,,2023,M2 Max 12 Core CPU 30 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 30 Core GPU,2 TB SSD,960 €,965 €,Mac Studio,,2023,M2 Max 12 Core CPU 30 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 30 Core GPU,4 TB SSD,1.065 €,1.070 €,Mac Studio,,2023,M2 Max 12 Core CPU 30 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 30 Core GPU,8 TB SSD,1.105 €,1.110 €,Mac Studio,,2023,M2 Max 12 Core CPU 30 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 38 Core GPU,512 GB SSD,820 €,825 €,Mac Studio,,2023,M2 Max 12 Core CPU 38 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 38 Core GPU,1 TB SSD,960 €,965 €,Mac Studio,,2023,M2 Max 12 Core CPU 38 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 38 Core GPU,2 TB SSD,1.005 €,1.010 €,Mac Studio,,2023,M2 Max 12 Core CPU 38 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 38 Core GPU,4 TB SSD,1.105 €,1.110 €,Mac Studio,,2023,M2 Max 12 Core CPU 38 Core GPU
+Mac Studio (2023) A2901 M2 Max 12 Core CPU 38 Core GPU,8 TB SSD,1.150 €,1.155 €,Mac Studio,,2023,M2 Max 12 Core CPU 38 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 60 Core GPU,1 TB SSD,1.235 €,1.240 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 60 Core GPU,2 TB SSD,1.285 €,1.290 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 60 Core GPU,4 TB SSD,1.320 €,1.325 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 60 Core GPU,8 TB SSD,1.375 €,1.380 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 60 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 76 Core GPU,1 TB SSD,1.375 €,1.380 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 76 Core GPU,2 TB SSD,1.435 €,1.440 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 76 Core GPU,4 TB SSD,1.480 €,1.485 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+Mac Studio (2023) A2901 M2 Ultra 24 Core CPU 76 Core GPU,8 TB SSD,1.545 €,1.550 €,Mac Studio,,2023,M2 Ultra 24 Core CPU 76 Core GPU
+iPhone 15 Pro Max,256 GB,575 €,585 €,iPhone,,,
+iPhone 15 Pro Max,512 GB,620 €,630 €,iPhone,,,
+iPhone 15 Pro Max,1 TB,640 €,650 €,iPhone,,,
+iPhone 15 Pro,128 GB,445 €,455 €,iPhone,,,
+iPhone 15 Pro,256 GB,485 €,495 €,iPhone,,,
+iPhone 15 Pro,512 GB,505 €,515 €,iPhone,,,
+iPhone 15 Pro,1 TB,525 €,535 €,iPhone,,,
+iPhone 15 Plus,128 GB,380 €,390 €,iPhone,,,
+iPhone 15 Plus,256 GB,410 €,420 €,iPhone,,,
+iPhone 15 Plus,512 GB,430 €,440 €,iPhone,,,
+iPhone 15,128 GB,370 €,380 €,iPhone,,,
+iPhone 15,256 GB,400 €,410 €,iPhone,,,
+iPhone 15,512 GB,425 €,435 €,iPhone,,,
+iPhone 14 Pro Max,128 GB,400 €,410 €,iPhone,,,
+iPhone 14 Pro Max,256 GB,435 €,445 €,iPhone,,,
+iPhone 14 Pro Max,512 GB,445 €,455 €,iPhone,,,
+iPhone 14 Pro Max,1 TB,465 €,475 €,iPhone,,,
+iPhone 14 Pro,128 GB,350 €,360 €,iPhone,,,
+iPhone 14 Pro,256 GB,370 €,380 €,iPhone,,,
+iPhone 14 Pro,512 GB,390 €,400 €,iPhone,,,
+iPhone 14 Pro,1 TB,405 €,415 €,iPhone,,,
+iPhone 14 Plus,128 GB,275 €,285 €,iPhone,,,
+iPhone 14 Plus,256 GB,305 €,315 €,iPhone,,,
+iPhone 14 Plus,512 GB,315 €,325 €,iPhone,,,
+iPhone 14,128 GB,285 €,295 €,iPhone,,,
+iPhone 14,256 GB,315 €,325 €,iPhone,,,
+iPhone 14,512 GB,325 €,335 €,iPhone,,,
+iPhone 13 Pro Max,128 GB,345 €,355 €,iPhone,,,
+iPhone 13 Pro Max,256 GB,370 €,380 €,iPhone,,,
+iPhone 13 Pro Max,512 GB,400 €,410 €,iPhone,,,
+iPhone 13 Pro Max,1 TB,420 €,430 €,iPhone,,,
+iPhone 13 Pro,128 GB,305 €,315 €,iPhone,,,
+iPhone 13 Pro,256 GB,335 €,345 €,iPhone,,,
+iPhone 13 Pro,512 GB,355 €,365 €,iPhone,,,
+iPhone 13 Pro,1 TB,380 €,390 €,iPhone,,,
+iPhone 13,128 GB,250 €,260 €,iPhone,,,
+iPhone 13,256 GB,280 €,290 €,iPhone,,,
+iPhone 13,512 GB,290 €,300 €,iPhone,,,
+iPhone 13 Mini,128 GB,185 €,195 €,iPhone,,,
+iPhone 13 Mini,256 GB,210 €,220 €,iPhone,,,
+iPhone 13 Mini,512 GB,220 €,230 €,iPhone,,,
+iPhone 12 Pro Max,128 GB,230 €,240 €,iPhone,,,
+iPhone 12 Pro Max,256 GB,250 €,260 €,iPhone,,,
+iPhone 12 Pro Max,512 GB,260 €,270 €,iPhone,,,
+iPhone 12 Pro,128 GB,175 €,185 €,iPhone,,,
+iPhone 12 Pro,256 GB,200 €,210 €,iPhone,,,
+iPhone 12 Pro,512 GB,210 €,220 €,iPhone,,,
+iPhone 12,64 GB,135 €,145 €,iPhone,,,
+iPhone 12,128 GB,155 €,165 €,iPhone,,,
+iPhone 12,256 GB,170 €,180 €,iPhone,,,
+iPhone 12 Mini,64 GB,95 €,105 €,iPhone,,,
+iPhone 12 Mini,128 GB,115 €,125 €,iPhone,,,
+iPhone 12 Mini,256 GB,125 €,135 €,iPhone,,,
+iPhone 11 Pro Max,64 GB,160€,170 €,iPhone,,,
+iPhone 11 Pro Max,256 GB,185€,195 €,iPhone,,,
+iPhone 11 Pro Max,512 GB,200€,210 €,iPhone,,,
+iPhone 11 Pro,64 GB,110€,120 €,iPhone,,,
+iPhone 11 Pro,256 GB,130€,140 €,iPhone,,,
+iPhone 11 Pro,512 GB,135€,145 €,iPhone,,,
+iPhone 11 ,64 GB,95€,105 €,iPhone,,,
+iPhone 11 ,128 GB,110€,120 €,iPhone,,,
+iPhone 11 ,256 GB,115€,125 €,iPhone,,,
+iPhone XS Max,64 GB,80€,90 €,iPhone,,,
+iPhone XS Max,256 GB,100€,110 €,iPhone,,,
+iPhone XS Max,512 GB,110€,120 €,iPhone,,,
+iPhone XS,64 GB,60€,70 €,iPhone,,,
+iPhone XS,256 GB,70€,80 €,iPhone,,,
+iPhone XS,512 GB,80€,90 €,iPhone,,,
+iPhone XR,64 GB,60€,70 €,iPhone,,,
+iPhone XR,128 GB,70€,80 €,iPhone,,,
+iPhone XR,256 GB,75€,85 €,iPhone,,,
+iPhone X,64 GB,50€,60 €,iPhone,,,
+iPhone X,256 GB,60€,70 €,iPhone,,,
+iPhone 8 Plus,64 GB,35€,45 €,iPhone,,,
+iPhone 8 Plus,128 GB,45€,55 €,iPhone,,,
+iPhone 8 Plus,256 GB,55€,65 €,iPhone,,,
+iPhone 8,64 GB,25€,35 €,iPhone,,,
+iPhone 8,128 GB,30€,40 €,iPhone,,,
+iPhone 8,256 GB,35€,45 €,iPhone,,,
+iPhone SE (3rd generation),64 GB,95€,105 €,iPhone,,,
+iPhone SE (3rd generation),128 GB,105€,115 €,iPhone,,,
+iPhone SE (3rd generation),256 GB,120€,130 €,iPhone,,,
+iPhone SE (2nd generation),64 GB,40€,50 €,iPhone,,,
+iPhone SE (2nd generation),128 GB,55€,65 €,iPhone,,,
+iPhone SE (2nd generation),256 GB,65€,75 €,iPhone,,,

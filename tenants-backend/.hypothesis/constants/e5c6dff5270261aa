@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/notificaciones/models.py
+# hypothesis_version: 6.136.7
+
+[100, 300, '-creada', 'Cambio de estado', 'Estado prolongado', 'Otro', 'Plazo de pago', 'estado_cambiado', 'estado_prolongado', 'notificaciones', 'otro', 'plazo_pago']

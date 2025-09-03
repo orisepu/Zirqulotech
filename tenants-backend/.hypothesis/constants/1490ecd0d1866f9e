@@ -1,0 +1,4 @@
+# file: /home/oriol/checkouters/backend/django-tenant-users/django_test_app/companies/migrations/0008_company_uuid.py
+# hypothesis_version: 6.136.7
+
+['0007_company_tier', 'Company', 'companies', 'company', 'uuid']
