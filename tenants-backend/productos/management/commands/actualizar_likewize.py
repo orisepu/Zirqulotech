@@ -227,8 +227,8 @@ def canonical_family_from_text(text: str) -> str | None:
         return "MacBook Air"
     if s.startswith("macbook"):
         return "MacBook"
-    if s.startswith("imac pro"):
-        return "iMac Pro"        
+    if s.startswith("imac pro") or s.startswith("imacpro"):
+        return "iMac Pro"
     if s.startswith("imac"):
         return "iMac"
     if s.startswith("mac mini") or s.startswith("macmini"):
@@ -500,7 +500,14 @@ def _cpu_cores_from_text_cpu_only(t: str) -> Optional[int]:
     if m:
         return int(m.group(1))
     m = re.search(r'\bXeon\b.*?\b(\d{1,2})\s*[- ]?core\b', t, re.I)
-    return int(m.group(1)) if m else None
+    if m:
+        return int(m.group(1))
+    m = re.search(r'\b(\d{1,2})\s*core\b', t, re.I)
+    if m:
+        after = t[m.end():]
+        if not re.match(r'\s*gpu\b', after, re.I):
+            return int(m.group(1))
+    return None
 
 def _cpu_cores_from_text(t: str) -> int | None:
     # "18 Core 2.3" / "8 Core 3.2" / "10 Core 3.0" / "14 Core 2.5"
