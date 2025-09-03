@@ -31,7 +31,7 @@ staticfiles/
 static/
 *.sqlite3
 db.sqlite3
-
+_media/
 # ======================
 # Node / Next.js / React
 # ======================
