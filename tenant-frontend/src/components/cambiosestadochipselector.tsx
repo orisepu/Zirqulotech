@@ -7,7 +7,8 @@ import {
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import CheckIcon from '@mui/icons-material/Check';
 import { ESTADOS_META } from '@/context/estados';
-type Dir = 'anterior' | 'siguiente';
+
+type Extras = { plazo_pago_dias: number } | { numero_seguimiento: string; url_seguimiento: string } | undefined;
 
 function EstadoChipSelector({
   estadoActual,
@@ -15,12 +16,12 @@ function EstadoChipSelector({
   siguientes,
   onSelect,
   disabledItem,
-  getTooltip,
+  getTooltip: _getTooltip,
 }: {
   estadoActual: string;
   anteriores: string[];
   siguientes: string[];
-  onSelect: (nuevoEstado: string, extras?: any) => void; // ← admite extras opcionales
+  onSelect: (nuevoEstado: string, extras?: Extras) => void; // ← admite extras opcionales
   disabledItem?: (estado: string) => boolean;
   getTooltip?: (estado: string) => React.ReactNode;
 }) {
@@ -72,10 +73,10 @@ function EstadoChipSelector({
   const buildItem = (estado: string, tipo: 'anterior' | 'siguiente') => {
     const Icono = ESTADOS_META[estado]?.icon;
     const disabled = disabledItem?.(estado) ?? false;
-    const title = tipo === 'anterior' ? 'Estado anterior' : 'Estado siguiente';
+    const title = _getTooltip ? _getTooltip(estado) : (tipo === 'anterior' ? 'Estado anterior' : 'Estado siguiente');
 
     return (
-      <Tooltip key={`${tipo}-${estado}`} title={title} placement="left">
+      <Tooltip key={`${tipo}-${estado}`} title={title as React.ReactNode} placement="left">
         <MenuItem
           disabled={disabled}
           onClick={() => {
@@ -102,12 +103,15 @@ function EstadoChipSelector({
 
   return (
     <>
+      {/** Share handler to avoid any cast */}
+      {/**/}
+      
       <Chip
         icon={IconoActual ? <IconoActual /> : undefined}
         label={estadoActual}
         color={colorActual}
-        onClick={(e) => setAnchorEl(e.currentTarget)}
-        onDelete={(e) => setAnchorEl(e.currentTarget as any)}
+        onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
+        onDelete={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
         deleteIcon={<ArrowDropDownIcon />}
         sx={{
           fontWeight: 'bold',

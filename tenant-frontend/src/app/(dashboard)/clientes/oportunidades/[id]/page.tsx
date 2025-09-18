@@ -40,6 +40,7 @@ export default function OportunidadDetallePage() {
   const router = useRouter()
   const usuario = useUsuarioActual()
   const [tabActivo, setTabActivo] = useState(0)
+  const [realesIdx, setRealesIdx] = useState<number | null>(null)
   // UI state (solo diálogos y pequeñas ayudas)
   const [abrirModalItem, setAbrirModalItem] = useState(false)
   const [itemAEditar, setItemAEditar] = useState<any | null>(null)
@@ -142,7 +143,6 @@ dispositivos={dispositivosReales.map((d: any) => ({
     setAbrirModalItem(true)
   }
   const onEliminarItem = (dispositivoId: number) => {
-    if (!confirm('¿Eliminar este dispositivo?')) return
     eliminarDispositivo.mutate(dispositivoId)
   }
   const onAbrirRecogida = () => setModalRecogidaAbierto(true)
@@ -204,7 +204,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
         {/* Cuerpo */}
         <Grid container spacing={1}  sx={{ justifyContent: "space-between", alignItems: "stretch" }}>
           {/* IZQ: Tabs */}
-          <Grid size={{xs:12, md: tabActivo === 2 ? 12 : 6 }}  sx={{ display: 'flex', minWidth: 400 }}>
+          <Grid size={{xs:12, md: (realesIdx !== null && tabActivo === realesIdx) ? 12 : 6 }}  sx={{ display: 'flex', minWidth: 400 }}>
             <TabsOportunidad
               oportunidad={opp}
               dispositivosReales={dispositivosReales}
@@ -212,12 +212,15 @@ dispositivos={dispositivosReales.map((d: any) => ({
               onEditarItem={onEditarItem}
               onEliminarItem={onEliminarItem}
               onAbrirRecogida={onAbrirRecogida}
-              onTabChange={setTabActivo}
+              onTabChange={(i, info) => {
+                setTabActivo(i)
+                if (info && typeof info.realesIdx === 'number') setRealesIdx(info.realesIdx)
+              }}
             />
           </Grid>
 
           {/* CENTRO-DERECHA: Comentarios */}
-          {tabActivo !== 2 && (
+          {(realesIdx === null || tabActivo !== realesIdx) && (
           <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: 400 }}>
             <ComentariosPanel
               comentarios={opp?.comentarios || []}
@@ -227,7 +230,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
           </Grid>)}
 
           {/* DERECHA: Historial */}
-          {tabActivo !== 2 && (
+          {(realesIdx === null || tabActivo !== realesIdx) && (
           <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: 300 }}>
             <HistorialPanel historial={historial.data || []} />
           </Grid>)}
@@ -244,6 +247,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
         <FormularioValoracionOportunidad
           oportunidadId={opp.id}
           oportunidadUuid={opp.uuid}
+          oportunidad={opp}
           
           item={itemAEditar}
           onClose={() => { setAbrirModalItem(false); setItemAEditar(null) }}

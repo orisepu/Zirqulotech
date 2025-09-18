@@ -1,19 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import api, { fetchTotalPagado } from '@/services/api'
 import {
   Typography, Box, Paper, CircularProgress, Divider, Grid,
   Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, IconButton, LinearProgress, Menu, MenuItem, Chip, Tooltip, Select, InputLabel, FormControl
+  TextField, IconButton, LinearProgress, Menu, MenuItem, Chip, Tooltip, Select, InputLabel, FormControl,
+  Stack
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import { useRouter } from 'next/navigation'
 import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query'
 import React from 'react'
+import { toast } from 'react-toastify'
 
 function computeEffectiveNamespaces(p: any): string[] {
   const ns: string[] = []
@@ -36,6 +40,9 @@ function getCommissionPercent(p: any): number {
 
 export default function PartnerDetailPage() {
   const { id } = useParams()
+  const idStr = String(id ?? '')
+  const isNumericId = /^[0-9]+$/.test(idStr)
+  const partnerEndpoint = isNumericId ? `/api/tenants/${idStr}/` : `/api/tenants/by-schema/${idStr}/`
 
   const [modalOpen, setModalOpen] = useState<string | null>(null)
   const [formData, setFormData] = useState<any>({})
@@ -46,11 +53,14 @@ export default function PartnerDetailPage() {
   const handleCloseMenu = () => setAnchorEl(null)
   const [editMode, setEditMode] = useState(false)
   const router = useRouter()
-  const queryClient = useQueryClient()  
+  const queryClient = useQueryClient()
+  const acuerdoFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [subiendoAcuerdo, setSubiendoAcuerdo] = useState(false)
+  const [descargandoAcuerdo, setDescargandoAcuerdo] = useState(false)
   const { data: partner, isLoading: loading, error } = useQuery({
-    queryKey: ['partner', id],
-    queryFn: () => api.get(`/api/tenants/${id}/`).then(res => res.data),
-    enabled: !!id,
+    queryKey: ['partner', idStr],
+    queryFn: () => api.get(partnerEndpoint).then(res => res.data),
+    enabled: !!idStr,
   })
 
   const { data: dashboard } = useQuery({
@@ -80,9 +90,9 @@ export default function PartnerDetailPage() {
   }
 
   const { mutate: updatePartner, isPending: saving } = useMutation({
-    mutationFn: (data: any) => api.put(`/api/tenants/${id}/`, data),
+    mutationFn: (data: any) => api.put(`/api/tenants/${data.id}/`, data),
     onSuccess: (_, data) => {
-      queryClient.setQueryData(['partner', id], (prev: any) => ({ ...prev, ...data }))
+      queryClient.setQueryData(['partner', idStr], (prev: any) => ({ ...prev, ...data }))
       closeModal()
     },
     onError: (error) => {
@@ -90,8 +100,77 @@ export default function PartnerDetailPage() {
       alert('Error al guardar')
     },
   })
+
+  const subirAcuerdoPdf = async (file: File) => {
+    if (!partner?.id) return
+    const formDataUpload = new FormData()
+    formDataUpload.append('acuerdo_empresas_pdf', file)
+    setSubiendoAcuerdo(true)
+    try {
+      const { data } = await api.post(`/api/tenants/${partner.id}/agreement/`, formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      queryClient.setQueryData(['partner', idStr], (prev: any) => (
+        prev ? { ...prev, ...data } : prev
+      ))
+      await queryClient.invalidateQueries({ queryKey: ['partner', idStr] })
+      toast.success('PDF del acuerdo actualizado')
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo subir el PDF del acuerdo')
+    } finally {
+      setSubiendoAcuerdo(false)
+      if (acuerdoFileInputRef.current) {
+        acuerdoFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const onAgreementFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.type && !file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('El archivo debe ser un PDF')
+      return
+    }
+    const maxBytes = 10 * 1024 * 1024
+    if (file.size > maxBytes) {
+      toast.error('El PDF no puede superar los 10 MB')
+      return
+    }
+    void subirAcuerdoPdf(file)
+  }
+
+  const descargarAcuerdoPdf = async () => {
+    if (!partner?.acuerdo_empresas_pdf_url) {
+      toast.info('No hay un PDF del acuerdo disponible')
+      return
+    }
+    setDescargandoAcuerdo(true)
+    try {
+      const response = await api.get(partner.acuerdo_empresas_pdf_url, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'application/pdf',
+      })
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = partner.acuerdo_empresas_pdf_nombre || `acuerdo-${partner.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo descargar el PDF del acuerdo')
+    } finally {
+      setDescargandoAcuerdo(false)
+    }
+  }
   const handleSave = async () => {
-    let payload = { ...formData }
+    const payload = { ...formData }
     // Si el usuario ha editado overrides como texto, intentamos parsear a objeto
     if (typeof payload.legal_overrides === 'string') {
       try {
@@ -103,12 +182,17 @@ export default function PartnerDetailPage() {
         return
       }
     }
-    updatePartner(payload)
+    if (!partner?.id) {
+      console.error('No partner ID available to actualizar')
+      return
+    }
+    updatePartner({ ...payload, id: partner.id })
   }
 
   if (loading) return <CircularProgress />
   if (error) return <Typography>Error al cargar el partner.</Typography>
   if (!partner) return null
+  const acuerdoPdfUrl = partner.acuerdo_empresas_pdf_url ?? null
   const totalPagado = dashboard?.total_pagado || 0;
   const porcentaje = partner.goal
     ? Math.min((totalPagado / partner.goal) * 100, 100)
@@ -294,6 +378,63 @@ export default function PartnerDetailPage() {
             
           </Section>
         </Grid>
+
+        {/* Acuerdo entre empresas */}
+        <Grid size={{xs:12}}>
+          <Section title="Acuerdo entre empresas" onEdit={() => openModal('acuerdo')} editMode={editMode}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-start" mb={2}>
+              {acuerdoPdfUrl ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<PictureAsPdfIcon />}
+                  onClick={descargarAcuerdoPdf}
+                  disabled={descargandoAcuerdo}
+                >
+                  {descargandoAcuerdo
+                    ? 'Descargando...'
+                    : partner.acuerdo_empresas_pdf_nombre
+                    ? `Descargar PDF (${partner.acuerdo_empresas_pdf_nombre})`
+                    : 'Descargar PDF'}
+                </Button>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No hay un PDF del acuerdo subido.
+                </Typography>
+              )}
+              {editMode && (
+                <>
+                  <input
+                    ref={acuerdoFileInputRef}
+                    hidden
+                    type="file"
+                    accept="application/pdf"
+                    onChange={onAgreementFileChange}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => acuerdoFileInputRef.current?.click()}
+                    startIcon={<CloudUploadIcon />}
+                    disabled={subiendoAcuerdo}
+                  >
+                    {subiendoAcuerdo
+                      ? 'Subiendo...'
+                      : acuerdoPdfUrl
+                      ? 'Reemplazar PDF'
+                      : 'Subir PDF'}
+                  </Button>
+                </>
+              )}
+            </Stack>
+            <Typography
+              variant="body1"
+              sx={{ whiteSpace: 'pre-line' }}
+              color={partner.acuerdo_empresas || acuerdoPdfUrl ? 'text.primary' : 'text.secondary'}
+            >
+              {partner.acuerdo_empresas?.trim()
+                || (acuerdoPdfUrl ? 'Consulta el PDF del acuerdo.' : 'No hay un acuerdo registrado.')}
+            </Typography>
+          </Section>
+        </Grid>
       </Grid>
 
       <EditModal
@@ -435,6 +576,12 @@ function EditModal({
       label: 'Editar comisión',
       fields: [
         { name: 'comision_pct', label: 'Porcentaje de comisión (%)', type: 'number' }
+      ]
+    },
+    acuerdo: {
+      label: 'Editar acuerdo entre empresas',
+      fields: [
+        { name: 'acuerdo_empresas', label: 'Detalle del acuerdo', multiline: true }
       ]
     }
   }

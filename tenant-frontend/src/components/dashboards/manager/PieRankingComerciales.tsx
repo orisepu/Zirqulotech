@@ -2,12 +2,13 @@
 import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton } from '@mui/material'
 import { useTheme, alpha } from '@mui/material/styles'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
-import { useMemo, useState } from 'react'
+import type { PieLabelRenderProps } from 'recharts'
+import { useMemo, useState, useCallback } from 'react'
 
 type RowOps = { usuario: string; ops: number }
 type RowVal = { usuario: string; valor: number }
 
-type Props = {
+type PieRankingComercialesProps = {
   title: string
   rowsOps: RowOps[]
   rowsValor: RowVal[]
@@ -29,20 +30,27 @@ export default function PieRankingComerciales({
   height = 340,
   maxSlices = 8,
   showTotal = true,
-}: Props) {
+}: PieRankingComercialesProps) {
   const theme = useTheme()
   const [metric, setMetric] = useState<'ops' | 'valor'>('ops')
+  const tooltipBg = theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.paper, 0.95)
+    : alpha('#FFFFFF', 0.95)
+  const tooltipBorder = theme.palette.mode === 'dark'
+    ? '1px solid rgba(255,255,255,0.08)'
+    : `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+  const fallbackName = 'Sin asignar'
 
   // Une datasets por usuario, poniendo 0 cuando falte alguna métrica
   const merged = useMemo(() => {
     const byUser: Record<string, { usuario: string; ops: number; valor: number }> = {}
     for (const r of rowsOps || []) {
-      const u = r.usuario ?? '—'
+      const u = r.usuario && r.usuario.trim() ? r.usuario : fallbackName
       if (!byUser[u]) byUser[u] = { usuario: u, ops: 0, valor: 0 }
       byUser[u].ops += Number(r.ops || 0)
     }
     for (const r of rowsValor || []) {
-      const u = r.usuario ?? '—'
+      const u = r.usuario && r.usuario.trim() ? r.usuario : fallbackName
       if (!byUser[u]) byUser[u] = { usuario: u, ops: 0, valor: 0 }
       byUser[u].valor += Number(r.valor || 0)
     }
@@ -50,7 +58,7 @@ export default function PieRankingComerciales({
   }, [rowsOps, rowsValor])
 
   // Construye data para el pie; ordena, filtra >0 y agrupa "Otros"
-  const buildData = (key: 'ops' | 'valor') => {
+  const buildData = useCallback((key: 'ops' | 'valor') => {
     const sorted = [...merged]
       .map(d => ({ name: d.usuario, value: Number(d[key] || 0) }))
       .filter(d => d.value > 0)
@@ -59,10 +67,10 @@ export default function PieRankingComerciales({
     const head = sorted.slice(0, maxSlices - 1)
     const tailSum = sorted.slice(maxSlices - 1).reduce((acc, d) => acc + d.value, 0)
     return [...head, { name: 'Otros', value: tailSum }]
-  }
+  }, [merged, maxSlices])
 
-  const dataOps = useMemo(() => buildData('ops'), [merged, maxSlices])
-  const dataVal = useMemo(() => buildData('valor'), [merged, maxSlices])
+  const dataOps = useMemo(() => buildData('ops'), [buildData])
+  const dataVal = useMemo(() => buildData('valor'), [buildData])
 
   const totalOps = dataOps.reduce((a, d) => a + d.value, 0)
   const totalVal = dataVal.reduce((a, d) => a + d.value, 0)
@@ -90,7 +98,7 @@ export default function PieRankingComerciales({
   const totalCurrent = metric === 'ops' ? totalOps : totalVal
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 3 ,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)'}}>
       <CardHeader
         title={title}
         action={
@@ -163,7 +171,11 @@ export default function PieRankingComerciales({
                   paddingAngle={5}
                   cornerRadius={5}
                   labelLine={false}
-                  label={(p) => (p.percent && p.percent > 0.05 ? `${Math.round(p.percent * 100)}%` : '')}
+                  label={(props: PieLabelRenderProps) => {
+                    const percentRaw = props?.percent
+                    const percent = typeof percentRaw === 'number' ? percentRaw : 0
+                    return percent > 0.05 ? `${Math.round(percent * 100)}%` : ''
+                  }}
                 >
                   {current.map((entry, idx) => {
                     const { fill, stroke } = colorByName(entry.name)
@@ -210,8 +222,20 @@ export default function PieRankingComerciales({
               )}
 
               <Tooltip
-                formatter={(value: number, _n, entry) => {
-                  const name = (entry?.payload as any)?.name
+                contentStyle={{
+                  backgroundColor: tooltipBg,
+                  borderRadius: 12,
+                  border: tooltipBorder,
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '0 12px 32px rgba(0,0,0,0.35)'
+                    : '0 10px 28px rgba(31,41,55,0.1)',
+                  color: theme.palette.text.primary,
+                }}
+                labelStyle={{ color: theme.palette.text.secondary, fontWeight: 600 }}
+                itemStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
+                cursor={false}
+                formatter={(value: number, _n: string, entry: { payload?: { name?: string } }) => {
+                  const name = entry?.payload?.name || ''
                   if (mode === 'dual') {
                     const vOps = dataOps.find(d => d.name === name)?.value || 0
                     const vVal = dataVal.find(d => d.name === name)?.value || 0

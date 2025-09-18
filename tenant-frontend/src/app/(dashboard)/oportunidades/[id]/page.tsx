@@ -65,13 +65,10 @@ export default function LoteDetailPage() {
     const tenant = localStorage.getItem("currentTenant");
     const loteGlobalId = localStorage.getItem("loteGlobalId");
     const token = localStorage.getItem("access");
-    
 
-    const faltantes = [];
+    const faltantes: string[] = [];
     if (!tenant) faltantes.push("tenant");
-    if (!loteGlobalId) faltantes.push("loteGlobalId");
     if (!token) faltantes.push("token");
-
     if (faltantes.length > 0) {
       setError(`Faltan datos de contexto: ${faltantes.join(", ")}`);
       return;
@@ -87,37 +84,49 @@ export default function LoteDetailPage() {
         setError("No se pudo cargar el lote.");
       });
 
-    // Cargar dispositivos desde el schema publicestado
-    api.get(`/api/lotes-globales/${loteGlobalId}/dispositivos/`, {
-      headers: { "X-Tenant": "public" },
-    }).then(async (res) => {
-      const dispositivosBase = res.data;
+    if (!loteGlobalId) {
+      setDispositivos([]);
+      return;
+    }
 
-      const auditorias = await Promise.all(
-        dispositivosBase.map((d: Dispositivo) =>
-          api.get(`/api/dispositivos-auditados/?dispositivo_id=${d.id}&lote=${id}`)
-            .then((r) => ({
-              dispositivo_id: d.id,
-              auditoria: r.data?.[0] || null,
-            })).catch(() => ({ dispositivo_id: d.id, auditoria: null }))
-        )
-      );
+    // Cargar dispositivos desde el schema público
+    api
+      .get(`/api/lotes-globales/${loteGlobalId}/dispositivos/`, {
+        headers: { "X-Tenant": "public" },
+      })
+      .then(async (res) => {
+        const dispositivosBase = res.data;
 
-      const dispositivosCompletos = dispositivosBase.map((d: Dispositivo) => {
-        const auditoria = auditorias.find(a => a.dispositivo_id === d.id)?.auditoria;
-        return auditoria
-          ? {
-              ...d,
-              ...auditoria,
-              auditado: true,
-              tecnico_nombre: auditoria.tecnico_nombre || "Desconocido",
-              fecha: auditoria.fecha,
-            }
-          : { ...d, auditado: false };
+        const auditorias = await Promise.all(
+          dispositivosBase.map((d: Dispositivo) =>
+            api
+              .get(`/api/dispositivos-auditados/?dispositivo_id=${d.id}&lote=${id}`)
+              .then((r) => ({
+                dispositivo_id: d.id,
+                auditoria: r.data?.[0] || null,
+              }))
+              .catch(() => ({ dispositivo_id: d.id, auditoria: null }))
+          )
+        );
+
+        const dispositivosCompletos = dispositivosBase.map((d: Dispositivo) => {
+          const auditoria = auditorias.find((a) => a.dispositivo_id === d.id)?.auditoria;
+          return auditoria
+            ? {
+                ...d,
+                ...auditoria,
+                auditado: true,
+                tecnico_nombre: auditoria.tecnico_nombre || "Desconocido",
+                fecha: auditoria.fecha,
+              }
+            : { ...d, auditado: false };
+        });
+
+        setDispositivos(dispositivosCompletos);
+      })
+      .catch(() => {
+        setDispositivos([]);
       });
-
-      setDispositivos(dispositivosCompletos);
-    });
   }, [id]);
 
   const handleOpenModal = (dispositivo: Dispositivo) => {

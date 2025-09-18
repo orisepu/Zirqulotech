@@ -25,6 +25,10 @@ type NoCazadoRow = {
   capacidad_id?: number | null
 }
 
+type NoCazadoLikewizeRow = {
+  likewize_nombre: string
+}
+
 type TareaResultado = {
   tarea_uuid: string
   status: 'pending' | 'running' | 'done' | 'failed' | string
@@ -36,6 +40,7 @@ type TareaResultado = {
   }
   matches: MatchRow[]
   no_cazados_bd: NoCazadoRow[]
+  no_cazados_likewize: NoCazadoLikewizeRow[]
 }
 
 /** =========================
@@ -83,6 +88,14 @@ function normalize(raw: any, uuid: string): TareaResultado {
     capacidad_id: r?.capacidad_id ?? r?.cap_id ?? null,
   }))
 
+  // Likewize no cazados
+  const noCazadosLwSrc: any[] =
+    raw?.no_cazados_likewize ?? raw?.likewize_unmatched ?? raw?.no_cazados_lw ?? []
+
+  const no_cazados_likewize: NoCazadoLikewizeRow[] = noCazadosLwSrc.map((r: any) => ({
+    likewize_nombre: r?.likewize_nombre ?? r?.nombre_likewize ?? r?.modelo_raw ?? r?.likewize_name ?? '',
+  }))
+
   return {
     tarea_uuid: raw?.tarea_uuid ?? uuid,
     status: raw?.status ?? raw?.estado ?? 'done',
@@ -94,6 +107,7 @@ function normalize(raw: any, uuid: string): TareaResultado {
     },
     matches,
     no_cazados_bd,
+    no_cazados_likewize,
   }
 }
 
@@ -151,7 +165,7 @@ export default function CazadorLikewizePage() {
   return (
     <Grid container spacing={2}>
       {/* Header */}
-      <Grid item xs={12}>
+      <Grid size={{xs:12}}>
         <Typography variant="h5" fontWeight={700}>
           Cazador Likewize — Resultados por tarea
         </Typography>
@@ -162,7 +176,7 @@ export default function CazadorLikewizePage() {
       </Grid>
 
       {/* Buscador */}
-      <Grid item xs={12}>
+      <Grid size={{xs:12}}>
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
             <TextField
@@ -187,7 +201,7 @@ export default function CazadorLikewizePage() {
 
       {/* Estado de carga / error */}
       {isFetching && (
-        <Grid item xs={12}>
+        <Grid size={{xs:12}}>
           <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
             <CircularProgress size={24} />
           </Paper>
@@ -195,7 +209,7 @@ export default function CazadorLikewizePage() {
       )}
 
       {isError && (
-        <Grid item xs={12}>
+        <Grid size={{xs:12}}>
           <Alert severity="error">
             No se pudo cargar la tarea {uuid}. {(error as any)?.message ?? 'Revisa el UUID o el endpoint.'}
           </Alert>
@@ -204,16 +218,16 @@ export default function CazadorLikewizePage() {
 
       {/* KPIs */}
       {isSuccess && stats && (
-        <Grid item xs={12}>
+        <Grid size={{xs:12}}>
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{xs:12,sm:6,md:3}}>
                 <Stack>
                   <Typography variant="overline" color="text.secondary">Total Likewize</Typography>
                   <Typography variant="h6">{stats.total_likewize}</Typography>
                 </Stack>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{xs:12,sm:6,md:3}}>
                 <Stack>
                   <Typography variant="overline" color="text.secondary">Cazados</Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
@@ -227,15 +241,15 @@ export default function CazadorLikewizePage() {
                   </Stack>
                 </Stack>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{xs:12,sm:6,md:3}}>
                 <Stack>
                   <Typography variant="overline" color="text.secondary">No cazados (Likewize)</Typography>
                   <Typography variant="h6">
-                    {Math.max(0, stats.total_likewize - stats.cazados)}
+                    {data?.no_cazados_likewize?.length ?? Math.max(0, stats.total_likewize - stats.cazados)}
                   </Typography>
                 </Stack>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{xs:12,sm:6,md:3}}>
                 <Stack>
                   <Typography variant="overline" color="text.secondary">No cazados en BD</Typography>
                   <Typography variant="h6">
@@ -250,7 +264,7 @@ export default function CazadorLikewizePage() {
 
       {/* Tabla: Likewize cazados */}
       {isSuccess && (data?.matches?.length ?? 0) > 0 && (
-        <Grid item xs={12}>
+        <Grid size={{xs:12}}>
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>Likewize cazados</Typography>
             <Divider sx={{ mb: 2 }} />
@@ -282,7 +296,7 @@ export default function CazadorLikewizePage() {
 
       {/* Tabla: BD no cazados */}
       {isSuccess && (
-        <Grid item xs={12}>
+        <Grid size={{xs:12}}>
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>BD no cazados</Typography>
             <Divider sx={{ mb: 2 }} />
@@ -305,6 +319,36 @@ export default function CazadorLikewizePage() {
                       <TableCell>{row.bd_modelo}</TableCell>
                       <TableCell>{row.bd_capacidad ?? '—'}</TableCell>
                       <TableCell align="right">{row.capacidad_id ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Paper>
+        </Grid>
+      )}
+
+      {/* Tabla: Likewize no cazados */}
+      {isSuccess && (
+        <Grid size={{xs:12}}>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>Likewize no cazados</Typography>
+            <Divider sx={{ mb: 2 }} />
+            {data!.no_cazados_likewize.length === 0 ? (
+              <Alert severity="success">Sin pendientes: todo Likewize tiene match en la BD.</Alert>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell width={80}>#</TableCell>
+                    <TableCell>Nombre Likewize</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {data!.no_cazados_likewize.map((row, idx) => (
+                    <TableRow key={`${row.likewize_nombre}-${idx}`}>
+                      <TableCell>{idx + 1}</TableCell>
+                      <TableCell>{row.likewize_nombre}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

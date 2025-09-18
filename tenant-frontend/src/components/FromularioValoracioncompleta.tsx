@@ -75,8 +75,8 @@ const CAT = {
     { value: 'parcial', label: 'No totalmente funcional', desc: 'Tiene uno o más problemas.' },
   ],
   funcPantalla: [
-    { value: 'puntos', label: 'Puntos brillantes', desc: 'Manchas luminosas, más en fondos oscuros.' },
-    { value: 'pixeles', label: 'Píxeles muertos', desc: 'Puntos siempre apagados/encendidos.' },
+    { value: 'puntos', label: 'Puntos brillantes', desc: 'Subpíxeles encendidos permanentemente' },
+    { value: 'pixeles', label: 'Píxeles muertos', desc: 'Puntos que permanecen apagados en todos los fondos' },
     { value: 'lineas', label: 'Líneas/quemaduras', desc: 'Bandas, retenciones o decoloración.' },
   ],
   esteticaPantalla: [
@@ -93,8 +93,8 @@ const CAT = {
     { value: 'agrietado_roto', label: 'Agrietado/roto', desc: 'Grietas o curvatura visible.' },
   ],
   esteticaEspalda: [
-    { value: 'sin_signos', label: 'Sin signos', desc: 'Como nueva.' },
-    { value: 'minimos', label: 'Mínimos', desc: 'Pequeños microarañazos.' },
+    { value: 'sin_signos', label: 'Sin signos', desc: ' Aspecto prácticamente nuevo.' },
+    { value: 'minimos', label: 'Mínimos', desc: 'Micro‑marcas superficiales.' },
     { value: 'algunos', label: 'Algunos', desc: 'Marcas evidentes o cerca de cámara.' },
     { value: 'desgaste_visible', label: 'Desgaste visible', desc: 'Arañazos claros/abolladuras.' },
     { value: 'agrietado_roto', label: 'Agrietado/roto', desc: 'Cristal trasero roto o metal abollado.' },

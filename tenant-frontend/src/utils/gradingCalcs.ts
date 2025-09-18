@@ -46,9 +46,10 @@ export function calcularOferta(
     else V_tope = Math.min(params.V_Aplus, V_A, V_B, V_C)
   }
 
-  const pr_bat = input.battery_health_pct !== null && input.battery_health_pct < 85 ? params.pr_bateria + 35 : 0
-  const pr_pant = (input.display_image_status !== DisplayImageStatus.OK || [GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status)) ? params.pr_pantalla + 35 : 0
-  const pr_chas = (input.housing_status === HousingStatus.DESGASTE_VISIBLE || input.housing_status === HousingStatus.DOBLADO) ? params.pr_chasis + 35 : 0
+  // Los costes de params ya incluyen MO (horas*tarifa + fija) desde backend
+  const pr_bat = input.battery_health_pct !== null && input.battery_health_pct < 85 ? params.pr_bateria : 0
+  const pr_pant = (input.display_image_status !== DisplayImageStatus.OK || [GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status)) ? params.pr_pantalla : 0
+  const pr_chas = (input.housing_status === HousingStatus.DESGASTE_VISIBLE || input.housing_status === HousingStatus.DOBLADO) ? params.pr_chasis : 0
 
   let V1 = V_tope - (pr_bat + pr_pant + pr_chas)
   if (!Number.isFinite(V1)) V1 = 0
@@ -87,4 +88,45 @@ export function vSueloReglaInfo(V_Aplus: number) {
   const band = bands.find(b => V_Aplus < b.to)!;
   const value = vSueloDesdeMax(V_Aplus)
   return { value, pct: band.pct, min: band.min, label: band.label }
+}
+
+// ===== Auditoría: estado derivado simple (compat con componentes) =====
+export type NivelDesgaste = 'ninguno' | 'leve' | 'medio' | 'alto';
+export type EstadoFisico = 'perfecto' | 'bueno' | 'aceptable' | 'dañado' | string;
+export type EstadoFuncional = 'funciona' | 'no_enciende' | 'pantalla_rota' | 'otros' | string;
+export interface BaseValoracionInput {
+  estado_fisico?: EstadoFisico;
+  estado_funcional?: EstadoFuncional;
+  salud_bateria_pct?: number | null;
+  ciclos_bateria?: number | null;
+  pantalla_funcional_puntos_bril?: boolean;
+  pantalla_funcional_pixeles_muertos?: boolean;
+  pantalla_funcional_lineas_quemaduras?: boolean;
+  desgaste_lateral?: NivelDesgaste;
+  desgaste_trasero?: NivelDesgaste;
+}
+export function calcularEstadoDetallado(input: BaseValoracionInput): 'excelente' | 'muy_bueno' | 'bueno' | 'a_revision' {
+  const { estado_fisico, estado_funcional } = input;
+  if (estado_fisico === 'dañado') return 'a_revision';
+  if (estado_funcional === 'no_enciende' || estado_funcional === 'pantalla_rota') return 'a_revision';
+  if (estado_funcional && estado_funcional !== 'funciona') return 'a_revision';
+  if (input.pantalla_funcional_lineas_quemaduras) return 'a_revision';
+  let score = 100;
+  const bat = Number.isFinite(input.salud_bateria_pct ?? NaN) ? (input.salud_bateria_pct as number) : null;
+  if (bat !== null) {
+    if (bat < 70) score -= 35;
+    else if (bat < 75) score -= 25;
+    else if (bat < 80) score -= 10;
+    else if (bat < 85) score -= 5;
+  }
+  const penaliza = (n?: NivelDesgaste) => (n === 'alto' ? 15 : n === 'medio' ? 8 : n === 'leve' ? 3 : 0);
+  score -= penaliza(input.desgaste_lateral);
+  score -= penaliza(input.desgaste_trasero);
+  if (input.pantalla_funcional_puntos_bril) score -= 5;
+  if (input.pantalla_funcional_pixeles_muertos) score -= 5;
+  if (estado_fisico === 'perfecto' && estado_funcional === 'funciona') score += 3;
+  if (score >= 90) return 'excelente';
+  if (score >= 80) return 'muy_bueno';
+  if (score >= 65) return 'bueno';
+  return 'a_revision';
 }

@@ -64,12 +64,16 @@ function buildMacCatalog(prefix: string, hasScreen: boolean): CatalogoValoracion
           minimos:          { src: `${prefix}/pantalla-minimos-marcas.webp`,    title: 'Pantalla mínimos signos' },
           algunos:          { src: `${prefix}/pantalla-algunas-marcas.webp`,    title: 'Pantalla algunos signos' },
           desgaste_visible: { src: `${prefix}/pantalla-marcas-profundas.webp`,  title: 'Pantalla desgaste visible' },
+          agrietado_roto:   { src: `${prefix}/pantalla-agrietado-roto.webp`,    title: 'Pantalla agrietada/rota' },
+          astillado:        { src: `${prefix}/pantalla-marcas-profundas.webp`,  title: 'Pantalla astillada' },
         }
       : {
           sin_signos:       { src: noScreenImg, title: noScreenTitle },
           minimos:          { src: noScreenImg, title: noScreenTitle },
           algunos:          { src: noScreenImg, title: noScreenTitle },
           desgaste_visible: { src: noScreenImg, title: noScreenTitle },
+          agrietado_roto:   { src: noScreenImg, title: noScreenTitle },
+          astillado:        { src: noScreenImg, title: noScreenTitle },
         },
     demoEsteticaLados: {
       sin_signos:       `${prefix}/lados-sin-signos.webp`,

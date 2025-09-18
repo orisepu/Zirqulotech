@@ -2,7 +2,7 @@
 
 import React from 'react'
 import {
-  Paper, Stack, Typography, Box, Button, Chip, ToggleButton, IconButton, FormHelperText
+  Paper, Stack, Typography, Box, Button, Chip, ToggleButton, IconButton, FormHelperText, Tooltip
 } from '@mui/material'
 import BrushIcon from '@mui/icons-material/Brush'
 import VerticalSplitIcon from '@mui/icons-material/VerticalSplit'
@@ -33,7 +33,7 @@ export default function PasoEstetica({
   openDemo: (demo: { src: string; title: string }) => void
   mode?: Mode
 }) {
-  const PANT_KEYS: EsteticaPantallaKey[] = ['sin_signos','minimos','algunos','desgaste_visible']
+  const PANT_KEYS: EsteticaPantallaKey[] = ['sin_signos','minimos','algunos','desgaste_visible','agrietado_roto','astillado']
 
   const LABEL_DESC: Record<EsteticaKey, { label: string; desc: string }> =
     (['sin_signos','minimos','algunos','desgaste_visible','agrietado_roto'] as EsteticaKey[])
@@ -52,13 +52,14 @@ export default function PasoEstetica({
             <Typography variant="subtitle2">Estética — Pantalla</Typography>
           </Stack>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(6, 1fr)' }, gap: 1 }}>
             {PANT_KEYS.map((k) => {
-              const o = catalog.esteticaPantalla.find(x => x.value === k)!
-              const demo = catalog.demoEsteticaPantalla[k]
+              const o = catalog.esteticaPantalla.find(x => x.value === k)
+              const demo = catalog.demoEsteticaPantalla?.[k]
+              if (!o || !demo) return null
               return (
+                <Tooltip key={k} title={o.desc} arrow placement="top">
                 <ToggleButton
-                  key={k}
                   value={k}
                   selected={estadoPantalla === k}
                   onClick={() => setEstadoPantalla(k as EsteticaKey)} 
@@ -73,12 +74,20 @@ export default function PasoEstetica({
                     border: '2px solid',
                     borderColor: estadoPantalla === k ? 'primary.main' : 'divider',
                     bgcolor: 'background.paper',
-                    '&.Mui-selected': { bgcolor: 'action.hover' },
+                    cursor: 'pointer',
+                    transition: 'transform .1s ease, box-shadow .1s ease',
+                    '&.Mui-selected': {
+                      bgcolor: 'action.hover',
+                      boxShadow: (t) => `0 0 0 1px ${t.palette.primary.main} inset`,
+                      transform: 'translateY(-1px)'
+                    },
                   }}
                 >
                   <Box sx={{ position: 'relative', width: '100%', aspectRatio: '1 / 1' }}>
                     <Image src={demo.src} alt={o.label} fill draggable={false} style={{ objectFit: 'cover', objectPosition: 'top center' }} />
                     <IconButton
+                      component="span"
+                      aria-label="Ampliar ejemplo"
                       size="small"
                       onClick={(e) => { e.stopPropagation(); openDemo({ src: demo.src, title: o.label }) }}
                       sx={{ position: 'absolute', right: 8, bottom: 8, bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
@@ -91,6 +100,7 @@ export default function PasoEstetica({
                     <Typography variant="caption" color="text.secondary" sx={{ minHeight: 32, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.desc}</Typography>
                   </Box>
                 </ToggleButton>
+                </Tooltip>
               )
             })}
           </Box>
@@ -106,6 +116,7 @@ export default function PasoEstetica({
               ? catalog.esteticaPantalla.find(o => o.value === estadoPantalla)?.desc
               : 'Selecciona un estado'}
           </FormHelperText>
+          
         </Paper>
       )}
 
@@ -136,7 +147,7 @@ export default function PasoEstetica({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' },
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(5, 1fr)' },
               gap: 2,
               justifyItems: 'stretch',
               alignItems: 'stretch',
@@ -148,8 +159,8 @@ export default function PasoEstetica({
               const selectedB = estadoEspalda === k
 
               return (
+                <Tooltip key={k} title={LABEL_DESC[k].desc} arrow placement="top">
                 <Paper
-                  key={k}
                   variant="outlined"
                   sx={{
                     borderRadius: 2,
@@ -166,6 +177,7 @@ export default function PasoEstetica({
                     <Image src={src} alt={LABEL_DESC[k].label} fill style={{ objectFit: 'cover', objectPosition: 'top center' }} draggable={false} />
                     <IconButton
                       size="small"
+                      aria-label="Ampliar ejemplo de laterales/trasera"
                       onClick={() => openDemo({ src, title: LABEL_DESC[k].label })}
                       sx={{ position: 'absolute', right: 8, bottom: 8, bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
                     >
@@ -226,12 +238,16 @@ export default function PasoEstetica({
                     </Typography>
                   </Box>
                 </Paper>
+                </Tooltip>
               )
             })}
           </Box>
 
           <FormHelperText sx={{ mt: 2, textAlign: 'center' }}>
             Elige la opción para <strong>Laterales</strong> o <strong>Trasera</strong> en cada tarjeta.
+          </FormHelperText>
+          <FormHelperText sx={{ textAlign: 'center' }}>
+            Guía rápida: Sin signos (A+), Mínimos (A), Algunos (B), Desgaste visible (C). Trasera de vidrio rota o chasis doblado/roto son incidencias críticas (D).
           </FormHelperText>
         </Paper>
       )}

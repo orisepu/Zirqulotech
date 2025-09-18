@@ -4,7 +4,7 @@ import api from "@/services/api";
 import { formatoEuros } from "@/utils/formato";
 
 
-type Props = { filtros: Record<string, any> }
+type Props = { filtros: Record<string, unknown> }
 
 type UsuarioResumen = {
   nombre: string
@@ -24,17 +24,17 @@ type ResumenState = {
 
 export default function ResumenPorTienda({ filtros }: Props) {
   const [resumen, setResumen] = useState<ResumenState | null>(null)
-  const [tasaConversion, setTasaConversion] = useState(null);
-  const [tiempoRespuesta, setTiempoRespuesta] = useState(null);
+  const [tasaConversion, setTasaConversion] = useState<number | null>(null);
+  const [tiempoRespuesta, setTiempoRespuesta] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchResumen = async () => {
       const res = await api.get("api/dashboard/valor-por-usuario/", { params: filtros });
-      const raw = res.data[0]; // asumimos solo un mes
+      const raw: Record<string, unknown> | undefined = res.data?.[0]; // asumimos solo un mes
 
       if (!raw) return;
 
-      const resumenPorUsuario: any[] = [];
+      const resumenPorUsuario: UsuarioResumen[] = [];
 
       let totalValor = 0;
       let totalOportunidades = 0;
@@ -43,17 +43,17 @@ export default function ResumenPorTienda({ filtros }: Props) {
       for (const [key, value] of Object.entries(raw)) {
         if (key === "mes" || key.includes("__")) continue;
 
-        const oportunidades = raw[`${key}__n_oportunidades`] || 0;
-        const dispositivos = raw[`${key}__n_dispositivos`] || 0;
+        const oportunidades = Number((raw as Record<string, unknown>)[`${key}__n_oportunidades`] ?? 0);
+        const dispositivos = Number((raw as Record<string, unknown>)[`${key}__n_dispositivos`] ?? 0);
 
         resumenPorUsuario.push({
           nombre: key,
-          valor: value as number,
+          valor: Number(value ?? 0),
           oportunidades,
           dispositivos,
         });
 
-        totalValor += value as number;
+        totalValor += Number(value ?? 0);
         totalOportunidades += oportunidades;
         totalDispositivos += dispositivos;
       }
@@ -135,7 +135,7 @@ export default function ResumenPorTienda({ filtros }: Props) {
           Desglose por usuario
         </Typography>
         <Grid container spacing={2}>
-          {resumen.resumenPorUsuario.map((usuario: any) => (
+          {resumen.resumenPorUsuario.map((usuario: UsuarioResumen) => (
             <Grid size={{xs:12,sm:6,md:4}} key={usuario.nombre}>
               <Card>
                 <CardContent>

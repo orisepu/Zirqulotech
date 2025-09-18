@@ -2,9 +2,11 @@
 
 import React, { createContext, useMemo, useState, useContext, useEffect } from 'react';
 import { ThemeProvider, createTheme, Theme, alpha } from '@mui/material/styles';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Paper from '@mui/material/Paper';
 import { SxProps } from '@mui/material';
+import type { SystemStyleObject } from '@mui/system';
 
 
 type SemanticColorKey =
@@ -51,18 +53,50 @@ export const useColorMode = () => {
   return ctx;
 };
 
-type ThemeWrapperProps = { children: React.ReactNode };
+type ThemeWrapperProps = { children: React.ReactNode; initialMode?: 'light' | 'dark' };
 
-export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
-  const [mode, setMode] = useState<'light' | 'dark'>('light');
+const chipSoftColor = (
+  theme: Theme,
+  key: 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error'
+) => {
+  const paletteEntry = theme.palette[key];
+  return {
+    backgroundColor: paletteEntry.main,
+    color: '#fff',
+    '& .MuiChip-icon': { color: '#fff' },
+    '& .MuiChip-deleteIcon': { color: alpha('#fff', 0.8) },
+  };
+};
+
+export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMode }) => {
+  const [mode, setMode] = useState<'light' | 'dark'>(initialMode ?? 'light');
 
   useEffect(() => {
-    const savedMode = localStorage.getItem('theme_mode');
-    if (savedMode === 'dark' || savedMode === 'light') {
-      setMode(savedMode);
-    } else if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-      setMode('dark');
+    const getCookieMode = () => {
+      if (typeof document === 'undefined') return null;
+      const m = document.cookie.match(/(?:^|; )theme_mode=(dark|light)/);
+      return m ? (m[1] as 'dark' | 'light') : null;
+    };
+
+    let desired: 'light' | 'dark' | null = null;
+    const savedLS = localStorage.getItem('theme_mode');
+    if (savedLS === 'dark' || savedLS === 'light') desired = savedLS as 'dark' | 'light';
+    if (!desired) {
+      const savedCookie = getCookieMode();
+      if (savedCookie) desired = savedCookie;
     }
+    if (!desired && typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      desired = 'dark';
+    }
+    if (desired && desired !== mode) setMode(desired);
+
+    // Sync cookie/localStorage with current mode
+    const toPersist = desired || mode;
+    try {
+      localStorage.setItem('theme_mode', toPersist);
+      document.cookie = `theme_mode=${toPersist}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    } catch (_) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const colorMode = useMemo<ColorModeContextType>(
@@ -72,6 +106,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
         setMode(prev => {
           const next = prev === 'light' ? 'dark' : 'light';
           localStorage.setItem('theme_mode', next);
+          try { document.cookie = `theme_mode=${next}; Path=/; Max-Age=31536000; SameSite=Lax`; } catch (_) {}
           return next;
         });
       },
@@ -93,12 +128,12 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
             error:   { main: '#d32f2f' },
             ...(mode === 'light'
               ? {
-                  background: { default: '#F9FAFB', paper: '#FFFFFF' }, // neutro
+                  background: { default: '#F5F8F6', paper: '#FFFFFF' }, // neutro
                   divider: '#E5E7EB',
                   text: { primary: '#111827', secondary: '#4B5563' },
                 }
               : {
-                  background: { default: '#0D1117', paper: '#161B22' }, // neutro oscuro
+                  background: { default: '#0F141A', paper: '#161B22' }, // neutro oscuro
                   divider: 'rgba(255,255,255,0.12)',
                   text: { primary: '#E5E7EB', secondary: '#9CA3AF' },
                 }),
@@ -117,6 +152,18 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
         },
         shape: { borderRadius: 12 },
         components: {
+          MuiCssBaseline: {
+            styleOverrides: {
+              body: ({ theme }: { theme: Theme }) => ({
+                backgroundColor: theme.palette.background.default,
+                color: theme.palette.text.primary,
+              }),
+              html: ({ theme }: { theme: Theme }) => ({
+                backgroundColor: theme.palette.background.default,
+                color: theme.palette.text.primary,
+              }),
+            },
+          },
          
           // Superficies
           MuiPaper: {
@@ -128,7 +175,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
                     : '#FBFCF9',
                 ...(theme.palette.mode === 'light' && {
                   backgroundImage: 'linear-gradient(180deg, #FBFCF9, #F7FAF4)',
-                  boxShadow: '0 8px 26px rgba(0,0,0,0.06)',
+                  boxShadow: '0 8px 26px rgba(0, 0, 0, 0.15)',
                 }),
                 border:
                   theme.palette.mode === 'light'
@@ -215,7 +262,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
                 }),
               }),
               // 👉 soporte visual para color="accent"
-              contained: ({ theme, ownerState }: { theme: Theme; ownerState: any }) =>
+              contained: ({ theme, ownerState }: { theme: Theme; ownerState: { color?: string } }) =>
                 ownerState.color === 'accent'
                   ? {
                       backgroundColor: theme.palette.accent.main,
@@ -226,7 +273,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
                       }),
                     }
                   : {},
-              outlined: ({ theme, ownerState }: { theme: Theme; ownerState: any }) =>
+              outlined: ({ theme, ownerState }: { theme: Theme; ownerState: { color?: string } }) =>
                 ownerState.color === 'accent'
                   ? {
                       borderColor: alpha(theme.palette.accent.main, 0.5),
@@ -265,9 +312,14 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
               icon: { fontSize: '1.1rem' },
               colorDefault: ({ theme }: { theme: Theme }) => ({
                 ...(theme.palette.mode === 'light' && {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.08),
                 }),
               }),
+              colorPrimary: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'primary'),
+              colorSecondary: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'secondary'),
+              colorSuccess: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'success'),
+              colorInfo: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'info'),
+              colorWarning: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'warning'),
+              colorError: ({ theme }: { theme: Theme }) => chipSoftColor(theme, 'error'),
             },
           },
           MuiTabs: {
@@ -299,6 +351,38 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
                   theme.palette.mode === 'dark'
                     ? alpha(theme.palette.primary.main, 0.06)
                     : alpha(theme.palette.primary.main, 0.09),
+                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
+              }),
+              root: ({ theme }: { theme: Theme }) => ({
+                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+              }),
+            },
+          },
+
+          MuiTableRow: {
+            styleOverrides: {
+              root: ({ theme }: { theme: Theme }) => ({
+                transition: 'background-color 0.2s ease',
+                '&:nth-of-type(odd)': {
+                  backgroundColor:
+                    theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.primary.main, 0.03)
+                      : alpha(theme.palette.primary.main, 0.04),
+                },
+                '&:hover': {
+                  backgroundColor:
+                    theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.primary.main, 0.12)
+                      : alpha(theme.palette.primary.main, 0.08),
+                },
+              }),
+            },
+          },
+
+          MuiDivider: {
+            styleOverrides: {
+              root: ({ theme }: { theme: Theme }) => ({
+                borderColor: alpha(theme.palette.divider, theme.palette.mode === 'light' ? 0.7 : 0.4),
               }),
             },
           },
@@ -343,10 +427,67 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
     [mode]
   );
 
+  useEffect(() => {
+    try {
+      const html = document.documentElement;
+      const body = document.body;
+      html.setAttribute('data-theme-mode', mode);
+      const bg = theme.palette.background.default;
+      const fg = theme.palette.text.primary as unknown as string;
+      if (body) {
+        body.style.backgroundColor = bg;
+        body.style.color = fg;
+      }
+      html.style.backgroundColor = bg;
+    } catch {}
+  }, [mode, theme]);
+
   return (
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        {/* Ensure body background/text follow the theme at all times */}
+        <GlobalStyles
+          styles={(theme) => ({
+            'html, body': {
+              backgroundColor: theme.palette.background.default,
+              backgroundImage:
+                theme.palette.mode === 'light'
+                  ? 'radial-gradient(circle at 20% 20%, rgba(214,242,228,0.35), transparent 45%), radial-gradient(circle at 80% 0%, rgba(214,239,255,0.25), transparent 40%)'
+                  : 'radial-gradient(circle at 15% 15%, rgba(45,90,80,0.24), transparent 45%), radial-gradient(circle at 85% 5%, rgba(26,40,54,0.35), transparent 40%)',
+              backgroundAttachment: 'fixed',
+              color: theme.palette.text.primary,
+              minHeight: '100%'
+            },
+            '#__next': { minHeight: '100%' },
+            'input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus': {
+              WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.paper} inset !important`,
+              WebkitTextFillColor: `${theme.palette.text.primary} !important`,
+              caretColor: theme.palette.text.primary,
+              transition: 'background-color 9999s ease-in-out 0s',
+            },
+            'input[type="date"], input[type="datetime-local"], input[type="month"], input[type="time"]': {
+              color: theme.palette.text.primary,
+              colorScheme: theme.palette.mode,
+              ...(theme.palette.mode === 'dark'
+                ? {
+                    backgroundColor: alpha(theme.palette.background.paper, 0.88),
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset',
+                  }
+                : {}),
+            },
+            'input[type="date"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator': {
+              ...(theme.palette.mode === 'dark'
+                ? { filter: 'invert(0.8) hue-rotate(180deg)', opacity: 0.8 }
+                : {}),
+            },
+            'input[type="date"]::-moz-focus-inner, input[type="datetime-local"]::-moz-focus-inner, input[type="month"]::-moz-focus-inner, input[type="time"]::-moz-focus-inner': {
+              border: 0,
+            },
+          })}
+        />
         {children}
       </ThemeProvider>
     </ColorModeContext.Provider>
@@ -355,8 +496,8 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children }) => {
 
 export function getPaletteColor(theme: Theme, key?: SemanticColorKey) {
   if (!key) return theme.palette.divider;
-  const anyPal = theme.palette as any;
-  return anyPal[key]?.main ?? theme.palette.divider;
+  const pal = theme.palette as unknown as Record<string, { main?: string }>;
+  return pal[key]?.main ?? theme.palette.divider;
 }
 
 export function stripeSx(
@@ -377,6 +518,38 @@ type ColoredPaperProps = React.ComponentProps<typeof Paper> & {
   sx?: SxProps<Theme>;
 };
 
+// Ensures we always have an array to spread in `sx`
+function toSxArray(sx?: SxProps<Theme>): readonly SxProps<Theme>[] {
+  return Array.isArray(sx) ? sx : sx ? [sx] : [];
+}
+
+// Merge SxProps into a single SystemStyleObject for components
+function mergeSx(input: SxProps<Theme>, theme: Theme): SystemStyleObject<Theme> {
+  const flatten = (val: SxProps<Theme>): readonly SxProps<Theme>[] =>
+    Array.isArray(val) ? val : [val];
+
+  const out: SystemStyleObject<Theme> = {};
+  for (const part of flatten(input)) {
+    if (!part || typeof part === 'boolean') continue;
+    const resolved = typeof part === 'function'
+      ? (part as (t: Theme) => SystemStyleObject<Theme>)(theme)
+      : part;
+    if (!resolved) continue;
+    if (Array.isArray(resolved)) {
+      for (const sub of resolved) {
+        if (!sub || typeof sub === 'boolean') continue;
+        const subResolved = typeof sub === 'function'
+          ? (sub as (t: Theme) => SystemStyleObject<Theme>)(theme)
+          : sub;
+        if (subResolved && typeof subResolved === 'object') Object.assign(out, subResolved);
+      }
+    } else if (typeof resolved === 'object') {
+      Object.assign(out, resolved);
+    }
+  }
+  return out;
+}
+
 export function ColoredPaper({
   colorKey,
   stripeSide = 'left',
@@ -387,11 +560,16 @@ export function ColoredPaper({
   return (
     <Paper
       {...props}
-      sx={[
-        (t) => stripeSx(colorKey, stripeSide, stripeWidth)(t),
-        { borderRadius: 2 },
-        sx as any
-      ]}
+      sx={(t) =>
+        mergeSx(
+          ([
+            stripeSx(colorKey, stripeSide, stripeWidth),
+            { borderRadius: 2 },
+            ...toSxArray(sx),
+          ] as SxProps<Theme>),
+          t
+        )
+      }
     />
   );
 }
@@ -405,10 +583,10 @@ export function stripePseudoSx(
   radius = 8
 ) {
   return (theme: Theme) => {
-    const color =
-      (theme.palette as any)[colorKey || '']?.main ?? theme.palette.divider;
+    const pal = theme.palette as unknown as Record<string, { main?: string }>;
+    const color = colorKey ? (pal[colorKey]?.main ?? theme.palette.divider) : theme.palette.divider;
 
-    const pos: Record<string, any> =
+    const pos: Record<string, number> =
       side === 'left'
         ? { left: 0, top: 0, bottom: 0, width }
         : side === 'right'

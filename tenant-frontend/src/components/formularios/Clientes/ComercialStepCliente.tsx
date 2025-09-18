@@ -1,25 +1,38 @@
 "use client";
 
 import { Box, Grid, TextField } from "@mui/material";
-import { useEffect, useState } from "react";
+import ValidatingTextField from "@/components/inputs/ValidatingTextField";
 
 type Tipo = "empresa" | "autonomo" | "particular";
 
-export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
+type BaseCliente = {
+  tipo_cliente?: Tipo
+  razon_social?: string
+  cif?: string
+  contacto?: string
+  posicion?: string
+  nombre?: string
+  apellidos?: string
+  nif?: string
+  nombre_comercial?: string
+  dni_nie?: string
+  correo?: string
+  telefono?: string
+  direccion_calle?: string
+  direccion_numero?: string
+  direccion_piso?: string
+  direccion_puerta?: string
+  direccion_cp?: string
+  direccion_poblacion?: string
+  direccion_provincia?: string
+}
+
+type NuevoCom = BaseCliente & Record<string, unknown>
+
+export default function ComercialStepCliente({ nuevo, setNuevo }: { nuevo: NuevoCom; setNuevo: (v: NuevoCom) => void }) {
   const tipo: Tipo = (nuevo?.tipo_cliente as Tipo) ?? "empresa";
 
-  const [errores, setErrores] = useState({ correo: false, telefono: false });
-
-  useEffect(() => {
-    setErrores({
-      correo:
-        !!nuevo?.correo &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(nuevo.correo)),
-      telefono:
-        !!nuevo?.telefono &&
-        !/^[0-9]{9}$/.test(String(nuevo.telefono).replace(/\s+/g, "")),
-    });
-  }, [nuevo?.correo, nuevo?.telefono]);
+  // Validación gestionada por ValidatingTextField
 
   const up = (v: string) => (v ? v.toUpperCase() : v);
 
@@ -43,12 +56,14 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
               />
             </Grid>
             <Grid size={{xs:12,sm:6}}>
-              <TextField
+              <ValidatingTextField
                 label="CIF"
                 fullWidth
                 value={nuevo?.cif ?? ""}
                 onChange={(e) => setNuevo({ ...nuevo, cif: up(e.target.value) })}
                 inputProps={{ style: { textTransform: "uppercase" } }}
+                kind="cif"
+                required
                 autoComplete="off"
               />
             </Grid>
@@ -97,12 +112,14 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
               />
             </Grid>
             <Grid size={{xs:12,sm:6}}>
-              <TextField
+              <ValidatingTextField
                 label="NIF"
                 fullWidth
                 value={nuevo?.nif ?? ""}
                 onChange={(e) => setNuevo({ ...nuevo, nif: up(e.target.value) })}
                 inputProps={{ style: { textTransform: "uppercase" } }}
+                kind="dni"
+                required
                 autoComplete="off"
               />
             </Grid>
@@ -144,7 +161,7 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
               />
             </Grid>
             <Grid size={{xs:12,sm:6}}>
-              <TextField
+              <ValidatingTextField
                 label="DNI/NIE"
                 fullWidth
                 value={nuevo?.dni_nie ?? ""}
@@ -152,6 +169,8 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
                   setNuevo({ ...nuevo, dni_nie: up(e.target.value) })
                 }
                 inputProps={{ style: { textTransform: "uppercase" } }}
+                kind="dni_or_nie"
+                required
                 autoComplete="off"
               />
             </Grid>
@@ -159,18 +178,17 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
         )}
                 {/* Campos COMUNES */}
         <Grid size={{xs:12,sm:6}}>
-          <TextField
+          <ValidatingTextField
             label="Correo electrónico"
             fullWidth
             value={nuevo?.correo ?? ""}
             onChange={(e) => setNuevo({ ...nuevo, correo: e.target.value })}
-            error={errores.correo}
-            helperText={errores.correo ? "Formato de correo no válido" : ""}
+            kind="email"
             autoComplete="email"
           />
         </Grid>
         <Grid size={{xs:12,sm:6}}>
-          <TextField
+          <ValidatingTextField
             label="Teléfono"
             fullWidth
             value={nuevo?.telefono ?? ""}
@@ -180,8 +198,8 @@ export default function ComercialStepCliente({ nuevo, setNuevo }: any) {
                 telefono: e.target.value.replace(/[^\d\s]/g, ""),
               })
             }
-            error={errores.telefono}
-            helperText={errores.telefono ? "9 dígitos" : ""}
+            kind="telefono"
+            required
             autoComplete="tel"
           />
         </Grid>

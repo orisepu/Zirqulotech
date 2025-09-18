@@ -18,6 +18,7 @@ export function buildIPadCatalog(): CatalogoValoracion {
       { value: 'minimos',          label: 'Mínimos signos',     desc: 'Microarañazos visibles a contraluz.' },
       { value: 'algunos',          label: 'Algunos signos',     desc: 'Arañazos leves — no afectan uso.' },
       { value: 'desgaste_visible', label: 'Desgaste visible',   desc: 'Arañazos marcados o marcos con uso.' },
+      { value: 'agrietado_roto',   label: 'Agrietado/roto',     desc: 'Cristal agrietado o roto.' },
     ],
     esteticaLados: [
       { value: 'sin_signos',       label: 'Sin signos',         desc: 'Marcos en perfecto estado.' },
@@ -43,6 +44,8 @@ export function buildIPadCatalog(): CatalogoValoracion {
       minimos:          { src: `${prefix}/pantalla-minimos-marcas.webp`,    title: 'Pantalla mínimos signos (iPad)' },
       algunos:          { src: `${prefix}/pantalla-algunas-marcas.webp`,    title: 'Pantalla algunos signos (iPad)' },
       desgaste_visible: { src: `${prefix}/pantalla-marcas-profundas.webp`,  title: 'Pantalla desgaste visible (iPad)' },
+      agrietado_roto:   { src: `${prefix}/pantalla-marcas-profundas.webp`,  title: 'Pantalla agrietada/rota (iPad)' },
+      astillado:        { src: `${prefix}/pantalla-marcas-profundas.webp`,  title: 'Pantalla astillada (iPad)' },
     },
     demoEsteticaLados: {
       sin_signos:       `${prefix}/lados-sin-signos.webp`,

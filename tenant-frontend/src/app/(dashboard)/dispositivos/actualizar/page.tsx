@@ -25,6 +25,14 @@ type Cambio = {
   despues: string | null
   delta: number | null
 }
+type NoMap = {
+  id: number
+  tipo: string
+  modelo_norm: string
+  almacenamiento_gb: number | null
+  precio_b2b: number
+}
+type EstadoTareaExt = EstadoTarea & { progreso?: number; subestado?: string }
 function LiveLog({ tareaId, enabled }: { tareaId: string; enabled: boolean }) {
   const log = useQuery({
     queryKey: ['likewize_log', tareaId],
@@ -57,6 +65,16 @@ export default function LikewizeB2BPage() {
     onSuccess: (data) => setTareaId(data.tarea_id),
   })
 
+  const cargarUltima = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get('/api/precios/likewize/ultima/')
+      return data as { tarea_id: string }
+    },
+    onSuccess: (data) => setTareaId(data.tarea_id),
+  })
+
+  // B2C se gestiona en otra vista; eliminado para evitar variable no usada
+
   const estado = useQuery({
     queryKey: ['likewize_tarea', tareaId],
     queryFn: async () => {
@@ -76,7 +94,7 @@ export default function LikewizeB2BPage() {
     queryFn: async () => {
       if (!tareaId) return null
       const { data } = await api.get(`/api/precios/likewize/tareas/${tareaId}/diff/`)
-      return data as { summary: { inserts:number, updates:number, deletes:number, total:number }, changes: Cambio[] }
+      return data as { summary: { inserts:number, updates:number, deletes:number, total:number }, changes: Cambio[], no_mapeados?: NoMap[] }
     },
     enabled: !!tareaId && estado.data?.estado === 'SUCCESS',
   })
@@ -94,12 +112,25 @@ export default function LikewizeB2BPage() {
     }
   })
 
+  const crearCapacidad = useMutation({
+    mutationFn: async (staging_id: number) => {
+      if (!tareaId) throw new Error('No tarea')
+      const { data } = await api.post(`/api/precios/likewize/tareas/${tareaId}/crear-capacidad/`, { staging_id })
+      return data as { capacidad_id: number }
+    },
+    onSuccess: () => {
+      // Tras crear, vuelve a cargar el diff para que el item pase a mapeados
+      diff.refetch()
+    }
+  })
+
   const running = estado.data?.estado === 'RUNNING' || estado.data?.estado === 'PENDING'
 
   const toggle = (id: string) => {
     setSeleccion(prev => {
       const n = new Set(prev)
-      n.has(id) ? n.delete(id) : n.add(id)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
       return n
     })
   }
@@ -127,19 +158,30 @@ export default function LikewizeB2BPage() {
             </Typography>
 
             {!running && estado.data?.estado !== 'SUCCESS' && (
-              <Button variant="contained" onClick={() => lanzar.mutate()} disabled={lanzar.isPending}>
-                {lanzar.isPending ? 'Lanzando…' : 'Actualizar ahora'}
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" onClick={() => lanzar.mutate()} disabled={lanzar.isPending}>
+                  {lanzar.isPending ? 'Lanzando…' : 'Actualizar ahora'}
+                </Button>
+                <Button variant="outlined" onClick={() => cargarUltima.mutate()} disabled={cargarUltima.isPending}>
+                  {cargarUltima.isPending ? 'Cargando…' : 'Ver último descargado'}
+                </Button>
+                <Button variant="outlined" color="secondary" onClick={() => { window.location.href = '/dispositivos/actualizar-b2c' }}>
+                  Actualizar precios B2C
+                </Button>
+                <Button variant="outlined" color="secondary" onClick={() => { window.location.href = '/dispositivos/actualizar-b2c-backmarket' }}>
+                  Actualizar B2C (Back Market)
+                </Button>
+              </Stack>
             )}
 
             {running && (
             <>
                 <LinearProgress
-                variant={typeof (estado.data as any)?.progreso === 'number' ? 'determinate' : 'indeterminate'}
-                value={(estado.data as any)?.progreso ?? 0}
+                  variant={typeof (estado.data as EstadoTareaExt | undefined)?.progreso === 'number' ? 'determinate' : 'indeterminate'}
+                  value={(estado.data as EstadoTareaExt | undefined)?.progreso ?? 0}
                 />
                 <Typography>
-                {(estado.data as any)?.subestado || 'Procesando…'}
+                  {(estado.data as EstadoTareaExt | undefined)?.subestado || 'Procesando…'}
                 </Typography>
 
                 {/* Log en vivo */}
@@ -155,6 +197,8 @@ export default function LikewizeB2BPage() {
                 )}
               </Alert>
             )}
+
+            {/* Mensajería B2C no necesaria aquí; se maneja en la página B2C */}
 
             {estado.data?.estado === 'SUCCESS' && (
               <>
@@ -222,6 +266,7 @@ export default function LikewizeB2BPage() {
                             <Table size="small">
                             <TableHead>
                                 <TableRow>
+                                <TableCell />
                                 <TableCell>Tipo</TableCell>
                                 <TableCell>Modelo</TableCell>
                                 <TableCell align="right">Cap.</TableCell>
@@ -229,8 +274,13 @@ export default function LikewizeB2BPage() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {diff.data.no_mapeados.map((r: any, i: number) => (
+                                {diff.data.no_mapeados.map((r: NoMap, i: number) => (
                                 <TableRow key={i}>
+                                    <TableCell>
+                                      <Button size="small" variant="outlined" onClick={() => crearCapacidad.mutate(r.id)} disabled={crearCapacidad.isPending}>
+                                        {crearCapacidad.isPending ? 'Creando…' : 'Crear'}
+                                      </Button>
+                                    </TableCell>
                                     <TableCell>{r.tipo}</TableCell>
                                     <TableCell>{r.modelo_norm}</TableCell>
                                     <TableCell align="right">{r.almacenamiento_gb ?? '-'}</TableCell>

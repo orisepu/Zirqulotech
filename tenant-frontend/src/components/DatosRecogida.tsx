@@ -16,11 +16,9 @@ export default function DatosRecogidaForm({
   id,
   datos,
   onChange,
-  onSave,
   generarOrden,
   rellenarDesdeOportunidad,
   oportunidad: oportunidadProp,
-  rellenarDesdeTienda,
 }: any) {
   const queryClient = useQueryClient();
   const oportunidad =

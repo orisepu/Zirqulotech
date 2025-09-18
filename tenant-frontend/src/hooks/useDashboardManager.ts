@@ -30,13 +30,15 @@ const toYMD = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-const normalizeGranularidad = (g?: string): ApiFilters["granularidad"] => {
-  if (!g) return "mes";
-  const v = g.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, ""); // quita acentos
-  return (["dia", "semana", "mes"] as const).includes(v as any)
-    ? (v as ApiFilters["granularidad"])
-    : "mes";
-};
+const GRAN = ["dia", "semana", "mes"] as const
+type Gran = typeof GRAN[number]
+const isGran = (x: string): x is Gran => (GRAN as readonly string[]).includes(x)
+
+const normalizeGranularidad = (g?: string): Gran => {
+  if (!g) return "mes" as const
+  const v = g.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "") // quita acentos
+  return isGran(v) ? v : "mes"
+}
 
 export function useDashboardManager(filters: HookFilters) {
   const today = new Date();

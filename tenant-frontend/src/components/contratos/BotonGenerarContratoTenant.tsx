@@ -18,9 +18,9 @@ export default function BotonGenerarContratoTenant({ oportunidadId, onAfterSucce
       if (data?.pdf_url) window.open(data.pdf_url, '_blank', 'noopener,noreferrer')
       onAfterSuccess?.()
     },
-    onError: async (err:any) => {
-      const status = err?.response?.status
-      const detail = err?.response?.data?.detail
+    onError: async (err: unknown) => {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       // Si falta OTP o doc válido, pedimos OTP
       if (status === 428 && /OTP/i.test(detail || '')) {
         await mEnviarOtp.mutateAsync()

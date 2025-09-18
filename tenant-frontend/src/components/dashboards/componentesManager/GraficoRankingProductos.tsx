@@ -10,7 +10,12 @@ import {
   LabelList,
 } from "recharts";
 
-export function GraficoRankingProductos({ data }: { data: any[] }) {
+type ProductoRank = {
+  modelo: string;
+  cantidad: number;
+};
+
+export function GraficoRankingProductos({ data }: { data: readonly ProductoRank[] }) {
   const sortedData = [...data].sort((a, b) => b.cantidad - a.cantidad);
 
   return (

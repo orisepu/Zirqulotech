@@ -24,7 +24,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import SendToMobileIcon from '@mui/icons-material/SendToMobile'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import CheckIcon from '@mui/icons-material/Check'
+// import CheckIcon from '@mui/icons-material/Check'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import api from '@/services/api' // ⚠️ usa tu axios interno autenticado
 
@@ -51,10 +51,17 @@ export type OpportunityActaPanelProps = {
   publicBaseUrl?: string // p.ej. 'https://progeek.es' (fallback: window.location.origin)
 }
 
+type ActaMinimal = {
+  id: number
+  estado?: string
+  kyc_token?: string
+  contrato_datos?: { total?: number } | null
+}
+
 export default function OpportunityActaPanel({ contratoMarcoId, publicBaseUrl }: OpportunityActaPanelProps) {
   const [rows, setRows] = useState<ActaDevice[]>([emptyRow()])
   const [obs, setObs] = useState('')
-  const [lastActa, setLastActa] = useState<any | null>(null)
+  const [lastActa, setLastActa] = useState<ActaMinimal | null>(null)
   const [copied, setCopied] = useState(false)
 
   // --- Datos del contrato marco ---
@@ -66,7 +73,7 @@ export default function OpportunityActaPanel({ contratoMarcoId, publicBaseUrl }:
         id: number
         estado: string
         pdf_sha256?: string
-        contrato_datos?: any
+        contrato_datos?: Record<string, unknown>
         email?: string
         telefono?: string
         tipo?: 'marco' | 'acta'
@@ -286,7 +293,7 @@ export default function OpportunityActaPanel({ contratoMarcoId, publicBaseUrl }:
 function emptyRow(): ActaDevice {
   return { descripcion: '', imei: '', serie: '', estado: '', precio: '' }
 }
-function toNumber(v: any): number | undefined {
+function toNumber(v: unknown): number | undefined {
   if (v === '' || v === undefined || v === null) return undefined
   const n = Number(v)
   return Number.isFinite(n) ? n : undefined

@@ -32,7 +32,7 @@ export type ClienteEditable = {
   direccion_cp?: string; direccion_poblacion?: string; direccion_provincia?: string; direccion_pais?: string;
   // Sector
   vertical?: string; vertical_secundaria?: string;
-  [k: string]: any;
+  [k: string]: unknown;
 };
 
 export default function EditarClienteDialog({
@@ -44,7 +44,7 @@ export default function EditarClienteDialog({
   open: boolean;
   initial: Partial<ClienteEditable>;
   onClose: () => void;
-  onSave: (payload: Partial<ClienteEditable>) => Promise<any> | void;
+  onSave: (payload: Partial<ClienteEditable>) => Promise<void> | void;
 }) {
   const [form, setForm] = useState<Partial<ClienteEditable>>(initial ?? {});
   const [step, setStep] = useState(0);
@@ -101,7 +101,7 @@ export default function EditarClienteDialog({
   const fixedTipo = (initial?.tipo_cliente as Tipo) ?? "empresa";
 
   const buildPayload = (f: Partial<ClienteEditable>) => {
-    const p: any = {
+    const p: Partial<ClienteEditable> & Record<string, unknown> = {
       ...f,
       tipo_cliente: fixedTipo,
       canal: fixedTipo === "particular" ? "b2c" : "b2b",
@@ -129,10 +129,10 @@ export default function EditarClienteDialog({
       await onSave(payload); // idealmente PATCH
       setSnack({ open: true, message: "Cliente actualizado", type: "success" });
       onClose();
-    } catch (e: any) {
-      const data = e?.response?.data;
+    } catch (e: unknown) {
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
       const msg = data && typeof data === "object"
-        ? Object.entries(data).map(([k, v]) => `${k}: ${(v as any)[0]}`).join(" · ")
+        ? Object.entries(data as Record<string, unknown>).map(([k, v]) => `${k}: ${Array.isArray(v) ? String(v[0]) : String(v)}`).join(" · ")
         : "Error al guardar";
       setSnack({ open: true, message: msg, type: "error" });
     } finally {

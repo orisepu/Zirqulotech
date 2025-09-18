@@ -1,16 +1,15 @@
 "use client";
 
 import { Box, TextField, Grid } from "@mui/material";
-import { useState, useEffect } from 'react';
-export default function FinancieroStep({ nuevo, setNuevo }: any) {
-  const [errores, setErrores] = useState({ correo: false, telefono: false });
+import ValidatingTextField from "@/components/inputs/ValidatingTextField";
 
-  useEffect(() => {
-    setErrores({
-      correo: !!nuevo.correo_financiero && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo.correo_financiero),
-      telefono: !!nuevo.telefono_financiero && !/^[0-9]{9}$/.test(nuevo.telefono_financiero.replace(/\s+/g, '')),
-    });
-  }, [nuevo.correo, nuevo.telefono]);
+type NuevoFinLike = Record<string, unknown> & {
+  contacto_financiero?: string;
+  telefono_financiero?: string;
+  correo_financiero?: string;
+}
+
+export default function FinancieroStep({ nuevo, setNuevo }: { nuevo: NuevoFinLike; setNuevo: (v: Record<string, unknown>) => void }) {
   return (
     <Box component="form" noValidate autoComplete="off">
       <Grid container spacing={2}>
@@ -23,21 +22,21 @@ export default function FinancieroStep({ nuevo, setNuevo }: any) {
           />
         </Grid>
         <Grid size={{xs:12,sm:6}}>
-          <TextField
+          <ValidatingTextField
             label="Teléfono financiero"
             fullWidth
             value={nuevo.telefono_financiero || ""}
             onChange={(e) => setNuevo({ ...nuevo, telefono_financiero: e.target.value })}
+            kind="telefono"
           />
         </Grid>
         <Grid size={{xs:12,sm:6}}>
-          <TextField
+          <ValidatingTextField
             label="Correo financiero"
             fullWidth
             value={nuevo.correo_financiero || ""}
             onChange={(e) => setNuevo({ ...nuevo, correo_financiero: e.target.value })}
-            error={errores.correo}
-            helperText={errores.correo ? 'Correo inválido' : ''}
+            kind="email"
           />
         </Grid>
       </Grid>

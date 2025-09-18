@@ -11,8 +11,13 @@ import {
   LabelList,
 } from "recharts";
 
-export function GraficoValoresPorTienda({ data }: { data: any[] }) {
-  const datosFiltrados = data.filter((item) => item.tienda); // descarta null
+type TiendaValor = {
+  tienda: string;
+  total: number;
+};
+
+export function GraficoValoresPorTienda({ data }: { data: readonly TiendaValor[] }) {
+  const datosFiltrados = data.filter((item) => !!item.tienda); // descarta null
 
   return (
     <ResponsiveContainer width="100%" height={400}>

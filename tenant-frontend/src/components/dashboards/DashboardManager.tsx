@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Box, Grid, Stack, TextField, MenuItem, Button, Divider } from '@mui/material'
+import { Box, Grid, Stack, TextField, MenuItem, Button, Autocomplete } from '@mui/material'
 import dayjs from 'dayjs'
 import { fetchDashboardManager, DashboardManagerResponse } from '@/services/api'
 import KpiCard from '@/components/dashboards/manager/KpiCard'
 import EvolucionChart from '@/components/dashboards/manager/EvolucionChart'
-import RankingTable from   '@/components/dashboards/manager/RankingTable'
 import PipelineChart from '@/components/dashboards/manager/PipelineChart'
 import PieRanking from '@/components/dashboards/manager/PieRankinga'
 import PieRankingComerciales from './manager/PieRankingComerciales'
@@ -16,10 +15,10 @@ export default function ManagerDashboardPage() {
   const [fechaInicio, setFechaInicio] = useState(dayjs().startOf('month').format('YYYY-MM-DD'))
   const [fechaFin, setFechaFin] = useState(dayjs().endOf('month').format('YYYY-MM-DD'))
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes')
-  const [tiendaId, setTiendaId] = useState<string | number | undefined>(undefined)
-  const [usuarioId, setUsuarioId] = useState<string | number | undefined>(undefined)
+  const [tiendaId, setTiendaId] = useState<number | undefined>(undefined)
+  const [usuarioId, setUsuarioId] = useState<number | undefined>(undefined)
 
-  const { data, isLoading, refetch } = useQuery<DashboardManagerResponse>({
+  const { data, isLoading: _isLoading, refetch } = useQuery<DashboardManagerResponse>({
     queryKey: ['dashboard-manager', { fechaInicio, fechaFin, granularidad, tiendaId, usuarioId }],
     queryFn: () =>
       fetchDashboardManager({
@@ -37,17 +36,57 @@ export default function ManagerDashboardPage() {
   const pipeline = data?.pipeline
   const operativa = data?.operativa
   const rankings = data?.rankings
-  const rowsOps = (rankings?.usuarios_por_operaciones || []).map(
-  (r: any) => ({ usuario: r.usuario ?? r.nombre ?? '—', ops: Number(r.ops || 0) })
+  const rowsOps = (rankings?.usuarios_por_operaciones || []).map((r) => ({
+    usuario: (r.nombre ?? r.usuario ?? '').toString().trim() || '—',
+    ops: Number(r.ops || 0),
+  }))
+  const rowsValor = (rankings?.usuarios_por_valor || []).map((r) => ({
+    usuario: (r.nombre ?? r.usuario ?? '').toString().trim() || '—',
+    valor: Number(r.valor || 0),
+  }))
+  const tiendasOps = (rankings?.tiendas_por_operaciones || []).map((r) => ({
+    usuario: (r.nombre ?? r.tienda ?? '').toString().trim() || '—',
+    ops: Number(r.ops || 0),
+  }))
+  const tiendasValor = (rankings?.tiendas_por_valor || []).map((r) => ({
+    usuario: (r.nombre ?? r.tienda ?? '').toString().trim() || '—',
+    valor: Number(r.valor || 0),
+  }))
+
+  type Option = { label: string; value: number }
+
+  const tiendaOptions: Option[] = useMemo(() => {
+    const map = new Map<number, string>()
+    const add = (id?: number, name?: string | null) => {
+      if (typeof id !== 'number' || Number.isNaN(id)) return
+      const label = (name ?? '').toString().trim() || 'Sin asignar'
+      if (!map.has(id)) map.set(id, label)
+    }
+    for (const r of rankings?.tiendas_por_valor || []) add(r.tienda_id, r.nombre ?? r.tienda)
+    for (const r of rankings?.tiendas_por_operaciones || []) add(r.tienda_id, r.nombre ?? r.tienda)
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+  }, [rankings])
+
+  const usuarioOptions: Option[] = useMemo(() => {
+    const map = new Map<number, string>()
+    const add = (id?: number, name?: string | null) => {
+      if (typeof id !== 'number' || Number.isNaN(id)) return
+      const label = (name ?? '').toString().trim() || 'Sin asignar'
+      if (!map.has(id)) map.set(id, label)
+    }
+    for (const r of rankings?.usuarios_por_valor || []) add(r.usuario_id, r.nombre ?? r.usuario)
+    for (const r of rankings?.usuarios_por_operaciones || []) add(r.usuario_id, r.nombre ?? r.usuario)
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+  }, [rankings])
+
+  const selectedTienda = useMemo(
+    () => tiendaOptions.find((opt) => opt.value === tiendaId) ?? null,
+    [tiendaOptions, tiendaId]
   )
-  const rowsValor = (rankings?.usuarios_por_valor || []).map(
-    (r: any) => ({ usuario: r.usuario ?? r.nombre ?? '—', valor: Number(r.valor || 0) })
-  )
-  const tiendasOps = (rankings?.tiendas_por_operaciones || []).map(
-  (r: any) => ({ usuario: r.nombre ?? '—', ops: Number(r.ops || 0) })
-  )
-  const tiendasValor = (rankings?.tiendas_por_valor || []).map(
-    (r: any) => ({ usuario: r.nombre ?? '—', valor: Number(r.valor || 0) })
+
+  const selectedUsuario = useMemo(
+    () => usuarioOptions.find((opt) => opt.value === usuarioId) ?? null,
+    [usuarioOptions, usuarioId]
   )
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
@@ -74,7 +113,7 @@ export default function ManagerDashboardPage() {
           label="Granularidad"
           size="small"
           value={granularidad}
-          onChange={(e) => setGranularidad(e.target.value as any)}
+          onChange={(e) => setGranularidad(e.target.value as 'dia' | 'semana' | 'mes')}
           sx={{ minWidth: 150 }}
         >
           <MenuItem value="dia">Día</MenuItem>
@@ -82,20 +121,30 @@ export default function ManagerDashboardPage() {
           <MenuItem value="mes">Mes</MenuItem>
         </TextField>
 
-        {/* TODO: cargar opciones reales desde tus endpoints de tiendas/usuarios */}
-        <TextField
-          label="Tienda"
+        {/* Selección por nombre, guardando internamente el id numérico */}
+        <Autocomplete<Option, false, false, false>
           size="small"
-          value={tiendaId ?? ''}
-          onChange={(e) => setTiendaId(e.target.value || undefined)}
-          placeholder="Todas"
+          options={tiendaOptions}
+          value={selectedTienda}
+          onChange={(_, option) => setTiendaId(option?.value)}
+          getOptionLabel={(option) => option.label}
+          isOptionEqualToValue={(option, value) => option.value === value?.value}
+          noOptionsText="Sin tiendas"
+          sx={{ minWidth: 220 }}
+          renderInput={(params) => <TextField {...params} label="Tienda" placeholder="Todas" />}
+          clearOnEscape
         />
-        <TextField
-          label="Comercial"
+        <Autocomplete<Option, false, false, false>
           size="small"
-          value={usuarioId ?? ''}
-          onChange={(e) => setUsuarioId(e.target.value || undefined)}
-          placeholder="Todos"
+          options={usuarioOptions}
+          value={selectedUsuario}
+          onChange={(_, option) => setUsuarioId(option?.value)}
+          getOptionLabel={(option) => option.label}
+          isOptionEqualToValue={(option, value) => option.value === value?.value}
+          noOptionsText="Sin comerciales"
+          sx={{ minWidth: 220 }}
+          renderInput={(params) => <TextField {...params} label="Comercial" placeholder="Todos" />}
+          clearOnEscape
         />
 
         <Button variant="contained" onClick={() => refetch()}>Aplicar</Button>

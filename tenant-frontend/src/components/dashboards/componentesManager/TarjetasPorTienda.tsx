@@ -1,7 +1,15 @@
 "use client";
 import { Grid, Card, CardContent, Typography, useTheme } from "@mui/material";
 
-export function TarjetasPorTienda({ data }: { data: any[] }) {
+type TiendaStats = {
+  tienda: string;
+  total: number;
+  oportunidades: number;
+  dispositivos: number;
+  canceladas?: number;
+};
+
+export function TarjetasPorTienda({ data }: { data: readonly TiendaStats[] }) {
   const theme = useTheme();
 
   return (

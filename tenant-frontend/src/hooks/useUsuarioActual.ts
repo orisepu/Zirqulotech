@@ -7,6 +7,7 @@ export default function useUsuarioActual() {
     queryFn: async () => {
       const res = await api.get('/api/yo/')
       const global = res.data.global || {}
+      const tenant = res.data.tenant || null
       return {
         id: res.data.id,
         name: res.data.name,
@@ -14,6 +15,14 @@ export default function useUsuarioActual() {
         rol_actual: global.rol_actual ?? null,
         es_superadmin: global.es_superadmin ?? false,
         es_empleado_interno: global.es_empleado_interno ?? false,
+        tenant: tenant
+          ? {
+              schema: tenant.schema ?? null,
+              name: tenant.name ?? null,
+              solo_empresas: Boolean(tenant.solo_empresas),
+              management_mode: tenant.management_mode ?? null,
+            }
+          : null,
       }
     },
   })

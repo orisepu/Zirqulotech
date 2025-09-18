@@ -2,7 +2,13 @@
 
 import { Box, Grid, TextField } from "@mui/material";
 
-export default function SectorStep({ nuevo, setNuevo }: any) {
+type NuevoSectorLike = Record<string, unknown> & {
+  vertical?: string;
+  vertical_secundaria?: string;
+  numero_empleados?: number | "";
+}
+
+export default function SectorStep({ nuevo, setNuevo }: { nuevo: NuevoSectorLike; setNuevo: (v: Record<string, unknown>) => void }) {
   return (
     <Box component="form" noValidate autoComplete="off">
       <Grid container spacing={2}>

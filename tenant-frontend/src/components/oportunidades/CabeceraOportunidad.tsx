@@ -4,11 +4,24 @@ import { getId } from '@/utils/id'
 import EstadoChipSelector from '@/components/cambiosestadochipselector'
 import { ESTADOS_META } from '@/context/estados'
 import PartnerCreateMarcoPanel from '../contratos/PartnerCreateMarcoPanel'
+import { ColoredPaper } from '@/context/ThemeContext'
+type ClienteBasic = { canal?: string }
+type OportunidadBasic = {
+  nombre: string
+  estado: string
+  fecha_creacion: string
+  numero_seguimiento?: string
+  url_seguimiento?: string
+  uuid?: string
+  cliente: ClienteBasic
+  facturas?: unknown[]
+  dispositivos?: unknown[]
+}
 
 type Props = {
-  oportunidad: any
+  oportunidad: OportunidadBasic
   transiciones: { anteriores: string[]; siguientes: string[] }
-  onCambiarEstado: (nuevo: string, extras?: any) => void
+  onCambiarEstado: (nuevo: string, extras?: unknown) => void
   onGenerarTemporal: () => void
   onGenerarFormal: () => void
   onIrRecepcion?: () => void
@@ -25,14 +38,17 @@ export default function CabeceraOportunidad({
   onGenerarTemporal, onGenerarFormal, onIrRecepcion, onIrAuditoria,
   onSubirFactura, onAbrirFacturas, hayReales, hayAuditados, auditoriaFinalizada,
 }: Props) {
+  const hayAsociados = Array.isArray((oportunidad as any)?.dispositivos) && ((oportunidad as any)?.dispositivos?.length ?? 0) > 0
   const meta = oportunidad?.estado ? ESTADOS_META[oportunidad.estado] : null
-
+  type ColorKey = 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
+  const allowedColors = new Set<ColorKey>(['primary','secondary','error','info','success','warning'])
+  const colorKey: ColorKey = allowedColors.has((meta?.color as ColorKey)) ? (meta?.color as ColorKey) : 'primary'
   return (
-    <Paper elevation={3} sx={{ p: 2, mb: 3, borderLeft: (t) =>
-      `4px solid ${meta?.color ? (t.palette as any)[meta.color].main : t.palette.divider}` }}>
+      <ColoredPaper colorKey={colorKey}elevation={3} sx={{ p: 3, mb: 3, height: '100%',width: "100%" }}>
+    
       <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={2}>
         <Box>
-          <Typography variant="h5" fontWeight="bold">Oportunidad {oportunidad.nombre}</Typography>
+          <Typography variant="h5" fontWeight="bold">{oportunidad.nombre}</Typography>
           <Typography variant="subtitle1" color="text.secondary">ID: {getId(oportunidad)}</Typography>
           <Typography variant="body2" color="text.secondary">
                 <strong>Fecha de creación:</strong> {new Date(oportunidad.fecha_creacion).toLocaleString()}
@@ -69,7 +85,9 @@ export default function CabeceraOportunidad({
       </Stack>
 
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" mt={3}>
-        {!hayAuditados && <Button variant="outlined" onClick={onGenerarTemporal}>Oferta temporal</Button>}
+        {!hayAuditados && hayAsociados && (
+          <Button variant="outlined" onClick={onGenerarTemporal}>Oferta temporal</Button>
+        )}
         {auditoriaFinalizada && <Button variant="outlined" onClick={onGenerarFormal}>Oferta formal</Button>}
         {hayReales && onIrRecepcion && <Button variant="outlined" onClick={onIrRecepcion}>Ver recepción</Button>}
         {hayAuditados && onIrAuditoria && <Button variant="outlined" onClick={onIrAuditoria}>Ver auditoría</Button>}
@@ -82,13 +100,16 @@ export default function CabeceraOportunidad({
           </Button>
           
         )}
-        {oportunidad.cliente.canal === 'b2c' && oportunidad.estado === "Aceptado" || oportunidad.estado === "Contrato firmado" && <PartnerCreateMarcoPanel oportunidadUUID={oportunidad.uuid}/>}
+        {((oportunidad.cliente.canal === 'b2c' && oportunidad.estado === 'Aceptado') ||
+          oportunidad.estado === 'Contrato firmado') && (
+          <PartnerCreateMarcoPanel oportunidadUUID={oportunidad.uuid ?? ''} />
+        )}
         {!!oportunidad?.facturas?.length && onAbrirFacturas && (
           <Button variant="outlined" onClick={onAbrirFacturas}>
             Ver facturas ({oportunidad.facturas.length})
           </Button>
         )}
       </Stack>
-    </Paper>
+    </ColoredPaper>
   )
 }

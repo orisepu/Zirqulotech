@@ -1,27 +1,15 @@
 @import "tailwindcss";
 @import "ckeditor5/ckeditor5.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Keep font wiring for Tailwind/Next fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/*
+  Important: Let MUI CssBaseline control background and text colors
+  to stay in sync with the runtime theme (light/dark).
+  We intentionally remove body background/color overrides here
+  to avoid conflicts and partial dark-mode updates.
+*/

@@ -1,14 +1,16 @@
 "use client";
 import { createContext, useContext } from "react";
-import { CircularProgress, Box } from "@mui/material";
+// import { CircularProgress, Box } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/services/api";
+
+type RolActual = { rol?: string; tienda_id?: number | string } | null
 
 interface Usuario {
   id: string;
   name: string;
   email: string;
-  rol_actual: any; // <- o ajusta el tipo si sabes la forma exacta
+  rol_actual: RolActual; // <- ajusta si conoces la forma exacta
   es_superadmin: boolean;
   es_empleado_interno: boolean;
 }
@@ -16,7 +18,7 @@ interface Usuario {
 const UsuarioContext = createContext<Usuario | null | undefined>(undefined);
 
 export const UsuarioProvider = ({ children }: { children: React.ReactNode }) => {
-  const { data, isLoading } = useQuery<Usuario, Error, Usuario, ["usuario-actual"]>({
+  const { data } = useQuery<Usuario, Error, Usuario, ["usuario-actual"]>({
     queryKey: ["usuario-actual"],
     queryFn: async (): Promise<Usuario> => {
       const res = await api.get("/api/yo/");

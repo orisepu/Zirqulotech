@@ -4,12 +4,14 @@ import SimpleBar from 'simplebar-react'
 import 'simplebar-react/dist/simplebar.min.css'
 import { useRef, useEffect, useState } from 'react'
 
+type Comentario = { id: string | number; texto: string; autor_nombre?: string; fecha: string }
+
 export default function ComentariosPanel({
   comentarios = [],
   onEnviar,
   enviando = false,
 }: {
-  comentarios: any[]
+  comentarios: Comentario[]
   onEnviar: (texto: string) => void
   enviando?: boolean
 }) {
@@ -27,6 +29,7 @@ return (
       p: 3,
       mb: 3,
       flex: 1,
+      borderRadius: 2,
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
@@ -73,7 +76,7 @@ return (
       <Button
         sx={{ mt: 1 }}
         variant="contained"
-        disabled={enviando || !texto.trim()}
+        
         onClick={() => { onEnviar(texto); setTexto('') }}
       >
         Añadir comentario

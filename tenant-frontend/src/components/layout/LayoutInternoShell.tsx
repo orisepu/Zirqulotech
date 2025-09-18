@@ -30,6 +30,7 @@ import {
   DevicesOtherRounded,
   ConstructionRounded,
   CategoryRounded,
+  AdminPanelSettingsRounded,
 } from '@mui/icons-material'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -50,7 +51,7 @@ const collapsedWidth = 64;
 export default function LayoutInternoShell({ children }: { children: React.ReactNode }) {
   const { toggleColorMode } = useColorMode()
   const theme = useTheme()
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -81,6 +82,8 @@ export default function LayoutInternoShell({ children }: { children: React.React
 
   const navItems = [
     { label: 'Dashboard',               icon: <SpaceDashboardRounded />, to: '/dashboard' },
+    // Solo superadmin
+    ...(usuario?.es_superadmin ? [{ label: 'Admin', icon: <AdminPanelSettingsRounded />, to: '/admin' }] : []),
     { label: 'Partners',                icon: <HandshakeRounded />,      to: '/partners' },
     { label: 'Oportunidades / Pipeline',icon: <ViewKanbanRounded />,     to: '/pipeline-global' },
     { label: 'Operaciones',             icon: <SettingsSuggestRounded />,to: '/oportunidades-global' },
@@ -109,12 +112,12 @@ export default function LayoutInternoShell({ children }: { children: React.React
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Toolbar />
+      
       {!isMobile && (
         <IconButton onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
         </IconButton>
       )}
-      <Divider />
       <List sx={{ flexGrow: 1 }}>
         {navItems.map((item) => {
           const selected = pathname === item.to || pathname.startsWith(item.to + "/");

@@ -20,8 +20,7 @@ class Modelo(models.Model):
 class Capacidad(models.Model):
     modelo = models.ForeignKey(Modelo, on_delete=models.CASCADE, related_name="capacidades")
     tamaño = models.CharField(max_length=50)
-    precio_b2b = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
-    precio_b2c = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+
 
     class Meta:
         unique_together = ('modelo', 'tamaño')

@@ -1,11 +1,11 @@
 "use client"
 
-import { Box, TextField } from "@mui/material"
+import { Box } from "@mui/material"
 import { DatePicker } from "@mui/x-date-pickers/DatePicker"
 import { esES } from "@mui/x-date-pickers/locales"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"
-import dayjs, { Dayjs } from "dayjs"
+import { Dayjs } from "dayjs"
 import "dayjs/locale/es"
 
 interface Props {

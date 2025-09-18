@@ -60,14 +60,14 @@ export default function CuestionarioComercialIphone(props: {
 
         {/* Identificación */}
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <TextField select fullWidth label="Modelo" value={modeloId} onChange={e => setModeloId(Number(e.target.value))}>
               {(modelos || []).map(m => (
                 <MenuItem key={m.id} value={m.id}>{m.nombre}</MenuItem>
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <TextField select fullWidth label="Capacidad" value={capacidadId} onChange={e => setCapacidadId(Number(e.target.value))} disabled={!modeloSel}>
               {(modeloSel?.capacidades || []).map(c => (
                 <MenuItem key={c.id} value={c.id}>{c.nombre}</MenuItem>
@@ -78,19 +78,19 @@ export default function CuestionarioComercialIphone(props: {
 
         {/* Gates básicos (energía/funcional) */}
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <TextField select fullWidth label="¿Enciende?" value={form.enciende ?? ''} onChange={e => set('enciende', e.target.value === 'true')}>
               <MenuItem value={'true'}>Sí</MenuItem>
               <MenuItem value={'false'}>No</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <TextField select fullWidth label="¿Carga por cable?" value={form.carga ?? ''} onChange={e => set('carga', e.target.value === 'true')}>
               <MenuItem value={'true'}>Sí</MenuItem>
               <MenuItem value={'false'}>No</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={{xs:12}}>
             <TextField select fullWidth label="Funcional básico" value={form.funcional_basico_ok ?? ''} onChange={e => set('funcional_basico_ok', e.target.value === 'true')} helperText="Llamadas, mic, altavoz, cámaras, BT, Wi‑Fi">
               <MenuItem value={'true'}>Todo OK</MenuItem>
               <MenuItem value={'false'}>Algún fallo</MenuItem>
@@ -100,13 +100,25 @@ export default function CuestionarioComercialIphone(props: {
 
         {/* Pantalla (imagen + cristal) */}
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <TextField select fullWidth label="Imagen pantalla" value={form.display_image_status} onChange={e => set('display_image_status', e.target.value as any)}>
+          <Grid size={{xs:12, md:6}}>
+            <TextField
+              select
+              fullWidth
+              label="Imagen pantalla"
+              value={form.display_image_status}
+              onChange={(e) => set('display_image_status', (e.target as HTMLInputElement).value as DisplayImageStatus)}
+            >
               {Object.values(DisplayImageStatus).map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField select fullWidth label="Cristal pantalla" value={form.glass_status} onChange={e => set('glass_status', e.target.value as any)}>
+          <Grid size={{xs:12, md:6}}>
+            <TextField
+              select
+              fullWidth
+              label="Cristal pantalla"
+              value={form.glass_status}
+              onChange={(e) => set('glass_status', (e.target as HTMLInputElement).value as GlassStatus)}
+            >
               {Object.values(GlassStatus).map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}
             </TextField>
           </Grid>
@@ -114,12 +126,18 @@ export default function CuestionarioComercialIphone(props: {
 
         {/* Chasis/trasera + batería */}
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <TextField select fullWidth label="Chasis / Trasera" value={form.housing_status} onChange={e => set('housing_status', e.target.value as any)}>
+          <Grid size={{xs:12, md:6}}>
+            <TextField
+              select
+              fullWidth
+              label="Chasis / Trasera"
+              value={form.housing_status}
+              onChange={(e) => set('housing_status', (e.target as HTMLInputElement).value as HousingStatus)}
+            >
               {Object.values(HousingStatus).map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <TextField fullWidth type="number" inputProps={{ min: 0, max: 100 }} label="Salud batería (%)" value={form.battery_health_pct ?? ''} onChange={e => set('battery_health_pct', e.target.value === '' ? null : Number(e.target.value))} />
           </Grid>
         </Grid>
@@ -128,11 +146,11 @@ export default function CuestionarioComercialIphone(props: {
         <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
           {result ? (
             <Grid container spacing={2}>
-              <Grid item xs={12} md={3}><Chip label={`Gate: ${result.gate}`} /></Grid>
-              <Grid item xs={12} md={3}><Chip label={`Grado: ${result.grado_estetico}`} /></Grid>
-              <Grid item xs={12} md={3}><Chip label={`V_tope: ${result.V_tope}€`} /></Grid>
-              <Grid item xs={12} md={3}><Chip label={`Oferta: ${result.oferta}€`} color="primary" /></Grid>
-              <Grid item xs={12}>
+              <Grid size={{xs:12, md:3}}><Chip label={`Gate: ${result.gate}`} /></Grid>
+              <Grid size={{xs:12, md:3}}><Chip label={`Grado: ${result.grado_estetico}`} /></Grid>
+              <Grid size={{xs:12, md:3}}><Chip label={`V_tope: ${result.V_tope}€`} /></Grid>
+              <Grid size={{xs:12, md:3}}><Chip label={`Oferta: ${result.oferta}€`} color="primary" /></Grid>
+              <Grid size={{xs:12}}>
                 <Typography variant="body2">Deducciones → bat: {result.deducciones.pr_bat}€, pant: {result.deducciones.pr_pant}€, chasis: {result.deducciones.pr_chas}€, pp_func: {Math.round(result.deducciones.pp_func*100)}%</Typography>
               </Grid>
             </Grid>

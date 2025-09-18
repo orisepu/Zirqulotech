@@ -44,11 +44,11 @@ class ClienteSerializer(serializers.ModelSerializer):
 
         requeridos = []
         if tipo == Cliente.TipoCliente.EMPRESA:
-            requeridos = ["razon_social", "cif", "contacto", "correo"]
+            requeridos = ["razon_social", "cif"]
         elif tipo == Cliente.TipoCliente.AUTONOMO:
-            requeridos = ["nombre", "apellidos", "nif", "correo"]
+            requeridos = ["nombre", "apellidos", "nif"]
         elif tipo == Cliente.TipoCliente.PARTICULAR:
-            requeridos = ["nombre", "apellidos", "dni_nie", "correo"]
+            requeridos = ["nombre", "apellidos", "dni_nie"]
 
         missing = [f for f in requeridos if not (attrs.get(f) or getattr(self.instance, f, None))]
         if missing:

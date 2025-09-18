@@ -9,13 +9,13 @@ export default function RankingTable({
   valueIsOps = false,
 }: {
   title: string
-  rows: any[]
+  rows: Array<Record<string, unknown>>
   valueKey?: string
   nameKey?: string
   valueIsOps?: boolean
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 3,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)' }}>
       <CardHeader title={title} sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }} />
       <CardContent sx={{ pt: 0 }}>
         <Table size="small">
@@ -29,12 +29,12 @@ export default function RankingTable({
             {rows?.map((r, i) => (
               <TableRow key={i}>
                 <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r[nameKey] ?? '—'}
+                  {String(r[nameKey] ?? '—')}
                 </TableCell>
                 <TableCell align="right">
                   {valueIsOps
-                    ? r[valueKey]
-                    : Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(r[valueKey] ?? 0)}
+                    ? String(r[valueKey] ?? '')
+                    : Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(Number(r[valueKey] ?? 0))}
                 </TableCell>
               </TableRow>
             ))}

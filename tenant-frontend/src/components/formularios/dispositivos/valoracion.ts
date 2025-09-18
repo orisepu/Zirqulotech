@@ -30,6 +30,8 @@ export function calcularEstadoDetallado(input: BaseValoracionInput):
   // Críticos directos
   if (estado_fisico === 'dañado') return 'a_revision';
   if (estado_funcional === 'no_enciende' || estado_funcional === 'pantalla_rota') return 'a_revision';
+  // Auditoría: cualquier estado funcional distinto de "funciona" se considera crítico
+  if (estado_funcional && estado_funcional !== 'funciona') return 'a_revision';
   if (input.pantalla_funcional_lineas_quemaduras) return 'a_revision';
 
   let score = 100;
@@ -37,7 +39,8 @@ export function calcularEstadoDetallado(input: BaseValoracionInput):
   // Batería
   const bat = Number.isFinite(input.salud_bateria_pct ?? NaN) ? (input.salud_bateria_pct as number) : null;
   if (bat !== null) {
-    if (bat < 70) return 'a_revision';
+    // Auditoría: en lugar de descartar por <70, penalizamos fuertemente para permitir sugerencia con deducción
+    if (bat < 70) score -= 35;
     else if (bat < 75) score -= 25;
     else if (bat < 80) score -= 10;
     else if (bat < 85) score -= 5;

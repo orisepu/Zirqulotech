@@ -1,8 +1,19 @@
 "use client";
 
 import { Box, Grid, TextField } from "@mui/material";
+import ValidatingTextField from "@/components/inputs/ValidatingTextField";
 
-export default function DireccionStep({ nuevo, setNuevo }: any) {
+type NuevoDirLike = Record<string, unknown> & {
+  direccion_calle?: string
+  direccion_piso?: string
+  direccion_puerta?: string
+  direccion_cp?: string
+  direccion_poblacion?: string
+  direccion_provincia?: string
+  direccion_pais?: string
+}
+
+export default function DireccionStep({ nuevo, setNuevo }: { nuevo: NuevoDirLike; setNuevo: (v: Record<string, unknown>) => void }) {
   return (
     <Box component="form" noValidate autoComplete="off">
       <Grid container spacing={2}>
@@ -34,11 +45,12 @@ export default function DireccionStep({ nuevo, setNuevo }: any) {
         </Grid>
 
         <Grid size={{xs:12,sm:4}}>
-          <TextField
+          <ValidatingTextField
             label="Código postal"
             fullWidth
             value={nuevo.direccion_cp || ""}
             onChange={(e) => setNuevo({ ...nuevo, direccion_cp: e.target.value })}
+            kind="cp_es"
           />
         </Grid>
 

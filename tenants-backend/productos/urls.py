@@ -10,7 +10,9 @@ from .views.costespiezas import (
     CostosPiezaDeleteView,
 )
 from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewizeView,
-  DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,LikewizeCazadorResultadoView
+  DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
+  IphoneAuditoriaValoracionView,
+  LikewizeCazadorResultadoView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView
 )
 
 # El router y el ViewSet de modelos no se utilizan actualmente
@@ -32,11 +34,30 @@ urlpatterns = [
     path("admin/costos-pieza/<int:pk>/", CostosPiezaDeleteView.as_view(), name="admin-costos-pieza-delete"),
     path("admin/costos-pieza/coverage/", CostosPiezaCoverageView.as_view(), name="admin-costos-pieza-coverage"),
     path("precios/likewize/actualizar/", LanzarActualizacionLikewizeView.as_view()),
+    path("precios/likewize/ultima/", UltimaTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/", EstadoTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/diff/", DiffLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
+    path("precios/likewize/tareas/<uuid:tarea_id>/crear-capacidad/", CrearDesdeNoMapeadoLikewizeView.as_view()),
+    # B2C (Swappie) staging/diff
+    path("precios/b2c/actualizar/", LanzarActualizacionB2CView.as_view()),
+    path("precios/b2c/ultima/", UltimaTareaB2CView.as_view()),
+    path("precios/b2c/tareas/<uuid:tarea_id>/", EstadoTareaLikewizeView.as_view()),
+    path("precios/b2c/tareas/<uuid:tarea_id>/diff/", DiffB2CView.as_view()),
+    path("precios/b2c/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosB2CView.as_view()),
+    path("precios/b2c/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
+
+    # B2C (Back Market) staging/diff
+    path("precios/backmarket/actualizar/", LanzarActualizacionBackmarketView.as_view()),
+    path("precios/backmarket/ultima/", UltimaTareaBackmarketView.as_view()),
+    path("precios/backmarket/tareas/<uuid:tarea_id>/", EstadoTareaLikewizeView.as_view()),
+    path("precios/backmarket/tareas/<uuid:tarea_id>/diff/", DiffBackmarketView.as_view()),
+    path("precios/backmarket/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosBackmarketView.as_view()),
+    path("precios/backmarket/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
+    path("precios/b2c/actualizar/", LanzarActualizacionB2CView.as_view()),
     path('valoraciones/iphone/comercial/', IphoneComercialValoracionView.as_view(), name='iphone-valoracion-comercial'),
+    path('valoraciones/iphone/auditoria/', IphoneAuditoriaValoracionView.as_view(), name='iphone-valoracion-auditoria'),
     path("likewize/tareas/<uuid:uuid>/resultado/", LikewizeCazadorResultadoView.as_view()),
 
     path("", include(router.urls)),

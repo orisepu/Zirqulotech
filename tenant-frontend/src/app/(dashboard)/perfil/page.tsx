@@ -25,12 +25,13 @@ export default function PaginaPerfil() {
   const [repeatPassword, setRepeatPassword] = useState('')
 
   // 1. Obtener nombre de tienda desde react-query
-  const { data: tienda, isLoading: cargandoTienda } = useQuery({
-    queryKey: ['nombre-tienda', usuario?.rol_actual?.tienda_id],
+  type Tienda = { nombre?: string }
+  const { data: tienda, isLoading: cargandoTienda } = useQuery<Tienda | null>({
+    queryKey: ['tienda-detalle', usuario?.rol_actual?.tienda_id],
     enabled: !!usuario?.rol_actual?.tienda_id,
     queryFn: async () => {
       const res = await api.get(`/api/tiendas/${usuario?.rol_actual?.tienda_id}/`)
-      return res.data
+      return (res.data as Tienda) ?? null
     },
   })
 
@@ -43,15 +44,19 @@ export default function PaginaPerfil() {
       })
       return res.data
     },
-    onSuccess: (data) => {
-      toast.success(data.detail || 'Contraseña actualizada correctamente')
+    onSuccess: (data: { detail?: string }) => {
+      toast.success(data?.detail || 'Contraseña actualizada correctamente')
       setOpen(false)
       setCurrentPassword('')
       setNewPassword('')
       setRepeatPassword('')
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Error al cambiar la contraseña'
+    onError: (err: unknown) => {
+      let msg = 'Error al cambiar la contraseña'
+      if (typeof err === 'object' && err !== null) {
+        const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+        if (typeof detail === 'string' && detail) msg = detail
+      }
       toast.error(msg)
     },
   })
@@ -67,11 +72,6 @@ export default function PaginaPerfil() {
     }
     cambiarPasswordMutation.mutate()
   }
-  console.log("usuario desde useUsuario()", usuario);
-  console.log("usuario:", usuario);
-  console.log("tienda_id:", usuario?.rol_actual.tienda_id);
-  console.log("rol actual",usuario?.rol_actual)
-  console.log("tienda:", tienda);
   if (!usuario) return <p>Cargando...</p>
 
   return (

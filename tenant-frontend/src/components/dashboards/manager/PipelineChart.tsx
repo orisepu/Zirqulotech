@@ -14,7 +14,8 @@ function formatInt(n: number) {
   return new Intl.NumberFormat('es-ES').format(Math.round(n || 0))
 }
 
-function CustomTooltip({ active, payload, label, metric }: any) {
+type TooltipPayloadItem = { value: number }
+function CustomTooltip({ active, payload, label, metric }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string; metric: 'count'|'valor' }) {
   if (!active || !payload?.length) return null
   const v = payload[0].value
   return (
@@ -29,13 +30,45 @@ export default function PipelineChart({ data }: { data: Row[] }) {
   const theme = useTheme()
   const [metric, setMetric] = useState<'count' | 'valor'>('valor')
 
-  // Orden opcional de estados (ajústalo a tu pipeline real)
-  const ORDER = ['Aceptada', 'Recogida generada', 'En tránsito', 'Recibido', 'En revisión', 'Oferta confirmada', 'Pendiente factura']
-  const sorted = useMemo(() => {
-    if (!data?.length) return []
-    const byOrder = new Map(ORDER.map((e, i) => [e, i]))
-    return [...data].sort((a, b) => (byOrder.get(a.estado) ?? 999) - (byOrder.get(b.estado) ?? 999))
+  const normalized = useMemo(() => {
+    const acc = new Map<string, Row>()
+    for (const item of data || []) {
+      const estado = (item?.estado ?? '').toString() || 'Sin estado'
+      const existing = acc.get(estado)
+      const count = Number(item?.count || 0)
+      const valor = Number(item?.valor || 0)
+      if (existing) {
+        existing.count += count
+        existing.valor += valor
+      } else {
+        acc.set(estado, { estado, count, valor })
+      }
+    }
+    return Array.from(acc.values())
   }, [data])
+
+  // Orden opcional de estados (ajústalo a tu pipeline real)
+  const sorted = useMemo(() => {
+    const ORDER = [
+      'Pendiente',
+      'Aceptado',
+      'Recogida solicitada',
+      'Recogida generada',
+      'En tránsito',
+      'Check in OK',
+      'Recibido',
+      'En revisión',
+      'Nueva oferta',
+      'Nueva oferta enviada',
+      'Nueva oferta confirmada',
+      'Oferta confirmada',
+      'Pendiente factura',
+      'Factura recibida',
+    ] as const
+    if (!normalized.length) return []
+    const byOrder = new Map<string, number>(ORDER.map((e, i) => [e, i]))
+    return [...normalized].sort((a, b) => (byOrder.get(a.estado) ?? 999) - (byOrder.get(b.estado) ?? 999))
+  }, [normalized])
   const labelFormatter = useCallback(
     (label: React.ReactNode) => {
       const n = typeof label === 'number' ? label : Number(label ?? 0)
@@ -47,7 +80,7 @@ export default function PipelineChart({ data }: { data: Row[] }) {
   const showLabels = (sorted?.length ?? 0) <= 10
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 3,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)' }}>
       <CardHeader
         title="Pipeline por estado"
         action={

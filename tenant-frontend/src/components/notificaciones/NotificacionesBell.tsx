@@ -95,7 +95,7 @@ export default function NotificacionesBell({ socket }: { socket: WebSocket }) {
         console.error('❌ Error al recibir notificación:', err)
       }
     }
-  }, [socket])
+  }, [socket, queryClient])
 
   const notificacionesNoLeidas = notificaciones.filter((n) => !n.leida)
 

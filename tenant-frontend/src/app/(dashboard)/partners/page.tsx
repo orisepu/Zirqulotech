@@ -4,9 +4,9 @@ import { useRouter } from 'next/navigation'
 import api from '@/services/api'
 import {
   Typography, Box, Paper, Table, TableHead, TableRow, TextField, Snackbar, Alert,
-  TableCell, TableBody, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   Stack, Toolbar, InputAdornment, IconButton, Chip, FormControl, InputLabel, Select, MenuItem,
-  Divider, TableContainer, Skeleton, ButtonGroup, Tooltip
+  Divider, TableContainer, Skeleton, ButtonGroup, Tooltip, FormControlLabel, Switch
 } from '@mui/material'
 import { useQuery, useQueryClient,useMutation } from "@tanstack/react-query"
 import { useState, useMemo } from 'react'
@@ -15,7 +15,6 @@ import StoreIcon from '@mui/icons-material/Store'
 import GroupIcon from '@mui/icons-material/Group'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import VisibilityIcon from '@mui/icons-material/Visibility'
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever'
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew'
 import { formatoBonito } from '@/context/precios'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
@@ -33,6 +32,7 @@ export default function PartnerListPage() {
     direccion_calle: "", direccion_cp: "",
     direccion_poblacion: "", direccion_provincia: "", direccion_pais: "España",
     comision_pct: 10 as number, // % por defecto
+    solo_empresas: false,
   })
   const [snackbar, setSnackbar] = useState<{ open: boolean; mensaje: string; tipo?: 'success' | 'error' }>({
     open: false,
@@ -47,16 +47,21 @@ export default function PartnerListPage() {
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activo' | 'inactivo' | 'pendiente'>('todos')
   const [confirmDelete, setConfirmDelete] = useState<{open: boolean; id?: number; nombre?: string}>({ open: false })
 
-  const { data: partners = [], isLoading, isError } = useQuery({
+  const { data: partners = [], isLoading, isError } = useQuery<any[]>({
     queryKey: ['tenants'],
     queryFn: async () => {
       const res = await api.get('/api/tenants/')
-      return res.data
+      const d = res.data as any
+      if (Array.isArray(d)) return d
+      if (Array.isArray(d?.results)) return d.results
+      if (Array.isArray(d?.items)) return d.items
+      if (Array.isArray(d?.tenants)) return d.tenants
+      return []
     },
   })
   const filteredPartners = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return (partners || [])
+    return (Array.isArray(partners) ? partners : [])
       .filter((p: any) => {
         const matchTerm = !term || `${p.nombre ?? ''} ${p.schema ?? ''}`.toLowerCase().includes(term)
         const matchEstado = filtroEstado === 'todos' ? true : (p.estado ?? '').toLowerCase() === filtroEstado
@@ -75,7 +80,9 @@ export default function PartnerListPage() {
       setNuevoPartner({
         name: "", schema: "", cif: "",
         direccion_calle: "", direccion_cp: "",
-        direccion_poblacion: "", direccion_provincia: "", direccion_pais: "España",comision_pct: 10
+        direccion_poblacion: "", direccion_provincia: "", direccion_pais: "España",
+        comision_pct: 10,
+        solo_empresas: false,
       })
       await queryClient.invalidateQueries({ queryKey: ['tenants'] })
       setSnackbar({ open: true, mensaje: 'Partner creado correctamente.', tipo: 'success' })
@@ -275,6 +282,21 @@ export default function PartnerListPage() {
             onChange={e => setNuevoPartner({ ...nuevoPartner, comision_pct: Number(e.target.value) })}
             helperText="Porcentaje aplicado a este partner. Ej.: 10 = 10%."
           />
+          <Box mt={1} mb={0.5}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={Boolean(nuevoPartner.solo_empresas)}
+                  onChange={(_, checked) => setNuevoPartner({ ...nuevoPartner, solo_empresas: checked })}
+                  color="primary"
+                />
+              }
+              label="Solo para empresas (B2B)"
+            />
+            <Typography variant="caption" color="text.secondary" display="block">
+              Si está activo, este partner solo estará disponible para clientes empresa o autónomos.
+            </Typography>
+          </Box>
           <TextField label="Calle" fullWidth margin="dense"
             value={nuevoPartner.direccion_calle}
             onChange={e => setNuevoPartner({ ...nuevoPartner, direccion_calle: e.target.value })}

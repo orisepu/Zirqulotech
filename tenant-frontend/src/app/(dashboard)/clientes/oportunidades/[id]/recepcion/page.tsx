@@ -20,8 +20,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 
-type Modelo = { id: number; descripcion: string };
-type Capacidad = { id: number; tamaño: string };
+type Modelo = { id: number; descripcion: string; modelo: string };
+type Capacidad = { id: number; tamaño: string; capacidad: string };
 
 type DispositivoReal = {
   id: number | string;
@@ -74,10 +74,10 @@ export default function RecepcionDispositivosPartnerPage() {
   }, [dispositivos, page, rowsPerPage]);
 
   const renderModelo = (d: DispositivoReal) =>
-    d?.modelo?.descripcion ?? d?.modelo_descripcion ?? '—';
+    d?.modelo?.descripcion ?? (typeof d?.modelo === 'string' ? d.modelo : '—');
 
   const renderCapacidad = (d: DispositivoReal) =>
-    d?.capacidad?.tamaño ?? d?.capacidad_tamaño ?? '—';
+    d?.capacidad?.tamaño ?? (typeof d?.capacidad === 'string' ? d.capacidad : '—');
 
   const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {

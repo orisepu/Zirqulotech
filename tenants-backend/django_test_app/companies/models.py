@@ -1,14 +1,27 @@
+import os
+import logging
+from decimal import Decimal
+from collections.abc import Mapping
+
+from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django_tenants.models import DomainMixin
-from decimal import Decimal
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.text import slugify
 from tenant_users.tenants.models import TenantBase
-from copy import deepcopy
-from django.conf import settings
-from collections.abc import Mapping
-import logging
+
+from checkouters.storage import PrivateDocumentStorage
 logger = logging.getLogger(__name__)
 _NameFieldLength = 64
+
+
+def agreement_upload_path(instance, filename: str) -> str:
+    """Guarda los acuerdos en una carpeta por tenant con nombre seguro."""
+    base, ext = os.path.splitext(filename or "")
+    ext = ext.lower() if ext else ".pdf"
+    safe_base = slugify(base) or "acuerdo"
+    tenant_id = instance.pk or "temp"
+    return f"acuerdos/tenant-{tenant_id}/{safe_base}{ext}"
 
 def _deepmerge(a, b):
     out = dict(a or {})
@@ -62,6 +75,22 @@ class Company(TenantBase):
     facturacion_anual = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     numero_tiendas_oficiales = models.PositiveIntegerField(null=True, blank=True)
     goal = models.TextField(blank=True)
+    acuerdo_empresas = models.TextField(
+        blank=True,
+        help_text="Detalle del acuerdo vigente entre las empresas."
+    )
+    acuerdo_empresas_pdf = models.FileField(
+        upload_to=agreement_upload_path,
+        storage=PrivateDocumentStorage(),
+        blank=True,
+        null=True,
+        help_text="Archivo PDF del acuerdo firmado entre las empresas."
+    )
+
+    solo_empresas = models.BooleanField(
+        default=False,
+        help_text="Si está activo, el partner solo opera con clientes empresa/autónomos."
+    )
 
     # Logo opcional
     logo = models.ImageField(upload_to="logos/", blank=True, null=True)

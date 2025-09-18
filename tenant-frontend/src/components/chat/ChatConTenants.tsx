@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import api, { getAccessToken } from '@/services/api'
 import {
   Box, Paper, Typography, Button, TextField, Tabs, Tab,
-  Badge, IconButton, List, ListItem, ListItemText,ListItemButton
+  Badge, IconButton, ListItemText, ListItemButton
 } from '@mui/material'
 import ChatIcon from '@mui/icons-material/Chat'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from 'react';
 // Tipos
 
@@ -32,7 +32,7 @@ type User = {
   email: string
 }
 
-function playBeep(frequency = 440, duration = 150) {
+function _playBeep(frequency = 440, duration = 150) {
   try {
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
@@ -60,7 +60,7 @@ function lanzarNotificacion(titulo: string, cuerpo: string) {
 export default function ChatConTenants() {
   const [abierto, setAbierto] = useState(false)
   const [tab, setTab] = useState<'chats' | 'usuarios'>('chats')
-  const [usuarios, setUsuarios] = useState<User[]>([])
+  const [usuarios, _setUsuarios] = useState<User[]>([])
   const [filtroChats, setFiltroChats] = useState('')
   const [filtroUsuarios, setFiltroUsuarios] = useState('')
   const [chatActivo, setChatActivo] = useState<number | null>(null)
@@ -159,7 +159,7 @@ export default function ChatConTenants() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [mensajesPorChat[chatActivo || -1]])
+  }, [mensajesPorChat, chatActivo])
 
   const enviar = () => {
     if (!input.trim() || !chatActivo) return
@@ -183,8 +183,9 @@ export default function ChatConTenants() {
   }, [chatActivo])
 
   useEffect(() => {
+    const connsOnMount = wsConexiones.current;
     return () => {
-      Object.values(wsConexiones.current).forEach(ws => ws.close())
+      Object.values(connsOnMount).forEach(ws => ws.close())
     }
   }, [])
 

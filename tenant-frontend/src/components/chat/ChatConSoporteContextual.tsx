@@ -33,10 +33,13 @@ export default function ChatConSoporteContextual() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [input, setInput] = useState("");
   const [socketListo, setSocketListo] = useState(false);
-  const [oportunidad, setOportunidad] = useState<any | null>(null);
+  type OportunidadMin = { cliente?: { razon_social?: string } } | null;
+  const [oportunidad, setOportunidad] = useState<OportunidadMin>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
 
   // Extraer oportunidadId de la ruta
@@ -151,6 +154,25 @@ export default function ChatConSoporteContextual() {
     if (abierto) setNoLeidos(0);
   }, [abierto]);
 
+  // Cerrar al hacer clic fuera del panel flotante
+  useEffect(() => {
+    if (!abierto) return undefined;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      if (toggleRef.current?.contains(target)) return;
+      setAbierto(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+    };
+  }, [abierto]);
+
   // Función para enviar mensaje via websocket
   const enviar = () => {
     if (!input.trim() || !socketRef.current) return;
@@ -203,6 +225,7 @@ export default function ChatConSoporteContextual() {
   return (
     <>
       <IconButton
+        ref={toggleRef}
         onClick={() => setAbierto(!abierto)}
         sx={{ position: "fixed", bottom: 20, right: 20, zIndex: 1300 }}
         color="primary"
@@ -214,6 +237,7 @@ export default function ChatConSoporteContextual() {
 
       {abierto && (
         <Paper
+          ref={panelRef}
           elevation={4}
           sx={{
             position: "fixed",

@@ -46,36 +46,39 @@ const styles = StyleSheet.create({
   },
 });
 
+type OfertaDeviceRow = { modelo: string; capacidad: string; imei?: string; numero_serie?: string; precio?: number }
+type OportunidadSlim = { cliente?: { razon_social?: string; cif?: string }; calle?: string; piso?: string; puerta?: string; poblacion?: string; provincia?: string; codigo_postal?: string; persona_contacto?: string; correo_recogida?: string }
+
 export default function OfertaPDFDocument({
   dispositivos,
   total,
   nombre,
   oportunidad,
-  tienda,
+  tienda: _tienda,
   fecha = new Date(),
   logoUrl,
 }: {
-  dispositivos: any[],
+  dispositivos: OfertaDeviceRow[],
   total: number,
   nombre: string,
-  oportunidad?: any,
-  tienda?: any,
-  cif?: any,
+  oportunidad?: OportunidadSlim,
+  tienda?: unknown,
+  cif?: string,
   calle?: string,
   fecha?: Date,
   logoUrl?: string,
 }) {
   const fechaTexto = fecha.toLocaleDateString('es-ES');
-  const cliente = oportunidad.cliente;
-  const contacto = oportunidad.persona_contacto;
-  const correo = oportunidad.correo_recogida;
+  const cliente = oportunidad?.cliente;
+  const contacto = oportunidad?.persona_contacto;
+  const correo = oportunidad?.correo_recogida;
   const direccion = [
-    oportunidad.calle,
-    oportunidad.piso && `Piso ${oportunidad.piso}`,
-    oportunidad.puerta && `Puerta ${oportunidad.puerta}`,
-    oportunidad.poblacion,
-    oportunidad.provincia,
-    oportunidad.codigo_postal
+    oportunidad?.calle,
+    oportunidad?.piso && `Piso ${oportunidad.piso}`,
+    oportunidad?.puerta && `Puerta ${oportunidad.puerta}`,
+    oportunidad?.poblacion,
+    oportunidad?.provincia,
+    oportunidad?.codigo_postal
   ].filter(Boolean).join(', ');
 
   const renderTableHeader = () => (
@@ -87,7 +90,7 @@ export default function OfertaPDFDocument({
     </View>
   );
 
-  const renderTableRows = (items: any[]) =>
+  const renderTableRows = (items: OfertaDeviceRow[]) =>
     items.map((d, i) => (
       <View style={styles.tableRow} key={i}>
         <Text style={styles.cellModelo}>{d.modelo}</Text>
@@ -102,8 +105,8 @@ export default function OfertaPDFDocument({
   // --- Lógica para calcular bloques dinámicos ---
   const MAX_LINEAS_POR_PAGINA = 20;
 
-  const bloques: any[][] = [];
-  let paginaActual: any[] = [];
+  const bloques: OfertaDeviceRow[][] = [];
+  let paginaActual: OfertaDeviceRow[] = [];
   let lineasActuales = 0;
 
   dispositivos.forEach((d) => {
@@ -127,6 +130,7 @@ export default function OfertaPDFDocument({
     <Document>
       {bloques.map((bloque, idx) => (
         <Page key={idx} style={styles.page}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
           {logoUrl && <Image src={logoUrl} style={styles.logo} />}
           <Text style={styles.title}>Oferta formal</Text>
           <Text style={styles.subinfo}>Fecha: {fechaTexto}</Text>

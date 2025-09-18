@@ -12,11 +12,12 @@ import {
   Tooltip,
   Legend,
   type LegendProps,
+  type PieLabelRenderProps,
 } from 'recharts'
 
 type PieRankingProps = {
   title: string
-  rows: any[]
+  rows: Array<Record<string, unknown>>
   valueKey?: string
   nameKey?: string
   valueIsOps?: boolean
@@ -51,8 +52,8 @@ export default function PieRanking({
   const resolvedMode = legendMode === 'auto' ? (isNarrow ? 'bottom' : 'right') : legendMode
 
   // Normaliza datos
-  const mapped = (rows || [])
-    .map((r: any) => ({ name: r?.[nameKey] ?? '—', value: Number(r?.[valueKey] ?? 0) }))
+  const mapped = (rows ?? [])
+    .map((r) => ({ name: String(r?.[nameKey] ?? '—'), value: Number(r?.[valueKey] ?? 0) }))
     .filter(d => Number.isFinite(d.value) && d.value > 0)
     .sort((a, b) => b.value - a.value)
 
@@ -80,8 +81,11 @@ export default function PieRanking({
     return alpha(c, Math.max(0.4, a))
   })
 
-  const tooltipFormatter = (value: number, _name: string, entry: any) => {
-    const v = Number(value || 0)
+  type ValueType = number | string | Array<number | string>
+  type NameType = string | number
+  type PayloadItem = { payload?: { name?: string } }
+  const tooltipFormatter = (value: ValueType, _name: NameType, entry: PayloadItem) => {
+    const v = Number((Array.isArray(value) ? value[0] : value) ?? 0)
     const pct = total ? ` (${Math.round((v / total) * 100)}%)` : ''
     return [(valueIsOps ? `${formatINT(v)} ops` : formatEUR(v)) + pct, entry?.payload?.name]
   }
@@ -94,9 +98,7 @@ export default function PieRanking({
   }
 
   // Props de leyenda según modo (tipado explícito)
-  const baseLegend: Partial<LegendProps> = {
-    formatter: (value: any) => legendText(String(value)),
-  }
+  const baseLegend: Partial<LegendProps> = { formatter: (value: string | number) => legendText(String(value)) }
 
   let legendProps: Partial<LegendProps> = baseLegend
 
@@ -142,7 +144,7 @@ export default function PieRanking({
   // 'none' => no pasamos Legend
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 3 ,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)'}}>
       <CardHeader title={title} sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }} />
       <CardContent sx={{ height }}>
         <Box sx={{ width: '100%', height: '100%' }}>
@@ -164,9 +166,11 @@ export default function PieRanking({
                   cornerRadius={5}
                   paddingAngle={5}
                   labelLine={false}
-                  label={(p: { percent?: number }) =>
-                    p.percent && p.percent > 0.04 ? `${Math.round(p.percent * 100)}%` : ''
-                  }
+                  label={(props: PieLabelRenderProps) => {
+                    const percentRaw = props?.percent
+                    const percent = typeof percentRaw === 'number' ? percentRaw : 0
+                    return percent > 0.04 ? `${Math.round(percent * 100)}%` : ''
+                  }}
                 >
                   {data.map((entry, idx) => (
                     <Cell
@@ -177,7 +181,7 @@ export default function PieRanking({
                   ))}
                 </Pie>
 
-                <Tooltip formatter={tooltipFormatter as any} />
+                <Tooltip formatter={tooltipFormatter} />
 
                 {showLegend && resolvedMode !== 'none' && <Legend {...legendProps} />}
               </PieChart>

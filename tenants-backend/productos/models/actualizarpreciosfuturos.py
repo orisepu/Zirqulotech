@@ -72,6 +72,8 @@ class LikewizeCazadorTarea(models.Model):
     # Resultados
     matches = models.JSONField(default=list, blank=True)       # [{likewize_nombre, bd_modelo, bd_capacidad, capacidad_id}]
     no_cazados_bd = models.JSONField(default=list, blank=True) # [{bd_modelo, bd_capacidad, capacidad_id}]
+    # Nuevos: elementos de Likewize que no cazaron con la BD
+    no_cazados_likewize = models.JSONField(default=list, blank=True) # [{likewize_nombre}]
 
     # Información adicional opcional (logs, fichero, filtros, etc.)
     meta = models.JSONField(default=dict, blank=True)

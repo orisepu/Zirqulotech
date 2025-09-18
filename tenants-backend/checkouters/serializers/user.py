@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django_tenants.utils import schema_context, get_public_schema_name, get_tenant_model
 from progeek.models import RolPorTenant, UserGlobalRole
 from tenant_users.permissions.models import UserTenantPermissions
+from tenant_users.tenants.models import ExistsError
 from django.db import connection
 
 User = get_user_model()
@@ -97,19 +98,37 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
             user.save()
 
             self._ensure_global_role(user)
-            UserTenantPermissions.objects.get_or_create(profile=user, defaults={"is_staff": False})
 
         tenant_model = get_tenant_model()
         tenant = tenant_model.objects.filter(schema_name=tenant_slug).first()
         if tenant is None:
             raise serializers.ValidationError(f"Tenant '{tenant_slug}' no existe.")
 
+        try:
+            tenant.add_user(
+                user,
+                is_staff=(rol == "manager"),
+                is_superuser=False,
+            )
+        except ExistsError:
+            pass
+
         with schema_context(public_schema):
-            user.tenants.add(tenant)
             rpt = self._get_role_obj(user, tenant_slug)
             rpt.rol = rol
             rpt.tienda_id = tienda_id
             rpt.save()
+
+        with schema_context(tenant_slug):
+            try:
+                perms = UserTenantPermissions.objects.get(profile=user)
+                perms.is_staff = (rol == "manager")
+                perms.save(update_fields=["is_staff"])
+            except UserTenantPermissions.DoesNotExist:
+                UserTenantPermissions.objects.create(
+                    profile=user,
+                    is_staff=(rol == "manager"),
+                )
 
         return user
 
@@ -146,5 +165,17 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
                 touching_role = True
             if touching_role:
                 rpt.save()
+
+        if "rol" in validated_data:
+            with schema_context(tenant_slug):
+                try:
+                    perms = UserTenantPermissions.objects.get(profile=instance)
+                    perms.is_staff = (validated_data.get("rol") == "manager")
+                    perms.save(update_fields=["is_staff"])
+                except UserTenantPermissions.DoesNotExist:
+                    UserTenantPermissions.objects.create(
+                        profile=instance,
+                        is_staff=(validated_data.get("rol") == "manager"),
+                    )
 
         return instance

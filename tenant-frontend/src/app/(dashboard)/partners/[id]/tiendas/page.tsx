@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useMemo, useState } from "react"
+import { useParams, useSearchParams } from "next/navigation"
 import {
   Box, Card, CardContent, Typography, Button,Grid,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -35,7 +35,13 @@ type UsuarioTenant = {
 
 export default function TiendasPage() {
   const params = useParams<{ id: string }>()
-  const schema = params?.id || undefined
+  const searchParams = useSearchParams()
+  const rawSchema = searchParams?.get("schema") || ""
+  const schema = useMemo(() => {
+    const trimmed = rawSchema?.trim()
+    if (trimmed) return trimmed
+    return params?.id || undefined
+  }, [rawSchema, params?.id])
   const qc = useQueryClient()
 
   const [modalOpen, setModalOpen] = useState(false)

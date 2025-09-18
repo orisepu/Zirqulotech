@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import api, { login as loginRequest } from "@/services/api";
+import { login as loginRequest } from "@/services/api";
 import {
   Button,
   TextField,
@@ -80,6 +80,8 @@ export default function LoginForm() {
       }
 
       router.push("/dashboard");
+      // Evitamos que Snackbar quede abierto
+      setShowError(false);
     } catch (err: any) {
       const detail =
         err?.response?.data?.detail ||
@@ -87,17 +89,10 @@ export default function LoginForm() {
         "Error al iniciar sesión o credenciales incorrectas.";
       setError(detail);
       setShowError(true);
-      // console.error("[login] error:", err); // quitar en producción
     } finally {
       setLoading(false);
     }
   };
-
-  // Fondo adaptable claro/oscuro (sutil)
-  const bgGradient =
-    theme.palette.mode === "dark"
-      ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${theme.palette.background.paper} 100%)`
-      : `linear-gradient(135deg, ${theme.palette.grey[100]} 0%, ${theme.palette.background.default} 100%)`;
 
   return (
     <Box

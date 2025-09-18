@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from productos.models import TareaActualizacionLikewize,LikewizeCazadorTarea
+from productos.models import TareaActualizacionLikewize,LikewizeCazadorTarea,LikewizeItemStaging
 
 class TareaLikewizeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -14,6 +14,7 @@ class LikewizeCazadorResultadoSerializer(serializers.Serializer):
     stats = serializers.SerializerMethodField()
     matches = serializers.SerializerMethodField()
     no_cazados_bd = serializers.SerializerMethodField()
+    no_cazados_likewize = serializers.SerializerMethodField()
 
     def get_stats(self, obj: LikewizeCazadorTarea):
         total = int(obj.total_likewize or 0)
@@ -49,6 +50,22 @@ class LikewizeCazadorResultadoSerializer(serializers.Serializer):
                 "capacidad_id": r.get("capacidad_id") or r.get("cap_id"),
             })
         return out
+
+    def get_no_cazados_likewize(self, obj: LikewizeCazadorTarea):
+        rows = getattr(obj, "no_cazados_likewize", None) or []
+        if not rows:
+            # Fallback: derivar desde staging si el campo está vacío (tareas antiguas)
+            try:
+                qs = (LikewizeItemStaging.objects
+                      .filter(tarea_id=obj.id, capacidad_id__isnull=True)
+                      .values("modelo_raw")[:5000])
+                rows = [{"likewize_nombre": r.get("modelo_raw") or ""} for r in qs]
+            except Exception:
+                rows = []
+        # Normaliza forma final
+        return [{
+            "likewize_nombre": (r.get("likewize_nombre") or r.get("nombre_likewize") or r.get("modelo_raw") or r.get("likewize_name") or "")
+        } for r in rows]
 
     def to_representation(self, obj: LikewizeCazadorTarea):
         base = super().to_representation(obj)

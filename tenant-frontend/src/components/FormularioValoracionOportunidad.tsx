@@ -18,6 +18,7 @@ import {
   Step,
   StepLabel,
   Paper,
+  Chip,
 } from '@mui/material'
 import { Autocomplete } from '@mui/material'
 import { useParams } from 'next/navigation'
@@ -78,14 +79,22 @@ export default function FormularioValoracionOportunidad({
     queryClient.getQueryData(['oportunidad', oppKey]) ??
     queryClient.getQueryData(['oportunidad', String(oportunidadId)])
 
-  // Canal prioritario; fallback a tipo_cliente (empresa→B2B, particular→B2C)
+  // Canal prioritario; fallback a tipo_cliente (empresa/autonomo→B2B, particular→B2C)
   const canalRaw = (oppCache?.cliente?.canal ?? '').toString().toUpperCase()
-  const tipoCliente =
-    canalRaw === 'B2B' || canalRaw === 'B2C'
-      ? canalRaw
-      : (oppCache?.cliente?.tipo_cliente ?? '').toString().toLowerCase() === 'empresa'
-      ? 'B2B'
-      : 'B2C'
+  const tipoClienteRaw = (oppCache?.cliente?.tipo_cliente ?? '').toString().toLowerCase()
+  const canalInferido = tipoClienteRaw === 'particular' ? 'B2C' : 'B2B'
+  const tipoCliente = canalRaw === 'B2B' || canalRaw === 'B2C' ? canalRaw : canalInferido
+  const esEmpresaAutonomo = tipoClienteRaw === 'empresa' || tipoClienteRaw === 'autonomo' || tipoCliente === 'B2B'
+
+  // Configuración por oportunidad: cuestionario completo (solo se pregunta una vez)
+  const oppCfgKey = ['oportunidad-config', String(oppKey)]
+  const cfg = (queryClient.getQueryData(oppCfgKey) as { forzarCompleto?: boolean } | undefined)
+  const [forzarCompleto, setForzarCompleto] = useState<boolean>(cfg?.forzarCompleto ?? false)
+  const [cfgElegida, setCfgElegida] = useState<boolean | null>(
+    typeof cfg?.forzarCompleto === 'boolean' ? cfg!.forzarCompleto! : (esEmpresaAutonomo ? null : true)
+  )
+  const saltarsePreguntas = esEmpresaAutonomo && !forzarCompleto
+  const modoCompleto = !saltarsePreguntas
 
   // -------- Catálogos con React Query --------
 
@@ -138,6 +147,14 @@ export default function FormularioValoracionOportunidad({
     setCantidad(item?.cantidad || 1)
   }, [item])
 
+  // Para B2B (empresa/autónomo) sin forzar, poner el mejor estado por defecto
+  useEffect(() => {
+    if (saltarsePreguntas) {
+      setEstadoFisico('perfecto')
+      setEstadoFuncional('funciona')
+    }
+  }, [saltarsePreguntas])
+
   // Objetos seleccionados
   const toNum = (v: any): number | null => {
     if (v === null || v === undefined) return null
@@ -177,15 +194,24 @@ export default function FormularioValoracionOportunidad({
   }
 
   const handleSiguiente = () => {
+    if (activeStep === 0 && saltarsePreguntas) {
+      setActiveStep(2) // saltar preguntas y pasar a valoración
+      return
+    }
     if (activeStep < pasos.length - 1) setActiveStep((prev) => prev + 1)
   }
 
   const handleAnterior = () => {
+    if (activeStep === 2 && saltarsePreguntas) {
+      setActiveStep(0) // volver a datos básicos si se saltó el paso 2
+      return
+    }
     if (activeStep > 0) setActiveStep((prev) => prev - 1)
   }
 
   const handleSubmit = async (continuar = false) => {
-    const cantidadNum = typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad
+    const cantidadNumRaw = typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad
+    const cantidadNum = modoCompleto ? 1 : cantidadNumRaw
     const estado_valoracion = calcularEstadoValoracion(estadoFisico, estadoFuncional)
 
     let precio_orientativo: number | null = null
@@ -257,9 +283,51 @@ export default function FormularioValoracionOportunidad({
 
   const estadoTexto = calcularEstadoValoracion(estadoFisico, estadoFuncional)
 
+  // Elegir modo una única vez por oportunidad y guardarlo en cache local
+  const elegirModoOportunidad = (modoCompleto: boolean) => {
+    setCfgElegida(modoCompleto)
+    setForzarCompleto(modoCompleto)
+    queryClient.setQueryData(oppCfgKey, (prev: any) => ({ ...(prev || {}), forzarCompleto: modoCompleto }))
+  }
+
+  // En modo completo, la cantidad debe ser siempre 1
+  useEffect(() => {
+    if (modoCompleto) setCantidad(1)
+  }, [modoCompleto])
+
+  if (esEmpresaAutonomo && cfgElegida === null) {
+    return (
+      <>
+        <DialogTitle sx={{ textAlign: 'center' }}>Modo de cuestionario</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1.5, textAlign: 'center' }}>
+            Elige cómo valorar los dispositivos de esta oportunidad. Esta elección se recordará y aplicará al resto de dispositivos.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Box sx={{ flex: 1, minWidth: 280, maxWidth: 420, mx: 'auto', textAlign: 'center' }}>
+              <Button fullWidth color="primary" variant="contained" onClick={() => elegirModoOportunidad(true)}>Cuestionario completo</Button>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5, textAlign: 'center' }}>
+                Responderás estética y funcionalidad para ajustar mejor el precio.
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 280, maxWidth: 420, mx: 'auto', textAlign: 'center' }}>
+              <Button fullWidth color="primary" variant="contained" onClick={() => elegirModoOportunidad(false)}>Rápido (usar "excelente")</Button>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5, textAlign: 'center' }}>
+                Se saltan preguntas y se valora como "excelente" por defecto. Precio más orientativo.
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancelar</Button>
+        </DialogActions>
+      </>
+    )
+  }
+
   return (
     <>
-      <DialogTitle>{item ? 'Editar dispositivo' : 'Nuevo dispositivo'}</DialogTitle>
+      <DialogTitle sx={{ textAlign: 'center' }}>{item ? 'Editar dispositivo' : 'Nuevo dispositivo'}</DialogTitle>
       <DialogContent>
         <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 2 }}>
           {pasos.map((label) => (
@@ -324,17 +392,35 @@ export default function FormularioValoracionOportunidad({
               fullWidth
               sx={{ mt: 2 }}
               value={cantidad}
+              disabled={modoCompleto}
+              helperText={modoCompleto ? 'En modo completo, la cantidad es 1' : undefined}
               onChange={(e) => setCantidad(e.target.value)}
               onBlur={() => {
+                if (modoCompleto) return
                 const parsed = parseInt(cantidad as string)
                 setCantidad(isNaN(parsed) ? 1 : parsed)
               }}
             />
+
+            {esEmpresaAutonomo && (
+              <Box sx={{ mt: 2 }}>
+                <Chip
+                  size="small"
+                  color={forzarCompleto ? 'primary' : 'default'}
+                  label={forzarCompleto ? 'Modo: Cuestionario completo' : 'Modo: Rápido (estado "excelente" por defecto)'}
+                />
+                {!forzarCompleto && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    Se usará el estado &quot;excelente&quot; para calcular el precio.
+                  </Typography>
+                )}
+              </Box>
+            )}
           </>
         )}
 
         {/* Paso 2 */}
-        {activeStep === 1 && (
+        {activeStep === 1 && !saltarsePreguntas && (
           <>
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Estado estético</InputLabel>
@@ -434,21 +520,25 @@ export default function FormularioValoracionOportunidad({
 
                 {/* Columna derecha */}
                 <Box flex={1} pl={{ sm: 4 }}>
-                  <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
-                    <BrushIcon fontSize="small" sx={{ mt: '4px' }} />
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Estético:</Typography>
-                      <Typography variant="body2">{formatoBonito(estadoFisico)}</Typography>
-                    </Box>
-                  </Box>
+                  {!(esEmpresaAutonomo && !modoCompleto) && (
+                    <>
+                      <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
+                        <BrushIcon fontSize="small" sx={{ mt: '4px' }} />
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Estético:</Typography>
+                          <Typography variant="body2">{formatoBonito(estadoFisico)}</Typography>
+                        </Box>
+                      </Box>
 
-                  <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
-                    <PsychologyIcon fontSize="small" sx={{ mt: '4px' }} />
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">Funcional:</Typography>
-                      <Typography variant="body2">{formatoBonito(estadoFuncional)}</Typography>
-                    </Box>
-                  </Box>
+                      <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
+                        <PsychologyIcon fontSize="small" sx={{ mt: '4px' }} />
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Funcional:</Typography>
+                          <Typography variant="body2">{formatoBonito(estadoFuncional)}</Typography>
+                        </Box>
+                      </Box>
+                    </>
+                  )}
 
                   <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
                     <StarIcon fontSize="small" sx={{ mt: '4px' }} />
@@ -469,6 +559,11 @@ export default function FormularioValoracionOportunidad({
                           ? `${getPrecioFinal(estadoTexto, precioBase)} €`
                           : '-'}
                       </Typography>
+                      {esEmpresaAutonomo && !modoCompleto && precioBase && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Otros precios: Muy bueno {` ${getPrecioFinal('muy_bueno', precioBase)} €`}, Bueno {` ${getPrecioFinal('bueno', precioBase)} €`}
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 </Box>

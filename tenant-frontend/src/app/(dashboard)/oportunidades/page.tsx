@@ -1,21 +1,20 @@
 'use client'
 
 import {
-  Box, Typography, Paper, Chip, IconButton, CircularProgress, Select, MenuItem,Autocomplete,Divider,Snackbar,Alert,
-  OutlinedInput, Popover, TextField, Button, Grid,Dialog,DialogTitle,DialogActions,DialogContent,Stepper, Step, StepLabel
+  Box, Typography, Paper, Chip, CircularProgress, Autocomplete, Divider,
+  Popover, TextField, Button, Grid, Dialog, DialogTitle, DialogActions, DialogContent
 } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery,useMutation} from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { ESTADOS_B2B } from '@/context/estados'
 import TuneIcon from '@mui/icons-material/Tune'
 import TablaReactiva from '@/components/TablaReactiva2'
+import OportunidadForm from '@/components/OportunidadForm'
 import { columnasTenant } from '@/components/TablaColumnas2'
 import api from '@/services/api'
-import SectorStep from "@/components/formularios/Clientes/SectorStepCliente";
-import DireccionStep from "@/components/formularios/Clientes/DireccionStep";
-import FinancieroStep from "@/components/formularios/Clientes/FinancieroStepCliente";
-import ComercialStep from "@/components/formularios/Clientes/ComercialStepCliente";
+import FormularioClientes from "@/components/formularios/Clientes/FormularioClientes";
+import useUsuarioActual from "@/hooks/useUsuarioActual";
 import { useQueryClient } from '@tanstack/react-query'
 import { getIdlink } from '@/utils/id'
 import { useDebounceValue } from 'usehooks-ts'
@@ -41,23 +40,24 @@ interface Cliente {
 
 type ClienteOption = {
   id: number;
+  display_name?: string;
   razon_social?: string;
   nombre?: string;
   apellidos?: string;
   nif?: string;
   dni_nie?: string;
+  nombre_comercial?: string;
+  identificador_fiscal?: string;
+  tipo_cliente?: 'empresa' | 'autonomo' | 'particular';
 };
 export default function OportunidadesTenantPage() {
   const queryClient = useQueryClient()
   const router = useRouter()
+  const usuario = useUsuarioActual()
+  const soloEmpresas = usuario?.tenant?.solo_empresas ?? false
   const columnas = columnasTenant
-  const [modalOpen, setModalOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', type: 'success' });
-  const pasos = ['Comerciales', 'Financieros', 'Dirección', 'Sector'];
+  const [modalOpen, setModalOpen] = useState(false); // modal de nuevo cliente
   const ESTADOS_FINALIZADOS = ['pagado', 'recibido por el cliente']
-  const handleBack = () => setPasoActivo((prev) => prev - 1);
-  const [nuevo, setNuevo] = useState<Partial<Cliente>>({});
-  const [pasoActivo, setPasoActivo] = useState(0);
   const [cliente, setCliente] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
@@ -77,6 +77,7 @@ export default function OportunidadesTenantPage() {
   const queryKey = ['oportunidades-tenant', { cliente, fechaInicio, fechaFin, estado, finalizadas }]
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteOption | null>(null);
+  const [crearOportunidadOpen, setCrearOportunidadOpen] = useState(false)
   
   const { data: opcionesClientes = [], isFetching: buscandoClientes } = useQuery<ClienteOption[]>({
     queryKey: ['clientes', debouncedCliente],
@@ -93,6 +94,10 @@ export default function OportunidadesTenantPage() {
     staleTime: 30_000,
     placeholderData: (prev) => prev ?? [],
   })
+  const opcionesClientesFiltradas = useMemo(
+    () => (soloEmpresas ? opcionesClientes.filter((opt) => opt.tipo_cliente !== 'particular') : opcionesClientes),
+    [opcionesClientes, soloEmpresas]
+  )
   const { data: oportunidades = [], isLoading, refetch } = useQuery<any[]>({
     queryKey,
     queryFn: async () => {
@@ -125,30 +130,6 @@ export default function OportunidadesTenantPage() {
     setFechaFin('')
     refetch()
   }
-  function esCorreoValido(correo: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo);
-  }
-
-  function esTelefonoValido(telefono: string): boolean {
-    return /^[0-9]{9}$/.test(telefono.replace(/\s+/g, ''));
-  }
-  const validarPaso = () => {
-    if (pasoActivo === 0) {
-      if (!esCorreoValido(nuevo.correo || '') || !esTelefonoValido(nuevo.telefono || '')) {
-        setSnackbar({
-          open: true,
-          message: 'Corrige los errores en correo o teléfono',
-          type: 'error',
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-  const handleNext = () => {
-    if (!validarPaso()) return;
-    setPasoActivo((prev) => prev + 1);
-  };
   // Crear cliente con React Query Mutation
   const crearCliente = useMutation({
     mutationFn: async (nuevoCliente: Partial<Cliente>) => {
@@ -157,9 +138,21 @@ export default function OportunidadesTenantPage() {
     },
     onSuccess: (clienteCreado) => {
       setModalOpen(false);
-      setNuevo({});
       queryClient.invalidateQueries({ queryKey: ["clientes"] });
-      router.push(`/clientes/${clienteCreado.id}`);
+      // Selecciona el cliente recién creado en el diálogo y abre crear oportunidad
+      setClienteSeleccionado({
+        id: clienteCreado.id,
+        display_name: clienteCreado.display_name,
+        razon_social: clienteCreado.razon_social,
+        nombre: clienteCreado.nombre,
+        apellidos: clienteCreado.apellidos,
+        nif: clienteCreado.nif,
+        dni_nie: clienteCreado.dni_nie,
+        nombre_comercial: clienteCreado.nombre_comercial,
+        identificador_fiscal: clienteCreado.identificador_fiscal,
+        tipo_cliente: clienteCreado.tipo_cliente,
+      })
+      setCrearOportunidadOpen(true)
     },
     onError: () => {
       alert("❌ Error al crear cliente");
@@ -282,7 +275,16 @@ export default function OportunidadesTenantPage() {
           />
         </Paper>
       )}
-      <Dialog open={modalNuevoAbierto} onClose={() => setModalNuevoAbierto(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={modalNuevoAbierto}
+        disableEscapeKeyDown
+        onClose={(_, reason) => {
+          if (reason === 'backdropClick') return;
+          setModalNuevoAbierto(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Crear nueva oportunidad</DialogTitle>
         <DialogContent>
           <Box sx={{ my: 2 }}>
@@ -291,14 +293,34 @@ export default function OportunidadesTenantPage() {
               open={openBusca}
               onOpen={() => setOpenBusca(true)}
               onClose={() => setOpenBusca(false)}
-              options={opcionesClientes}
+              options={opcionesClientesFiltradas}
+              value={clienteSeleccionado}
               filterOptions={(x) => x} // no refiltrar en el cliente
               loading={buscandoClientes}
-              getOptionLabel={(o) =>
-                o.razon_social ||
-                [o.nombre, o.apellidos].filter(Boolean).join(' ') ||
-                o.nif || o.dni_nie || ''
-              }
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              getOptionLabel={(o) => {
+                const nombre =
+                  o.display_name ||
+                  o.razon_social ||
+                  [o.nombre, o.apellidos].filter(Boolean).join(' ').trim() ||
+                  o.nombre_comercial || ''
+                const fiscal = o.identificador_fiscal || o.nif || o.dni_nie || ''
+                return (nombre || fiscal || '-')
+              }}
+              renderOption={(props, option) => {
+                const label =
+                  option.display_name ||
+                  option.razon_social ||
+                  [option.nombre, option.apellidos].filter(Boolean).join(' ').trim() ||
+                  option.nombre_comercial ||
+                  option.identificador_fiscal || option.nif || option.dni_nie ||
+                  '(sin nombre)'
+                return (
+                  <li {...props} key={String(option.id)}>
+                    {label}
+                  </li>
+                )
+              }}
               onInputChange={(_, value) => setClienteBusqueda(value)}
               onChange={(_, nuevo) => setClienteSeleccionado(nuevo)}
               noOptionsText={
@@ -328,11 +350,7 @@ export default function OportunidadesTenantPage() {
           </Box>
           <Divider sx={{ my: 2 }} />
           <Box>
-            
-            <Button variant="outlined" onClick={() => {
-              setModalOpen(true)
-                // asegúrate de tener esta ruta implementada
-            }}>
+            <Button variant="outlined" onClick={() => setModalOpen(true)}>
               Crear cliente nuevo
             </Button>
           </Box>
@@ -342,58 +360,44 @@ export default function OportunidadesTenantPage() {
           <Button
             variant="contained"
             disabled={!clienteSeleccionado}
-            onClick={() => {
-              if (!clienteSeleccionado) return
-              router.push(`/clientes/${clienteSeleccionado.id}`)
-              setModalNuevoAbierto(false)
-            }}
+            onClick={() => setCrearOportunidadOpen(true)}
           >
-            Ir a la ficha del cliente
+            Crear oportunidad
           </Button>
         </DialogActions>
       </Dialog>
-            {/* Modal de creación */}
-      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Nuevo cliente</DialogTitle>
+
+      {/* Formulario unificado de clientes */}
+      <FormularioClientes
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreate={(payload) => crearCliente.mutate(payload as Partial<Cliente>)}
+        soloEmpresas={soloEmpresas}
+      />
+
+      {/* Modal para crear oportunidad tras seleccionar/crear cliente */}
+      <Dialog
+        open={crearOportunidadOpen}
+        disableEscapeKeyDown
+        onClose={(_, reason) => {
+          if (reason === 'backdropClick') return;
+          setCrearOportunidadOpen(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Crear nueva oportunidad</DialogTitle>
         <DialogContent dividers>
-          <Stepper activeStep={pasoActivo} alternativeLabel sx={{ mb: 3 }}>
-            {pasos.map((label) => (
-              <Step key={label}><StepLabel>{label}</StepLabel></Step>
-            ))}
-          </Stepper>
-
-          {pasoActivo === 0 && <ComercialStep nuevo={nuevo} setNuevo={setNuevo} />}
-          {pasoActivo === 1 && <FinancieroStep nuevo={nuevo} setNuevo={setNuevo} />}
-          {pasoActivo === 2 && <DireccionStep nuevo={nuevo} setNuevo={setNuevo} />}
-          {pasoActivo === 3 && <SectorStep nuevo={nuevo} setNuevo={setNuevo} />}
-        </DialogContent>
-
-        <DialogActions>
-          {pasoActivo > 0 && (
-            <Button onClick={handleBack}>Anterior</Button>
-          )}
-          {pasoActivo < pasos.length - 1 ? (
-            <Button variant="contained" onClick={handleNext}>Siguiente</Button>
+          {clienteSeleccionado ? (
+            <OportunidadForm
+              clienteId={clienteSeleccionado.id}
+              onClose={() => setCrearOportunidadOpen(false)}
+            />
           ) : (
-            <Button variant="contained" onClick={() => crearCliente.mutate(nuevo)}>Crear</Button>
+            <Typography variant="body2">Selecciona un cliente para continuar.</Typography>
           )}
-        </DialogActions>
+        </DialogContent>
       </Dialog>
-      <Snackbar
-  open={snackbar.open}
-  onClose={() => setSnackbar({ ...snackbar, open: false })}
-  autoHideDuration={4000}
-  anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
->
-  <Alert
-    onClose={() => setSnackbar({ ...snackbar, open: false })}
-    severity={snackbar.type === 'error' ? 'error' : 'success'}
-    variant="filled"
-    sx={{ width: '100%' }}
-  >
-    {snackbar.message}
-  </Alert>
-</Snackbar>
     </Box>
   )
 }

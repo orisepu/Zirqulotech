@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import api from "@/services/api"
 import {
   Box,
@@ -20,7 +20,7 @@ import {
   Button
 } from "@mui/material"
 import SaveIcon from "@mui/icons-material/Save"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 type Usuario = {
@@ -37,7 +37,13 @@ type Tienda = { id: number; nombre: string }
 
 export default function UsuariosTenantPage() {
   const params = useParams<{ id: string }>()
-  const schema = params?.id || undefined
+  const searchParams = useSearchParams()
+  const rawSchema = searchParams?.get("schema") || ""
+  const schema = useMemo(() => {
+    const trimmed = rawSchema?.trim()
+    if (trimmed) return trimmed
+    return params?.id || undefined
+  }, [rawSchema, params?.id])
   const qc = useQueryClient()
 
   const [contrasenas, setContrasenas] = useState<Record<number, string>>({})

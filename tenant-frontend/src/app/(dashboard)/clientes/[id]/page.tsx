@@ -1,33 +1,10 @@
 "use client";
 
-import {
-  Box,
-  Typography,
-  Paper,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
-  Step,
-  Grid,
-  Divider,
-  Stepper,
-  StepLabel,
-  Card,CardActions,
-  CardContent,
-  CardHeader,
-} from "@mui/material";
+import {Box,Typography,Grid} from "@mui/material";
 import { useParams } from "next/navigation";
-import CloseIcon from "@mui/icons-material/Close";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/services/api";
-import OportunidadForm from "@/components/OportunidadForm";
 import FichaCliente from "@/components/clientes/FichaCliente";
 import OportunidadesCard from "@/components/clientes/OportunidadesCard";
 import ComentariosCard from "@/components/clientes/ComentariosCard";
@@ -152,8 +129,8 @@ export default function ClienteDetallePage() {
         initial={clienteEditado}
         onClose={() => setAbrirEditarCliente(false)}
         onSave={async (payload) => {
-          // Usa tu mutación (puedes devolver la promesa para que el dialogo gestione loading/snackbar)
-          return guardarCambiosClienteMutation.mutateAsync(payload);
+          // Espera a que termine y no devuelvas valor (Promise<void>)
+          await guardarCambiosClienteMutation.mutateAsync(payload);
         }}
       />
     </Box>

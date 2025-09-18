@@ -123,10 +123,10 @@ export type DashboardManagerResponse = {
   comparativa?: { actual: number; anterior: number | null; variacion_pct: number | null }
   rankings: {
     productos: { nombre: string; valor: number }[]
-    tiendas_por_valor: { tienda_id: number; tienda: string; valor: number }[]
-    usuarios_por_valor: { usuario_id: number; usuario: string; valor: number }[]
-    tiendas_por_operaciones: { tienda_id: number; tienda: string; ops: number }[]
-    usuarios_por_operaciones: { usuario_id: number; usuario: string; ops: number }[]
+    tiendas_por_valor: { tienda_id: number; tienda?: string | null; nombre?: string | null; valor: number }[]
+    usuarios_por_valor: { usuario_id: number; usuario?: string | null; nombre?: string | null; valor: number }[]
+    tiendas_por_operaciones: { tienda_id: number; tienda?: string | null; nombre?: string | null; ops: number }[]
+    usuarios_por_operaciones: { usuario_id: number; usuario?: string | null; nombre?: string | null; ops: number }[]
   }
   pipeline: {
     abiertas: number
@@ -155,5 +155,19 @@ export async function fetchDashboardManager(params: {
   tenant?: string
 }): Promise<DashboardManagerResponse> {
   const { data } = await api.get('api/dashboard/manager/', { params })
+  return data
+}
+
+// Variante para Admin: mismo shape pero endpoint dedicado
+export async function fetchDashboardAdmin(params: {
+  fecha_inicio: string
+  fecha_fin: string
+  granularidad?: 'dia' | 'semana' | 'mes'
+  tienda_id?: number | string
+  usuario_id?: number | string
+  comparar?: boolean
+  tenant?: string
+}): Promise<DashboardManagerResponse> {
+  const { data } = await api.get('api/dashboard/admin/', { params })
   return data
 }

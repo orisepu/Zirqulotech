@@ -41,7 +41,7 @@ export default function AuditoriaDispositivosPage() {
   });
 
   const estadoOportunidad = data?.estado || null;
-
+  const Modelo_id = data?.dispositivos.id || null;
   useEffect(() => {
     if (data?.dispositivos) {
       const ordenados = [...data.dispositivos].sort((a: any, b: any) => a.id - b.id);
@@ -126,6 +126,7 @@ export default function AuditoriaDispositivosPage() {
     refetch();
   };
 
+ 
   // Columnas de la tabla (mostramos datos + acción Auditar)
   const { columnas, zoom } = useMemo(() =>
     getColumnasAuditoria({
@@ -140,7 +141,7 @@ export default function AuditoriaDispositivosPage() {
       formTemporal: {},
       setFormTemporal: () => {}
     }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   [filaEditando, dispositivosEditables]);
 
   const columnasConAccion = useMemo(() => {
@@ -254,15 +255,30 @@ export default function AuditoriaDispositivosPage() {
         />
       )}
 
-      <FormularioAuditoriaDispositivo
-        open={openForm}
-        dispositivo={actualIndex >= 0 ? dispositivosEditables[actualIndex] : null}
+      {(() => {
+        const current: any = actualIndex >= 0 ? dispositivosEditables[actualIndex] : null
+        const num = (v: any) => (typeof v === 'number' && Number.isFinite(v)) ? v : (typeof v === 'string' && v.trim() && !Number.isNaN(Number(v)) ? Number(v) : null)
+        const modeloId = Modelo_id
+        const capacidadId = current ? (
+          num(current.capacidad_id) ?? num(current.cap_id) ?? num(current?.capacidad?.id) ?? num(current?.capacidadId) ?? num(current?.id_capacidad)
+        ) : null
+        console.log({ modeloId, capacidadId, current })
+        return (
+          <FormularioAuditoriaDispositivo
+            open={openForm}
+            dispositivo={current}
+            modeloId={modeloId ?? undefined}
+            capacidadId={capacidadId ?? undefined}
+            tenant={tenant || undefined}
+            canal={'B2B'}
         onClose={cerrarFormulario}
         onSubmit={onSubmitForm}
         titulo={`Auditar dispositivo ${actualIndex + 1} / ${dispositivosEditables.length}`}
           
         isLaptop={false}               // <-- según el tipo de equipo
-      />
+          />
+        )
+      })()}
 
       <Snackbar
         open={snackbar.open}

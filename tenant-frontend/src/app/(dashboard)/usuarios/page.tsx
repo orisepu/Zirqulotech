@@ -28,6 +28,7 @@ import {
   Switch,
 } from "@mui/material";
 import api from "@/services/api";
+import ValidatingTextField from "@/components/inputs/ValidatingTextField";
 type UsuarioAPI = {
   id: number;
   name: string;
@@ -51,6 +52,7 @@ export default function GestionarUsuariosPage() {
     tienda_id: number | "";
     password: string;
   }>({ name: "", email: "", rol: "empleado", tienda_id: "", password: "" });
+  const [emailValido, setEmailValido] = useState(true);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: "success" | "error" }>({
     open: false,
@@ -80,8 +82,9 @@ export default function GestionarUsuariosPage() {
     mutationFn: ({ userId, tiendaId }: { userId: number; tiendaId: number }) =>
       api.patch(`/api/usuarios-tenant/${userId}/`, { tienda_id: tiendaId }),
     onSuccess: (_, { userId, tiendaId }) => {
+      // Actualiza el campo que usa la UI
       queryClient.setQueryData<any[]>(["usuarios"], (prev = []) =>
-        prev.map((u) => (u.id === userId ? { ...u, tienda_id: tiendaId } : u))
+        prev.map((u) => (u.id === userId ? { ...u, tienda_id_lectura: tiendaId } : u))
       );
     },
   });
@@ -105,8 +108,9 @@ export default function GestionarUsuariosPage() {
     mutationFn: ({ userId, rol }: { userId: number; rol: string }) =>
       api.patch(`/api/usuarios-tenant/${userId}/`, { rol }),
     onSuccess: (_, { userId, rol }) => {
+      // Actualiza el campo que usa la UI
       queryClient.setQueryData<any[]>(["usuarios"], (prev = []) =>
-        prev.map((u) => (u.id === userId ? { ...u, rol } : u))
+        prev.map((u) => (u.id === userId ? { ...u, rol_lectura: rol } : u))
       );
     },
   });
@@ -128,6 +132,7 @@ export default function GestionarUsuariosPage() {
       setSnackbar({ open: true, message: "Usuario creado correctamente", severity: "success" });
       setCrearOpen(false);
       setNuevo({ name: "", email: "", rol: "empleado", tienda_id: "", password: "" });
+      setEmailValido(true);
       queryClient.invalidateQueries({ queryKey: ["usuarios"] });
     },
     onError: (error: any) => {
@@ -203,7 +208,7 @@ export default function GestionarUsuariosPage() {
                 <TableCell>{usuario.email}</TableCell>
                 <TableCell>
                   <Select
-                    value={usuario.  tienda_id_lectura || ""}
+                    value={usuario.tienda_id_lectura || ""}
                     onChange={(e) =>
                       handleTiendaChange(usuario.id, e.target.value as number)
                     }
@@ -276,12 +281,16 @@ export default function GestionarUsuariosPage() {
             onChange={(e) => setNuevo({ ...nuevo, name: e.target.value })}
             fullWidth
           />
-          <TextField
+          <ValidatingTextField
             label="Email"
             value={nuevo.email}
             onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
+            kind="email"
             type="email"
+            required
             fullWidth
+            validateOnChange
+            onValidChange={(isValid) => setEmailValido(isValid)}
           />
 
           <FormControl fullWidth size="small">
@@ -297,8 +306,10 @@ export default function GestionarUsuariosPage() {
             </Select>
           </FormControl>
 
-          <FormControl fullWidth size="small">
-            <InputLabel id="nuevo-tienda">Tienda</InputLabel>
+          <FormControl fullWidth size="small" variant="outlined">
+            <InputLabel id="nuevo-tienda" shrink>
+              Tienda
+            </InputLabel>
             <Select
               labelId="nuevo-tienda"
               label="Tienda"
@@ -339,7 +350,7 @@ export default function GestionarUsuariosPage() {
           <Button
             onClick={() => crearUsuario.mutate()}
             variant="contained"
-            disabled={!nuevo.name || !nuevo.email || !nuevo.password}
+            disabled={!nuevo.name || !nuevo.email || !nuevo.password || !emailValido}
           >
             Crear
           </Button>

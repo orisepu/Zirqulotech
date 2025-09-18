@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -15,9 +15,47 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import CameraAltIcon from '@mui/icons-material/CameraAlt'
+import Image from 'next/image'
 
-// Carga diferida de face-api (evita SSR/webpack)
-let faceapi: any | null = null
+// Carga diferida de face-api evitando que Webpack analice el paquete
+// Usamos script CDN en runtime para eliminar el warning de dependencia crítica
+type FaceApiNamespace = {
+  nets: { tinyFaceDetector: { loadFromUri: (path: string) => Promise<void> } }
+  TinyFaceDetectorOptions: new (opts: { inputSize?: number; scoreThreshold?: number }) => unknown
+  detectAllFaces: (input: HTMLCanvasElement, options?: unknown) => Promise<unknown[]>
+}
+type FaceApiTF = { setBackend: (backend: string) => Promise<void> | void; ready: () => Promise<void> }
+
+let faceapi: FaceApiNamespace | null = null
+
+async function loadFaceApiFromCDN(): Promise<FaceApiNamespace | null> {
+  if (typeof window === 'undefined') return null
+  const w = window as Window & { faceapi?: FaceApiNamespace }
+  if (w.faceapi) return w.faceapi
+  const url = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js'
+  await new Promise<void>((resolve, reject) => {
+    // Evitar insertar múltiples veces
+    type ExtScript = HTMLScriptElement & { _loaded?: boolean }
+    const existing = document.querySelector(`script[src="${url}"]`) as ExtScript | null
+    if (existing && existing._loaded) return resolve()
+    const s: ExtScript = (existing || document.createElement('script')) as ExtScript
+    s.src = url
+    s.async = true
+    s.crossOrigin = 'anonymous'
+    s._loaded = false
+    s.onload = () => { s._loaded = true; resolve() }
+    s.onerror = () => reject(new Error('No se pudo cargar face-api desde CDN'))
+    if (!existing) document.head.appendChild(s)
+  })
+  const fa = w.faceapi
+  if (!fa) throw new Error('face-api no disponible tras carga')
+  const tf = (fa as unknown as { tf?: FaceApiTF }).tf
+  if (tf) {
+    try { await tf.setBackend('webgl') } catch {}
+    await tf.ready()
+  }
+  return fa
+}
 
 export type CaptureMetrics = {
   trigger: 'auto' | 'manual'
@@ -293,21 +331,26 @@ export default function CameraDNI({
     const sh = clamp(iH * scaleY, 8, vh - sy)
     return { sx, sy, sw, sh }
   }
+  
+  // Captura de imagen (colocar antes de efectos que lo referencian)
+  // (definido previamente)
 
   // Carga de modelos de cara solo si lado=anverso
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        if (lado !== 'anverso') {
-          setFaceReady(false); return
-        }
-        if (!faceapi) {
-          faceapi = await import('@vladmandic/face-api')
-          try { await faceapi.tf.setBackend('webgl') } catch {}
-          await faceapi.tf.ready()
-        }
-        await faceapi.nets.tinyFaceDetector.loadFromUri(faceModelsPath)
+    if (lado !== 'anverso') {
+      setFaceReady(false); return
+    }
+    // Carga perezosa y estrecha tipo localmente
+    let faLocal = faceapi
+    if (!faLocal) {
+      faLocal = await loadFaceApiFromCDN()
+      faceapi = faLocal
+    }
+    if (!faLocal) throw new Error('face-api no disponible')
+    await faLocal.nets.tinyFaceDetector.loadFromUri(faceModelsPath)
         if (!cancelled) {
           setFaceReady(true)
           setHints((prev) => ['✅ Modelos cargados', ...prev])
@@ -351,9 +394,12 @@ export default function CameraDNI({
         streamRef.current = stream
         if (requestTorch) {
           const track = stream.getVideoTracks()[0]
-          const caps = (track.getCapabilities?.() ?? {}) as any
+          const caps = (track.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean }
           if (caps.torch) {
-            try { await track.applyConstraints({ advanced: [{ torch: true }] } as any) } catch {}
+            try {
+              const constraints: unknown = { advanced: [{ torch: true }] }
+              await track.applyConstraints(constraints as MediaTrackConstraints)
+            } catch {}
           }
         }
         if (videoRef.current) {
@@ -390,6 +436,64 @@ export default function CameraDNI({
     setHints([])
     setBorderColor('rgba(255,255,255,0.9)')
   }, [lado])
+
+  // Captura de imagen (definir antes del bucle que lo usa)
+  const handleCapture = useCallback(async (isAuto = false) => {
+    const v = videoRef.current
+    if (!v) return
+
+    // Bloqueo manual coherente por lado
+    if (!isAuto && enforceSideOnManual && lado) {
+      if (lado === 'reverso') {
+        const ok = lastMetricsRef.current.side === 'reverso'
+        if (!ok) {
+          setBorderColor('#ef4444')
+          setHints(['REVERSO requerido: no se aprecian líneas MRZ suficientes.'])
+          return
+        }
+      } else {
+        const ok = lastMetricsRef.current.side === 'anverso'
+        if (!ok) {
+          setBorderColor('#ef4444')
+          setHints(['ANVERSO requerido: no detectamos la cara.'])
+          return
+        }
+      }
+    }
+
+    // ROI actual
+    const roi = computeRoiOnVideo(v, frameRef.current)
+    const sx = roi?.sx ?? v.videoWidth * 0.05
+    const sy = roi?.sy ?? v.videoHeight * 0.05
+    const sw = roi?.sw ?? v.videoWidth * 0.9
+    const sh = roi?.sh ?? v.videoHeight * 0.9
+
+    const scale = Math.min(1, maxOutputSide / Math.max(sw, sh))
+    const outW = Math.round(sw * scale), outH = Math.round(sh * scale)
+
+    const outCanvas = document.createElement('canvas')
+    outCanvas.width = outW; outCanvas.height = outH
+    const octx = outCanvas.getContext('2d')!
+    octx.drawImage(v, sx, sy, sw, sh, 0, 0, outW, outH)
+
+    if (onAutoMetrics) {
+      onAutoMetrics({
+        ...lastMetricsRef.current,
+        trigger: isAuto ? 'auto' : 'manual',
+        timestamp: Date.now(),
+      })
+    }
+
+    outCanvas.toBlob((blob) => {
+      if (!blob) return
+      const file = new File([blob], `dni_${lado || 'captura'}.jpg`, { type: 'image/jpeg' })
+      // Vista previa interna
+      try { if (previewUrl) URL.revokeObjectURL(previewUrl) } catch {}
+      const url = URL.createObjectURL(blob)
+      setPreviewUrl(url)
+      onCapture(file)
+    }, 'image/jpeg', jpegQuality)
+  }, [enforceSideOnManual, lado, maxOutputSide, onAutoMetrics, jpegQuality, onCapture, previewUrl])
 
   // Bucle de análisis (throttled)
   useEffect(() => {
@@ -502,7 +606,7 @@ export default function CameraDNI({
           let facePresent = false
           if (faceReady && faceapi) {
             try {
-              const opts = new (faceapi as any).TinyFaceDetectorOptions({
+              const opts = new faceapi.TinyFaceDetectorOptions({
                 inputSize: faceInputSize,
                 scoreThreshold: faceScoreThreshold,
               })
@@ -604,64 +708,11 @@ export default function CameraDNI({
     movementThreshold, warmupMs,
     mrzDarkBandRatio, mrzEdgeRatio, mrzWindow, mrzAvgThreshold, mrzBottomBandEdgeThreshold,
     faceReady, faceWindow, facePresenceThreshold, faceScoreThreshold, faceInputSize,
+    onSideDetected,
+    handleCapture,
   ])
 
-  async function handleCapture(isAuto = false) {
-    const v = videoRef.current
-    if (!v) return
-
-    // Bloqueo manual coherente por lado
-    if (!isAuto && enforceSideOnManual && lado) {
-      if (lado === 'reverso') {
-        const ok = lastMetricsRef.current.side === 'reverso'
-        if (!ok) {
-          setBorderColor('#ef4444')
-          setHints(['REVERSO requerido: no se aprecian líneas MRZ suficientes.'])
-          return
-        }
-      } else {
-        const ok = lastMetricsRef.current.side === 'anverso'
-        if (!ok) {
-          setBorderColor('#ef4444')
-          setHints(['ANVERSO requerido: no detectamos la cara.'])
-          return
-        }
-      }
-    }
-
-    // ROI actual
-    const roi = computeRoiOnVideo(v, frameRef.current)
-    const sx = roi?.sx ?? v.videoWidth * 0.05
-    const sy = roi?.sy ?? v.videoHeight * 0.05
-    const sw = roi?.sw ?? v.videoWidth * 0.9
-    const sh = roi?.sh ?? v.videoHeight * 0.9
-
-    const scale = Math.min(1, maxOutputSide / Math.max(sw, sh))
-    const outW = Math.round(sw * scale), outH = Math.round(sh * scale)
-
-    const outCanvas = document.createElement('canvas')
-    outCanvas.width = outW; outCanvas.height = outH
-    const octx = outCanvas.getContext('2d')!
-    octx.drawImage(v, sx, sy, sw, sh, 0, 0, outW, outH)
-
-    if (onAutoMetrics) {
-      onAutoMetrics({
-        ...lastMetricsRef.current,
-        trigger: isAuto ? 'auto' : 'manual',
-        timestamp: Date.now(),
-      })
-    }
-
-    outCanvas.toBlob((blob) => {
-      if (!blob) return
-      const file = new File([blob], `dni_${lado || 'captura'}.jpg`, { type: 'image/jpeg' })
-      // Vista previa interna
-      try { if (previewUrl) URL.revokeObjectURL(previewUrl) } catch {}
-      const url = URL.createObjectURL(blob)
-      setPreviewUrl(url)
-      onCapture(file)
-    }, 'image/jpeg', jpegQuality)
-  }
+  // handleCapture definido antes
 
   return (
     <Dialog fullScreen open={open} onClose={onClose}>
@@ -809,9 +860,12 @@ export default function CameraDNI({
                     bgcolor: 'black',
                   }}
                 >
-                  <img
+                  <Image
                     src={previewUrl}
                     alt="Captura DNI"
+                    width={96}
+                    height={96}
+                    unoptimized
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </Box>

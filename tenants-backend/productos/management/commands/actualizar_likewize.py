@@ -154,6 +154,7 @@ def save_cazado_result(
     total_likewize: int,
     matches: List[Dict],
     no_cazados_bd: List[Dict],
+    no_cazados_likewize: List[Dict] | None = None,
     status: Optional[str] = None,
     meta: Optional[Dict] = None,
 ):
@@ -171,6 +172,7 @@ def save_cazado_result(
             "total_likewize": int(total_likewize or 0),
             "matches": matches or [],
             "no_cazados_bd": no_cazados_bd or [],
+            "no_cazados_likewize": no_cazados_likewize or [],
             "meta": meta or {},
         },
     )
@@ -811,13 +813,23 @@ def resolver_capacidad_id(
 
     # Mac genérico ---------------------------------------
     if fam in {"MacBook Pro", "MacBook Air", "iMac", "iMac Pro", "Mac mini", "Mac Studio", "Mac Pro"}:
-        qs = Modelo.objects.filter(tipo=fam)
-        want_cores = _cpu_cores_from_text_cpu_only(modelo_norm)
-        if want_cores:
-            qs = soft_filter(qs, Q(**{f"{REL_NAME}__iregex": rf"\b{want_cores}\s*-?\s*core\b"}))
+        # Ampliar tipos candidatos: hay instalaciones donde algunos "iMac Pro"/"Mac mini" están tipados como "Mac"
+        type_candidates = {
+            "MacBook Pro": ["MacBook Pro"],
+            "MacBook Air": ["MacBook Air"],
+            "iMac": ["iMac", "Mac"],
+            "iMac Pro": ["iMac Pro", "iMac", "Mac"],
+            "Mac mini": ["Mac mini", "Mac"],
+            "Mac Studio": ["Mac Studio", "Mac"],
+            "Mac Pro": ["Mac Pro", "Mac"],
+        }.get(fam, [fam])
+        qs = Modelo.objects.filter(tipo__in=type_candidates)
         def soft_filter(qs0, qexpr):
             qs1 = qs0.filter(qexpr)
             return qs1 if qs1.exists() else qs0
+        want_cores = _cpu_cores_from_text_cpu_only(modelo_norm)
+        if want_cores:
+            qs = soft_filter(qs, Q(**{f"{REL_NAME}__iregex": rf"\b{want_cores}\s*-?\s*core\b"}))
 
         # Caso Mac mini 2023 A2686/A2816 (Likewize mezcla)
         if fam == "Mac mini" and (anio == 2023 or anio is None):
@@ -831,10 +843,14 @@ def resolver_capacidad_id(
         if a_number:
             qs = soft_filter(qs, Q(**{f"{REL_NAME}__icontains": a_number}))
 
-        if pulgadas and fam in {"MacBook Pro", "MacBook Air", "iMac"}:
+        if pulgadas and fam in {"MacBook Pro", "MacBook Air", "iMac", "iMac Pro"}:
             ptxt = _fmt_pulgadas(int(pulgadas))
             q_p = Q(pantalla__iexact=ptxt) | Q(**{f"{REL_NAME}__icontains": f"{pulgadas} pulgadas"})
             qs = soft_filter(qs, q_p)
+
+        # Refuerzo: iMac Pro casi siempre es Xeon W — ayuda si el raw no lo trae
+        if fam == "iMac Pro" and not cpu:
+            cpu = "Xeon W"
 
         if cpu:
             q_cpu = Q(procesador__icontains=cpu) | Q(**{f"{REL_NAME}__icontains": cpu})
@@ -860,13 +876,14 @@ def resolver_capacidad_id(
             if gpu_cores and re.search(rf"\b{gpu_cores}\s*core\s*gpu\b", d, re.I):
                 s += 4
 
-            # gating por núcleos CPU
+            # Núcleos CPU: preferir coincidencia exacta, pero NO bloquear
             want_cpu_cores = _cpu_cores_from_text_cpu_only(src_text or "")
             have_cpu_cores = _cpu_cores_from_text_cpu_only(d)
-            if want_cpu_cores and have_cpu_cores and want_cpu_cores != have_cpu_cores:
-                return -999
-            if want_cpu_cores and have_cpu_cores and want_cpu_cores == have_cpu_cores:
-                s += 6
+            if want_cpu_cores and have_cpu_cores:
+                if want_cpu_cores == have_cpu_cores:
+                    s += 6
+                else:
+                    s -= 6  # penaliza, pero permite elegir si otras señales (A-number, pulgadas, año) son fuertes
 
             if pulgadas and (
                 (_fmt_pulgadas(int(pulgadas)) or "").lower() == (getattr(m, "pantalla", "") or "").lower()
@@ -882,15 +899,17 @@ def resolver_capacidad_id(
         modelos.sort(
             key=lambda m: (mac_score(m, src_text=modelo_norm), len(getattr(m, REL_NAME, "") or "")),
             reverse=True
-        )        
-        modelo = modelos[0]
-
-        qcap = Q(**{f"{REL_FIELD}_id": modelo.id})
+        )
+        # Probar varios candidatos hasta encontrar una capacidad disponible
         qsize = Q()
         for s in _patterns_for_capacity(int(almacenamiento_gb)):
             qsize |= Q(**{f"{GB_FIELD}__icontains": s})
-        cap = CapacidadModel.objects.filter(qcap & qsize).values_list("id", flat=True).first()
-        return cap
+        for modelo in modelos[:20]:
+            qcap = Q(**{f"{REL_FIELD}_id": modelo.id})
+            cap = CapacidadModel.objects.filter(qcap & qsize).values_list("id", flat=True).first()
+            if cap:
+                return cap
+        return None
 
 # ==========================
 # Likewize
@@ -1268,14 +1287,29 @@ class Command(BaseCommand):
                 })
 
             # ======== Guardar resumen de cazado para el endpoint ========
+            # Cargar también los NO CAZADOS de Likewize (staging sin capacidad_id)
+            lw_no_cazados_rows = list(
+                LikewizeItemStaging.objects
+                .filter(tarea=tarea, capacidad_id__isnull=True)
+                .values("modelo_raw")
+            )
+            no_cazados_likewize = [
+                {"likewize_nombre": r.get("modelo_raw") or ""}
+                for r in lw_no_cazados_rows
+            ]
+
+            # Total normalizado = filas en staging (tras unique_together)
+            total_norm = LikewizeItemStaging.objects.filter(tarea=tarea).count()
+
             save_cazado_result(
                 tarea_uuid=str(tarea.id),
-                total_likewize=len(modelos_totales),
+                total_likewize=total_norm,
                 matches=matches,
                 no_cazados_bd=no_cazados_bd,
+                no_cazados_likewize=no_cazados_likewize,
                 status="done",
                 meta={
-                    "staging_rows": len(modelos_totales),
+                    "staging_rows": total_norm,
                     "no_mapeados": no_mapeados,
                     "tarea_id": str(tarea.id),
                 },

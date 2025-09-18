@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'react-toastify'
 import { useParams } from 'next/navigation'
-import { useQuery, useQueryClient,keepPreviousData } from '@tanstack/react-query'
-import { DialogTitle, DialogContent, DialogActions, Button, Tooltip, Chip, Stack, IconButton, Typography } from '@mui/material'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { DialogTitle, DialogContent, DialogActions, Button, Tooltip, Chip, Stack, IconButton, Typography, Alert } from '@mui/material'
 import api from '@/services/api'
 import { getPrecioFinal, formatoBonito } from '@/context/precios'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -34,24 +35,58 @@ import BrushIcon from '@mui/icons-material/Brush'
 import DevicesIcon from '@mui/icons-material/Devices'
 import EuroIcon from '@mui/icons-material/Euro'
 
+type ModelOpt = { id: number | string; tipo?: string; descripcion: string }
+type ModeloObj = ModelOpt
+type CapOpt = { id: number | string }
+type ItemDraft = {
+  id?: number | string
+  modelo?: ModelOpt
+  capacidad?: CapOpt
+  cantidad?: number
+  tipo?: string
+  salud_bateria_pct?: number
+  ciclos_bateria?: number
+  funcionalidad_basica?: 'ok' | 'parcial' | ''
+  pantalla_funcional_puntos_bril?: boolean
+  pantalla_funcional_pixeles_muertos?: boolean
+  pantalla_funcional_lineas_quemaduras?: boolean
+  estado_pantalla?: EsteticaKey
+  estado_lados?: EsteticaKey
+  estado_espalda?: EsteticaKey
+}
+
+type DebugDecision = {
+  modo: 'completo' | 'rapido'
+  fuente: string
+  razones: string[]
+  dispositivoId?: number | string
+  dispositivoDescripcion?: string
+}
+
+type OportunidadLigera = {
+  cliente?: { canal?: string | null; tipo_cliente?: string | null }
+  dispositivos?: any[]
+}
+
 interface Props {
   oportunidadId: number
   oportunidadUuid?: string
+  oportunidad?: OportunidadLigera | null
   onClose: () => void
   onSuccess: () => void
-  item?: any
+  item?: ItemDraft
 }
 
 export default function FormularioValoracionOportunidad({
-  item, onClose, onSuccess, oportunidadId, oportunidadUuid,
+  item, onClose, onSuccess, oportunidadId, oportunidadUuid, oportunidad,
 }: Props) {
   const [activeStep, setActiveStep] = useState<number>(0)
   const [tipo, setTipo] = useState<string>('')
   const [precioBase, setPrecioBase] = useState<number | null>(null)
   const [cantidad, setCantidad] = useState<number | string>(1)
-  const [modelo, setModelo] = useState<any>('')
-  const [capacidad, setCapacidad] = useState<any>('')
-  const [modeloInicial, setModeloInicial] = useState<any | null>(null)
+  const [modelo, setModelo] = useState<number | string>('')
+  const [capacidad, setCapacidad] = useState<number | string>('')
+  const [modeloInicial, setModeloInicial] = useState<ModelOpt | null>(null)
 
   const [saludBateria, setSaludBateria] = useState<number | ''>('') // 0–100
   const [ciclosBateria, setCiclosBateria] = useState<number | ''>('') // opcional
@@ -66,19 +101,138 @@ export default function FormularioValoracionOportunidad({
 
   const [demoOpen, setDemoOpen] = useState(false)
   const [demo, setDemo] = useState<{ src: string; title: string } | null>(null)
+  const [debugDecision, setDebugDecision] = useState<DebugDecision | null>(null)
 
   const { tenant } = useParams()
   const queryClient = useQueryClient()
 
   const oppKey = String(oportunidadUuid ?? oportunidadId)
-  const oppCache: any =
-    queryClient.getQueryData(['oportunidad', oppKey]) ??
-    queryClient.getQueryData(['oportunidad', String(oportunidadId)])
+  type OppCache = { cliente?: { canal?: string; tipo_cliente?: string }; dispositivos?: any[] }
+  const oppCache = (oportunidad ??
+    (queryClient.getQueryData(['oportunidad', oppKey]) as OppCache | undefined) ??
+    (queryClient.getQueryData(['oportunidad', String(oportunidadId)]) as OppCache | undefined)
+  )
+  const dispositivosExistentes: any[] | undefined = useMemo(() => {
+    if (Array.isArray(oportunidad?.dispositivos)) return oportunidad!.dispositivos!
+    if (Array.isArray((oppCache as any)?.dispositivos)) return (oppCache as any).dispositivos as any[]
+    return undefined
+  }, [oportunidad?.dispositivos, oppCache])
+  const prevDispositivosCountRef = useRef<number>(dispositivosExistentes?.length ?? 0)
 
   const canalRaw = (oppCache?.cliente?.canal ?? '').toString().toUpperCase()
-  const tipoCliente = canalRaw === 'B2B' || canalRaw === 'B2C'
-    ? canalRaw
-    : (oppCache?.cliente?.tipo_cliente ?? '').toString().toLowerCase() === 'empresa' ? 'B2B' : 'B2C'
+  const tipoClienteRaw = (oppCache?.cliente?.tipo_cliente ?? '').toString().toLowerCase()
+  const canalInferido = tipoClienteRaw === 'particular' ? 'B2C' : 'B2B'
+  const tipoCliente = (canalRaw === 'B2B' || canalRaw === 'B2C') ? canalRaw : canalInferido
+  const esEmpresaAutonomo = tipoClienteRaw === 'empresa' || tipoClienteRaw === 'autonomo' || tipoCliente === 'B2B'
+  const esEmpresaB2B = tipoClienteRaw === 'empresa'
+
+  const oppCfgKey = ['oportunidad-config', String(oppKey)]
+  const cfg = queryClient.getQueryData(oppCfgKey) as { modo?: 'completo' | 'rapido' } | undefined
+  const cfgModo = cfg?.modo
+
+  // Configuración por oportunidad: cuestionario completo
+  const [forzarCompleto, setForzarCompleto] = useState<boolean>(() => {
+    if (esEmpresaB2B) return false
+    if (!esEmpresaAutonomo) return true
+    if (cfgModo === 'completo') return true
+    if (cfgModo === 'rapido') return false
+    return false
+  })
+  // null => no elegido aún (solo aplica para B2B). Para B2C: siempre completo => true
+  const [cfgElegida, setCfgElegida] = useState<boolean | null>(() => {
+    if (esEmpresaB2B) return false
+    if (!esEmpresaAutonomo) return true
+    if (cfgModo === 'completo') return true
+    if (cfgModo === 'rapido') return false
+    return null
+  })
+  const saltarsePreguntas = esEmpresaAutonomo && !forzarCompleto
+  const modoCompleto = !saltarsePreguntas
+
+  const analizarDispositivo = useCallback((disp: any): { modo: 'completo' | 'rapido'; razones: string[] } => {
+    const razonesRapido: string[] = []
+    const razonesCompleto: string[] = []
+
+    if (!disp || typeof disp !== 'object') {
+      return { modo: 'rapido', razones: ['Sin datos del dispositivo; se asume cuestionario rápido.'] }
+    }
+
+    const precios = disp?.precios_por_estado ?? disp?.precio_por_estado
+    if (precios && typeof precios === 'object') {
+      const valores = Object.values(precios as Record<string, unknown>).filter((v) => v !== null && v !== undefined)
+      if (valores.length > 0) razonesRapido.push('La API devuelve precios por estado (excelente / muy bueno / bueno).')
+    }
+    const cantidadNum = Number((disp as Record<string, unknown>)?.cantidad)
+    if (Number.isFinite(cantidadNum) && cantidadNum > 1) razonesRapido.push(`Cantidad declarada mayor a 1 (x${cantidadNum}).`)
+
+    const salud = disp?.salud_bateria_pct
+    const ciclos = disp?.ciclos_bateria
+    const funcBas = disp?.funcionalidad_basica
+    const pantallaIssues = [
+      disp?.pantalla_funcional_puntos_bril,
+      disp?.pantalla_funcional_pixeles_muertos,
+      disp?.pantalla_funcional_lineas_quemaduras,
+    ]
+    const estetica = [disp?.estado_pantalla, disp?.estado_lados, disp?.estado_espalda]
+
+    if (typeof salud === 'number') razonesCompleto.push(`Salud de batería informada (${salud}%).`)
+    if (typeof ciclos === 'number') razonesCompleto.push(`Ciclos de batería informados (${ciclos}).`)
+    if (funcBas && funcBas !== '' && funcBas !== 'ok') razonesCompleto.push(`Funcionalidad básica marcada como "${funcBas}".`)
+    if (pantallaIssues[0] === true) razonesCompleto.push('Pantalla con puntos de brillo.')
+    if (pantallaIssues[1] === true) razonesCompleto.push('Pantalla con píxeles muertos.')
+    if (pantallaIssues[2] === true) razonesCompleto.push('Pantalla con líneas/quemaduras.')
+    const partesEstetica = ['pantalla', 'laterales', 'espalda']
+    estetica.forEach((val, idx) => {
+      if (val && val !== 'sin_signos') {
+        razonesCompleto.push(`Estética ${partesEstetica[idx]} marcada como "${formatoBonito(String(val))}".`)
+      }
+    })
+
+    if (razonesCompleto.length > 0) {
+      return { modo: 'completo', razones: razonesCompleto }
+    }
+    if (razonesRapido.length > 0) {
+      return { modo: 'rapido', razones: razonesRapido }
+    }
+    return { modo: 'rapido', razones: ['Sin datos detallados; se mantiene cuestionario rápido.'] }
+  }, [])
+
+  const decisionDesdeDispositivos = useMemo(() => {
+    if (!dispositivosExistentes?.length) return null
+    let fallback: ({ modo: 'completo' | 'rapido'; razones: string[]; dispositivo: any }) | null = null
+    for (const disp of dispositivosExistentes) {
+      const resultado = analizarDispositivo(disp)
+      const decision = { ...resultado, dispositivo: disp }
+      if (resultado.modo === 'completo') return decision
+      if (!fallback) fallback = decision
+    }
+    return fallback
+  }, [dispositivosExistentes, analizarDispositivo])
+
+  const sinDispositivosResetHecho = useRef(false)
+  useEffect(() => {
+    if (sinDispositivosResetHecho.current) return
+    if (!esEmpresaAutonomo) return
+    if (item?.id) return
+    if (!Array.isArray(dispositivosExistentes)) return
+
+    const cantidad = dispositivosExistentes.length
+    if (cantidad > 0) {
+      sinDispositivosResetHecho.current = true
+      return
+    }
+
+    if (cfgModo === undefined && cfgElegida === null) {
+      sinDispositivosResetHecho.current = true
+      return
+    }
+
+    sinDispositivosResetHecho.current = true
+    setCfgElegida(null)
+    setForzarCompleto(false)
+    queryClient.removeQueries({ queryKey: oppCfgKey, exact: true })
+    setDebugDecision(null)
+  }, [cfgModo, cfgElegida, dispositivosExistentes, esEmpresaAutonomo, item?.id, oppCfgKey, queryClient])
 
   const { data: tipos = [], isLoading: loadingTipos } = useQuery({
     queryKey: ['tipos-modelo'],
@@ -97,7 +251,7 @@ export default function FormularioValoracionOportunidad({
   })
 
   const { data: capacidades = [], isLoading: loadingCaps } = useQuery({
-    queryKey: ['capacidades-por-modelo', modelo],
+    queryKey: ['capacidades-por-modelo', modelo, oportunidadId],
     enabled: !!modelo,
     queryFn: async () => (await api.get(`/api/capacidades-por-modelo/?modelo=${modelo}&oportunidad=${oportunidadId}`)).data,
     staleTime: 2 * 60 * 1000,
@@ -111,7 +265,7 @@ export default function FormularioValoracionOportunidad({
     if (item?.modelo) {
       setModeloInicial(item.modelo)
       setModelo(item.modelo.id)
-      setTipo(item.tipo || item.modelo.tipo)
+      setTipo(item.tipo ?? item.modelo?.tipo ?? '')
     }
     if (item?.capacidad) setCapacidad(item.capacidad.id)
     setCantidad(item?.cantidad || 1)
@@ -131,58 +285,59 @@ export default function FormularioValoracionOportunidad({
     if (item?.estado_espalda) setEstadoEspalda(item.estado_espalda)
   }, [item])
 
-  const toNum = (v: any): number | null => {
+  const toNum = (v: unknown): number | null => {
     if (v === null || v === undefined) return null
-    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v
+    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : (typeof v === 'number' ? v : NaN)
     return Number.isFinite(n) ? Number(n) : null
   }
 
   const isLaptop = /\b(mac|macbook|laptop|portátil)\b/i.test(tipo || '')
-  const modelosArr = useMemo(
-    () => Array.isArray(modelos)
-      ? modelos
-      : (Array.isArray((modelos as any)?.results) ? (modelos as any).results : []),
-    [modelos]
-  )
+  const modelosArr = useMemo<ModeloObj[]>(() => {
+    const raw: unknown[] = Array.isArray(modelos)
+      ? (modelos as unknown[])
+      : (Array.isArray((modelos as { results?: unknown[] })?.results)
+          ? ((modelos as { results?: unknown[] }).results as unknown[])
+          : [])
+    // normaliza/limpia a {id, descripcion, tipo}
+    const getField = (o: unknown, key: string): unknown => (o && typeof o === 'object') ? (o as Record<string, unknown>)[key] : undefined
+    return raw
+      .map((m): ModeloObj | null => {
+        const id = getField(m, 'id')
+        const descripcion = getField(m, 'descripcion')
+        const tipoVal = getField(m, 'tipo')
+        const idOk = (typeof id === 'number' || typeof id === 'string') ? id : null
+        const tipoOk = typeof tipoVal === 'string' ? tipoVal : undefined
+        if (idOk === null) return null
+        return {
+          id: idOk,
+          descripcion: String(descripcion ?? ''),
+          tipo: tipoOk,
+        }
+      })
+      .filter((m): m is ModeloObj => !!m && m.id != null && m.descripcion.length > 0)
+  }, [modelos])
+
   const capacidadesArr = useMemo(
     () => Array.isArray(capacidades)
       ? capacidades
-      : (Array.isArray((capacidades as any)?.results) ? (capacidades as any).results : []),
+      : (Array.isArray((capacidades as Record<string, unknown>)?.results as unknown[])
+          ? ((capacidades as Record<string, unknown>).results as unknown[])
+          : []),
     [capacidades]
   )
-  const modeloObj = modelosArr.find((m: any) => Number(m.id) === Number(modelo)) || modeloInicial
-  const capacidadObj = capacidadesArr.find((c: any) => Number(c.id) === Number(capacidad))
+  const modeloObj = (modelosArr as Array<Record<string, unknown>>).find((m) => Number(m.id as number | string) === Number(modelo)) || modeloInicial
+  const capacidadObj = (capacidadesArr as Array<Record<string, unknown>>).find((c) => Number(c.id as number | string) === Number(capacidad))
 
   // ---- costes de reparación por modelo/capacidad (fallbacks) ----
-  const pickNum = (o: any, keys: string[]): number | null => {
-    if (!o) return null
-    for (const k of keys) {
-      const n = toNum((o as any)[k])
-      if (n !== null) return n
-    }
-    return null
-  }
-  const prBateriaModelo =
-    pickNum(capacidadObj, ['pr_bateria','precio_reparacion_bateria','repair_battery','precio_bateria','costo_bateria']) ??
-    pickNum(modeloObj,    ['pr_bateria','precio_reparacion_bateria','repair_battery','precio_bateria','costo_bateria']) ??
-    60
-
-  const prPantallaModelo =
-    pickNum(capacidadObj, ['pr_pantalla','precio_reparacion_pantalla','repair_display','precio_pantalla','precio_modulo_pantalla']) ??
-    pickNum(modeloObj,    ['pr_pantalla','precio_reparacion_pantalla','repair_display','precio_pantalla','precio_modulo_pantalla']) ??
-    120
-
-  const prChasisModelo =
-    pickNum(capacidadObj, ['pr_chasis','precio_reparacion_chasis','repair_housing','precio_carcasas','precio_back','precio_back_glass']) ??
-    pickNum(modeloObj,    ['pr_chasis','precio_reparacion_chasis','repair_housing','precio_carcasas','precio_back','precio_back_glass']) ??
-    140
+  // nota: pickNum ya no se usa
 
   useEffect(() => {
     if (!capacidadObj) { setPrecioBase(null); return }
-    const b2b = toNum((capacidadObj as any).precio_b2b)
-    const b2c = toNum((capacidadObj as any).precio_b2c)
-    const estimado = toNum((capacidadObj as any).precio_estimado)
-    const legacy = toNum((capacidadObj as any).precio)
+    const getField = (o: unknown, key: string): unknown => (o && typeof o === 'object') ? (o as Record<string, unknown>)[key] : undefined
+    const b2b = toNum(getField(capacidadObj, 'precio_b2b'))
+    const b2c = toNum(getField(capacidadObj, 'precio_b2c'))
+    const estimado = toNum(getField(capacidadObj, 'precio_estimado'))
+    const legacy = toNum(getField(capacidadObj, 'precio'))
     const base = tipoCliente === 'B2C' ? (b2c ?? legacy ?? estimado ?? b2b) : (b2b ?? estimado ?? legacy ?? b2c)
     setPrecioBase(base ?? null)
   }, [capacidadObj, tipoCliente, oppKey, capacidades])
@@ -205,22 +360,163 @@ export default function FormularioValoracionOportunidad({
 
   // Pasos visibles dinámicos
   const visibleSteps: FormStep[] = useMemo(() => {
-    return [...STEPS].filter(s => {
+    if (saltarsePreguntas) {
+      return ['Datos básicos', 'Valoración']
+    }
+    const filtered = [...STEPS].filter((s) => {
       if (!hasBattery && s === 'Batería') return false
       if (!hasScreen && (s === 'Pantalla (funcional)' || s === 'Estética pantalla')) return false
       return true
     })
-  }, [tipo, hasScreen, hasBattery])
+    // Si solo queda un paso (p.ej. valoraciones simplificadas), duplicamos para mantener layout sin stepper
+    return filtered.length >= 2 ? filtered : ['Datos básicos', 'Valoración']
+  }, [hasScreen, hasBattery, saltarsePreguntas])
+
+  const ocultarStepper =
+    visibleSteps.length === 2 &&
+    visibleSteps[0] === 'Datos básicos' &&
+    visibleSteps[1] === 'Valoración'
+  const mostrarStepper = !ocultarStepper
 
   // Clamp de activeStep si cambia la visibilidad
   useEffect(() => {
     if (activeStep > visibleSteps.length - 1) setActiveStep(visibleSteps.length - 1)
   }, [visibleSteps.length]) // eslint-disable-line
 
+  // Elegir modo en esta sesión
+  const persistirModo = useCallback((modoCompletoNuevo: boolean) => {
+    if (esEmpresaB2B) {
+      queryClient.setQueryData(oppCfgKey, { modo: 'rapido' })
+      return
+    }
+    queryClient.setQueryData(oppCfgKey, { modo: modoCompletoNuevo ? 'completo' : 'rapido' })
+  }, [esEmpresaB2B, oppCfgKey, queryClient])
+
+  const aplicarModoOportunidad = useCallback((modoCompletoNuevo: boolean) => {
+    if (esEmpresaB2B) {
+      setCfgElegida(false)
+      setForzarCompleto(false)
+      persistirModo(false)
+      setDebugDecision({
+        modo: 'rapido',
+        fuente: 'Tipo de cliente',
+        razones: ['Cliente empresa: cuestionario rápido forzado.'],
+      })
+      return
+    }
+    setCfgElegida(modoCompletoNuevo)
+    setForzarCompleto(modoCompletoNuevo)
+    persistirModo(modoCompletoNuevo)
+    setDebugDecision({
+      modo: modoCompletoNuevo ? 'completo' : 'rapido',
+      fuente: 'Selección manual',
+      razones: [
+        modoCompletoNuevo
+          ? 'Selección manual: responder todas las preguntas del cuestionario.'
+          : 'Selección manual: cuestionario rápido con estado "excelente" por defecto.',
+      ],
+    })
+  }, [esEmpresaB2B, persistirModo])
+
+  const elegirModoOportunidad = (modoCompleto: boolean) => {
+    if (esEmpresaB2B) return
+    aplicarModoOportunidad(modoCompleto)
+  }
+
+  useEffect(() => {
+    if (esEmpresaB2B) {
+      if (forzarCompleto !== false) setForzarCompleto(false)
+      if (cfgElegida !== false) setCfgElegida(false)
+      persistirModo(false)
+      setDebugDecision((prev) => prev ?? {
+        modo: 'rapido',
+        fuente: 'Tipo de cliente',
+        razones: ['Cliente empresa: cuestionario rápido forzado.'],
+      })
+    }
+  }, [esEmpresaB2B, forzarCompleto, cfgElegida, persistirModo, setDebugDecision])
+
+  useEffect(() => {
+    const currentCount = dispositivosExistentes?.length ?? 0
+    const prevCount = prevDispositivosCountRef.current
+    prevDispositivosCountRef.current = currentCount
+
+    if (!esEmpresaAutonomo) {
+      if (cfgElegida !== true) setCfgElegida(true)
+      if (!forzarCompleto) setForzarCompleto(true)
+      persistirModo(true)
+      setDebugDecision({
+        modo: 'completo',
+        fuente: 'Tipo de cliente',
+        razones: ['El cliente es B2C/particular, se exige cuestionario completo.'],
+      })
+      return
+    }
+
+    const debeInferir = cfgElegida === null
+
+    if (currentCount > 0) {
+      const decision = decisionDesdeDispositivos
+      if (debeInferir && decision) {
+        const modoDetectado = decision.modo === 'completo'
+        if (cfgElegida !== modoDetectado) setCfgElegida(modoDetectado)
+        if (forzarCompleto !== modoDetectado) setForzarCompleto(modoDetectado)
+        persistirModo(modoDetectado)
+        setDebugDecision({
+          modo: decision.modo,
+          fuente: 'Dispositivos existentes',
+          razones: decision.razones,
+          dispositivoId: decision.dispositivo?.id,
+          dispositivoDescripcion: decision.dispositivo?.modelo?.descripcion,
+        })
+      } else {
+        persistirModo(forzarCompleto)
+        setDebugDecision((prev) =>
+          prev ?? {
+            modo: forzarCompleto ? 'completo' : 'rapido',
+            fuente: 'Preferencia actual',
+            razones: ['Se mantiene el modo seleccionado anteriormente.'],
+          }
+        )
+      }
+      return
+    }
+
+    if (item?.id) {
+      const decision = analizarDispositivo(item)
+      if (debeInferir) {
+        const modoDetectado = decision.modo === 'completo'
+        if (cfgElegida !== modoDetectado) setCfgElegida(modoDetectado)
+        if (forzarCompleto !== modoDetectado) setForzarCompleto(modoDetectado)
+        persistirModo(modoDetectado)
+        setDebugDecision({
+          modo: decision.modo,
+          fuente: 'Dispositivo en edición',
+          razones: decision.razones,
+          dispositivoId: item.id,
+          dispositivoDescripcion: item?.modelo?.descripcion,
+        })
+      }
+      return
+    }
+
+    if (prevCount > 0 && currentCount === 0) {
+      setCfgElegida(null)
+      setForzarCompleto(false)
+      queryClient.removeQueries({ queryKey: oppCfgKey, exact: true })
+      setDebugDecision(null)
+    }
+  }, [analizarDispositivo, cfgElegida, decisionDesdeDispositivos, dispositivosExistentes, esEmpresaAutonomo, forzarCompleto, item, persistirModo, queryClient, oppCfgKey])
+
+  // En modo completo, fijar cantidad = 1
+  useEffect(() => {
+    if (modoCompleto) setCantidad(1)
+  }, [modoCompleto])
+
   function derivarValoracion(): ValoracionDerivada {
     const hasLineas = pantallaIssues.includes('lineas')
     const incidenciasFunc = funcBasica === 'parcial' || pantallaIssues.length > 0
-    const hayDanioGrave = estadoLados === 'agrietado_roto' || estadoEspalda === 'agrietado_roto' || hasLineas
+    const hayDanioGrave = estadoPantalla === 'agrietado_roto' || estadoLados === 'agrietado_roto' || estadoEspalda === 'agrietado_roto' || hasLineas
 
     const rank: Record<string, number> = { sin_signos: 0, minimos: 1, algunos: 2, desgaste_visible: 3, agrietado_roto: 4 }
     const peorEst = Math.max(
@@ -248,14 +544,17 @@ export default function FormularioValoracionOportunidad({
   const current = visibleSteps[activeStep]
 
   const esIphone = /\biphone\b/i.test(tipo || '')
+  const esIpad = /\bipad\b/i.test(tipo || '')
+  const esComercial = esIphone || esIpad
+  const isProd = typeof window !== 'undefined' && process.env.NODE_ENV === 'production'
 
-  const puedeAvanzar = () => {
+  const puedeAvanzarStrict = () => {
     switch (current) {
       case 'Datos básicos':
         return !!tipo && !!modelo && !!capacidad && (!item ? Number(cantidad) > 0 : true)
       case 'Batería':
-        // iPhone: obligamos a responder encendido/carga; otros: libre
-        return !esIphone || (enciende !== null && cargaOk !== null)
+        // iPhone/iPad: obligamos a responder encendido/carga; otros: libre
+        return !esComercial || (enciende !== null && cargaOk !== null)
       case 'Funcionalidad':
         return !!funcBasica
       case 'Pantalla (funcional)':
@@ -269,14 +568,50 @@ export default function FormularioValoracionOportunidad({
         return true
     }
   }
+  const puedeAvanzar = () => (isProd ? puedeAvanzarStrict() : true)
 
-  const handleSiguiente = () => { if (activeStep < visibleSteps.length - 1) setActiveStep(s => s + 1) }
-  const handleAnterior = () => { if (activeStep > 0) setActiveStep(s => s - 1) }
+  const handleSiguiente = () => {
+    if (activeStep < visibleSteps.length - 1) setActiveStep(s => s + 1)
+  }
+  const handleAnterior = () => {
+    if (activeStep > 0) setActiveStep(s => s - 1)
+  }
+
+  const blockingHint = (): string | null => {
+    if (puedeAvanzar()) return null
+    switch (current) {
+      case 'Datos básicos':
+        return 'Selecciona tipo, modelo y capacidad.'
+      case 'Batería':
+        return 'Indica si enciende y si carga por cable.'
+      case 'Funcionalidad':
+        return 'Selecciona el estado de funcionalidad.'
+      case 'Estética pantalla':
+        return 'Selecciona el estado de la pantalla.'
+      case 'Estética laterales/trasera':
+        return 'Selecciona laterales y trasera.'
+      default:
+        return null
+    }
+  }
 
   const fmtEUR = (n: number) =>
     new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n || 0)
 
   const { estado_valoracion: estadoTexto, estado_fisico, estado_funcional } = derivarValoracion()
+
+  // Si se saltan preguntas, fijar valores por defecto de mejor estado
+  useEffect(() => {
+    if (saltarsePreguntas) {
+      setEnciende(true)
+      setCargaOk(true)
+      setFuncBasica('ok')
+      setPantallaIssues([])
+      setEstadoPantalla('sin_signos')
+      setEstadoLados('sin_signos')
+      setEstadoEspalda('sin_signos')
+    }
+  }, [saltarsePreguntas])
 
   /** Mapeos a enums del endpoint **/
   const toDisplayImageStatusApi = (issues: FuncPantallaValue[]) =>
@@ -288,6 +623,7 @@ export default function FormularioValoracionOportunidad({
       case 'minimos': return 'MICRO'
       case 'algunos': return 'VISIBLE'
       case 'desgaste_visible': return 'DEEP'
+      case 'agrietado_roto': return 'CRACK'
       default: return 'NONE'
     }
   }
@@ -309,7 +645,7 @@ export default function FormularioValoracionOportunidad({
   }
 
   const payloadIphone = useMemo(() => {
-    if (!esIphone || !modelo || !capacidad) return null
+    if (!esComercial || !modelo || !capacidad) return null
     return {
       tenant,
       canal: tipoCliente,                 // 'B2B' | 'B2C'
@@ -323,19 +659,19 @@ export default function FormularioValoracionOportunidad({
       glass_status: toGlassStatusApi(estadoPantalla),
       housing_status: worstHousingApi(estToHousingApi(estadoLados), estToHousingApi(estadoEspalda)),
     }
-  }, [esIphone, modelo, capacidad, tenant, tipoCliente, enciende, cargaOk, funcBasica, saludBateria, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
+  }, [esComercial, modelo, capacidad, tenant, tipoCliente, enciende, cargaOk, funcBasica, saludBateria, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
 
   const readyForValoracion =
-    esIphone && !!payloadIphone &&
+    esComercial && !!payloadIphone &&
     enciende !== null && cargaOk !== null &&
     !!modelo && !!capacidad
 
   const {
     data: valoracionServer,
-    isFetching: fetchingValoracion,
-    refetch: refetchValoracion,
+    isFetching: _fetchingValoracion,
+    refetch: _refetchValoracion,
   } = useQuery<ValoracionComercialResponse>({
-    queryKey: ['iphone-comercial-valoracion', payloadIphone] as const,
+    queryKey: ['comercial-valoracion', payloadIphone] as const,
     queryFn: () => postValoracionIphoneComercial(payloadIphone!),
     enabled: !!readyForValoracion,
     placeholderData: keepPreviousData,   // ✅ reemplaza a keepPreviousData: true
@@ -343,22 +679,58 @@ export default function FormularioValoracionOportunidad({
     staleTime: 0,
   })
 
-  const precioCalculado = esIphone
+  const precioCalculado = esComercial
     ? (valoracionServer?.oferta ?? null)
     : ((estadoTexto === 'a_revision' || !precioBase) ? null : getPrecioFinal(estadoTexto, precioBase))
+
+  const precioMaximo = useMemo(() => {
+    if (esComercial) {
+      if (!valoracionServer) return null
+      const maxCandidates = [valoracionServer.V_tope, valoracionServer.V_Aplus, valoracionServer.V_A]
+      const max = maxCandidates.find((v) => typeof v === 'number' && !Number.isNaN(v))
+      return (typeof max === 'number' ? max : null)
+    }
+    if (!precioBase) return null
+    return getPrecioFinal('excelente', precioBase)
+  }, [esComercial, valoracionServer, precioBase])
+
+  const preciosComparativos = useMemo(() => {
+    const maxValue = esComercial
+      ? (valoracionServer?.V_tope ?? valoracionServer?.V_Aplus ?? null)
+      : (precioBase ? getPrecioFinal('excelente', precioBase) : null)
+    if (esComercial) {
+      if (!valoracionServer) return []
+      const items = [
+        { etiqueta: 'A+', valor: valoracionServer.V_Aplus },
+        { etiqueta: 'A', valor: valoracionServer.V_A },
+        { etiqueta: 'B', valor: valoracionServer.V_B },
+        { etiqueta: 'C', valor: valoracionServer.V_C },
+      ]
+      return items.filter((p) => {
+        const isNumber = typeof p.valor === 'number' && !Number.isNaN(p.valor)
+        return isNumber && (maxValue == null || p.valor !== maxValue)
+      })
+    }
+    if (!precioBase) return []
+    return [
+      { etiqueta: 'Muy bueno', valor: getPrecioFinal('muy_bueno', precioBase) },
+      { etiqueta: 'Bueno', valor: getPrecioFinal('bueno', precioBase) },
+    ].filter((p) => maxValue == null || p.valor !== maxValue)
+  }, [esComercial, valoracionServer, precioBase])
 
   const openDemo = (demo: { src: string; title: string }) => { setDemo(demo); setDemoOpen(true) }
   const closeDemo = () => setDemoOpen(false)
 
   const handleSubmit = async (continuar = false) => {
-    const cantidadNum = typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad
+    const cantidadNumRaw = typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad
+    const cantidadNum = modoCompleto ? 1 : cantidadNumRaw
 
     if (!oportunidadId || Number.isNaN(Number(oportunidadId))) { alert('Falta el ID numérico de la oportunidad.'); return }
     if (!modelo || !capacidad) { alert('Selecciona modelo y capacidad.'); return }
 
-    // Si es iPhone, recalculamos en backend para guardar oferta más reciente
+    // Si es iPhone/iPad, recalculamos en backend para guardar oferta más reciente
     let ofertaToSave: number | null = precioCalculado
-    if (esIphone) {
+    if (esComercial) {
       try {
         const latest = payloadIphone ? await postValoracionIphoneComercial(payloadIphone) : null
         ofertaToSave = latest?.oferta ?? valoracionServer?.oferta ?? null
@@ -369,7 +741,7 @@ export default function FormularioValoracionOportunidad({
       }
     }
 
-    const data: any = {
+    const data: Record<string, unknown> = {
       modelo_id: modelo,
       capacidad_id: capacidad,
       estado_fisico,
@@ -405,11 +777,34 @@ export default function FormularioValoracionOportunidad({
       await queryClient.refetchQueries({ queryKey: ['dispositivos-reales', oppKey], exact: true })
 
       if (continuar) {
-        setModelo(''); setCapacidad(''); setPrecioBase(null); setCantidad(1)
-        setSaludBateria(''); setCiclosBateria(''); setFuncBasica('')
-        setPantallaIssues([]); setEstadoPantalla(''); setEstadoLados(''); setEstadoEspalda('')
-        setEnciende(null); setCargaOk(null)
+        // Limpia todos los campos para un nuevo dispositivo
+        setTipo('')
+        setModeloInicial(null)
+        setModelo('')
+        setCapacidad('')
+        setPrecioBase(null)
+        setCantidad(1)
+        setSaludBateria('')
+        setCiclosBateria('')
+        setFuncBasica('')
+        setPantallaIssues([])
+        setEstadoPantalla('')
+        setEstadoLados('')
+        setEstadoEspalda('')
+        setEnciende(null)
+        setCargaOk(null)
         setActiveStep(0)
+
+        // En modo rápido (saltarsePreguntas), vuelve a fijar los defaults de mejor estado
+        if (saltarsePreguntas) {
+          setEnciende(true)
+          setCargaOk(true)
+          setFuncBasica('ok')
+          setPantallaIssues([])
+          setEstadoPantalla('sin_signos')
+          setEstadoLados('sin_signos')
+          setEstadoEspalda('sin_signos')
+        }
       } else {
         onSuccess()
       }
@@ -419,43 +814,90 @@ export default function FormularioValoracionOportunidad({
     }
   }
 
+  // Paso previo: pregunta única por oportunidad (solo B2B)
+  if (esEmpresaAutonomo && cfgElegida === null) {
+    return (
+      <>
+        <DialogTitle>Modo de cuestionario</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1.5, textAlign: 'center' }}>
+            Elige cómo valorar los dispositivos de esta oportunidad. Esta selección se recordará y se aplicará a todos los dispositivos.
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{ justifyContent: 'center', alignItems: { xs: 'stretch', sm: 'flex-start' } }}>
+            <Box sx={{ flex: 1, minWidth: 280, maxWidth: 420, mx: 'auto', textAlign: 'center' }}>
+              <Button fullWidth color="primary" variant="contained" onClick={() => elegirModoOportunidad(true)}>Cuestionario completo</Button>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5, textAlign: 'center' }}>
+                Responderás batería, funcionalidad y estética para ajustar mejor el precio.
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 280, maxWidth: 420, mx: 'auto', textAlign: 'center' }}>
+              <Button fullWidth color="primary" variant="contained" onClick={() => elegirModoOportunidad(false)}>Cuestionario rápido</Button>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5, textAlign: 'center' }}>
+                Se saltan preguntas y se valora como "excelente" por defecto. Precio más orientativo.
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancelar</Button>
+        </DialogActions>
+      </>
+    )
+  }
+
   return (
     <>
-      <DialogTitle>{item ? 'Editar dispositivo' : 'Nuevo dispositivo'}</DialogTitle>
+      
 
       <DialogContent>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-          <Chip size="small" label={`Paso ${activeStep + 1} de ${visibleSteps.length}`} />
-        </Box>
+        {/* Notas previas (comercial) — solo en Datos básicos */}
+        {current === 'Datos básicos' && (
+          <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>Notas importantes</Typography>
+            <Typography variant="caption" display="block">• No hace falta IMEI/SN para calcular la valoración estimada.</Typography>
+            <Typography variant="caption" display="block">• Si hay FMI/Activation Lock ON, MDM ON, el equipo no se aceptará.</Typography>
+            <Typography variant="caption" display="block">• La recompra queda supeditada a la auditoría técnica y de autenticidad (bloqueos, piezas, diagnóstico completo).</Typography>
+            <Typography variant="caption" display="block">• Si el cliente acepta la valoración resultante tras la auditoría, deberá emitir una factura a Zirqulo SL por valor de la misma.</Typography>
+          </Alert>
+        )}
 
-        <Stepper
-          activeStep={activeStep}
-          alternativeLabel
-          sx={{
-            mb: 3,
-            '& .MuiStepIcon-root': { color: 'divider' },
-            '& .MuiStepIcon-root.Mui-active': { color: 'primary.main' },
-            '& .MuiStepIcon-root.Mui-completed': { color: 'success.main' },
-            '& .MuiStepLabel-label': { color: 'text.secondary' },
-            '& .MuiStepLabel-label.Mui-active': { color: 'primary.main', fontWeight: 700 },
-            '& .MuiStepLabel-label.Mui-completed': { color: 'success.main' },
-          }}
-        >
-          {visibleSteps.map((label) => {
-            const icon =
-              label === 'Datos básicos' ? <SmartphoneIcon /> :
-                label === 'Batería' ? <BoltIcon /> :
-                  label === 'Funcionalidad' ? <PsychologyIcon /> :
-                    label === 'Pantalla (funcional)' ? <ScreenshotMonitorIcon /> :
-                      label === 'Estética pantalla' ? <BrushIcon /> :
-                        label === 'Estética laterales/trasera' ? <DevicesIcon /> :
-                          /* Valoración */ <EuroIcon />
-            return (
-              <Step key={label}><StepLabel icon={icon}>{label}</StepLabel></Step>
-            )
-          })}
-        </Stepper>
 
+        {mostrarStepper && (
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+              <Chip size="small" label={`Paso ${activeStep + 1} de ${visibleSteps.length}`} />
+            </Box>
+
+            <Stepper
+              activeStep={activeStep}
+              alternativeLabel
+              sx={{
+                mb: 3,
+                '& .MuiStepIcon-root': { color: 'divider' },
+                '& .MuiStepIcon-root.Mui-active': { color: 'primary.main' },
+                '& .MuiStepIcon-root.Mui-completed': { color: 'success.main' },
+                '& .MuiStepLabel-label': { color: 'text.secondary' },
+                '& .MuiStepLabel-label.Mui-active': { color: 'primary.main', fontWeight: 700 },
+                '& .MuiStepLabel-label.Mui-completed': { color: 'success.main' },
+              }}
+            >
+              {visibleSteps.map((label) => {
+                const icon =
+                  label === 'Datos básicos' ? <SmartphoneIcon /> :
+                    label === 'Batería' ? <BoltIcon /> :
+                      label === 'Funcionalidad' ? <PsychologyIcon /> :
+                        label === 'Pantalla (funcional)' ? <ScreenshotMonitorIcon /> :
+                          label === 'Estética pantalla' ? <BrushIcon /> :
+                            label === 'Estética laterales/trasera' ? <DevicesIcon /> :
+                              /* Valoración */ <EuroIcon />
+                return (
+                  <Step key={label}><StepLabel icon={icon}>{label}</StepLabel></Step>
+                )
+              })}
+            </Stepper>
+          </>
+        )}
+        
         {current === 'Datos básicos' && (
           <PasoDatosBasicos
             tipos={tipos}
@@ -469,10 +911,22 @@ export default function FormularioValoracionOportunidad({
             modeloInicial={modeloInicial}
             capacidad={capacidad} setCapacidad={setCapacidad}
             cantidad={cantidad} setCantidad={setCantidad}
+            isB2C={tipoCliente === 'B2C' || modoCompleto}
           />
         )}
 
-        {current === 'Batería' && hasBattery && (
+        {current === 'Datos básicos' && esEmpresaAutonomo && (
+          <Box sx={{ mt: 2 }}>
+            
+            {!forzarCompleto && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                Se usará el estado &quot;excelente&quot; para calcular el precio.
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {!saltarsePreguntas && current === 'Batería' && hasBattery && (
           <PasoEstadoDispositivo
             catalog={catalog}
             isLaptop={isLaptop}
@@ -487,7 +941,7 @@ export default function FormularioValoracionOportunidad({
           />
         )}
 
-        {current === 'Funcionalidad' && (
+        {!saltarsePreguntas && current === 'Funcionalidad' && (
           <PasoEstadoDispositivo
             catalog={catalog}
             isLaptop={isLaptop}
@@ -500,7 +954,7 @@ export default function FormularioValoracionOportunidad({
           />
         )}
 
-        {current === 'Pantalla (funcional)' && hasScreen && (
+        {!saltarsePreguntas && current === 'Pantalla (funcional)' && hasScreen && (
           <PasoEstadoDispositivo
             catalog={catalog}
             isLaptop={isLaptop}
@@ -513,7 +967,7 @@ export default function FormularioValoracionOportunidad({
           />
         )}
 
-        {current === 'Estética pantalla' && hasScreen && (
+        {!saltarsePreguntas && current === 'Estética pantalla' && hasScreen && (
           <PasoEstetica
             catalog={catalog}
             estadoPantalla={estadoPantalla} setEstadoPantalla={setEstadoPantalla}
@@ -524,7 +978,7 @@ export default function FormularioValoracionOportunidad({
           />
         )}
 
-        {current === 'Estética laterales/trasera' && (
+        {!saltarsePreguntas && current === 'Estética laterales/trasera' && (
           <PasoEstetica
             catalog={catalog}
             estadoPantalla={estadoPantalla} setEstadoPantalla={setEstadoPantalla}
@@ -536,24 +990,33 @@ export default function FormularioValoracionOportunidad({
         )}
 
         {current === 'Valoración' && (
-          <PasoValoracion
-            tipo={tipo}
-            modeloObj={modeloObj}
-            capacidadObj={capacidadObj}
-            cantidad={cantidad}
-            funcBasica={funcBasica}
-            pantallaIssues={pantallaIssues}
-            estadoPantalla={estadoPantalla}
-            estadoLados={estadoLados}
-            estadoEspalda={estadoEspalda}
-            saludBateria={saludBateria}
-            ciclosBateria={ciclosBateria}
-            estadoTexto={estadoTexto}
-            precioCalculado={precioCalculado}
-            fmtEUR={fmtEUR}
-            formatoBonito={formatoBonito}
-            catalog={catalog}
-          />
+          modeloObj && capacidadObj ? (
+              <PasoValoracion
+              tipo={tipo}
+              modeloObj={modeloObj}
+              capacidadObj={capacidadObj}
+              cantidad={cantidad}
+              funcBasica={funcBasica}
+              pantallaIssues={pantallaIssues}
+              estadoPantalla={estadoPantalla}
+              estadoLados={estadoLados}
+              estadoEspalda={estadoEspalda}
+              saludBateria={saludBateria}
+              ciclosBateria={ciclosBateria}
+              estadoTexto={estadoTexto}
+              precioCalculado={precioCalculado}
+              precioMaximo={precioMaximo}
+              fmtEUR={fmtEUR}
+              formatoBonito={formatoBonito}
+              catalog={catalog}
+              mostrarDetalles={!(esEmpresaAutonomo && saltarsePreguntas)}
+              otrosPrecios={preciosComparativos}
+            />
+          ) : (
+            <Alert severity="warning" variant="outlined">
+              Falta seleccionar <b>modelo</b> y <b>capacidad</b> para calcular la valoración.
+            </Alert>
+          )
         )}
       </DialogContent>
 
@@ -575,7 +1038,21 @@ export default function FormularioValoracionOportunidad({
           <Button onClick={onClose}>Cancelar</Button>
           {activeStep > 0 && <Button onClick={handleAnterior}>Anterior</Button>}
           {activeStep < visibleSteps.length - 1 && (
-            <Button variant="contained" onClick={() => { if (puedeAvanzar()) handleSiguiente() }} disabled={!puedeAvanzar()}>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (isProd) {
+                  if (puedeAvanzarStrict()) handleSiguiente()
+                } else {
+                  if (!puedeAvanzarStrict()) {
+                    const msg = blockingHint() || 'Avanzas sin completar este paso.'
+                    toast.warn(msg)
+                  }
+                  handleSiguiente()
+                }
+              }}
+              disabled={isProd && !puedeAvanzarStrict()}
+            >
               Siguiente
             </Button>
           )}
@@ -591,8 +1068,15 @@ export default function FormularioValoracionOportunidad({
           )}
         </Stack>
 
+        {/* Mensaje de ayuda si el siguiente está deshabilitado */}
+        {isProd && activeStep < visibleSteps.length - 1 && !puedeAvanzarStrict() && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+            {blockingHint()}
+          </Typography>
+        )}
+
         {/* Telemetría (debajo) — sólo en no-producción y con respuesta del backend */}
-        {process.env.NODE_ENV !== 'production' && esIphone && valoracionServer && (() => {
+        {process.env.NODE_ENV !== 'production' && esComercial && valoracionServer && (() => {
           const r = valoracionServer as ValoracionComercialResponse  // 👈 cast para que TS conozca el shape
 
           return (

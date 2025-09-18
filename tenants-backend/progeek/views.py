@@ -1,4 +1,5 @@
 import logging
+import os
 from rest_framework import viewsets, permissions
 from .models import LoteGlobal, DispositivoAuditado,UserGlobalRole,PlantillaCorreo,B2CKycIndex
 from .serializers import (
@@ -9,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django_tenants.utils import schema_context,get_public_schema_name,get_tenant_model
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.response import Response
 from checkouters.models.oportunidad import Oportunidad,HistorialOportunidad
 from checkouters.models.documento import Documento
@@ -21,6 +22,7 @@ from checkouters.models.legal import B2CContrato
 from django.db import connection
 from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions,viewsets,status 
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.serializers import ModelSerializer
 from progeek.estados_operaciones import ESTADOS_AGRUPADOS
 from django.db.models import Count
@@ -31,6 +33,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
 from django.http import HttpResponse, Http404,FileResponse
+from django.utils.text import slugify
 
 from checkouters.utils.createpdf import generar_pdf_oportunidad
 from django.conf import settings
@@ -83,6 +86,13 @@ def _serialize_tenant_detail(tenant) -> dict:
     except Exception:
         num_tiendas = "Error"
 
+    acuerdo_pdf_nombre = None
+    acuerdo_pdf_url = None
+    archivo_acuerdo = getattr(tenant, "acuerdo_empresas_pdf", None)
+    if getattr(archivo_acuerdo, "name", None):
+        acuerdo_pdf_nombre = os.path.basename(archivo_acuerdo.name)
+        acuerdo_pdf_url = f"/api/tenants/{tenant.id}/agreement/download/"
+
     return {
         "id": tenant.id,
         "nombre": tenant.name,
@@ -116,11 +126,15 @@ def _serialize_tenant_detail(tenant) -> dict:
         "numero_tiendas_oficiales": getattr(tenant, "numero_tiendas_oficiales", None),
 
         "goal": getattr(tenant, "goal", None),
+        "acuerdo_empresas": getattr(tenant, "acuerdo_empresas", None),
+        "acuerdo_empresas_pdf_nombre": acuerdo_pdf_nombre,
+        "acuerdo_empresas_pdf_url": acuerdo_pdf_url,
         "management_mode": getattr(tenant, "management_mode", None),
         "legal_namespace": getattr(tenant, "legal_namespace", None),
         "legal_slug": getattr(tenant, "legal_slug", None),
         "legal_overrides": getattr(tenant, "legal_overrides", None),
         "comision_pct": getattr(tenant, "comision_pct", None),
+        "solo_empresas": getattr(tenant, "solo_empresas", None),
     }
 
 def canal_a_tipo_cliente(canal: str | None) -> str:
@@ -212,6 +226,234 @@ def generar_pdf_contrato(contrato, preview=False):
     pdf_bytes = HTML(string=html, base_url=settings.STATIC_ROOT).write_pdf()
     sha = hashlib.sha256(pdf_bytes).hexdigest()
     return io.BytesIO(pdf_bytes), sha
+
+
+# ==========================
+# Dashboard Admin (multi-tenant)
+# ==========================
+from checkouters.kpimanager.dashboard_manager_serializers import DashboardManagerSerializer
+from checkouters.utils.utilskpis import parse_bool, parse_date_str, comparativa_periodo
+
+class DashboardAdminAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        params = request.query_params
+        fecha_inicio = parse_date_str(params.get("fecha_inicio"))
+        fecha_fin = parse_date_str(params.get("fecha_fin"))
+        if not fecha_inicio or not fecha_fin:
+            return Response({"error": "Parámetros 'fecha_inicio' y 'fecha_fin' son obligatorios (YYYY-MM-DD)."}, status=400)
+
+        granularidad = params.get("granularidad") or "mes"
+        tienda_id = params.get("tienda_id")
+        usuario_id = params.get("usuario_id")
+        comparar = parse_bool(params.get("comparar"))
+        tenant_slug = params.get("tenant")
+
+        fecha_inicio = timezone.make_aware(datetime.combine(fecha_inicio, time.min))
+        fecha_fin = timezone.make_aware(datetime.combine(fecha_fin, time.max))
+
+        def _collect():
+            return DashboardManagerSerializer.collect(
+                request=request,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                granularidad=granularidad,
+                filtros={"tienda_id": tienda_id, "usuario_id": usuario_id},
+                opciones={"comparar": comparar},
+            )
+
+        # Forzar un tenant concreto
+        if tenant_slug:
+            with schema_context(tenant_slug):
+                data = _collect()
+            return Response(data, status=200)
+
+        pub = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        TenantModel = get_tenant_model()
+        tenants = list(TenantModel.objects.exclude(schema_name=pub).values_list("schema_name", flat=True))
+        # Mapa schema -> porcentaje de comisión (0-1)
+        pct_map = {
+            t.schema_name: (Decimal(str(t.comision_pct or 0)) / Decimal("100"))
+            for t in TenantModel.objects.exclude(schema_name=pub).only("schema_name", "comision_pct")
+        }
+
+        bloques = []
+        for schema in tenants:
+            try:
+                with schema_context(schema):
+                    data_block = _collect()
+                    # Adjunta el schema para poder aplicar fallback con su porcentaje de comisión
+                    if isinstance(data_block, dict):
+                        data_block["_schema"] = schema
+                    bloques.append(data_block)
+            except Exception:
+                continue
+
+        if not bloques:
+            empty = {
+                "resumen": {"valor_total": Decimal(0), "ticket_medio": Decimal(0), "comision_total": Decimal(0), "comision_media": Decimal(0), "margen_medio": Decimal(0)},
+                "evolucion": [],
+                "comparativa": None,
+                "rankings": {"productos": [], "tiendas_por_valor": [], "usuarios_por_valor": [], "tiendas_por_operaciones": [], "usuarios_por_operaciones": []},
+                "pipeline": {"abiertas": 0, "valor_estimado": 0, "por_estado": []},
+                "operativa": {"recibidas": 0, "completadas": 0, "conversion_pct": None, "tmed_respuesta_h": None, "tmed_recogida_h": None, "tmed_cierre_h": None, "rechazos": {"total": 0, "motivos": []}, "abandono_pct": None},
+            }
+            return Response(empty, status=200)
+
+        # Merge
+        res_agg = defaultdict(Decimal)
+        evol_map = defaultdict(Decimal)
+        rank_prod = defaultdict(Decimal)
+        rank_tiendas_valor = defaultdict(Decimal)
+        rank_users_valor = defaultdict(Decimal)
+        rank_tiendas_ops = defaultdict(Decimal)
+        rank_users_ops = defaultdict(Decimal)
+        pipe_estado = {}
+        abiertas = Decimal(0)
+        valor_estimado = Decimal(0)
+        total_ops_count = Decimal(0)
+
+        conv_acc = Decimal(0); conv_n = 0
+        t_resp_acc = Decimal(0); t_resp_n = 0
+        t_rec_acc = Decimal(0); t_rec_n = 0
+        t_cie_acc = Decimal(0); t_cie_n = 0
+        aband_acc = Decimal(0); aband_n = 0
+        rech_mot = defaultdict(Decimal)
+        rech_total = Decimal(0)
+        recibidas_sum = Decimal(0)
+        completadas_sum = Decimal(0)
+
+        for b in bloques:
+            for k in ("valor_total", "ticket_medio", "comision_total", "comision_media", "margen_medio"):
+                res_agg[k] += Decimal(str((b.get("resumen") or {}).get(k, 0) or 0))
+
+            for p in b.get("evolucion") or []:
+                periodo = str(p.get("periodo", ""))
+                evol_map[periodo] += Decimal(str(p.get("valor", 0)))
+
+            ranks = b.get("rankings") or {}
+            for r in ranks.get("productos") or []:
+                rank_prod[str(r.get("nombre", ""))] += Decimal(str(r.get("valor", 0)))
+            for r in ranks.get("tiendas_por_valor") or []:
+                rank_tiendas_valor[str(r.get("tienda", r.get("nombre", "")))] += Decimal(str(r.get("valor", 0)))
+            for r in ranks.get("usuarios_por_valor") or []:
+                rank_users_valor[str(r.get("usuario", r.get("nombre", "")))] += Decimal(str(r.get("valor", 0)))
+            for r in ranks.get("tiendas_por_operaciones") or []:
+                rank_tiendas_ops[str(r.get("tienda", r.get("nombre", "")))] += Decimal(str(r.get("ops", 0)))
+            for r in ranks.get("usuarios_por_operaciones") or []:
+                rank_users_ops[str(r.get("usuario", r.get("nombre", "")))] += Decimal(str(r.get("ops", 0)))
+
+            pipe = b.get("pipeline") or {}
+            abiertas += Decimal(str(pipe.get("abiertas", 0)))
+            valor_estimado += Decimal(str(pipe.get("valor_estimado", 0)))
+            for row in pipe.get("por_estado") or []:
+                e = str(row.get("estado", ""))
+                d = pipe_estado.setdefault(e, {"count": Decimal(0), "valor": Decimal(0)})
+                d["count"] += Decimal(str(row.get("count", 0)))
+                d["valor"] += Decimal(str(row.get("valor", 0)))
+                total_ops_count += Decimal(str(row.get("count", 0)))
+
+            op = b.get("operativa") or {}
+            if op.get("recibidas") is not None:
+                recibidas_sum += Decimal(str(op.get("recibidas", 0)))
+            if op.get("completadas") is not None:
+                completadas_sum += Decimal(str(op.get("completadas", 0)))
+            if op.get("conversion_pct") is not None: conv_acc += Decimal(str(op.get("conversion_pct", 0))); conv_n += 1
+            if op.get("tmed_respuesta_h") is not None: t_resp_acc += Decimal(str(op.get("tmed_respuesta_h", 0))); t_resp_n += 1
+            if op.get("tmed_recogida_h") is not None: t_rec_acc += Decimal(str(op.get("tmed_recogida_h", 0))); t_rec_n += 1
+            if op.get("tmed_cierre_h") is not None: t_cie_acc += Decimal(str(op.get("tmed_cierre_h", 0))); t_cie_n += 1
+            if op.get("abandono_pct") is not None: aband_acc += Decimal(str(op.get("abandono_pct", 0))); aband_n += 1
+            rech = (op.get("rechazos") or {})
+            rech_total += Decimal(str(rech.get("total", 0)))
+            for m in rech.get("motivos") or []:
+                rech_mot[str(m.get("motivo", ""))] += Decimal(str(m.get("count", 0)))
+
+        evolucion = [{"periodo": k, "valor": v} for k, v in evol_map.items()]
+        evolucion.sort(key=lambda x: x["periodo"])  # YYYY-MM
+
+        def _top(dct, key_name, val_name, top=10):
+            arr = [{key_name: k, val_name: v} for k, v in dct.items()]
+            arr.sort(key=lambda x: x[val_name], reverse=True)
+            return arr[:top]
+
+        rankings = {
+            "productos": _top(rank_prod, "nombre", "valor"),
+            "tiendas_por_valor": _top(rank_tiendas_valor, "tienda", "valor"),
+            "usuarios_por_valor": _top(rank_users_valor, "usuario", "valor"),
+            "tiendas_por_operaciones": _top(rank_tiendas_ops, "tienda", "ops"),
+            "usuarios_por_operaciones": _top(rank_users_ops, "usuario", "ops"),
+        }
+        pipeline = {"abiertas": abiertas, "valor_estimado": valor_estimado, "por_estado": [{"estado": k, **v} for k, v in pipe_estado.items()]}
+        operativa = {
+            "recibidas": recibidas_sum,
+            "completadas": completadas_sum,
+            "conversion_pct": (conv_acc / conv_n) if conv_n else None,
+            "tmed_respuesta_h": (t_resp_acc / t_resp_n) if t_resp_n else None,
+            "tmed_recogida_h": (t_rec_acc / t_rec_n) if t_rec_n else None,
+            "tmed_cierre_h": (t_cie_acc / t_cie_n) if t_cie_n else None,
+            "rechazos": {"total": rech_total, "motivos": [{"motivo": k, "count": v} for k, v in rech_mot.items()]},
+            "abandono_pct": (aband_acc / aband_n) if aband_n else None,
+        }
+
+        compar = comparativa_periodo(evolucion, fecha_inicio, fecha_fin, granularidad, {}, {}, comparar)
+
+        # Fallbacks: si la suma de valor_total es 0, usa el valor estimado del pipeline
+        if res_agg.get("valor_total", Decimal(0)) == 0 and valor_estimado > 0:
+            res_agg["valor_total"] = valor_estimado
+        # Ticket medio: si es 0 y hay operaciones, deriva del valor_total y el recuento total de oportunidades
+        if res_agg.get("ticket_medio", Decimal(0)) == 0 and total_ops_count > 0:
+            try:
+                res_agg["ticket_medio"] = (res_agg["valor_total"] / total_ops_count)
+            except Exception:
+                pass
+        # Comisión: si está en 0, calcula usando el porcentaje configurado en cada tenant
+        if res_agg.get("comision_total", Decimal(0)) == 0 and res_agg.get("valor_total", Decimal(0)) > 0:
+            total_calc = Decimal(0)
+            for b in bloques:
+                try:
+                    bres = (b or {}).get("resumen") or {}
+                    schema = (b or {}).get("_schema")
+                    pct = pct_map.get(schema, Decimal(0))
+                    b_com_tot = Decimal(str(bres.get("comision_total", 0) or 0))
+                    b_val_tot = Decimal(str(bres.get("valor_total", 0) or 0))
+                    if b_com_tot == 0 and b_val_tot > 0 and pct > 0:
+                        total_calc += (b_val_tot * pct)
+                    else:
+                        total_calc += b_com_tot
+                except Exception:
+                    continue
+            if total_calc > 0:
+                res_agg["comision_total"] = total_calc
+
+        if res_agg.get("comision_media", Decimal(0)) == 0 and res_agg.get("ticket_medio", Decimal(0)) > 0:
+            # Aproximación: media de comisiones medias por tenant usando su pct cuando falte
+            medias = []
+            for b in bloques:
+                try:
+                    bres = (b or {}).get("resumen") or {}
+                    schema = (b or {}).get("_schema")
+                    pct = pct_map.get(schema, Decimal(0))
+                    b_com_med = Decimal(str(bres.get("comision_media", 0) or 0))
+                    b_t_med = Decimal(str(bres.get("ticket_medio", 0) or 0))
+                    if b_com_med == 0 and b_t_med > 0 and pct > 0:
+                        medias.append(b_t_med * pct)
+                    elif b_com_med > 0:
+                        medias.append(b_com_med)
+                except Exception:
+                    continue
+            if medias:
+                res_agg["comision_media"] = sum(medias) / Decimal(len(medias))
+
+        out = {
+            "resumen": dict(res_agg),
+            "evolucion": evolucion,
+            "comparativa": compar,
+            "rankings": rankings,
+            "pipeline": pipeline,
+            "operativa": operativa,
+        }
+        return Response(out, status=200)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -570,46 +812,47 @@ class YoAPIView(APIView):
 
     def get(self, request):
         user = request.user
-        data = {
-            "id": user.id,
-            "name": getattr(user, "name", ""),
-            "email": user.email,
-            "global": None,
-        }
+        tenant_obj = getattr(request, 'tenant', None)
+        tenant_slug = getattr(tenant_obj, 'schema_name', None)
 
-        tenant_slug = getattr(request, "tenant", None)
-        tenant_slug = getattr(tenant_slug, "schema_name", None)
+        data = {
+            'id': user.id,
+            'name': getattr(user, 'name', ''),
+            'email': user.email,
+            'global': None,
+            'tenant': None,
+        }
 
         try:
             global_role = user.global_role
 
-            # 🔁 Construimos roles_por_tenant desde el modelo relacionado
             roles_por_tenant = {
                 r.tenant_slug: {
-                    "rol": r.rol,
-                    "tienda_id": r.tienda_id,
-                    
+                    'rol': r.rol,
+                    'tienda_id': r.tienda_id,
                 }
                 for r in global_role.roles.all()
             }
 
-            data["global"] = {
-                "es_superadmin": global_role.es_superadmin,
-                "es_empleado_interno": global_role.es_empleado_interno,
-                "roles_por_tenant": roles_por_tenant,
-                "rol_actual": roles_por_tenant.get(tenant_slug.lower() if tenant_slug else None)
+            data['global'] = {
+                'es_superadmin': global_role.es_superadmin,
+                'es_empleado_interno': global_role.es_empleado_interno,
+                'roles_por_tenant': roles_por_tenant,
+                'rol_actual': roles_por_tenant.get(tenant_slug.lower() if tenant_slug else None),
             }
-
         except UserGlobalRole.DoesNotExist:
             pass
 
+        if tenant_obj and tenant_slug and tenant_slug != get_public_schema_name():
+            data['tenant'] = {
+                'schema': tenant_slug,
+                'name': getattr(tenant_obj, 'name', ''),
+                'solo_empresas': getattr(tenant_obj, 'solo_empresas', False),
+                'management_mode': getattr(tenant_obj, 'management_mode', None),
+            }
+
         return Response(data)
 
-ESTADOS_RESUMEN = {
-    "pendiente": ["pendiente"],
-    "aceptada": ["Aceptado"],
-    "en_revision": ["En revisión"],
-}
 class ResumenGlobalOportunidadesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -700,7 +943,8 @@ def listar_tenants(request):
             "schema": tenant.schema_name,
             "estado": getattr(tenant, "estado", "activo"),
             "tiendas": num_tiendas,
-            "modo": tenant.management_mode
+            "modo": tenant.management_mode,
+            "solo_empresas": getattr(tenant, "solo_empresas", False),
         })
 
     return Response(tenant_data)
@@ -724,6 +968,66 @@ def tenant_detail(request, id):
 
     # GET
     tenant = get_object_or_404(TenantModel, id=id)
+    return Response(_serialize_tenant_detail(tenant), status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def tenant_agreement_upload(request, id):
+    TenantModel = get_tenant_model()
+    with transaction.atomic():
+        tenant = get_object_or_404(TenantModel.objects.select_for_update(), id=id)
+
+        uploaded = request.FILES.get('acuerdo_empresas_pdf') or request.FILES.get('file')
+        if not uploaded:
+            return Response({"error": "Se requiere un archivo PDF."}, status=status.HTTP_400_BAD_REQUEST)
+
+        content_type = (uploaded.content_type or '').lower()
+        if 'pdf' not in content_type and not uploaded.name.lower().endswith('.pdf'):
+            return Response({"error": "El archivo debe ser un PDF."}, status=status.HTTP_400_BAD_REQUEST)
+
+        max_size_bytes = 10 * 1024 * 1024  # 10 MB
+        if uploaded.size and uploaded.size > max_size_bytes:
+            return Response({"error": "El PDF no puede superar los 10 MB."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_name, ext = os.path.splitext(uploaded.name or 'acuerdo.pdf')
+        ext = ext.lower() if ext else '.pdf'
+        safe_base = slugify(base_name) or f'acuerdo-{tenant.id}'
+        upload_path = f"acuerdos/tenant-{tenant.id}/{safe_base}{ext}"
+
+        if getattr(tenant, 'acuerdo_empresas_pdf', None):
+            tenant.acuerdo_empresas_pdf.delete(save=False)
+
+        tenant.acuerdo_empresas_pdf.save(upload_path, uploaded, save=True)
+
+    return Response({
+        "acuerdo_empresas_pdf_url": f"/api/tenants/{tenant.id}/agreement/download/",
+        "acuerdo_empresas_pdf_nombre": os.path.basename(tenant.acuerdo_empresas_pdf.name),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tenant_agreement_download(request, id):
+    TenantModel = get_tenant_model()
+    tenant = get_object_or_404(TenantModel, id=id)
+    archivo = getattr(tenant, 'acuerdo_empresas_pdf', None)
+    if not getattr(archivo, 'name', None):
+        raise Http404("El partner no tiene un acuerdo PDF subido.")
+
+    return FileResponse(
+        archivo.open('rb'),
+        as_attachment=True,
+        filename=os.path.basename(archivo.name)
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tenant_detail_by_schema(request, schema):
+    TenantModel = get_tenant_model()
+    tenant = get_object_or_404(TenantModel, schema_name__iexact=schema)
     return Response(_serialize_tenant_detail(tenant), status=status.HTTP_200_OK)
 
 class CrearCompanyAPIView(APIView):
@@ -808,6 +1112,7 @@ class CrearCompanyAPIView(APIView):
             "contacto_apellidos": data.get("contacto_apellidos"),
             "contacto_cargo": data.get("contacto_cargo"),
             "goal": data.get("goal"),
+            "solo_empresas": data.get("solo_empresas"),
         }
 
         for k, v in optional_map.items():
@@ -1834,4 +2139,3 @@ class AdminB2CContratoViewSet(viewsets.GenericViewSet):
             resp["X-Frame-Options"] = "SAMEORIGIN"
             return resp
         
-

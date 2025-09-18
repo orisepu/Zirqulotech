@@ -22,23 +22,83 @@ import useUsuarioActual from "@/hooks/useUsuarioActual";
 import { formatoBonito } from '@/context/precios'
 import EstadoChipSelector from '@/components/cambiosestadochipselector'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ColumnDef } from '@tanstack/react-table'
 import { pdf } from '@react-pdf/renderer'                // // quitar en producción si solo usas PDF backend
 import OfertaPDFDocument from '@/components/pdf/OfertaPDFDocument'
 import { columnasDispositivosReales } from '@/components/TablaColumnas2'
-import { ColoredPaper,stripePseudoSx } from '@/context/ThemeContext'
+import { ColoredPaper } from '@/context/ThemeContext'
 import { ESTADOS_META } from '@/context/estados'
 // Tipos (opcionales, para claridad)
-interface Dispositivo { id: number; modelo: any; capacidad?: any; imei?: string; estado_fisico: string; estado_funcional: string; cantidad: number; precio_orientativo: number; }
-interface Comentario { id: number; texto: string; autor_nombre: string; fecha: string; }
-interface Factura { id: number; archivo: string; tipo: string; fecha_subida: string; }
-interface Oportunidad { id: number; nombre: string; estado: string; fecha_creacion: string; comentarios: Comentario[]; facturas?: Factura[]; plazo_pago_dias?: number | null; fecha_inicio_pago?: string | null; numero_seguimiento?: string; url_seguimiento?: string; cliente?: any; tienda?: any; hashid?: string; calle?: string; numero?: string; piso?: string; puerta?: string; codigo_postal?: string; poblacion?: string; provincia?: string; persona_contacto?: string; telefono_contacto?: string; fecha_recogida?: string; horario_recogida?: string; instrucciones?: string; dispositivos?: Dispositivo[] }
+interface Modelo { descripcion: string }
+interface Capacidad { tamaño?: string | number }
+interface Dispositivo { id: number; modelo: Modelo; capacidad?: Capacidad; imei?: string; estado_fisico: string; estado_funcional: string; cantidad: number; precio_orientativo: number }
+interface Comentario { id: number; texto: string; autor_nombre: string; fecha: string }
+interface Factura { id: number; archivo: string; tipo: string; fecha_subida: string }
+interface Cliente {
+  canal?: 'b2b' | 'b2c' | string
+  cif?: string
+  direccion_calle?: string
+  direccion_piso?: string
+  direccion_puerta?: string
+  direccion_cp?: string
+  direccion_poblacion?: string
+  direccion_provincia?: string
+  contacto?: string
+  telefono?: string
+  correo?: string
+}
+interface HistorialEvento {
+  id: number
+  tipo_evento: string
+  descripcion: string
+  usuario_nombre: string
+  fecha: string
+}
+interface DispositivoReal {
+  modelo?: string
+  capacidad?: string
+  estado_valoracion?: string
+  imei?: string
+  numero_serie?: string
+  precio_final?: number
+  auditado?: boolean
+  auditoria?: unknown
+  auditado_en?: string
+  auditado_por?: string
+}
+interface Oportunidad {
+  id: number
+  nombre: string
+  estado: string
+  fecha_creacion: string
+  comentarios: Comentario[]
+  facturas?: Factura[]
+  plazo_pago_dias?: number | null
+  fecha_inicio_pago?: string | null
+  numero_seguimiento?: string
+  url_seguimiento?: string
+  cliente?: Cliente
+  tienda?: unknown
+  hashid?: string
+  calle?: string
+  numero?: string
+  piso?: string
+  puerta?: string
+  codigo_postal?: string
+  poblacion?: string
+  provincia?: string
+  persona_contacto?: string
+  telefono_contacto?: string
+  fecha_recogida?: string
+  horario_recogida?: string
+  instrucciones?: string
+  dispositivos?: Dispositivo[]
+}
 interface DetalleOportunidadGlobal {
   nombre: string;
   oportunidad: Oportunidad;
-  historial: any[];
-  modelos: any[];
-  capacidades: any[];
-  dispositivos_reales: any[];
+  historial: HistorialEvento[];
+  dispositivos_reales: DispositivoReal[];
   transiciones_validas?: {
     anteriores: string[];
     siguientes: string[];
@@ -59,22 +119,14 @@ export default function OportunidadDetallePageGlobal() {
   const [tab, setTab] = useState(0)
   const queryClient = useQueryClient()
   const [nuevoComentario, setNuevoComentario] = useState('')
-  const [modalEstadoAbierto, setModalEstadoAbierto] = useState(false)
-  const [estadoSeleccionado, setEstadoSeleccionado] = useState('')
   const [abrirModal, setAbrirModal] = useState(false)
-  const [itemAEditar, setItemAEditar] = useState<any | null>(null)
+  const [itemAEditar, setItemAEditar] = useState<Dispositivo | null>(null)
   const [modalRecogidaAbierto, setModalRecogidaAbierto] = useState(false)
   const [modalFacturasAbierto, setModalFacturasAbierto] = useState(false)
   const [facturaSeleccionada, setFacturaSeleccionada] = useState<string | null>(null)
-  const [plazoPagoDias, setPlazoPagoDias] = useState<number>(30)
-  const [datosSeguimiento, setDatosSeguimiento] = useState({ numero: '', url: '' })
   const finComentariosRef = useRef<HTMLDivElement | null>(null)
   const usuario = useUsuarioActual();  
   
-  const requiereDatosSeguimiento = estadoSeleccionado === "Recogida generada"
-  const seguimientoIncompleto = requiereDatosSeguimiento && (!datosSeguimiento.numero.trim() || !datosSeguimiento.url.trim())
-  const [pageReales, setPageReales] = useState(0)
-  const [rowsPerPageReales, setRowsPerPageReales] = useState(10)
   const [form, setForm] = useState<RecogidaForm>({
     calle: "", numero: "", piso: "", puerta: "",
     codigo_postal: "", poblacion: "", provincia: "",
@@ -112,11 +164,9 @@ export default function OportunidadDetallePageGlobal() {
     queryFn: async () => {
       const { data } = await api.get(`/api/oportunidades-globales/${tenant}/${id}/detalle-completo/`)
       const payload: DetalleOportunidadGlobal = {
-        nombre: data?.oportunidad?.nombre ?? String(id), // <- Breadcrumbs usa este nombre
+        nombre: data?.oportunidad?.nombre ?? String(id),
         oportunidad: data?.oportunidad,
         historial: data?.historial ?? [],
-        modelos: data?.modelos ?? [],
-        capacidades: data?.capacidades ?? [],
         dispositivos_reales: data?.dispositivos_reales ?? [],
         transiciones_validas: data?.transiciones_validas ?? { anteriores: [], siguientes: [], transiciones: [] }
       }
@@ -150,15 +200,6 @@ export default function OportunidadDetallePageGlobal() {
       })
     }
   }, [data?.oportunidad])
-
-  useEffect(() => {
-    if (modalEstadoAbierto && estadoSeleccionado === 'Recogida generada' && data?.oportunidad) {
-      setDatosSeguimiento({
-        numero: data.oportunidad.numero_seguimiento || '',
-        url: data.oportunidad.url_seguimiento || '',
-      })
-    }
-  }, [modalEstadoAbierto, estadoSeleccionado, data?.oportunidad])
 
   // === Mutations ===
   const mAgregarComentario = useMutation({
@@ -208,7 +249,7 @@ export default function OportunidadDetallePageGlobal() {
   const verPDFEnNuevaPestana = async () => {
     const blob = await pdf(
       <OfertaPDFDocument
-        dispositivos={dispositivosReales.map((d: any) => ({
+        dispositivos={dispositivosReales.map((d: DispositivoReal) => ({
           modelo: d.modelo || '',
           capacidad: d.capacidad || '',
           estado: d.estado_valoracion || '',
@@ -216,10 +257,10 @@ export default function OportunidadDetallePageGlobal() {
           numero_serie: d.numero_serie || '',
           precio: Number(d.precio_final) || 0,
         }))}
-        total={dispositivosReales.reduce((acc: number, d: any) => acc + (Number(d.precio_final) || 0), 0)}
+        total={dispositivosReales.reduce((acc: number, d: DispositivoReal) => acc + (Number(d.precio_final) || 0), 0)}
         nombre={String(oportunidad?.hashid ?? oportunidad?.id ?? '')}
         oportunidad={oportunidad}
-        cif= {oportunidad?.cliente.cif}
+        cif={oportunidad?.cliente?.cif}
         calle={oportunidad?.calle ?? oportunidad?.cliente?.direccion_calle ?? ''}
         tienda={oportunidad?.tienda}
         logoUrl="/logo-progeek.png"
@@ -231,7 +272,7 @@ export default function OportunidadDetallePageGlobal() {
   };
 
   const mCambiarEstado = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: Record<string, unknown>) => {
       return api.patch(`/api/oportunidades-globales/${tenant}/${id}/detalle-completo/`, payload)
     },
     onSuccess: async () => {
@@ -241,19 +282,8 @@ export default function OportunidadDetallePageGlobal() {
     },
     onError: () => toast.error('❌ Error al cambiar el estado')
   })
-  const handleGuardarEstado = (nextEstado: string) => {
-    if (!nextEstado) return toast.error('Selecciona un estado válido')
-    const payload: any = { estado: nextEstado }
-    if (nextEstado === 'Pendiente de pago') payload.plazo_pago_dias = plazoPagoDias ?? ''
-    if (nextEstado === 'Recogida generada') {
-      payload.numero_seguimiento = datosSeguimiento.numero
-      payload.url_seguimiento = datosSeguimiento.url
-    }
-    mCambiarEstado.mutate(payload)
-  }
-
   const mGuardarRecogida = useMutation({
-    mutationFn: async (body: any) => {
+    mutationFn: async (body: Partial<Oportunidad>) => {
       return api.patch(`/api/oportunidades-globales/${tenant}/${id}/detalle-completo/`, body)
     },
     onSuccess: async () => {
@@ -347,6 +377,9 @@ export default function OportunidadDetallePageGlobal() {
     if (finComentariosRef.current) finComentariosRef.current.scrollIntoView({ behavior: 'smooth' })
   }, [data?.oportunidad?.comentarios])
   const meta = oportunidad?.estado ? ESTADOS_META[oportunidad.estado] : null
+  type ColorKey = 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
+  const allowedColors = new Set<ColorKey>(['primary','secondary','error','info','success','warning'])
+  const colorKey: ColorKey = allowedColors.has((meta?.color as ColorKey)) ? (meta?.color as ColorKey) : 'primary'
   if (isLoading) return <CircularProgress />
   if (!oportunidad) return <Typography>Oportunidad no encontrada</Typography>
 
@@ -354,7 +387,7 @@ return (
   <>
   <Box>
     {/* COLUMNA PRINCIPAL */}
-      <ColoredPaper colorKey={meta?.color as any} elevation={3}stripeSide="left"stripeWidth={4} sx={{ p: 2, mb: 3, width: '100%', boxSizing: 'border-box' }}>
+      <ColoredPaper colorKey={colorKey} elevation={3}stripeSide="left"stripeWidth={4} sx={{ p: 2, mb: 3, width: '100%', boxSizing: 'border-box' }}>
         {/* CABECERA */}
           <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={2}>
             <Box>
@@ -416,16 +449,16 @@ return (
           {/* BOTONES ACCIONES */}
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" mt={3}>
             <Button
-              variant="outlined"
+              variant="contained"
               color="success"
               onClick={handleGenerarPDF}
               startIcon={<KeyboardDoubleArrowRightIcon />}
             >
               Descargar oferta
             </Button>
-              { oportunidad.cliente.canal == "b2b" &&
+              { oportunidad?.cliente?.canal === "b2b" &&
             <Button
-              variant="outlined"
+              variant="contained"
               component="label"
               startIcon={<KeyboardDoubleArrowRightIcon />}
             >
@@ -434,24 +467,25 @@ return (
             </Button>
               }
             <Button
-              variant="outlined"
+              variant="contained"
               color="secondary"
               onClick={() =>
                 window.location.href = `/auditorias/${getIdlink(oportunidad)}?tenant=${tenant}`
               }
             >
-              Ver auditoría
+             Auditoría
             </Button>
 
             <Button
-              variant="outlined"
+              variant="contained"
               color="info"
               onClick={() =>
                 window.location.href = `/recepcion/${getIdlink(oportunidad)}?tenant=${tenant}`
               }
             >
-              Ver recepción
+              Recepción
             </Button>
+            {oportunidad?.cliente?.canal === 'b2c' && (
               <Button
                 variant="outlined"
                 size="small"
@@ -462,6 +496,7 @@ return (
               >
                 Revisar KYC / Acta
               </Button>
+            )}
             {(oportunidad.facturas?.length ?? 0) > 0 && (
               <Button
                 variant="outlined"
@@ -477,7 +512,7 @@ return (
         {/* TABS solo si no estamos en dispositivos reales */}
       <Grid container spacing={1}  sx={{ justifyContent: "space-between", alignItems: "stretch" }}>
         <Grid size={{xs:12, md: tab === 2 ? 12 : 6 }}  > 
-          <ColoredPaper colorKey={meta?.color as any}elevation={3} sx={{ p: 3, mb: 3, height: '100%',width: "100%" }}>
+          <ColoredPaper colorKey={colorKey}elevation={3} sx={{ p: 3, mb: 3, height: '100%',width: "100%" }}>
             <Tabs
               value={tab}
               onChange={(_, v) => {
@@ -506,7 +541,7 @@ return (
                   {(oportunidad.dispositivos ?? []).map((d) => (
                     <ListItem key={d.id}>
                       <Paper sx={{ p: 2, width: '100%' }}>
-                        <Typography><strong>Modelo:</strong> {d.modelo.descripcion} {d.capacidad.tamaño}</Typography>
+                        <Typography><strong>Modelo:</strong> {d.modelo?.descripcion} {d.capacidad?.tamaño ?? ''}</Typography>
                         <Typography><strong>Cantidad:</strong> {d.cantidad}</Typography>
                         <Typography><strong>Estado estético:</strong> {formatoBonito(d.estado_fisico)}</Typography>
                         <Typography><strong>Estado funcional:</strong> {formatoBonito(d.estado_funcional)}</Typography>
@@ -564,9 +599,9 @@ return (
                     </Button>
                   </Box>
                   <Box mt={2}>
-                    <TablaReactiva
-                      oportunidades={dispositivosReales}
-                      columnas={columnasDispositivosReales}
+                    <TablaReactiva<Record<string, unknown>>
+                      oportunidades={dispositivosReales as unknown as Record<string, unknown>[]}
+                      columnas={columnasDispositivosReales as unknown as ColumnDef<Record<string, unknown>>[]}
                       usuarioId={usuario?.id}
                       defaultSorting={[{ id: 'modelo', desc: false }]}
                     />
@@ -713,7 +748,7 @@ return (
               await handleGuardarDatosRecogida()
               setModalRecogidaAbierto(false)
             }}
-            rellenarDesdeOportunidad={(opp: any) => {
+            rellenarDesdeOportunidad={(opp: Oportunidad) => {
               setFormEdicion(prev => ({
                 ...prev,
                 calle: opp.cliente?.direccion_calle || '',

@@ -15,8 +15,7 @@ import {
   TableContainer,
   Checkbox,
   Button,
-  Select,
-  TextField
+  Select
 } from '@mui/material'
 import {
   ColumnDef,
@@ -91,9 +90,13 @@ export default function TablaReactiva<TData>({
   })
 
   // onPaginationChange compatible con controlado/no controlado
-  const handlePaginationChange = (updater: any) => {
-    const current = pagination
-    const next = typeof updater === 'function' ? updater(current) : updater
+  const handlePaginationChange = (
+    updater:
+      | { pageIndex: number; pageSize: number }
+      | ((old: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number })
+  ) => {
+    const current = pagination as { pageIndex: number; pageSize: number }
+    const next = typeof updater === 'function' ? (updater as (old: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number })(current) : updater
     if (serverPagination) {
       if (next.pageIndex !== current.pageIndex) onPageChange?.(next.pageIndex)
       if (next.pageSize !== current.pageSize) onPageSizeChange?.(next.pageSize)
@@ -106,10 +109,10 @@ export default function TablaReactiva<TData>({
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_VISIBILITY, JSON.stringify(columnVisibility))
     }
-  }, [columnVisibility])
+  }, [columnVisibility, STORAGE_KEY_VISIBILITY])
 
   const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? [])
-  const columnDefs = useMemo(() => columnas, [columnas])
+  const columnDefs = useMemo<ColumnDef<TData, unknown>[]>(() => columnas as ColumnDef<TData, unknown>[], [columnas])
   const tableMeta = useMemo(() => {
     if (!meta) return undefined
     const setDataWrapped = (val: TData[] | ((old: TData[]) => TData[])) => {
@@ -122,16 +125,16 @@ export default function TablaReactiva<TData>({
     }
     return { data: meta.data, setData: setDataWrapped, zoom: meta.zoom }
     // Dependencias finas para evitar cierres obsoletos
-  }, [meta?.data, meta?.setData, meta?.zoom])
+  }, [meta])
   const table = useReactTable<TData>({
     data: datos,
-    columns: columnDefs as ColumnDef<TData, any>[],
-    getRowId: (row: any, index: number) =>
-      row && row.tenant !== undefined && row.id !== undefined
-        ? `${row.tenant}-${row.id}`
-        : row.id !== undefined
-          ? String(row.id)
-          : String(index),
+    columns: columnDefs,
+    getRowId: (row: TData, index: number) => {
+      const r = row as Record<string, unknown> & { tenant?: string | number; id?: string | number }
+      if (r && r.tenant !== undefined && r.id !== undefined) return `${r.tenant}-${r.id}`
+      if (r.id !== undefined) return String(r.id)
+      return String(index)
+    },
     state: { sorting, pagination, globalFilter, columnVisibility },
     meta:tableMeta,
     onPaginationChange: handlePaginationChange,
@@ -163,18 +166,27 @@ export default function TablaReactiva<TData>({
   const exportToCSV = () => {
     const visibleColumns = table.getVisibleLeafColumns();
 
+    type ColMeta = {
+      label?: string;
+      toCSV?: (value: unknown, row: TData) => unknown;
+      minWidth?: number;
+      headerMaxWidth?: number;
+      alignHeader?: 'left' | 'center' | 'right';
+      align?: 'left' | 'center' | 'right';
+      ellipsis?: boolean;
+      ellipsisMaxWidth?: number;
+    };
+
     const headers = visibleColumns.map((col) =>
-      (col.columnDef.meta as any)?.label || col.id
+      ((col.columnDef.meta as ColMeta | undefined)?.label) || col.id
     );
 
     const rows = table.getRowModel().rows.map((row) =>
       visibleColumns.map((col) => {
         const raw = row.getValue(col.id); // <- accessorFn ya aplicado
-        const toCSV = (col.columnDef.meta as any)?.toCSV as
-          | ((value: any, row: any) => any)
-          | undefined;
+        const toCSV = (col.columnDef.meta as ColMeta | undefined)?.toCSV;
 
-        const val = toCSV ? toCSV(raw, row.original) : raw;
+        const val = toCSV ? toCSV(raw, row.original as TData) : raw;
 
         if (val == null) return '';
         if (val instanceof Date) return val.toISOString();
@@ -306,14 +318,27 @@ export default function TablaReactiva<TData>({
                 <TableCell
                   key={header.id}
                   
-                  style={{
-                    // sin width: dejamos al layout estirar
-                    minWidth: header.column.columnDef.meta?.minWidth,
-                    maxWidth: header.column.columnDef.meta?.headerMaxWidth,
-                    whiteSpace: 'normal',
-                    wordBreak: 'break-word'
-                  }}
                   align={header.column.columnDef.meta?.alignHeader || 'center'}
+                  sx={{
+                    minWidth: header.column.columnDef.meta?.minWidth,
+                    maxWidth:
+                      header.column.columnDef.meta?.maxWidth ??
+                      header.column.columnDef.meta?.headerMaxWidth,
+                    width: header.column.columnDef.meta?.maxWidth,
+                    whiteSpace: (header.column.columnDef.meta as any)?.nowrapHeader
+                      ? 'nowrap'
+                      : (header.column.columnDef.meta as any)?.headerWrap
+                        ? 'normal'
+                        : 'normal',
+                    overflow: (header.column.columnDef.meta as any)?.nowrapHeader
+                      ? 'hidden'
+                      : undefined,
+                    textOverflow: (header.column.columnDef.meta as any)?.nowrapHeader ? 'ellipsis' : undefined,
+                    wordBreak: (header.column.columnDef.meta as any)?.nowrapHeader
+                      ? 'normal'
+                      : 'break-word',
+                    display: 'table-cell',
+                  }}
                 >
                   {!header.isPlaceholder && (
                     <TableSortLabel
@@ -321,13 +346,18 @@ export default function TablaReactiva<TData>({
                       direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
                       onClick={header.column.getToggleSortingHandler()}
                       sx={{
-                        display: 'flex',
-                        justifyContent:
+                        display: 'inline-flex',
+                        flexDirection: 'column',
+                        alignItems:
                           (header.column.columnDef.meta?.alignHeader || 'left') === 'center'
                             ? 'center'
                             : (header.column.columnDef.meta?.alignHeader || 'left') === 'right'
                               ? 'flex-end'
-                              : 'flex-start'
+                              : 'flex-start',
+                        gap: 0.25,
+                        textAlign:
+                          header.column.columnDef.meta?.alignHeader === 'center' ? 'center' : undefined,
+                        lineHeight: 1.1,
                       }}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
@@ -344,13 +374,30 @@ export default function TablaReactiva<TData>({
           {table.getRowModel().rows.map((row) => (
             <TableRow key={row.id} hover>
               {row.getVisibleCells().map((cell) => {
-                const meta = (cell.column.columnDef.meta as any) || {};
-                const rawValue = cell.getValue() as any; // lo que devuelve el accessor
+                const meta =
+                  (cell.column.columnDef.meta as {
+                    minWidth?: number
+                    maxWidth?: number
+                    align?: 'left' | 'center' | 'right'
+                    ellipsis?: boolean
+                    ellipsisMaxWidth?: number | string
+                  } | undefined) || {}
+                const rawValue = cell.getValue(); // lo que devuelve el accessor
                 let content = flexRender(cell.column.columnDef.cell, cell.getContext());
 
-                // Si no hay cell custom, usamos el valor "crudo"
+                // Si no hay cell custom, usamos el valor "crudo" de forma segura
                 if (content == null || content === false) {
-                  content = rawValue;
+                  if (
+                    React.isValidElement(rawValue) ||
+                    typeof rawValue === 'string' ||
+                    typeof rawValue === 'number'
+                  ) {
+                    content = rawValue as React.ReactNode;
+                  } else if (rawValue == null) {
+                    content = '';
+                  } else {
+                    content = String(rawValue);
+                  }
                 }
 
                 // Si la columna pide ellipsis+tooltip
@@ -364,7 +411,17 @@ export default function TablaReactiva<TData>({
                       : String(rawValue);
 
                   content = (
-                    <Box sx={{ minWidth: 0, maxWidth: meta.ellipsisMaxWidth ?? meta.minWidth ?? 240, overflow: "hidden" }}>
+                    <Box
+                      sx={{
+                        minWidth: 0,
+                        maxWidth:
+                          meta.ellipsisMaxWidth ??
+                          meta.maxWidth ??
+                          meta.minWidth ??
+                          240,
+                        overflow: 'hidden',
+                      }}
+                    >
                       <EllipsisTooltip text={text} maxWidth="100%" />
                     </Box>
                   );
@@ -373,7 +430,11 @@ export default function TablaReactiva<TData>({
                 return (
                   <TableCell
                     key={cell.id}
-                    style={{ minWidth: cell.column.columnDef.meta?.minWidth }}
+                    style={{
+                      minWidth: cell.column.columnDef.meta?.minWidth,
+                      maxWidth: cell.column.columnDef.meta?.maxWidth,
+                      width: cell.column.columnDef.meta?.maxWidth,
+                    }}
                     align={meta.align || 'left'}
                   >
                     {content}

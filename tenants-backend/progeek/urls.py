@@ -4,7 +4,8 @@ from .views import (
     LoteGlobalViewSet,busqueda_global,PipelineOportunidadesPublicAPIView,oportunidades_globales_por_estado,GuardarAuditoriaGlobalAPIView,PlantillaCorreoViewSet,
     dispositivos_de_oportunidad,CrearCompanyAPIView,detalle_oportunidad_completo,generar_pdf_oportunidad_global,SubirFacturaGlobalView,BorrarDispositivoGlobalAPIView,
     DispositivoAuditadoViewSet,OportunidadesGlobalesView,YoAPIView,ResumenGlobalOportunidadesAPIView,UserListAPIView,crear_dispositivo_global,cambiar_estado_oportunidad_global,
-    verificar_credenciales, detalle_oportunidad_global,historial_oportunidad_global,listar_tenants,tenant_detail,descargar_documento_global,
+    verificar_credenciales, detalle_oportunidad_global,historial_oportunidad_global,listar_tenants,tenant_detail,tenant_detail_by_schema,descargar_documento_global,
+    tenant_agreement_upload, tenant_agreement_download,
     AdminB2CContratoViewSet,
 )
 from progeek.views_kyc import KycPdfPreviewView
@@ -13,6 +14,7 @@ from .views_legales import (
     LegalTemplateView, LegalTemplatePublishView, LegalTemplateVersionsView,
     LegalVariablesView, LegalRenderPreviewView
 )
+from .views import DashboardAdminAPIView
 router = DefaultRouter()
 router.register(r"lotes-globales", LoteGlobalViewSet, basename="lotes-globales")
 router.register(r'dispositivos-auditados', DispositivoAuditadoViewSet)
@@ -48,11 +50,15 @@ urlpatterns = router.urls + [
     # 📊 Dashboard y resumen
     path("resumen-global/", ResumenGlobalOportunidadesAPIView.as_view(), name="resumen_global"),
     path("pipeline-oportunidades/", PipelineOportunidadesPublicAPIView.as_view()),
+    path("dashboard/admin/", DashboardAdminAPIView.as_view()),
 
     # 🧑‍🤝‍🧑 Usuarios y tenants
     path("usuarios/", UserListAPIView.as_view(), name="api-usuarios-list"),
     path("tenants/", listar_tenants, name="listar_tenants"),
     path("tenants/<int:id>/", tenant_detail, name="tenant_detail"),
+    path("tenants/<int:id>/agreement/", tenant_agreement_upload, name="tenant_agreement_upload"),
+    path("tenants/<int:id>/agreement/download/", tenant_agreement_download, name="tenant_agreement_download"),
+    path("tenants/by-schema/<slug:schema>/", tenant_detail_by_schema, name="tenant_detail_by_schema"),
     path("crear-company/", CrearCompanyAPIView.as_view(), name="crear-company"),
 
     # 📦 Auditarias

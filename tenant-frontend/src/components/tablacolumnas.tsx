@@ -4,7 +4,6 @@
   import type { ChipProps } from '@mui/material/Chip'
   import { ColumnDef } from '@tanstack/react-table'
   import { Select, MenuItem, TextField, Button } from '@mui/material'
-  import { getPrecioFinal,calcularEstadoValoracion } from '@/context/precios'
   import React from 'react'
   /** Tipo de columna para tu tabla personalizada (no TanStack) */
   type Col<T> = {
@@ -52,7 +51,7 @@
     correo?: string
     telefono?: string
     tienda_nombre?: string
-    oportunidades?: any[]
+    oportunidades?: Array<Record<string, unknown>>
   }
 
   /** util */
@@ -489,6 +488,5 @@ const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros']
     },
     
   ]
-
 
 

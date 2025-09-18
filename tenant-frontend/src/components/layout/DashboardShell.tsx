@@ -1,34 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  IconButton,
-  Box,
-  Drawer,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  CssBaseline,
-  Divider,
-  useTheme,Breadcrumbs,
-  useMediaQuery,
-  Skeleton,Tooltip
-} from "@mui/material";
+import { AppBar, Toolbar, Typography, IconButton, Box, Drawer, List, ListItem, ListItemIcon, ListItemText, CssBaseline, Divider, useTheme, useMediaQuery, Skeleton, Tooltip } from "@mui/material";
 import GroupsIcon from "@mui/icons-material/Groups";
 import MenuIcon from "@mui/icons-material/Menu";
-import HomeIcon from "@mui/icons-material/Home";
+import SpaceDashboardIcon from "@mui/icons-material/SpaceDashboard";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import LightbulbIcon from "@mui/icons-material/Lightbulb";
+import PublicIcon from "@mui/icons-material/Public";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import PersonIcon from "@mui/icons-material/Person";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { Brightness4, Brightness7 } from "@mui/icons-material";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useColorMode } from "@/context/ThemeContext";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import Inventory2Icon from "@mui/icons-material/Inventory2";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import ToasterProvider from "@/components/ToasterProvider";
 import "react-toastify/dist/ReactToastify.css";
 import api from "@/services/api";
@@ -37,7 +25,7 @@ import { useUsuario } from "@/context/UsuarioContext";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import BreadcrumbsExplorador from "@/components/BreadcrumbsExplorador";
-import { useQueryClient } from "@tanstack/react-query";
+// import { useQueryClient } from "@tanstack/react-query";
 const drawerWidth = 220;
 const collapsedWidth = 64;
 export default function DashboardShell({
@@ -48,7 +36,7 @@ export default function DashboardShell({
   
 }) {
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { toggleColorMode } = useColorMode();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -57,7 +45,7 @@ export default function DashboardShell({
   const [tenantAccess, setTenantAccess] = useState<string[]>([]);
   
   
-  const queryClient = useQueryClient();
+  // const queryClient = useQueryClient();
  
 
 
@@ -66,11 +54,13 @@ export default function DashboardShell({
   const tiendaId = usuario?.rol_actual?.tienda_id;
 
   const { data: nombreTienda, isLoading: cargandoTienda } = useQuery({
-    queryKey: ["nombre-tienda", tiendaId],
+    queryKey: ["tienda-nombre", tiendaId],
     queryFn: async () => {
       if (!tiendaId) return null;
       const res = await api.get(`/api/tiendas/${tiendaId}/`);
-      return res.data.nombre;
+      // Normaliza a string por si otros lugares guardaron objeto con esta key
+      const d = res.data as any;
+      return typeof d === 'string' ? d : (d?.nombre ?? null);
     },
     enabled: !!tiendaId, // no ejecutar si no hay tiendaId
     staleTime: 1000 * 60 * 10,
@@ -84,16 +74,24 @@ export default function DashboardShell({
   }, []);
 
   const navItems = [
-    { label: "Dashboard", icon: <HomeIcon />, to: "/dashboard" },
-    { label: "Clientes", icon: <HomeIcon />, to: "/clientes" },
-    { label: "Oportunidades", icon: <AssessmentIcon />, to: "/oportunidades" },
+    // Inicio / panel principal
+    { label: "Dashboard", icon: <SpaceDashboardIcon />, to: "/dashboard" },
+    // Gestión de clientes
+    { label: "Clientes", icon: <PeopleAltIcon />, to: "/clientes" },
+    // Embudo de oportunidades
+    { label: "Oportunidades", icon: <LightbulbIcon />, to: "/oportunidades" },
+    // Admin (solo superadmin)
+    ...(usuario?.es_superadmin ? [{ label: "Admin", icon: <AdminPanelSettingsIcon />, to: "/admin" }] : []),
+    // Accesos globales (multi-tenant)
     ...(tenantAccess.includes("public")
       ? [
-          { label: "Oportunidades Global", icon: <Inventory2Icon />, to: "/oportunidades-global" },
-          { label: "Recepción", icon: <Inventory2Icon />, to: "/recepcion" },
+          { label: "Oportunidades Global", icon: <PublicIcon />, to: "/oportunidades-global" },
+          { label: "Recepción", icon: <LocalShippingIcon />, to: "/recepcion" },
         ]
       : []),
+    // Perfil de usuario
     { label: "Mi Perfil", icon: <PersonIcon />, to: "/perfil" },
+    // Administración
     ...(usuario?.rol_actual?.rol === "manager"
       ? [{ label: "Gestionar Usuarios", icon: <GroupsIcon />, to: "/usuarios" }]
       : []),
@@ -206,7 +204,7 @@ export default function DashboardShell({
                 sx={{ display: { xs: "none", sm: "block" }, whiteSpace: "nowrap" }}
                 title={usuario ? usuario.name : undefined}
               >
-    {usuario ? `Bienvenido, ${usuario.name}` : <Skeleton width={160} />}
+    {usuario ? `Bienvenid@, ${usuario.name}` : <Skeleton width={160} />}
   </Typography></Box>
 {/* 🧭 Breadcrumbs tipo explorador */}
     <Box sx={{ justifySelf: "center", overflow: "hidden" }}>
@@ -227,7 +225,7 @@ export default function DashboardShell({
 
   {/* 🌙 Tema */}
   <IconButton onClick={toggleColorMode} color="inherit">
-    {theme.palette.mode === "dark" ? <Brightness7 /> : <Brightness4 />}
+    {theme.palette.mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
   </IconButton></Box>
 </Toolbar>
 

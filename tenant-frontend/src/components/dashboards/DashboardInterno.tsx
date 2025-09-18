@@ -8,7 +8,7 @@ import {
   useTheme,
 } from '@mui/material'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 export default function DashboardInterno() {
   const theme = useTheme()
@@ -56,7 +56,7 @@ export default function DashboardInterno() {
     },
   ]
   // Datos ficticios para resumen
-  const [datos, setDatos] = useState({
+  const [datos, _setDatos] = useState({
     valorGenerado: 125430,
     dispositivosAuditados: 482,
     oportunidadesPendientes: 37,

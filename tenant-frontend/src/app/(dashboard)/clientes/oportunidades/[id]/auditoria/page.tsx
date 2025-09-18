@@ -23,8 +23,8 @@ import TablaReactiva from '@/components/TablaReactiva2';
 import { columnasDispositivosReales } from '@/components/TablaColumnas2';
 import { formatoBonito } from '@/context/precios';
 
-type Modelo = { id: number; descripcion: string };
-type Capacidad = { id: number; tamaño: string };
+type Modelo = { id: number; descripcion: string ; modelo: string };
+type Capacidad = { id: number; tamaño: string; capacidad: string };
 
 type DispositivoReal = {
   id: number | string;
@@ -90,11 +90,17 @@ export default function RecepcionDispositivosPartnerPage() {
   }, [dispositivos, page, rowsPerPage]);
 
   const renderModelo = (d: DispositivoReal) =>
-    d?.modelo?.descripcion ?? d?.modelo_descripcion ?? '—';
+    typeof d?.modelo === 'object'
+      ? d?.modelo?.descripcion ?? '—'
+      : d?.modelo ?? '—';
 
   
   const renderCapacidad = (d: DispositivoReal) =>
-    d?.capacidad?.tamaño ?? d?.capacidad_tamaño ?? '—';
+    typeof d?.capacidad === 'object'
+      ? d?.capacidad?.tamaño ?? '—'
+      : typeof d?.capacidad === 'string'
+      ? d.capacidad
+      : '—';
 
   const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {

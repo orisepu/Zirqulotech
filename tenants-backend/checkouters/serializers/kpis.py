@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework import serializers
 from decimal import Decimal
+from django.db import connection
 from ..utils import utilskpis as kpis
 
 from ..kpisutils  import (
@@ -20,16 +21,25 @@ from ..kpisutils  import (
     calcular_total_pagado,
 )
 
-COMISION_PCT = Decimal("0.10")  # 10% fijo (tu #90)
+DEFAULT_COMISION_PCT = Decimal("0.10")  # fallback 10%
 
 class DashboardManagerSerializer(serializers.Serializer):
     @staticmethod
     def collect(request, fecha_inicio, fecha_fin, granularidad, filtros, opciones):
+        # Porcentaje de comisión del tenant (fallback 10%)
+        pct = DEFAULT_COMISION_PCT
+        try:
+            tenant = getattr(connection, "tenant", None) or getattr(connection, "get_tenant", lambda: None)()
+            raw_pct = getattr(tenant, "comision_pct", None)
+            if raw_pct is not None:
+                pct = (Decimal(str(raw_pct)) / Decimal("100"))
+        except Exception:
+            pass
         # 1) Bloque negocio (factura adelante)
         valor_total = kpis.kpi_valor_total(fecha_inicio, fecha_fin, filtros, opciones)
         ticket_medio = kpis.kpi_ticket_medio(fecha_inicio, fecha_fin, filtros, opciones)
-        comision_total = (valor_total or Decimal("0")) * COMISION_PCT
-        comision_media = (ticket_medio or Decimal("0")) * COMISION_PCT
+        comision_total = (valor_total or Decimal("0")) * pct
+        comision_media = (ticket_medio or Decimal("0")) * pct
 
         margen_medio = kpis.kpi_margen_medio(fecha_inicio, fecha_fin, filtros, opciones)  # si procede (puede ser None)
 

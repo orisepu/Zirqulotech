@@ -16,6 +16,7 @@ import AssignmentTurnedIn from "@mui/icons-material/AssignmentTurnedIn";
 import Refresh from "@mui/icons-material/Refresh";
 import Search from "@mui/icons-material/Search";
 import api from "@/services/api";
+import Image from 'next/image'
 
 // --- Types ---
 interface ContratoDetalle {
@@ -30,14 +31,23 @@ interface ContratoDetalle {
   firmado_en?: string | null;
   dni_anverso?: string | null;
   dni_reverso?: string | null;
-  contrato_datos?: any;
+  contrato_datos?: {
+    cliente?: { nombre?: string };
+    dispositivos?: Array<{ descripcion?: string; modelo?: string; precio?: number; accesorios?: Array<{ nombre?: string }> }>;
+    dispositivos_estimados?: Array<{ modelo?: string; precio_provisional?: number; accesorios?: Array<{ nombre?: string }> }>;
+  } | null;
   tenant_slug?: string;
   oportunidad_id?: string;
   nombre?: string;
 }
 
-function unwrapContrato(res: any) {
-  return res?.json?.data ?? res?.data?.data ?? res?.data ?? res;
+function unwrapContrato<T>(res: { data?: unknown; json?: { data?: unknown } } | unknown): T {
+  if (res && typeof res === 'object') {
+    const r = res as { data?: unknown; json?: { data?: unknown } };
+    const maybe = (r.json?.data ?? (r as { data?: unknown }).data) as unknown;
+    return (maybe as T) ?? (res as T);
+  }
+  return res as T;
 }
 
 // --- Hooks ---
@@ -81,11 +91,14 @@ function useContratosPorOpp({ tenant_slug, opp }: { tenant_slug?: string; opp?: 
       if (opp) params.set("opp", opp);
       params.set("all", "1");
       const res = await api.get(`/api/contratos-b2c/detalle-por-opp?${params.toString()}`);
-      const data = unwrapContrato(res);
+      const data = unwrapContrato<unknown>(res);
       // el endpoint puede devolver { count, results } o directamente array
-      const list = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data : (data ? [data] : []));
+      const maybeResults = (data as { results?: unknown })?.results;
+      const list: ContratoDetalle[] = Array.isArray(maybeResults)
+        ? (maybeResults as ContratoDetalle[])
+        : (Array.isArray(data) ? (data as ContratoDetalle[]) : (data ? [data as ContratoDetalle] : []));
       // Orden opcional: marco primero
-      list.sort((a: any, b: any) => (a?.tipo === "marco" ? -1 : 1) - (b?.tipo === "marco" ? -1 : 1));
+      list.sort((a: ContratoDetalle, b: ContratoDetalle) => (a?.tipo === "marco" ? -1 : 1) - (b?.tipo === "marco" ? -1 : 1));
       return list;
     },
   });
@@ -93,7 +106,8 @@ function useContratosPorOpp({ tenant_slug, opp }: { tenant_slug?: string; opp?: 
 
 function useKYCActions() {
   const qc = useQueryClient();
-  const call = (path: string, payload: any) => api.post(`/api/contratos-b2c/${path}`, payload);
+  type ActionPayload = Record<string, unknown>;
+  const call = (path: string, payload: ActionPayload) => api.post(`/api/contratos-b2c/${path}`, payload);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin-detalle"] });
     qc.invalidateQueries({ queryKey: ["admin-detalle-opp"] });
@@ -102,22 +116,22 @@ function useKYCActions() {
   };
   return {
     verificar: useMutation({
-      mutationFn: (payload: any) => call("kyc/verificar/", payload),
+      mutationFn: (payload: ActionPayload) => call("kyc/verificar/", payload),
       onSuccess: invalidate,
       meta: { successMessage: "KYC verificado" },
     }),
     mismatch: useMutation({
-      mutationFn: (payload: any) => call("kyc/mismatch/", payload),
+      mutationFn: (payload: ActionPayload) => call("kyc/mismatch/", payload),
       onSuccess: invalidate,
       meta: { successMessage: "Marcado como mismatch" },
     }),
     rechazar: useMutation({
-      mutationFn: (payload: any) => call("kyc/rechazar/", payload),
+      mutationFn: (payload: ActionPayload) => call("kyc/rechazar/", payload),
       onSuccess: invalidate,
       meta: { successMessage: "KYC rechazado" },
     }),
     generarActa: useMutation({
-      mutationFn: (payload: any) => call("acta/generar-por-opp/", payload),
+      mutationFn: (payload: ActionPayload) => call("acta/generar-por-opp/", payload),
       onSuccess: invalidate,
       meta: { successMessage: "Acta generada" },
     }),
@@ -125,17 +139,18 @@ function useKYCActions() {
 }
 
 // --- UI helpers ---
+type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'success' | 'info' | 'warning';
 function EstadoChip({ estado }: { estado: string }) {
-  const map: Record<string, { label: string; color: any }> = {
+  const map: Record<string, { label: string; color: ChipColor }> = {
     pendiente: { label: "Pendiente", color: "default" },
     otp_enviado: { label: "OTP enviado", color: "warning" },
     firmado: { label: "Firmado", color: "success" },
   };
   const v = map[estado] || { label: estado, color: "default" };
-  return <Chip size="small" label={v.label} color={v.color as any} />;
+  return <Chip size="small" label={v.label} color={v.color} />;
 }
 function KycChip({ kyc }: { kyc: string }) {
-  const map: Record<string, { label: string; color: any }> = {
+  const map: Record<string, { label: string; color: ChipColor }> = {
     pendiente: { label: "KYC pendiente", color: "default" },
     docs_recibidos: { label: "Docs recibidos", color: "info" },
     verificado: { label: "KYC verificado", color: "success" },
@@ -143,7 +158,7 @@ function KycChip({ kyc }: { kyc: string }) {
     rechazado: { label: "Rechazado", color: "error" },
   };
   const v = map[kyc] || { label: kyc, color: "default" };
-  return <Chip size="small" label={v.label} color={v.color as any} />;
+  return <Chip size="small" label={v.label} color={v.color} />;
 }
 
 // --- Acta dialog ---
@@ -156,7 +171,7 @@ function ActaDialog({
   const [firmarAhora, setFirmarAhora] = React.useState(true);
 
   const submit = () => {
-    const payload: any = { observaciones: obs, firmar_ahora: firmarAhora, filtros: { estado_inventario: filtroEstado } };
+    const payload: Record<string, unknown> = { observaciones: obs, firmar_ahora: firmarAhora, filtros: { estado_inventario: filtroEstado } };
     if (token) payload.token = token;
     else if (opp) { payload.tenant_slug = tenant_slug; payload.opp = opp; }
     else { payload.tenant_slug = tenant_slug; payload.contrato_id = contrato_id; }
@@ -182,7 +197,7 @@ function ActaDialog({
             </Select>
           </FormControl>
           <FormGroup>
-            <FormControlLabel control={<input type="checkbox" checked={firmarAhora} onChange={(e) => setFirmarAhora(e.currentTarget.checked)} /> as any} label="Dejar acta lista para firma por OTP" />
+            <FormControlLabel control={<input type="checkbox" checked={firmarAhora} onChange={(e) => setFirmarAhora(e.currentTarget.checked)} />} label="Dejar acta lista para firma por OTP" />
           </FormGroup>
           {generarActa.isError && <Alert severity="error">{String(generarActa.error)}</Alert>}
         </Stack>
@@ -246,7 +261,7 @@ export default function AdminB2CPanel({
 
   const isLoading = usandoOpp ? (qListaOpp.isLoading || qDetalleOpp.isLoading) : qDetalle.isLoading;
   const isError = usandoOpp ? (qListaOpp.isError || qDetalleOpp.isError) : qDetalle.isError;
-  const error: any = usandoOpp ? (qListaOpp.error || qDetalleOpp.error) : qDetalle.error;
+  const error: unknown = usandoOpp ? (qListaOpp.error || qDetalleOpp.error) : qDetalle.error;
   const refetch = usandoOpp ? async () => { await qListaOpp.refetch(); await qDetalleOpp.refetch(); } : qDetalle.refetch;
 
   const { verificar, mismatch, rechazar } = useKYCActions();
@@ -261,7 +276,7 @@ export default function AdminB2CPanel({
     [usandoOpp, tenantSlug, contratoId, token, opp]
   );
 
-  async function abrirPdfBlob(id: string | number | undefined, tenantSlug: string, tipo: string) {
+  async function abrirPdfBlob(id: string | number | undefined, tenantSlug: string, _tipo: string) {
     if (!id) return;
     const res = await api.get(
       `/api/contratos-b2c/${id}/pdf-blob/?tenant_slug=${encodeURIComponent(tenantSlug)}`,
@@ -297,7 +312,7 @@ export default function AdminB2CPanel({
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="subtitle2" gutterBottom>Cliente</Typography>
-            <Typography variant="body2">Nombre: <b>{ctr.contrato_datos?.cliente.nombre || "-"}</b></Typography>
+            <Typography variant="body2">Nombre: <b>{ctr.contrato_datos?.cliente?.nombre || "-"}</b></Typography>
             <Typography variant="body2">DNI: <b>{ctr.dni || "-"}</b></Typography>
             <Typography variant="body2">Email: <b>{ctr.email || "-"}</b></Typography>
             {ctr.firmado_en && (
@@ -323,10 +338,10 @@ export default function AdminB2CPanel({
               <Typography variant="subtitle2">DNI</Typography>
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                 {ctr.dni_anverso ? (
-                  <img src={ctr.dni_anverso} alt="DNI anverso" style={{ width: 220, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid #eee" }} />
+                  <Image src={ctr.dni_anverso} alt="DNI anverso" width={220} height={140} unoptimized style={{ width: 220, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid #eee" }} />
                 ) : <Chip label="Sin anverso" size="small" />}
                 {ctr.dni_reverso ? (
-                  <img src={ctr.dni_reverso} alt="DNI reverso" style={{ width: 220, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid #eee" }} />
+                  <Image src={ctr.dni_reverso} alt="DNI reverso" width={220} height={140} unoptimized style={{ width: 220, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid #eee" }} />
                 ) : <Chip label="Sin reverso" size="small" />}
               </Stack>
             </Box>}
@@ -357,12 +372,12 @@ export default function AdminB2CPanel({
               <Box sx={{ mt: 2 }}>
                 <Typography variant="subtitle2">Resumen (plantilla acta)</Typography>
                 <ul style={{ marginTop: 6 }}>
-                  {(ctr.contrato_datos.dispositivos ?? ctr.contrato_datos.dispositivos_estimados)
+                  {((ctr.contrato_datos?.dispositivos ?? ctr.contrato_datos?.dispositivos_estimados) as Array<Record<string, unknown>>)
                     .slice(0, 6)
-                    .map((d: any, i: number) => {
-                      const desc = d.descripcion ?? d.modelo ?? "Dispositivo";
-                      const precio = (d.precio ?? d.precio_provisional ?? 0);
-                      const accesorios = d.accesorios?.map((a: any) => a?.nombre).filter(Boolean);
+                    .map((d, i: number) => {
+                      const desc = (d as { descripcion?: string; modelo?: string }).descripcion ?? (d as { modelo?: string }).modelo ?? "Dispositivo";
+                      const precio = (d as { precio?: unknown; precio_provisional?: unknown }).precio ?? (d as { precio_provisional?: unknown }).precio_provisional ?? 0;
+                      const accesorios = (d as { accesorios?: Array<{ nombre?: string }> }).accesorios?.map((a) => a?.nombre).filter(Boolean);
                       return (
                         <li key={i}>
                           <Typography variant="body2">

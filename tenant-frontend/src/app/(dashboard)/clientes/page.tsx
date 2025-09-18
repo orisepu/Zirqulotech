@@ -6,14 +6,9 @@ import {
   Paper,
   TextField,
   Button,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,Snackbar,Alert,
-  DialogActions, Stepper, Step, StepLabel
+  Snackbar,
+  Alert,
 } from "@mui/material";
-
-import { Add as AddIcon } from "@mui/icons-material";
 
 import { useState,useMemo,useEffect } from "react";
 import api from "@/services/api";
@@ -21,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getColumnasClientes } from "@/components/TablaColumnas2";
 import FormularioClientes from "@/components/formularios/Clientes/FormularioClientes";
+import useUsuarioActual from "@/hooks/useUsuarioActual";
 import TablaReactiva from "@/components/TablaReactiva2";
 type ListaClientes = { results: Cliente[]; count: number };
 type SnackbarKind = 'success' | 'error' | 'warning' | 'info';
@@ -42,7 +38,7 @@ interface Cliente {
   nombre_comercial?: string;
   // Comunes
   telefono?: string;
-  correo: string;
+  correo?: string;
   tienda_nombre?: string;
   display_name?: string;           // MethodField del serializer
   identificador_fiscal?: string;   // MethodField del serializer
@@ -50,9 +46,11 @@ interface Cliente {
 
 export default function ClientesPage() {
   const router = useRouter();
+  const usuario = useUsuarioActual();
+  const soloEmpresas = usuario?.tenant?.solo_empresas ?? false;
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', type: 'success' });
   const queryClient = useQueryClient();
-  const { columnas, zoom } = useMemo(() => getColumnasClientes(), []);
+  const { columnas, zoom } = useMemo(() => getColumnasClientes<Cliente>(), []);
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);        // 1-based aquí
   const [porPagina, setPorPagina] = useState(10);
@@ -96,7 +94,9 @@ export default function ClientesPage() {
   }
   const validarPaso = () => {
     if (pasoActivo === 0) {
-      if (!esCorreoValido(nuevo.correo || '') || !esTelefonoValido(nuevo.telefono || '')) {
+      const correo = (nuevo.correo || '').trim();
+      const telefono = (nuevo.telefono || '').trim();
+      if ((correo && !esCorreoValido(correo)) || (telefono && !esTelefonoValido(telefono))) {
         setSnackbar({
           open: true,
           message: 'Corrige los errores en correo o teléfono',
@@ -137,9 +137,9 @@ export default function ClientesPage() {
   const validarAntesDeCrear = () => {
     const t = nuevo.tipo_cliente;
     const falta = (f: keyof Cliente) => !nuevo[f] || (nuevo[f] as string).trim() === '';
-    if (t === 'empresa' && (falta('razon_social') || falta('cif') || falta('correo'))) return false;
-    if (t === 'autonomo' && (falta('nombre') || falta('apellidos') || falta('nif') || falta('correo'))) return false;
-    if (t === 'particular' && (falta('nombre') || falta('apellidos') || falta('dni_nie') || falta('correo'))) return false;
+    if (t === 'empresa' && (falta('razon_social') || falta('cif'))) return false;
+    if (t === 'autonomo' && (falta('nombre') || falta('apellidos') || falta('nif'))) return false;
+    if (t === 'particular' && (falta('nombre') || falta('apellidos') || falta('dni_nie'))) return false;
     return true;
   };
 
@@ -149,9 +149,7 @@ export default function ClientesPage() {
         <Typography variant="h5">Clientes</Typography>
         <Button
           variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setModalOpen(true)}
-        >
+          onClick={() => setModalOpen(true)}>
           Nuevo cliente
         </Button>
       </Box>
@@ -187,23 +185,20 @@ export default function ClientesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreate={(payload) => crearCliente.mutate(payload)}
+        soloEmpresas={soloEmpresas}
       />
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.type}
-          variant="filled"
-        >
+          variant="filled">
           {snackbar.message}
         </Alert>
-
       </Snackbar>
-     
     </Box>
   );
 }

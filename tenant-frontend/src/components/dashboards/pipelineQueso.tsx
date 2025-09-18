@@ -1,13 +1,14 @@
 import { PieChart } from '@mui/x-charts/PieChart';
 import { legendClasses } from '@mui/x-charts/ChartsLegend';
 
-export function PipelinePie({ pipeline, num }: { pipeline: any[]; num: (n:number)=>string }) {
-  const data = (pipeline || []).map((r, i) => ({
+type PipelineRow = { total?: number | string; estado?: string };
+
+export function PipelinePie({ pipeline, num: _num }: { pipeline: PipelineRow[]; num: (n:number)=>string }) {
+  const data = (pipeline ?? []).map((r, i) => ({
     id: i,
-    value: Number(r.total || 0),
-    label: r.estado || '—',
+    value: Number(r.total ?? 0),
+    label: r.estado ?? '—',
   }));
-  const total = data.reduce((a, d) => a + d.value, 0);
 
   return (
     <PieChart

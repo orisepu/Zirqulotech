@@ -4,14 +4,24 @@ import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineC
 import { timelineItemClasses } from '@mui/lab/TimelineItem'
 import SimpleBar from 'simplebar-react'
 
-export default function HistorialPanel({ historial = [] }: { historial: any[] }) {
+type Evento = {
+  id: string | number
+  tipo_evento?: string
+  descripcion?: string
+  usuario_nombre?: string
+  fecha: string
+}
+
+export default function HistorialPanel({ historial = [] }: { historial: Evento[] }) {
 return (
   <Paper
     elevation={3}
+    
     sx={{
       p: 3,
       mb: 3,
       flex: 1,
+      borderRadius: 2,
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
@@ -28,7 +38,7 @@ return (
       ) : (
         <SimpleBar style={{ height: '55vh' }}>
           <Timeline sx={{ [`& .${timelineItemClasses.root}:before`]: { flex: 0, padding: 0 } }}>
-            {historial.map((e: any, i: number) => (
+            {historial.map((e, i) => (
               <TimelineItem key={e.id}>
                 <TimelineSeparator>
                   <TimelineDot

@@ -12,7 +12,7 @@ export default function KpiCard({
 }) {
   const show = value ?? '—'
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 3, boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)'}}>
       <CardContent>
         <Stack spacing={0.5}>
           <Typography variant="caption" color="text.secondary">{title}</Typography>

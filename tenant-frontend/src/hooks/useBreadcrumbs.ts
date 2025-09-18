@@ -54,15 +54,33 @@ const isHiddenSegment = (s: string) => HIDDEN_SEGMENTS.has(s.toLowerCase());
 /**
  * Resolvers desde la cache de React Query
  */
+type ClienteCached = { razon_social?: string; nombre?: string; apellidos?: string }
+type OportunidadCached = { nombre?: string; cliente?: ClienteCached & { id?: number | string } }
+type DispositivoCached = { modelo?: { descripcion?: string } }
+
 const makeResolvers = (qc: QueryClient) => ({
-  clientes: (id: string) => (qc.getQueryData<any>(["cliente", id]) as any)?.razon_social,
-  oportunidades: (id: string) => (qc.getQueryData<any>(["oportunidad", id]) as any)?.nombre,
+  clientes: (id: string) => (qc.getQueryData(["cliente", id]) as ClienteCached | undefined)?.razon_social,
+  oportunidades: (id: string) => (qc.getQueryData(["oportunidad", id]) as OportunidadCached | undefined)?.nombre,
   // Global: primero ["oportunidad-global", tenant, id] ; fallback ["oportunidad", id]
   oportunidadesGlobal: (tenant: string, id: string) =>
-    (qc.getQueryData<any>(["oportunidad-global", tenant, id]) as any)?.nombre ??
-    (qc.getQueryData<any>(["oportunidad", id]) as any)?.nombre,
-  dispositivos: (id: string) => (qc.getQueryData<any>(["dispositivo", id]) as any)?.modelo?.descripcion,
+    (qc.getQueryData(["oportunidad-global", tenant, id]) as OportunidadCached | undefined)?.nombre ??
+    (qc.getQueryData(["oportunidad", id]) as OportunidadCached | undefined)?.nombre,
+  dispositivos: (id: string) => (qc.getQueryData(["dispositivo", id]) as DispositivoCached | undefined)?.modelo?.descripcion,
 });
+
+// --- Equivalencias de etiquetas (normalización de términos) ---
+// Clave en minúsculas; valor tal cual se desea mostrar.
+const LABEL_EQUIVALENCES: Record<string, string> = {
+  // Ejemplos:
+  // "almacén": "almacen",
+  // "información": "informacion",
+  "recepción": "recepcion",
+};
+
+const applyLabelEquivalences = (label: string): string => {
+  const mapped = LABEL_EQUIVALENCES[label.toLowerCase()];
+  return mapped ?? label;
+};
 
 /**
  * Hook principal
@@ -93,6 +111,8 @@ export function useBreadcrumbs(): { breadcrumbs: Breadcrumb[]; isReady: boolean 
   }, [queryClient]);
 
   const { breadcrumbs, isReady } = useMemo(() => {
+    // Leer 'version' para satisfacer exhaustive-deps y forzar recomputo cuando cambie
+    void version
     if (!pathname) return { breadcrumbs: [] as Breadcrumb[], isReady: true };
 
     // ⚠️ Usamos TODOS los segmentos para la lógica (sin filtrar)
@@ -106,8 +126,9 @@ export function useBreadcrumbs(): { breadcrumbs: Breadcrumb[]; isReady: boolean 
       const prevRaw = rawSegments[i - 1]; // puede ser "clientes", "oportunidades", "dispositivos", "global", tenant...
       const isHidden = isHiddenSegment(segmentRaw) || isSpecialSegment(segmentRaw);
 
-      // Construcción del href: no incluimos segmentos ocultos/especiales
-      if (!isHidden) {
+      // Construcción del href: incluimos segmentos ocultos (como "oportunidades" o "global")
+      // para que el enlace apunte a la ruta real, pero omitimos los especiales de Next
+      if (!isSpecialSegment(segmentRaw)) {
         hrefAcc += `/${segmentRaw}`;
       }
 
@@ -131,7 +152,7 @@ export function useBreadcrumbs(): { breadcrumbs: Breadcrumb[]; isReady: boolean 
 
         } else if (prevRaw === "oportunidades") {
           // 1) Resuelve la oportunidad por nombre
-          const oportunidad = queryClient.getQueryData<any>(["oportunidad", decoded]);
+          const oportunidad = queryClient.getQueryData(["oportunidad", decoded]) as OportunidadCached | undefined;
           label = oportunidad?.nombre ?? r.oportunidades(decoded) ?? decoded;
 
           // 2) Inyecta crumb del CLIENTE justo antes del de la oportunidad
@@ -172,6 +193,8 @@ export function useBreadcrumbs(): { breadcrumbs: Breadcrumb[]; isReady: boolean 
 
       // Añadir crumb solo si el segmento es visible (no especial/oculto)
       if (!isHidden) {
+        // Aplicar equivalencias justo antes de renderizar
+        label = applyLabelEquivalences(label);
         bcs.push({
           label,
           href: isLastVisible ? undefined : hrefAcc,

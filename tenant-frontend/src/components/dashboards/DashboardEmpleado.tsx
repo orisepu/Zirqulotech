@@ -51,7 +51,7 @@ function num(n: number) {
   if (n === 0) return '—';
   return n.toLocaleString('es-ES');
 }
-const safeNumber = (x: any) => (typeof x === 'number' ? x : Number(x || 0)) || 0;
+const safeNumber = (x: unknown) => (typeof x === 'number' ? x : Number(x ?? 0)) || 0;
 
 /* ---------------- Sparkline ---------------- */
 function Sparkline({ data, height = 40 }: { data: number[]; height?: number }) {
@@ -81,7 +81,7 @@ async function fetchTasaConversion(params: { fecha_inicio: string; fecha_fin: st
   return data as TasaConversion;
 }
 
-type PipelineRow = { estado: string; count?: number; valor?: number } & Record<string, any>;
+type PipelineRow = { estado: string; count?: number; valor?: number } & Record<string, unknown>;
 async function fetchPipelineEstados(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null }) {
   const { data } = await api.get('/api/dashboard/estado-pipeline/', { params });
   return (Array.isArray(data) ? data : []) as PipelineRow[];
@@ -125,11 +125,12 @@ async function fetchTotalPagado(params: { fecha_inicio: string; fecha_fin: strin
   return data as TotalPagado;
 }
 
+type KPISeriePoint = { label: string; valor: number };
 type KPIs = {
   total_valor: number;
   total_dispositivos: number;
   total_oportunidades: number;
-  serie: { label: any; valor: number }[];
+  serie: KPISeriePoint[];
 };
 async function fetchValorPorTiendaTransform({
   fecha_inicio,
@@ -146,7 +147,7 @@ async function fetchValorPorTiendaTransform({
   granularidad?: 'dia' | 'semana' | 'mes';
   estado_minimo?: string;
 }): Promise<KPIs> {
-  const params: any = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
+  const params: Record<string, string | number | null | undefined> = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
   if (tiendaId) params.tienda = tiendaId;
 
   const { data } = await api.get('/api/dashboard/valor-por-tienda/', { params });
@@ -159,44 +160,55 @@ async function fetchValorPorTiendaTransform({
     const colDisp = `${tiendaNombre}__n_dispositivos`;
     const colOpps = `${tiendaNombre}__n_oportunidades`;
 
-    const serie = data.map((row: any) => ({
-      label: row.mes ?? row.fecha ?? '',
-      valor: safeNumber(row[colValor]),
+    const serie: KPISeriePoint[] = data.map((row: Record<string, unknown>) => ({
+      label: String((row as Record<string, unknown>).mes ?? (row as Record<string, unknown>).fecha ?? ''),
+      valor: safeNumber((row as Record<string, unknown>)[colValor]),
     }));
 
-    const total_valor = serie.reduce((a: number, p: any) => a + safeNumber(p.valor), 0);
-    const total_dispositivos = data.reduce((a: number, r: any) => a + safeNumber(r[colDisp]), 0);
-    const total_oportunidades = data.reduce((a: number, r: any) => a + safeNumber(r[colOpps]), 0);
+    const total_valor = serie.reduce((a: number, p: KPISeriePoint) => a + safeNumber(p.valor), 0);
+    const total_dispositivos = data.reduce((a: number, r: Record<string, unknown>) => a + safeNumber(r[colDisp as string]), 0);
+    const total_oportunidades = data.reduce((a: number, r: Record<string, unknown>) => a + safeNumber(r[colOpps as string]), 0);
 
     return { total_valor, total_dispositivos, total_oportunidades, serie };
   }
 
-  const getValorCols = (row: any) =>
+  const getValorCols = (row: Record<string, unknown>) =>
     Object.keys(row).filter((k) => k !== 'mes' && k !== 'fecha' && !k.includes('__'));
 
-  const serie = data.map((row: any) => {
-    const sumaFila = getValorCols(row).reduce((acc, k) => acc + safeNumber(row[k]), 0);
-    return { label: row.mes ?? row.fecha ?? '', valor: sumaFila };
+  const serie: KPISeriePoint[] = data.map((row: Record<string, unknown>) => {
+    const sumaFila = getValorCols(row).reduce((acc, k) => acc + safeNumber((row as Record<string, unknown>)[k]), 0);
+    const label = String((row as Record<string, unknown>).mes ?? (row as Record<string, unknown>).fecha ?? '');
+    return { label, valor: sumaFila };
   });
 
   const total_valor = serie.reduce((a, p) => a + safeNumber(p.valor), 0);
-  const total_dispositivos = data.reduce((acc: number, row: any) => {
+  const total_dispositivos = data.reduce((acc: number, row: Record<string, unknown>) => {
     const sum = Object.keys(row)
       .filter((k) => k.endsWith('__n_dispositivos'))
-      .reduce((s, k) => s + safeNumber(row[k]), 0);
+      .reduce((s, k) => s + safeNumber((row as Record<string, unknown>)[k]), 0);
     return acc + sum;
   }, 0);
-  const total_oportunidades = data.reduce((acc: number, row: any) => {
+  const total_oportunidades = data.reduce((acc: number, row: Record<string, unknown>) => {
     const sum = Object.keys(row)
       .filter((k) => k.endsWith('__n_oportunidades'))
-      .reduce((s, k) => s + safeNumber(row[k]), 0);
+      .reduce((s, k) => s + safeNumber((row as Record<string, unknown>)[k]), 0);
     return acc + sum;
   }, 0);
 
   return { total_valor, total_dispositivos, total_oportunidades, serie };
 }
 
-type OportunidadRow = any;
+type OportunidadRow = {
+  uuid?: string;
+  id?: string | number;
+  nombre?: string;
+  estado?: string;
+  cliente?: { razon_social?: string } | null;
+  cliente_nombre?: string | null;
+  valor_total_final?: number | string | null;
+  fecha_creacion?: string;
+  tienda_nombre?: string | null;
+};
 async function fetchOportunidadesRecientes(params: {
   fecha_inicio: string;
   fecha_fin: string;
@@ -216,8 +228,8 @@ export default function TenantDashboardPage() {
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes');
   const [estadoMinimo, setEstadoMinimo] = useState<string>('Oferta confirmada');
 
-  const queryClient = useQueryClient();
-  const usuario = useUsuario() as any; // acceso laxo a campos específicos del tenant
+  const _queryClient = useQueryClient();
+  const usuario = useUsuario() as { tienda_id?: number | string; tienda_nombre?: string } | null; // acceso laxo con tipo mínimo
   const tiendaIdEfectiva = usuario?.tienda_id ? String(usuario.tienda_id) : '';
   const tiendaNombre = usuario?.tienda_nombre ?? null;
 
@@ -330,7 +342,7 @@ export default function TenantDashboardPage() {
 
   /* -------- Derivados -------- */
   const serie = useMemo<number[]>(
-    () => (kpis?.serie || []).map((p: any) => Number(p?.valor || 0)),
+    () => (kpis?.serie || []).map((p: KPISeriePoint) => Number(p?.valor || 0)),
     [kpis],
   );
 
@@ -359,7 +371,7 @@ export default function TenantDashboardPage() {
     // queryClient.invalidateQueries({ queryKey: ['pipeline-estados'] });
   };
 
-  const tiendaNombreDe = (o: any) => o?.tienda_nombre || tiendaNombre || '—';
+  const _tiendaNombreDe = (o: OportunidadRow) => o?.tienda_nombre || tiendaNombre || '—';
 
   /* -------- Render -------- */
   return (
@@ -407,7 +419,7 @@ export default function TenantDashboardPage() {
                   fullWidth
                   label="Granularidad"
                   value={granularidad}
-                  onChange={(e) => setGranularidad(e.target.value as any)}
+                  onChange={(e) => setGranularidad(e.target.value as 'dia' | 'semana' | 'mes')}
                   size="small"
                 >
                   <MenuItem value="dia">Día</MenuItem>
@@ -633,7 +645,7 @@ export default function TenantDashboardPage() {
                 <Typography variant="body2" color="text.secondary">No hay oportunidades en el rango.</Typography>
               ) : (
                 <Box sx={{ display: 'grid', gap: 1 }}>
-                  {recientes.map((o: any) => {
+                  {recientes.map((o: OportunidadRow) => {
                     const meta = o?.estado ? ESTADOS_META[o.estado] : null;
                     const Icono = meta?.icon;
                     return (
@@ -684,7 +696,7 @@ export default function TenantDashboardPage() {
                           </Box>
                           <Box textAlign="right">
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(o?.fecha_creacion).toLocaleDateString('es-ES')}
+                              {o?.fecha_creacion ? new Date(o.fecha_creacion).toLocaleDateString('es-ES') : '—'}
                             </Typography>
                           </Box>
                         </Box>

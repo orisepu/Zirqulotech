@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import {  useState } from 'react'
 import {
   Box, Button, TextField, Checkbox, FormControlLabel, Stack, Snackbar, Alert, Typography,
   Card, CardHeader, CardContent, Divider, LinearProgress, Grid, Chip, Tooltip, Dialog,
   DialogTitle, DialogContent, DialogActions
 } from '@mui/material'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
 
 type DetalleContrato = {
@@ -30,7 +30,6 @@ type DetalleContrato = {
 }
 
 export default function ContratoB2CConOTP({ contratoId }: { contratoId: string | number }) {
-  const qc = useQueryClient()
   const [acepto, setAcepto] = useState(false)
   const [otp, setOtp] = useState('')
   const [snack, setSnack] = useState<{open:boolean; msg:string; type:'success'|'error' }>({open:false,msg:'',type:'success'})

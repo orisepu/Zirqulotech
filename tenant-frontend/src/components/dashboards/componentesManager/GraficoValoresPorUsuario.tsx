@@ -11,8 +11,13 @@ import {
   LabelList,
 } from "recharts";
 
-export function GraficoValoresPorUsuario({ data }: { data: any[] }) {
-  const datosFiltrados = data.filter((item) => item.usuario); // opcional
+type UsuarioValor = {
+  usuario: string;
+  total: number;
+};
+
+export function GraficoValoresPorUsuario({ data }: { data: readonly UsuarioValor[] }) {
+  const datosFiltrados = data.filter((item) => !!item.usuario); // opcional
 
   return (
     <ResponsiveContainer width="100%" height={400}>

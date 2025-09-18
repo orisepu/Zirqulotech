@@ -4,12 +4,12 @@ import api from '@/services/api'
 import { toast } from 'react-toastify'
 import { AxiosError } from 'axios'
 
-const _toArray = (v: any) => Array.isArray(v) ? v : [v]
+const _toArray = (v: unknown) => Array.isArray(v) ? v : [v]
 const _label = (k: string) =>
   k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) // codigo_postal -> Codigo Postal
 
 export function toastApiError(err: unknown, fallback = '❌ Error en la petición') {
-  const e = err as AxiosError<any>
+  const e = err as AxiosError<unknown>
   const data = e?.response?.data
   const msgs: string[] = []
 
@@ -17,12 +17,13 @@ export function toastApiError(err: unknown, fallback = '❌ Error en la petició
     msgs.push(fallback)
   } else if (typeof data === 'string') {
     msgs.push(data)
-  } else if (typeof data === 'object') {
-    if (data.detail) msgs.push(String(data.detail))
-    if (data.non_field_errors) msgs.push(..._toArray(data.non_field_errors).map(String))
-    for (const [k, v] of Object.entries(data)) {
+  } else if (typeof data === 'object' && data !== null) {
+    const d = data as { detail?: unknown; non_field_errors?: unknown } & Record<string, unknown>
+    if (d.detail !== undefined) msgs.push(String(d.detail))
+    if (d.non_field_errors !== undefined) msgs.push(..._toArray(d.non_field_errors).map(String))
+    for (const [k, v] of Object.entries(d)) {
       if (k === 'detail' || k === 'non_field_errors') continue
-      _toArray(v).forEach(m => msgs.push(`${_label(k)}: ${m}`))
+      _toArray(v).forEach(m => msgs.push(`${_label(k)}: ${String(m)}`))
     }
     if (!msgs.length) msgs.push(fallback)
   }
@@ -80,8 +81,9 @@ export function useOportunidadData(id: string | number) {
     queryFn: async () => (await api.get(`/api/oportunidades/${id}/dispositivos-reales/`)).data,
   })
 
+  type PatchPayload = Record<string, unknown>
   const guardarEstado = useMutation({
-    mutationFn: async (payload: any) => api.patch(`/api/oportunidades/${id}/`, payload),
+    mutationFn: async (payload: PatchPayload) => api.patch(`/api/oportunidades/${id}/`, payload),
     onSuccess: () => {
       toast.success('Estado actualizado')
       qc.invalidateQueries({ queryKey: ['oportunidad', id] })
@@ -91,7 +93,12 @@ export function useOportunidadData(id: string | number) {
   })
 
   const enviarComentario = useMutation({
-    mutationFn: async (texto: string) => api.post('/api/comentarios-oportunidad/', { oportunidad: id, texto }),
+    mutationFn: async (texto: string) => {
+      const opp: any | undefined = oportunidad.data as any | undefined
+      const pk = typeof opp?.id === 'number' ? opp.id : Number(id)
+      if (!Number.isFinite(pk)) throw new Error('ID de oportunidad no numérico para comentarios')
+      return api.post('/api/comentarios-oportunidad/', { oportunidad: pk, texto })
+    },
     onSuccess: () => {
       toast.success('Comentario añadido')
       qc.invalidateQueries({ queryKey: ['oportunidad', id] })
@@ -110,7 +117,7 @@ export function useOportunidadData(id: string | number) {
   })
 
   const guardarRecogida = useMutation({
-    mutationFn: async (payload: any) => api.patch(`/api/oportunidades/${id}/`, payload),
+    mutationFn: async (payload: PatchPayload) => api.patch(`/api/oportunidades/${id}/`, payload),
     onSuccess: () => {
       toast.success('Datos de recogida actualizados')
       qc.invalidateQueries({ queryKey: ['oportunidad', id] })
@@ -119,8 +126,22 @@ export function useOportunidadData(id: string | number) {
   })
 
   const generarPDF = useMutation({
-    mutationFn: async () =>
-      (await api.get(`/api/oportunidades/${id}/generar-pdf/`, { responseType: 'blob' })).data,
+    mutationFn: async () => {
+      const opp: any | undefined = oportunidad.data as any | undefined
+      const candidates = [opp?.id, id, opp?.uuid, opp?.hashid].filter(Boolean)
+      let lastError: unknown = null
+      for (const ident of candidates) {
+        try {
+          const res = await api.get(`/api/oportunidades/${ident}/generar-pdf/`, { responseType: 'blob' })
+          return res.data
+        } catch (e: any) {
+          // Si es 404 probamos con el siguiente identificador; para otros errores, propagamos
+          if (e?.response?.status === 404) { lastError = e; continue }
+          throw e
+        }
+      }
+      throw lastError ?? new Error('No se pudo generar el PDF')
+    },
     onSuccess: (data) => {
       const blob = new Blob([data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
@@ -132,9 +153,12 @@ export function useOportunidadData(id: string | number) {
 
   const subirFactura = useMutation({
     mutationFn: async (file: File) => {
+      const opp: any | undefined = oportunidad.data as any | undefined
+      const pk = typeof opp?.id === 'number' ? opp.id : Number(id)
+      if (!Number.isFinite(pk)) throw new Error('ID de oportunidad no numérico para facturas')
       const fd = new FormData()
       fd.append('archivo', file)
-      fd.append('oportunidad', String(id))
+      fd.append('oportunidad', String(pk))
       await api.post('/api/facturas/subir/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     },
     onSuccess: () => {

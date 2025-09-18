@@ -1,10 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { getId } from '@/utils/id'
-import React, { useState ,useEffect} from 'react'
+import React from 'react'
 import { ESTADOS_META, ESTADOS_B2B } from '@/context/estados'
-import { Chip, Box, Select, MenuItem, TextField, Button,Typography,Tooltip,IconButton,Stack } from '@mui/material'
-import { formatoBonito, calcularEstadoValoracion } from '@/context/precios'
-import { getPrecioFinal } from '@/context/precios'
+import { Chip, Box, Select, MenuItem, TextField, Typography, Stack } from '@mui/material'
+import { formatoBonito } from '@/context/precios'
 import { EllipsisTooltip } from './EllipsisTooltip'
 
 const formatoMoneda = (valor: number) =>
@@ -13,13 +12,7 @@ const formatoMoneda = (valor: number) =>
     maximumFractionDigits: 2,
     useGrouping: true,
   }) + ' €'
-const calcularTotalPrecioOrientativo = (oportunidad: any): number => {
-    return oportunidad.dispositivos?.reduce((acc: number, d: any) => {
-    const precio = parseFloat(d.precio_orientativo || 0)
-    const cantidad = d.cantidad || 0
-    return acc + (precio * cantidad)
-    }, 0)
-}
+// (eliminado) calcularTotalPrecioOrientativo: no se usaba
 export interface ModeloMini {
   id: number
   descripcion: string
@@ -50,6 +43,15 @@ const fmtEUR = (v: string | number | null | undefined): string =>
     ? '—'
     : new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(Number(v))
 
+const makeTwoLineHeader = (line1: string, line2: string) => () => (
+  <Box
+    component="span"
+    sx={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.1, textAlign: 'center' }}
+  >
+    <span>{line1}</span>
+    <span>{line2}</span>
+  </Box>
+)
 
 export const columnasCapacidadesAdmin: ColumnDef<CapacidadRow>[] = [
   {
@@ -114,50 +116,83 @@ export const columnasCapacidadesAdmin: ColumnDef<CapacidadRow>[] = [
   },
 ]
 
-export const columnasAdmin: ColumnDef<any>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId ,meta: { minWidth: 150, align: 'center', alignHeader: 'center'},},
-  { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
-  { id: 'tienda', header: 'Tienda', accessorFn: r => r.tienda?.nombre || '—',meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
-  { id: 'cliente', header: 'Cliente', accessorFn: r => r.cliente?.razon_social || '—' ,meta: { minWidth: 150, align: 'center', alignHeader: 'center'},},
-  { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: { minWidth: 150, align: 'center', alignHeader: 'center'},},
+type GenericRow = Record<string, unknown>
+
+// Minimal shape used by getColumnasClientes columns
+export interface ClienteLike {
+  display_name?: string;
+  razon_social?: string;
+  nombre?: string;
+  apellidos?: string;
+  identificador_fiscal?: string;
+  cif?: string;
+  nif?: string;
+  dni_nie?: string;
+  tipo_cliente?: string;
+  contacto?: string;
+  posicion?: string;
+  correo?: string;
+  telefono?: string;
+  tienda_nombre?: string;
+  oportunidades_count?: number;
+  valor_total_final?: number;
+}
+
+export const columnasAdmin: ColumnDef<GenericRow>[] = [
+  { id: 'id', header: 'ID', accessorFn: getId ,meta: { minWidth: 90, maxWidth: 110, align: 'center', alignHeader: 'center'},},
+  { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: { minWidth: 110, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200 }, },
+  { id: 'tienda', header: 'Tienda', accessorFn: (r: { tienda?: { nombre?: string } }) => r.tienda?.nombre || '—',meta: { minWidth: 100, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200}, },
+  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: { minWidth: 130, maxWidth: 250, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 250},},
+  { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: { minWidth: 140, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200},},
   {
     id: 'fecha_creacion',
     header: 'Fecha',
     accessorKey: 'fecha_creacion',
-    meta: { minWidth: 98, align: 'center', alignHeader: 'center'},
-    cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString()
+    meta: { minWidth: 100, maxWidth: 130, align: 'center', alignHeader: 'center', nowrapHeader: true },
+    cell: ({ getValue }) => new Date(String(getValue())).toLocaleDateString()
   },
   {
     id: 'valoracion_partner',
-    header: 'Valoración partner',
-    meta: { minWidth: 125, align: 'center', alignHeader: 'center'},
+    header: makeTwoLineHeader('Valoración', 'partner'),
+    meta: {
+      minWidth: 80,
+      maxWidth: 90,
+      align: 'center',
+      alignHeader: 'center',
+    },
     cell: ({ row }) => {
-      const valor = Number(row.original.valor_total || 0)
+      const valor = Number((row.original as { valor_total?: unknown }).valor_total ?? 0)
       return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
     },
   },
   {
     id: 'valoracion_final',
-    header: 'Valoración final',
-    meta: { minWidth: 125, align: 'center', alignHeader: 'center'},
+    header: makeTwoLineHeader('Valoración', 'final'),
+    meta: {
+      minWidth: 80,
+      maxWidth: 90,
+      align: 'center',
+      alignHeader: 'center',
+    },
     cell: ({ row }) => {
-      const valor = Number(row.original.valor_total_final || 0)
+      const valor = Number((row.original as { valor_total_final?: unknown }).valor_total_final ?? 0)
       return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
     },
   },
-  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
+  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: { minWidth: 150, maxWidth: 220, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 220}, },
   {
     id: 'estado',
     header: 'Estado',
     
     cell: ({ row }) => {
-      const meta = ESTADOS_META[row.original.estado]
-      const Icono = meta?.icon
+      const estado = String((row.original as { estado?: unknown }).estado ?? '')
+      const metaInfo = ESTADOS_META[estado]
+      const Icono = metaInfo?.icon
       return (
         <Chip
-          label={row.original.estado}
+          label={estado}
           icon={Icono ? <Icono /> : undefined}
-          color={meta?.color || 'default'}
+          color={metaInfo?.color || 'default'}
           size="small"
           sx={{ fontWeight: 500 }}
         />
@@ -166,18 +201,17 @@ export const columnasAdmin: ColumnDef<any>[] = [
   },
 ]
 
-export const columnasTenant: ColumnDef<any>[] = [
+export const columnasTenant: ColumnDef<GenericRow>[] = [
   { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
   { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
   
-  { id: 'cliente', header: 'Cliente', meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,},accessorFn: r => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()},
+  { id: 'cliente', header: 'Cliente', meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,},accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()},
   {
   id: 'valoracion',
   header: 'Valoración orientativa',
-  accessorFn: (r: any) =>
+  accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
     (r.dispositivos ?? []).reduce(
-      (acc: number, d: any) =>
-        acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
+      (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
       0
     ),
   sortingFn: (a, b, id) =>
@@ -189,7 +223,7 @@ export const columnasTenant: ColumnDef<any>[] = [
     alignHeader: 'right',
     headerMaxWidth: 140,
     // CSV crudo (número):
-    toCSV: (value: unknown /*, row: any */) => String(Number(value ?? 0)),
+    toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     // Si prefieres exportar formateado:
     // toCSV: (v: number) => formatoMoneda(v ?? 0),
   },
@@ -201,7 +235,7 @@ export const columnasTenant: ColumnDef<any>[] = [
   {
     id: 'valoracion_final',
     header: 'Valoración final',
-    accessorFn: (r: any) => Number(r.valor_total_final ?? 0),
+    accessorFn: (r: { valor_total_final?: unknown }) => Number(r.valor_total_final ?? 0),
     sortingFn: (a, b, id) =>
       Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
     meta: {
@@ -210,7 +244,7 @@ export const columnasTenant: ColumnDef<any>[] = [
       align: 'right',
       alignHeader: 'right',
       headerMaxWidth: 140,
-      toCSV: (value: unknown /*, row: any */) => String(Number(value ?? 0)),
+      toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     },
     cell: ({ getValue }) => {
       const valor = Number(getValue<number>() ?? 0);
@@ -220,7 +254,7 @@ export const columnasTenant: ColumnDef<any>[] = [
   {
     id: 'fecha_creacion',
     header: 'Fecha',
-    accessorFn: r => new Date(r.fecha_creacion),
+    accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
     meta: {
       minWidth: 100,
       align: 'center',
@@ -229,7 +263,11 @@ export const columnasTenant: ColumnDef<any>[] = [
         return d ? d.toISOString() : ''
       },
     },
-    cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString(),
+    cell: ({ getValue }) => {
+      const v = getValue<Date | string | number | null>()
+      const d = v instanceof Date ? v : v ? new Date(v) : null
+      return d ? d.toLocaleDateString('es-ES') : '—'
+    },
   },
   { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento' },
   {
@@ -260,19 +298,19 @@ export const columnasTenant: ColumnDef<any>[] = [
   },
 ]
 
-export const columnasDispositivosReales: ColumnDef<any>[] = [
-  { id: 'modelo', header: 'Modelo', accessorFn: row => row.modelo || '—' },
-  { id: 'capacidad', header: 'Capacidad', accessorFn: row => row.capacidad || '—' },
-  { id: 'imei', header: 'IMEI', accessorFn: row => row.imei || '—' },
-  { id: 'numero_serie', header: 'Nº Serie', accessorFn: row => row.numero_serie || '—' },
-  { id: 'estado_fisico', header: 'Estado físico', accessorFn: row => formatoBonito(row.estado_fisico) || '—' },
-  { id: 'estado_funcional', header: 'Estado funcional', accessorFn: row => formatoBonito(row.estado_funcional) || '—' },
-  { id: 'estado_valoracion', header: 'Valoración', accessorFn: row => row.estado_valoracion || '—' },
+export const columnasDispositivosReales: ColumnDef<GenericRow>[] = [
+  { id: 'modelo', header: 'Modelo', accessorFn: (row: { modelo?: string }) => row.modelo || '—' },
+  { id: 'capacidad', header: 'Capacidad', accessorFn: (row: { capacidad?: string }) => row.capacidad || '—' },
+  { id: 'imei', header: 'IMEI', accessorFn: (row: { imei?: string }) => row.imei || '—' },
+  { id: 'numero_serie', header: 'Nº Serie', accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—' },
+  { id: 'estado_fisico', header: 'Estado físico', accessorFn: (row: { estado_fisico?: string }) => formatoBonito(row.estado_fisico) || '—' },
+  { id: 'estado_funcional', header: 'Estado funcional', accessorFn: (row: { estado_funcional?: string }) => formatoBonito(row.estado_funcional) || '—' },
+  { id: 'estado_valoracion', header: 'Valoración', accessorFn: (row: { estado_valoracion?: string }) => row.estado_valoracion || '—' },
   {
     id: 'precio_final',
     header: 'Precio recompra',
     cell: ({ row }) => {
-      const valor = Number(row.original.precio_final || 0);
+      const valor = Number((row.original as { precio_final?: unknown }).precio_final ?? 0);
       return (
         <Box textAlign="right">
           {valor > 0 ? valor.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: true }) + ' €' : ''}
@@ -283,60 +321,73 @@ export const columnasDispositivosReales: ColumnDef<any>[] = [
   {
     id: 'fecha_recepcion',
     header: 'Fecha recepción',
-    accessorFn: row => row.fecha_recepcion,
-    cell: ({ getValue }) => getValue() ? new Date(getValue() as string).toLocaleString('es-ES') : '—'
+    accessorFn: (row: { fecha_recepcion?: string }) => row.fecha_recepcion,
+    cell: ({ getValue }) => getValue() ? new Date(String(getValue())).toLocaleString('es-ES') : '—'
   },
 ];
 
-export function getColumnasClientes(): { columnas: ColumnDef<any>[], zoom: number } {
+export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { columnas: ColumnDef<T>[], zoom: number } {
   const formatoTel = (t?: string) => {
     const raw = (t || "").replace(/\D/g, "");
     return raw.length === 9 ? `${raw.slice(0,3)} ${raw.slice(3,6)} ${raw.slice(6)}` : (t || "—");
   };
   const mayus = (s?: string) => (s || "").toUpperCase();
   const eur = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
-  const toDisplayName = (r: any) =>
+  const toDisplayName = (r: ClienteLike) =>
   r.display_name ??
   r.razon_social ??
   [r.nombre, r.apellidos].filter(Boolean).join(" ");
   
-  const columnas: ColumnDef<any>[] = [
+  const columnas: ColumnDef<T>[] = [
     // Nombre visible unificado
-    { id: "display_name", header: "Nombre", accessorFn: (row) => toDisplayName(row) || "",        // <- solo string
-  cell: ({ getValue }) => (
-    <EllipsisTooltip text={(getValue() as string) || ""} maxWidth={240} />
-  ),
-},
+    { id: "display_name", header: "Nombre", accessorFn: (row: T) => toDisplayName(row as unknown as ClienteLike) || "",
+      // Activamos ellipsis por meta para que la tabla gestione el recorte y tooltip
+      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 220 } as any,
+    },
 
     // Identificador fiscal unificado
-    { id: "identificador_fiscal", header: "ID fiscal", accessorFn: row => row.identificador_fiscal || row.cif || row.nif || row.dni_nie || "—",
-      cell: ({ getValue }) => mayus(getValue() as string) },
+    { id: "identificador_fiscal", header: "ID fiscal", accessorFn: (row: T) => {
+      const r = row as unknown as ClienteLike
+      return r.identificador_fiscal || r.cif || r.nif || r.dni_nie || "—"
+    },
+      cell: ({ getValue }) => mayus(getValue() as string),
+      meta: { minWidth: 120, ellipsis: true, ellipsisMaxWidth: 140 } as any },
 
     // Tipo y canal (útiles para filtrar)
-    { id: "tipo_cliente", header: "Tipo", accessorFn: row => formatoBonito(row.tipo_cliente) },   // empresa | autonomo | particular
+    { id: "tipo_cliente", header: "Tipo", accessorFn: (row: T) => formatoBonito((row as unknown as ClienteLike).tipo_cliente), meta: { minWidth: 110, ellipsis: true, ellipsisMaxWidth: 130 } as any },   // empresa | autonomo | particular
   
     // Contacto (solo empresas; en B2C muestra —)
     { id: "contacto", header: "Contacto",
-      accessorFn: row => row.tipo_cliente === "empresa" ? (row.contacto || "—") : "—" },
+      accessorFn: (row: T) => {
+        const r = row as unknown as ClienteLike
+        return r.tipo_cliente === "empresa" ? (r.contacto || "—") : "—"
+      },
+      meta: { minWidth: 160, ellipsis: true, ellipsisMaxWidth: 180 } as any },
     { id: "posicion", header: "Posición",
-      accessorFn: row => row.tipo_cliente === "empresa" ? (row.posicion || "—") : "—" },
+      accessorFn: (row: T) => {
+        const r = row as unknown as ClienteLike
+        return r.tipo_cliente === "empresa" ? (r.posicion || "—") : "—"
+      },
+      meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
 
     // Comunicación
-    { id: "correo", header: "Correo", accessorFn: row => row.correo || "—" },
-    { id: "telefono", header: "Teléfono", accessorFn: row => formatoTel(row.telefono) },
+    { id: "correo", header: "Correo", accessorFn: (row: T) => (row as unknown as ClienteLike).correo || "—", meta: { minWidth: 220, ellipsis: true, ellipsisMaxWidth: 240 } as any },
+    { id: "telefono", header: "Teléfono", accessorFn: (row: T) => formatoTel((row as unknown as ClienteLike).telefono), meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 130, ellipsis: true, ellipsisMaxWidth: 140 } as any },
 
     // Tienda
-    { id: "tienda_nombre", header: "Tienda", accessorFn: row => row.tienda_nombre ?? "—" },
+    { id: "tienda_nombre", header: "Tienda", accessorFn: (row: T) => (row as unknown as ClienteLike).tienda_nombre ?? "—", meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
 
     // Oportunidades / Valor total
     { id: "n_oportunidades", header: "Oportunidades",
       accessorKey: "oportunidades_count",
-      cell: ({ getValue }) => getValue() ?? 0 },
+      cell: ({ getValue }) => getValue() ?? 0,
+      meta: { headerMaxWidth: 120, nowrapHeader: true, minWidth: 120, ellipsis: true, ellipsisMaxWidth: 130 } as any },
       
 
     { id: "valor_total", header: "Valor total",
-      accessorKey: "valor_total_final", 
-      cell: ({ getValue }) => eur(Number(getValue() || 0)) },
+      accessorKey: "valor_total_final",
+      cell: ({ getValue }) => eur(Number(getValue() || 0)),
+      meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
   ];
 
   return { columnas, zoom: 1 };
@@ -345,45 +396,45 @@ export function getColumnasClientes(): { columnas: ColumnDef<any>[], zoom: numbe
 export function getColumnasAuditoria({
   handleChange,
   guardarAuditoria,
-  dispositivosEditables,
+  dispositivosEditables: _dispositivosEditables,
   filaEditando,
-  setFilaEditando,
-  calcularEstadoValoracion,
+  setFilaEditando: _setFilaEditando,
+  calcularEstadoValoracion: _calcularEstadoValoracion,
   formTemporal,
   setFormTemporal,
 }: {
   handleChange: (index: number, field: string, value: string) => void;
-  guardarAuditoria: (dispositivo: any, index: number, silencioso?: boolean) => void;
-  dispositivosEditables: any[];
+  guardarAuditoria: (dispositivo: Record<string, unknown>, index: number, silencioso?: boolean) => void;
+  dispositivosEditables: Array<Record<string, unknown>>;
   filaEditando: string | null;
   setFilaEditando: (val: string | null) => void;
   calcularEstadoValoracion: (fisico: string, funcional: string) => string;
-  formTemporal: Record<string, any>;
-  setFormTemporal: (val: Record<string, any>) => void;
-}): { columnas: ColumnDef<any>[], zoom: number } {
-  const columnas: ColumnDef<any>[] = [
+  formTemporal: Record<string, unknown>;
+  setFormTemporal: (val: Record<string, unknown>) => void;
+}): { columnas: ColumnDef<GenericRow>[], zoom: number } {
+  const columnas: ColumnDef<GenericRow>[] = [
     {
       id: 'modelo',
       header: 'Modelo',
-      accessorFn: (row) => row.modelo ?? '—',
+      accessorFn: (row: { modelo?: string }) => row.modelo ?? '—',
       meta: { minWidth: 300, align: 'center', alignHeader: 'left' },
     },
     {
       id: 'capacidad',
       header: 'Capacidad',
-      accessorFn: (row) => row.capacidad ?? '—',
+      accessorFn: (row: { capacidad?: string }) => row.capacidad ?? '—',
       meta: { minWidth: 100, align: 'center' },
     },
     {
       id: 'imei',
       header: 'IMEI',
-      accessorFn: (row) => row.imei || '—',
+      accessorFn: (row: { imei?: string }) => row.imei || '—',
       meta: { minWidth: 200, align: 'center' },
     },
     {
       id: 'Numero_Serie',
       header: 'Nº Serie',
-      accessorFn: (row) => row.numero_serie || '—',
+      accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—',
       meta: { minWidth: 200, align: 'center' },
     },
     {
@@ -393,8 +444,8 @@ export function getColumnasAuditoria({
         filaEditando === row.original.id ? (
           <Select
             size="small"
-            value={row.original.estado_fisico || ''}
-            onChange={(e) => handleChange(row.original.id, 'estado_fisico', e.target.value)}
+            value={String((row.original as { estado_fisico?: unknown }).estado_fisico ?? '')}
+            onChange={(e) => handleChange(Number((row.original as { id?: unknown }).id), 'estado_fisico', String(e.target.value))}
           >
             {estadosFisicos.map((e) => (
               <MenuItem key={e} value={e}>
@@ -403,7 +454,7 @@ export function getColumnasAuditoria({
             ))}
           </Select>
         ) : (
-          formatoBonito(row.original.estado_fisico || '')
+          formatoBonito(String((row.original as { estado_fisico?: unknown }).estado_fisico ?? ''))
         ),
       meta: { minWidth: 120, align: 'center', persist: true },
     },
@@ -414,8 +465,8 @@ export function getColumnasAuditoria({
         filaEditando === row.original.id ? (
           <Select
             size="small"
-            value={row.original.estado_funcional || ''}
-            onChange={(e) => handleChange(row.original.id, 'estado_funcional', e.target.value)}
+            value={String((row.original as { estado_funcional?: unknown }).estado_funcional ?? '')}
+            onChange={(e) => handleChange(Number((row.original as { id?: unknown }).id), 'estado_funcional', String(e.target.value))}
           >
             {estadosFuncionales.map((e) => (
               <MenuItem key={e} value={e}>
@@ -424,45 +475,43 @@ export function getColumnasAuditoria({
             ))}
           </Select>
         ) : (
-          formatoBonito(row.original.estado_funcional || '')
+          formatoBonito(String((row.original as { estado_funcional?: unknown }).estado_funcional ?? ''))
         ),
       meta: { minWidth: 120, align: 'center', persist: true },
     },
     {
       id: 'estado_valoracion',
       header: 'Valoración',
-      accessorFn: (row) => formatoBonito(row.estado_valoracion || ''),
+      accessorFn: (row: { estado_valoracion?: unknown }) => formatoBonito(String(row.estado_valoracion ?? '')),
       meta: { minWidth: 130, align: 'center', alignHeader: 'left' },
     },
     {
       id: 'precio_final',
       header: 'Precio',
       cell: ({ row }) => {
-        const [valor, setValor] = useState(
-          row.original.precio_final ?? row.original.precio_orientativo ?? ''
-        );
-        // Sincroniza el valor local cuando cambia el precio calculado
-        useEffect(() => {
-          setValor(
-            row.original.precio_final ?? row.original.precio_orientativo ?? ''
-          );
-        }, [row.original.precio_final, row.original.precio_orientativo]);
+        const id = String(row.original.id)
+        const temp = (formTemporal[id] as { precio_final?: unknown } | undefined)?.precio_final
+        const valorActual = temp ?? row.original.precio_final ?? row.original.precio_orientativo ?? ''
 
         return filaEditando === row.original.id ? (
           <TextField
             key={`precio-${row.original.id}`}
             size="small"
             type="number"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
+            value={valorActual as string | number}
+            onChange={(e) => {
+              const next = { ...(formTemporal[id] as Record<string, unknown> | undefined), precio_final: e.target.value }
+              setFormTemporal({ ...formTemporal, [id]: next })
+            }}
             onBlur={() => {
-              if (valor !== row.original.precio_final) {
-                handleChange(row.original.id, 'precio_final', valor.toString());
+              const toSave = String((formTemporal[id] as { precio_final?: unknown } | undefined)?.precio_final ?? valorActual ?? '')
+              if (toSave !== String(row.original.precio_final ?? '')) {
+                handleChange(Number((row.original as { id?: unknown }).id), 'precio_final', toSave);
                 guardarAuditoria(
                   {
                     ...row.original,
-                    precio_final: valor,
-                  },
+                    precio_final: toSave,
+                  } as unknown as Record<string, unknown>,
                   row.index,
                   false
                 );
@@ -472,7 +521,7 @@ export function getColumnasAuditoria({
           />
         ) : (
           <Typography variant="body2" align="center">
-            {(row.original.precio_final ?? row.original.precio_orientativo ?? '—') + ' €'}
+            {String((row.original as { precio_final?: unknown; precio_orientativo?: unknown }).precio_final ?? (row.original as { precio_orientativo?: unknown }).precio_orientativo ?? '—') + ' €'}
           </Typography>
         );
       },
@@ -482,17 +531,22 @@ export function getColumnasAuditoria({
       id: 'observaciones',
       header: 'Observaciones',
       cell: ({ row }) => {
-        const [valor, setValor] = useState(row.original.observaciones || '');
+        const id = String(row.original.id)
+        const temp = (formTemporal[id] as { observaciones?: unknown } | undefined)?.observaciones
+        const valorActual = String(temp ?? row.original.observaciones ?? '')
 
         return filaEditando === row.original.id ? (
           <TextField
             key={`obs-${row.original.id}`}
             size="small"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
+            value={valorActual}
+            onChange={(e) => {
+              const next = { ...(formTemporal[id] as Record<string, unknown> | undefined), observaciones: e.target.value }
+              setFormTemporal({ ...formTemporal, [id]: next })
+            }}
             onBlur={() => {
-              if (valor !== row.original.observaciones) {
-                handleChange(row.original.id, 'observaciones', valor);
+              if (valorActual !== String(row.original.observaciones ?? '')) {
+                handleChange(Number((row.original as { id?: unknown }).id), 'observaciones', valorActual);
               }
             }}
             placeholder="Opcional"
@@ -500,7 +554,7 @@ export function getColumnasAuditoria({
           />
           ) : (
           <Typography variant="body2" align="center">
-             {(row.original.observaciones ?? row.original.observaciones ?? '—')}
+             {String((row.original as { observaciones?: unknown }).observaciones ?? '—')}
           </Typography>
         );
       },
@@ -514,5 +568,3 @@ export function getColumnasAuditoria({
     zoom: 0.82, // 👈 escala visual para esta tabla
   };
 }
-
-

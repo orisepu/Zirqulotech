@@ -1,10 +1,9 @@
 'use client'
-import { Box, Typography, Button } from '@mui/material'
+import { Box, Typography } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import { useRouter } from 'next/navigation'
 
 export default function GraciasPage() {
-  const router = useRouter()
+
   return (
     <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="70vh" gap={2} textAlign="center">
       <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main' }} />

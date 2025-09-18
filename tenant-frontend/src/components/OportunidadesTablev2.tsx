@@ -73,20 +73,16 @@ export default function TablaReactiva<TData>({
   // ---- definición de columnas para TanStack ----
   const columnDefs = useMemo<ColumnDef<TData, unknown>[]>(() =>
     columnas.map((col): ColumnDef<TData, unknown> => {
-      const def: ColumnDef<TData, unknown> = {
+      const base: ColumnDef<TData, unknown> = {
         id: col.id,
         header: () => col.label,
         enableSorting: col.enableSorting,
         cell: (ctx) => col.render(ctx.row.original),
         meta: { label: col.label },
       }
-      if (col.accessor) {
-        // TanStack espera accessorFn como prop de definición, no es un symbol importable
-        ;(def as any).accessorFn = col.accessor
-      } else {
-        ;(def as any).accessorKey = col.id // habilita orden básico si no hay accessor
-      }
-      return def
+      return col.accessor
+        ? { ...base, accessorFn: col.accessor }
+        : { ...base, accessorKey: col.id }
     })
   , [columnas])
 
@@ -122,36 +118,15 @@ export default function TablaReactiva<TData>({
   // ---- exportación CSV (solo columnas visibles) ----
   const exportToCSV = () => {
     const visibleColumns = table.getVisibleLeafColumns()
-    const headers = visibleColumns.map((col) => (col.columnDef.meta as any)?.label || col.id)
+    type ColMeta = { label?: string }
+    const headers = visibleColumns.map((col) => (col.columnDef.meta as ColMeta | undefined)?.label || col.id)
 
     const rows = table.getRowModel().rows.map((row) =>
       visibleColumns.map((col) => {
-        // intenta primero con el valor "crudo" del row (si hay accessor)
-        const raw = row.getValue(col.id) as any
-        if (raw == null) {
-          // como fallback, renderizamos la celda (si cell es función)
-          const cellTpl = col.columnDef.cell as any
-          if (typeof cellTpl === 'function') {
-            const rendered = cellTpl({
-              row,
-              getValue: () => row.getValue(col.id),
-              table,
-              column: col,
-            })
-            if (typeof rendered === 'string' || typeof rendered === 'number') return rendered
-            // si es un ReactNode, intentar extraer texto simple
-            if (React.isValidElement(rendered)) {
-              // intento básico
-              return (rendered as any)?.props?.children ?? ''
-            }
-            return ''
-          }
-          return ''
-        }
-        if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-          return String(raw)
-        }
-        // objeto/array -> JSON
+        const raw = row.getValue(col.id)
+        if (raw == null) return ''
+        if (raw instanceof Date) return raw.toISOString()
+        if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') return String(raw)
         try { return JSON.stringify(raw) } catch { return '' }
       })
     )
@@ -186,7 +161,7 @@ export default function TablaReactiva<TData>({
                 <Menu anchorEl={anchorEl} open={menuOpen} onClose={handleClose}>
                   <Box display="flex" flexDirection="column">
                     {table.getAllLeafColumns().map((col) => {
-                      const label = (col.columnDef.meta as any)?.label || col.id
+                      const label = ((col.columnDef.meta as { label?: string } | undefined)?.label) || col.id
                       const checked = !!table.getColumn(col.id)?.getIsVisible()
                       return (
                         <MenuItem

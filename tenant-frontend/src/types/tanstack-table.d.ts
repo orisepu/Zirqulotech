@@ -5,6 +5,7 @@ declare module '@tanstack/react-table' {
   interface ColumnMeta<TData, TValue> {
     minWidth?: number
     headerMaxWidth?: number
+    maxWidth?: number
     align?: 'left' | 'center' | 'right'
     alignHeader?: 'left' | 'center' | 'right'
     label?: string
@@ -12,6 +13,8 @@ declare module '@tanstack/react-table' {
     ellipsis?: boolean
     ellipsisMaxWidth?: number | string
     persist?: boolean
+    nowrapHeader?: boolean
+    headerWrap?: number | boolean
   }
 
   // TData = TIPO DE FILA (no array)

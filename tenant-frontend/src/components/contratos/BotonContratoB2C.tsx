@@ -52,8 +52,7 @@ export default function BotonContratoB2C({
   async function buscarContratoAbierto(
     oportunidadId?: number | string,
     clienteIdToSearch?: number | string
-    
-  ) {
+  ): Promise<Contrato | null> {
     if (!oportunidadId && !clienteIdToSearch) return null
     const params = new URLSearchParams()
     if (oportunidadId) params.append('oportunidad', String(oportunidadId))
@@ -62,11 +61,9 @@ export default function BotonContratoB2C({
 
     try {
       const { data } = await api.get(`/api/b2c/contratos/?${params.toString()}`)
-      const lista = Array.isArray(data) ? data : data?.results || []
-      const abierto = lista.find(
-        (c: any) => c?.estado !== 'firmado' && c?.estado !== 'finalizado',
-      )
-      return abierto || null
+      const lista = (Array.isArray(data) ? data : (data?.results || [])) as Array<Partial<Contrato>>
+      const abierto = lista.find((c) => c?.estado !== 'firmado' && c?.estado !== 'finalizado')
+      return (abierto as Contrato) || null
     } catch (err) {
       console.warn('No se pudo recuperar contrato abierto', err)
       return null
@@ -75,7 +72,15 @@ export default function BotonContratoB2C({
   const crearContrato = useMutation({
     mutationFn: async () => {
       setError(null)
-      const payload: any = {
+      type CrearPayload = {
+        email?: string
+        telefono?: string
+        dni?: string
+        kyc_requerido: boolean
+        oportunidad_id?: number | string
+        cliente_id?: number | string
+      }
+      const payload: CrearPayload = {
         email: email || undefined,
         telefono: telefono || undefined,
         dni: dni?.toUpperCase() || undefined,
@@ -88,10 +93,15 @@ export default function BotonContratoB2C({
       return data as Contrato
     },
     onSuccess: (data) => {
-      setContrato(data)
+      if (data && typeof data.id === 'number') {
+        setContrato(data)
+      } else {
+        setError('Contrato inválido devuelto por la API')
+      }
     },
-    onError: (e: any) => {
-      setError(e?.response?.data?.detail || 'No se pudo crear el contrato')
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail || 'No se pudo crear el contrato')
     },
   })
 
@@ -105,7 +115,10 @@ export default function BotonContratoB2C({
         email: email || contrato.email,
       })
     },
-    onError: (e: any) => setError(e?.response?.data?.detail || 'No se pudo reenviar el KYC'),
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail || 'No se pudo reenviar el KYC')
+    },
   })
 
   const enviarOtp = useMutation({
@@ -114,7 +127,10 @@ export default function BotonContratoB2C({
       setError(null)
       await api.post(`/api/b2c/contratos/${contrato.id}/enviar-otp/`)
     },
-    onError: (e: any) => setError(e?.response?.data?.detail || 'Error al enviar OTP'),
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail || 'Error al enviar OTP')
+    },
   })
 
   const verificarOtp = useMutation({
@@ -125,7 +141,10 @@ export default function BotonContratoB2C({
       setPdfUrl(data?.pdf || null)
       onFirmado?.({ pdf: data?.pdf, sha256: data?.sha256 })
     },
-    onError: (e: any) => setError(e?.response?.data?.detail || 'OTP incorrecto'),
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail || 'OTP incorrecto')
+    },
   })
 
   const kycLink =
@@ -136,7 +155,9 @@ export default function BotonContratoB2C({
     if (!open || contrato) return
     ;(async () => {
       const c = await buscarContratoAbierto(oportunidadId, clienteId)
-      if (c) setContrato(c)
+      if (c && typeof c.id === 'number') {
+        setContrato(c)
+      }
     })()
   }, [open, contrato, oportunidadId, clienteId])
   const canCreate = !!dni && (!!email || !!telefono)

@@ -31,7 +31,7 @@ class Cliente(models.Model):
     posicion = models.CharField("Posición", max_length=100,blank=True)
 
     # Contacto general
-    correo = models.EmailField("Correo electrónico")
+    correo = models.EmailField("Correo electrónico", blank=True, null=True)
     telefono = models.CharField(max_length=30, blank=True)
     tienda = models.ForeignKey('Tienda', on_delete=models.CASCADE,null=True, blank=True)
 

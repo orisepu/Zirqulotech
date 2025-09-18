@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // ESLint activo: no ignoramos errores en build
 
   // CKEditor 5 aggregated necesita transpilarse
   transpilePackages: ["ckeditor5"],

@@ -12,6 +12,7 @@ import { Snackbar, Alert } from '@mui/material';
 import type { AlertColor } from '@mui/material';
 import { EtiquetaTerminalPDFDoc } from '@/components/etiquetas/etiqueta-terminal'
 import {  pdf } from '@react-pdf/renderer';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 
 type Modelo = { id: number; descripcion: string };
 type Capacidad = { id: number; tamaño: string };
@@ -24,7 +25,7 @@ type DispositivoRow = {
   capacidad: Capacidad | null;
   imei: string;
   numero_serie: string;
-  oportunidad: string;           // o number, pero luego convierte a String al pasar al PDF
+  oportunidad: string;          
   real_id: number | null;
   imei_original: string;
   numero_serie_original: string;
@@ -51,13 +52,14 @@ export default function RecepcionDispositivosPage() {
   }
   const tenant = tenantParam as string; // desde aquí tenant: string
   const id = params.id as string;
+  const queryClient = useQueryClient();
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMsg, setSnackbarMsg] = useState('');
   const [estadoOportunidad, setEstadoOportunidad] = useState<string | null>(null)
   const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>('success');
   const [cliente, setCliente] = useState<DispositivoRow[]>([]);
   
-  const [loading, setLoading] = useState(true);
+  // loading gestionado por React Query
 
   const imeiRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [page, setPage] = useState(0);
@@ -71,23 +73,33 @@ export default function RecepcionDispositivosPage() {
     capacidad: null,
     imei: '',
     numero_serie: '',
-    oportunidad: opId,         // usa el id de la oportunidad (string)
+    oportunidad: opId,         
     real_id: null,
     imei_original: '',
     numero_serie_original: '',
     estado_fisico: null,
     estado_funcional: null,
   });
-  const fetch = async () => {
-    setLoading(true);
+  // Carga inicial con React Query
+  const recepcionQuery = useQuery<{ estado: any; oppId: string; originales: any[]; reales: DispositivoReal[] }>({
+    queryKey: ['recepcion', tenant, id],
+    queryFn: async () => {
+      const res1 = await api.get(`/api/oportunidades-globales/${tenant}/${id}/`);
+      const originales = (res1.data.dispositivos || []) as any[];
+      const realesRes = await api.get(`/api/dispositivos-reales-globales/${tenant}/${id}/`);
+      const reales: DispositivoReal[] = realesRes.data?.dispositivos ?? [];
+      return { estado: res1.data.estado || null, oppId: String(res1.data.id), originales, reales };
+    },
+    staleTime: 30_000,
+  });
 
-    const res1 = await api.get(`/api/oportunidades-globales/${tenant}/${id}/`);
-    setEstadoOportunidad(res1.data.estado || null);
-
-    const dispositivosOriginales = (res1.data.dispositivos || []) as any[];
-
-    // Expandir según cantidad
-    const dispositivosExpand: DispositivoRow[] = dispositivosOriginales.flatMap((d: any) =>
+  // Derivar estado local cliente a partir de la query
+  useEffect(() => {
+    const payload = recepcionQuery.data;
+    if (!payload) return;
+    const { estado, oppId, originales, reales } = payload;
+    setEstadoOportunidad(estado);
+    const dispositivosExpand: DispositivoRow[] = originales.flatMap((d: any) =>
       Array.from({ length: d.cantidad || 1 }).map((_, i) => ({
         id: `${d.id}-${i + 1}`,
         origen: d.id,
@@ -96,7 +108,7 @@ export default function RecepcionDispositivosPage() {
         capacidad: d.capacidad ?? null,
         imei: '',
         numero_serie: '',
-        oportunidad: String(res1.data.id),
+        oportunidad: oppId,
         real_id: null,
         imei_original: '',
         numero_serie_original: '',
@@ -105,15 +117,11 @@ export default function RecepcionDispositivosPage() {
       }))
     );
 
-    const realesRes = await api.get(`/api/dispositivos-reales-globales/${tenant}/${id}/`);
-    const reales: DispositivoReal[] = realesRes.data?.dispositivos ?? [];
-
-    // Match explícito por origen
+    const realesCopy: (DispositivoReal & { asignado?: boolean })[] = [...reales];
     const dispositivosMerged: DispositivoRow[] = dispositivosExpand.map((d: DispositivoRow) => {
-      const real = reales.find((r: DispositivoReal) => r.origen === d.origen && !r.asignado);
-      if (real) (real as DispositivoReal).asignado = true;
-
-       return {
+      const real = realesCopy.find((r) => r.origen === d.origen && !r.asignado);
+      if (real) real.asignado = true;
+      return {
         ...d,
         imei: real?.imei ?? '',
         numero_serie: real?.numero_serie ?? '',
@@ -122,34 +130,60 @@ export default function RecepcionDispositivosPage() {
         numero_serie_original: real?.numero_serie ?? '',
       };
     });
-
-    console.log("🧩 Mapeo resultante:", dispositivosMerged);
-
     setCliente(dispositivosMerged);
-    setLoading(false);
-  };
+  }, [recepcionQuery.data]);
   
-  const [modelos, setModelos] = useState([]);
-  const [capacidades, setCapacidades] =
-    useState<Record<number, { id:number; tamaño:string }[]>>({});
-
-  useEffect(() => {
-    const fetchModelos = async () => {
-      const res = await api.get('/api/modelos/');
-      setModelos(res.data);
-    };
-    fetchModelos();
-  }, []);
-
-  const fetchCapacidades = async (modeloId: number) => {
-    if (!capacidades[modeloId]) {
-      const res = await api.get(`/api/capacidades-por-modelo/?modelo=${modeloId}`);
-      setCapacidades((prev) => ({ ...prev, [modeloId]: res.data }));
-    }
+  const [capacidades, setCapacidades] = useState<Record<number, { id:number; tamaño:string }[]>>({});
+  const [modeloSearch, setModeloSearch] = useState('');
+  const { data: modelosDisponibles = [], isFetching: buscandoModelos } = useQuery({
+    queryKey: ['modelos', modeloSearch],
+    queryFn: async (): Promise<any[]> => {
+      const params: Record<string, string> = {};
+      const s = (modeloSearch || '').trim();
+      if (s.length >= 2) params.search = s;
+      const res = await api.get('/api/modelos/', { params });
+      const d = res.data;
+      if (Array.isArray(d)) return d;
+      if (d && Array.isArray(d.results)) return d.results;
+      return [];
+    },
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const ensureCapacidades = async (modeloId: number) => {
+    const data = await queryClient.ensureQueryData<{ id:number; tamaño:string }[]>({
+      queryKey: ['capacidades-por-modelo', modeloId],
+      queryFn: async () => {
+        const res = await api.get(`/api/capacidades-por-modelo/?modelo=${modeloId}`)
+        const d = res.data
+        return Array.isArray(d) ? d : (Array.isArray(d?.results) ? d.results : [])
+      },
+      staleTime: 5 * 60_000,
+    });
+    setCapacidades((prev) => (prev[modeloId] ? prev : { ...prev, [modeloId]: data }));
   };
 
+  // Mutations para reales y confirmar recepción
+  const mCrearReal = useMutation({
+    mutationFn: async (payload: any) => (await api.post(`/api/dispositivos-reales-globales/${tenant}/crear/`, payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recepcion', tenant, id] }),
+  })
+  const mEditarReal = useMutation({
+    mutationFn: async ({ realId, payload }: { realId: number; payload: any }) =>
+      (await api.put(`/api/dispositivos-reales-globales/${tenant}/editar/${realId}/`, payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recepcion', tenant, id] }),
+  })
+  const mBorrarReal = useMutation({
+    mutationFn: async (body: { imei: string | null; numero_serie: string | null; oportunidad: string }) =>
+      api.delete(`/api/dispositivos-reales-globales/${tenant}/borrar/`, { data: body, headers: { 'Content-Type': 'application/json' } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recepcion', tenant, id] }),
+  })
+  const mConfirmarRecepcion = useMutation({
+    mutationFn: async () => api.post(`/api/oportunidades-globales/${tenant}/${id}/confirmar-recepcion/`),
+  })
+
   useEffect(() => {
-    if (id && tenant) fetch();
+    if (id && tenant) queryClient.invalidateQueries({ queryKey: ['recepcion', tenant, id] });
   }, [id, tenant]);
 
   const handleChangeCampo = async (value: string, index: number, field: 'imei' | 'numero_serie') => {
@@ -157,16 +191,44 @@ export default function RecepcionDispositivosPage() {
     if (!current?.modelo?.id) return;
 
     const rawValue = typeof value === 'string' ? value.trim() : '';
-    const imeiFinal = field === 'imei' ? rawValue : typeof current.imei === 'string' ? current.imei.trim() : '';
+    const normalizeDigits = (s: string) => s.replace(/\D/g, '');
+    const isValidIMEI = (s: string) => {
+      const digits = normalizeDigits(s);
+      if (digits.length !== 15) return false;
+      // Luhn checksum
+      let sum = 0;
+      for (let i = 0; i < 15; i++) {
+        let d = Number(digits.charAt(14 - i));
+        if (i % 2 === 1) { // dobla cada segundo dígito desde la derecha
+          d *= 2;
+          if (d > 9) d -= 9;
+        }
+        sum += d;
+      }
+      return sum % 10 === 0;
+    };
+
+    const imeiFinalRaw = field === 'imei' ? rawValue : typeof current.imei === 'string' ? current.imei.trim() : '';
+    const imeiFinal = normalizeDigits(imeiFinalRaw);
     const snFinal = field === 'numero_serie' ? rawValue : typeof current.numero_serie === 'string' ? current.numero_serie.trim() : '';
 
     if (!imeiFinal && !snFinal) return; // al menos uno requerido
 
+    // Validación estricta solo en producción: si hay IMEI, debe ser válido
+    const isProd = process.env.NODE_ENV === 'production'
+    if (isProd && imeiFinal && !isValidIMEI(imeiFinal)) {
+      setSnackbarMsg('❌ IMEI inválido. Debe tener 15 dígitos y checksum válido.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      return;
+    }
+
     const yaExiste = cliente.some((d, i) => {
       if (i === index) return false;
-      const imei = d.imei?.trim() || '';
+      const imei = (d.imei ? d.imei.trim() : '');
+      const imeiDigits = imei.replace(/\D/g, '');
       const sn = d.numero_serie?.trim() || '';
-      return (imei && imei === imeiFinal) || (sn && sn === snFinal);
+      return (imeiDigits && imeiDigits === imeiFinal) || (sn && sn === snFinal);
     });
 
     if (yaExiste) {
@@ -191,7 +253,7 @@ export default function RecepcionDispositivosPage() {
       const updated = [...cliente];
       if (current.real_id) {
         if (current.imei_original === imeiFinal && current.numero_serie_original === snFinal) return;
-        await api.put(`/api/dispositivos-reales-globales/${tenant}/editar/${current.real_id}/`, payload);
+        await mEditarReal.mutateAsync({ realId: current.real_id, payload });
         updated[index].imei = imeiFinal;
         updated[index].numero_serie = snFinal;
         updated[index].imei_original = imeiFinal;
@@ -200,10 +262,10 @@ export default function RecepcionDispositivosPage() {
           [...prev.filter((v) => v !== current.imei_original && v !== current.numero_serie_original), imeiFinal, snFinal].filter(Boolean)
         );
       } else {
-        const res = await api.post(`/api/dispositivos-reales-globales/${tenant}/crear/`, payload);
+        const res = await mCrearReal.mutateAsync(payload);
         updated[index].imei = imeiFinal;
         updated[index].numero_serie = snFinal;
-        updated[index].real_id = res.data?.id;
+        updated[index].real_id = (res as any)?.id;
         updated[index].imei_original = imeiFinal;
         updated[index].numero_serie_original = snFinal;
         setGuardados((prev) => [...prev, imeiFinal, snFinal].filter(Boolean));
@@ -223,14 +285,7 @@ export default function RecepcionDispositivosPage() {
     // Solo borrar si fue guardado
     if (imei || numero_serie) {
       try {
-        await api.delete(`/api/dispositivos-reales-globales/${tenant}/borrar/`, {
-          data: {
-            imei: imei || null,
-            numero_serie: numero_serie || null,
-            oportunidad: id
-          },
-          headers: { "Content-Type": "application/json" }
-        });
+        await mBorrarReal.mutateAsync({ imei: imei || null, numero_serie: numero_serie || null, oportunidad: id });
         setGuardados((prev) => prev.filter((v) => v !== imei && v !== numero_serie));
       } catch (err) {
         console.error("Error al eliminar el dispositivo real:", err);
@@ -245,12 +300,12 @@ export default function RecepcionDispositivosPage() {
 
     const confirmarRecepcion = async () => {
         try {
-            await api.post(`/api/oportunidades-globales/${tenant}/${id}/confirmar-recepcion/`);
+            await mConfirmarRecepcion.mutateAsync();
             setSnackbarMsg("Recepción confirmada. Oportunidad marcada como 'Check in OK'.");
             setSnackbarSeverity('success');
             setSnackbarOpen(true);
             setTimeout(() => {
-            router.push(`/oportunidades/global/${tenant}/${id}`);
+              router.push(`/oportunidades/global/${tenant}/${id}`);
             }, 1500);
         } catch (err) {
             setSnackbarMsg("Error al confirmar la recepción.");
@@ -264,11 +319,7 @@ export default function RecepcionDispositivosPage() {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
-  const [modelosDisponibles, setModelosDisponibles] = useState<any[]>([]);
-
-    useEffect(() => {
-      api.get("/api/modelos/").then((res) => setModelosDisponibles(res.data));
-    }, []);
+  // modelosDisponibles proviene de React Query (arriba)
 
 
   const handleVisualizarPDF = async (d: any) => {
@@ -302,7 +353,7 @@ export default function RecepcionDispositivosPage() {
     </Button>
     </Box>
 
-    {loading ? (
+    {recepcionQuery.isLoading ? (
       <Box display="flex" justifyContent="center" my={4}>
         <CircularProgress />
       </Box>
@@ -337,16 +388,21 @@ export default function RecepcionDispositivosPage() {
                       d.modelo.descripcion
                     ) : (
                       <Autocomplete
-                        options={modelosDisponibles}
-                        getOptionLabel={(option) => option.descripcion}
+                        options={Array.isArray(modelosDisponibles) ? modelosDisponibles : []}
+                        filterOptions={(x) => x}
+                        getOptionLabel={(option: any) => String(option?.descripcion ?? '')}
                         value={null}
+                        loading={buscandoModelos}
+                        loadingText="Buscando..."
+                        noOptionsText={(modeloSearch || '').trim().length < 2 ? 'Escribe modelo para buscar' : 'Sin resultados'}
+                        onInputChange={(_, val) => setModeloSearch(val || '')}
                         isOptionEqualToValue={(option, value) => option.id === (value?.id ?? -1)}
                         onChange={(_, newValue) => {
                           if (!newValue) return;
                           const updated = [...cliente];
                           updated[globalIndex].modelo = newValue;
                           setCliente(updated);
-                          fetchCapacidades(newValue.id);
+                          ensureCapacidades(newValue.id);
                         }}
                         renderInput={(params) => (
                           <TextField {...params} size="small" placeholder="Buscar modelo" />
@@ -392,9 +448,11 @@ export default function RecepcionDispositivosPage() {
                     <TextField
                       value={d.imei || ''}
                       inputRef={(el) => (imeiRefs.current[globalIndex] = el)}
+                      inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 15 }}
                       onChange={(e) => {
+                        const onlyDigits = (e.target.value || '').replace(/\D/g, '').slice(0, 15)
                         const updated = [...cliente];
-                        updated[globalIndex].imei = e.target.value;
+                        updated[globalIndex].imei = onlyDigits;
                         setCliente(updated);
                       }}
                       onKeyDown={(e) => {

@@ -101,15 +101,7 @@ export default function KycPage() {
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   const isUuid = uuidRe.test(tokenStr)
   
-  if (!isUuid) {
-    return (
-      <Box sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
-        <Typography variant="h5" sx={{ mb: 1 }}>Enlace no disponible</Typography>
-        <Alert severity="warning">El token no tiene formato UUID válido.</Alert>
-      </Box>
-    )
-  }
-
+  // Nota: evitamos returns tempranos antes de declarar hooks (rules-of-hooks)
 // Espera a /info antes de decidir nada
 
   
@@ -125,6 +117,15 @@ export default function KycPage() {
   const titulo = info?.tipo === 'acta' ? 'Firma de acta' : 'Verificación de identidad';
 
   const flagsEnabled = !!tokenStr && isUuid && requiereDni === true;
+  // Ahora que ya se han declarado los hooks, si el token es inválido devolvemos aviso
+  if (!isUuid) {
+    return (
+      <Box sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
+        <Typography variant="h5" sx={{ mb: 1 }}>Enlace no disponible</Typography>
+        <Alert severity="warning">El token no tiene formato UUID válido.</Alert>
+      </Box>
+    )
+  }
   const { data: flags, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['kyc-flags', tokenStr],
     queryFn: () => fetchFlags(tokenStr),

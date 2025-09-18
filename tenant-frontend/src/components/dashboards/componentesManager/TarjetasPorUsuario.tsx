@@ -1,7 +1,14 @@
 "use client";
 import { Grid, Card, CardContent, Typography, useTheme } from "@mui/material";
 
-export function TarjetasPorUsuario({ data }: { data: any[] }) {
+type UsuarioStats = {
+  usuario: string;
+  total: number;
+  oportunidades: number;
+  dispositivos: number;
+};
+
+export function TarjetasPorUsuario({ data }: { data: readonly UsuarioStats[] }) {
   const theme = useTheme();
 
   return (

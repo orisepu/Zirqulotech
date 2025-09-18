@@ -1,8 +1,26 @@
 from .admincapacidades import CapacidadAdminListView,tipos_modelo
 from .costespiezas import ReparacionOpcionesView,CostosPiezaListView,CostosPiezaSetView,CostosPiezaDeleteView,CostosPiezaCoverageView
 from .tiposreparacion import PiezaTipoViewSet,ManoObraTipoViewSet
-from .actualizador import LanzarActualizacionLikewizeView,EstadoTareaLikewizeView,DiffLikewizeView,AplicarCambiosLikewizeView,LogTailLikewizeView,LikewizeCazadorResultadoView
-from .valoraciones import IphoneComercialValoracionView
+from .actualizador import (
+    LanzarActualizacionLikewizeView,
+    EstadoTareaLikewizeView,
+    DiffLikewizeView,
+    AplicarCambiosLikewizeView,
+    LogTailLikewizeView,
+    LikewizeCazadorResultadoView,
+    UltimaTareaLikewizeView,
+    CrearDesdeNoMapeadoLikewizeView,
+    LanzarActualizacionB2CView,
+    DiffB2CView,
+    AplicarCambiosB2CView,
+    UltimaTareaB2CView,
+    LanzarActualizacionBackmarketView,
+    DiffBackmarketView,
+    AplicarCambiosBackmarketView,
+    UltimaTareaBackmarketView,
+    
+)
+from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoracionView
 __all__ = [
    "CapacidadAdminListView",
    "tipos_modelo",
@@ -18,6 +36,17 @@ __all__ = [
    "DiffLikewizeView",
    "AplicarCambiosLikewizeView",
    "LogTailLikewizeView",
+   "UltimaTareaLikewizeView",
+   "CrearDesdeNoMapeadoLikewizeView",
+   "LanzarActualizacionB2CView",
+   "UltimaTareaB2CView",
+   "LanzarActualizacionBackmarketView",
+   "DiffBackmarketView",
+   "AplicarCambiosBackmarketView",
+   "UltimaTareaBackmarketView",
    "IphoneComercialValoracionView",
+   "IphoneAuditoriaValoracionView",
    "LikewizeCazadorResultadoView",
+   "DiffB2CView",
+   "AplicarCambiosB2CView",
 ]

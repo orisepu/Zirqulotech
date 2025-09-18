@@ -22,7 +22,7 @@ export interface OpcionCatalogo<T extends string = string> {
 export type EsteticaKey = 'sin_signos' | 'minimos' | 'algunos' | 'desgaste_visible' | 'agrietado_roto'
 
 // Claves de estética de pantalla (sin grietas aquí)
-export type EsteticaPantallaKey = 'sin_signos' | 'minimos' | 'algunos' | 'desgaste_visible'
+export type EsteticaPantallaKey = 'sin_signos' | 'minimos' | 'algunos' | 'desgaste_visible' | 'agrietado_roto' | 'astillado'
 
 // Catálogo completo parametrizable por producto
 export interface CatalogoValoracion {
@@ -51,5 +51,4 @@ export interface ValoracionDerivada {
 }
 
 export type FuncPantallaValue = 'puntos' | 'pixeles' | 'lineas'
-
 

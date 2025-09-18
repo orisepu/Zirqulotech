@@ -1,15 +1,13 @@
 'use client'
 
 import React from 'react'
-import { Box, Divider, Paper, Stack, Typography } from '@mui/material'
-import DevicesIcon from '@mui/icons-material/Devices'
+import { Box, Grid, Paper, Stack, Typography } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import MemoryIcon from '@mui/icons-material/Memory'
 import NumbersIcon from '@mui/icons-material/Numbers'
 import PsychologyIcon from '@mui/icons-material/Psychology'
 import BrushIcon from '@mui/icons-material/Brush'
 import BoltIcon from '@mui/icons-material/Bolt'
-import EuroIcon from '@mui/icons-material/Euro'
 import { CatalogoValoracion, FuncPantallaValue } from './tipos'
 
 function Row({
@@ -39,18 +37,24 @@ function Row({
   )
 }
 
+type ModeloObj = { descripcion?: string }
+type CapacidadObj = { tamaño?: string }
+
 export default function PasoValoracion({
   tipo, modeloObj, capacidadObj, cantidad,
   funcBasica, pantallaIssues,
   estadoPantalla, estadoLados, estadoEspalda,
   saludBateria, ciclosBateria,
-  estadoTexto, precioCalculado,
+  estadoTexto, precioCalculado: _precioCalculado,
+  precioMaximo,
   fmtEUR, formatoBonito,
   catalog,
+  mostrarDetalles = true,
+  otrosPrecios,
 }: {
   tipo: string
-  modeloObj: any
-  capacidadObj: any
+  modeloObj: ModeloObj
+  capacidadObj: CapacidadObj
   cantidad: number | string
   funcBasica: 'ok' | 'parcial' | ''
   pantallaIssues: FuncPantallaValue[]
@@ -61,86 +65,196 @@ export default function PasoValoracion({
   ciclosBateria: number | ''
   estadoTexto: string
   precioCalculado: number | null
+  precioMaximo: number | null
   fmtEUR: (n: number) => string
   formatoBonito: (s: string) => string
   catalog: CatalogoValoracion
+  mostrarDetalles?: boolean
+  otrosPrecios?: Array<{ etiqueta: string; valor: number | null }>
 }) {
+  const cantidadNum = typeof cantidad === 'string' ? parseInt(cantidad, 10) || 1 : cantidad
+  const estadoLabel = formatoBonito(estadoTexto) || '—'
+  const resumenItems = [modeloObj?.descripcion, capacidadObj?.tamaño, `x${cantidadNum}`]
+    .filter((item) => typeof item === 'string' && item.trim().length > 0)
+  const modeloResumen = resumenItems.join(' · ') || `x${cantidadNum}`
+
+  const funcionalidadTexto =
+    funcBasica === 'ok'
+      ? 'Todo funciona'
+      : funcBasica === 'parcial'
+        ? `Incidencias: ${
+            pantallaIssues.length
+              ? pantallaIssues
+                  .map((v: FuncPantallaValue) =>
+                    (catalog.funcPantalla.find(
+                      (i: (typeof catalog.funcPantalla)[number]) => i.value === v
+                    )?.label ?? '')
+                  )
+                  .filter((s: string): s is string => s.length > 0)
+                  .join(', ')
+              : 'detalle no especificado'
+          }`
+        : 'Sin información'
+
+  const esteticaTexto = `Pantalla: ${
+    catalog.esteticaPantalla.find(
+      (o: (typeof catalog.esteticaPantalla)[number]) => o.value === estadoPantalla
+    )?.label || '—'
+  } · Lados: ${
+    catalog.esteticaLados.find(
+      (o: (typeof catalog.esteticaLados)[number]) => o.value === estadoLados
+    )?.label || '—'
+  } · Trasera: ${
+    catalog.esteticaEspalda.find(
+      (o: (typeof catalog.esteticaEspalda)[number]) => o.value === estadoEspalda
+    )?.label || '—'
+  }`
+
+  const bateriaTexto = `${saludBateria !== '' ? `${saludBateria}%` : '—'}${
+    typeof ciclosBateria === 'number' ? ` · ${ciclosBateria} ciclos` : ''
+  }`
+
+  const mapEtiqueta = (raw: string) => {
+    const normalized = raw.trim().toUpperCase()
+    if (normalized === 'A' || normalized === 'A+') return 'Muy bueno'
+    if (normalized === 'B') return 'Bueno'
+    if (normalized === 'C') return 'Uso intensivo'
+    return formatoBonito(raw)
+  }
+
+  const detailCards = mostrarDetalles
+    ? [
+        {
+          icon: <SmartphoneIcon fontSize="small" />, label: 'Modelo', value: modeloObj?.descripcion || '—', clamp: true,
+        },
+        {
+          icon: <MemoryIcon fontSize="small" />, label: 'Capacidad', value: capacidadObj?.tamaño || '—',
+        },
+        {
+          icon: <NumbersIcon fontSize="small" />, label: 'Cantidad', value: `${cantidadNum}`,
+        },
+        {
+          icon: <PsychologyIcon fontSize="small" />, label: 'Funcionalidad', value: funcionalidadTexto,
+        },
+        {
+          icon: <BrushIcon fontSize="small" />, label: 'Estética', value: esteticaTexto,
+        },
+        {
+          icon: <BoltIcon fontSize="small" />, label: 'Batería', value: bateriaTexto,
+        },
+      ]
+    : []
+
   return (
     <Box sx={{ mt: 2 }}>
-      <Paper elevation={3} sx={{ p: 3, maxWidth: 980, mx: 'auto' }}>
-        <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3}>
-          <Box flex={1}>
-            <Stack spacing={1.2}>
-              <Row icon={<DevicesIcon fontSize="small" />} label="Tipo" value={tipo || '-'} />
-              <Row icon={<SmartphoneIcon fontSize="small" />} label="Modelo" value={modeloObj?.descripcion || '-'} clamp />
-              <Row icon={<MemoryIcon fontSize="small" />} label="Capacidad" value={capacidadObj?.tamaño || '-'} />
-              <Row icon={<NumbersIcon fontSize="small" />} label="Cantidad" value={`${typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad}`} />
-              <Row
-                icon={<PsychologyIcon fontSize="small" />}
-                label="Funcionalidad"
-                value={
-                  funcBasica === 'ok'
-                    ? 'Todo funciona'
-                    : funcBasica === 'parcial'
-                    ? `No totalmente funcional${
-                        pantallaIssues.length
-                          ? ' · ' + pantallaIssues
-                              .map((v: FuncPantallaValue) =>
-                                (catalog.funcPantalla.find(
-                                  (i: (typeof catalog.funcPantalla)[number]) => i.value === v
-                                )?.label ?? '')
-                              )
-                              .filter((s: string): s is string => s.length > 0)
-                              .join(', ')
-                          : ''
-                      }`
-                    : '—'
-                }
-              />
-              <Row
-                icon={<BrushIcon fontSize="small" />}
-                label="Estética"
-                value={`Pantalla: ${
-                  catalog.esteticaPantalla.find(
-                    (o: (typeof catalog.esteticaPantalla)[number]) => o.value === estadoPantalla
-                  )?.label || '—'
-                } · Lados: ${
-                  catalog.esteticaLados.find(
-                    (o: (typeof catalog.esteticaLados)[number]) => o.value === estadoLados
-                  )?.label || '—'
-                } · Trasera: ${
-                  catalog.esteticaEspalda.find(
-                    (o: (typeof catalog.esteticaEspalda)[number]) => o.value === estadoEspalda
-                  )?.label || '—'
-                }`}
-              />
-              <Row
-                icon={<BoltIcon fontSize="small" />}
-                label="Batería"
-                value={`${saludBateria !== '' ? `${saludBateria}%` : '—'}${typeof ciclosBateria === 'number' ? ` · ${ciclosBateria} ciclos` : ''}`}
-              />
-            </Stack>
-          </Box>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          maxWidth: 980,
+          mx: 'auto',
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(22,27,34,0.9) 0%, rgba(30,60,52,0.65) 100%)'
+              : 'linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(222,236,230,0.75) 100%)',
+        }}
+      >
+        <Stack spacing={3}>
+        <Stack spacing={0.5}>
+          <Typography variant="overline" color="text.secondary">Resumen</Typography>
+          <Typography variant="h6" fontWeight={700}>
+            {modeloResumen || '-'}
+          </Typography>
+          
+        </Stack>
 
-          <Divider flexItem orientation="vertical" sx={{ display: { xs: 'none', md: 'block' } }} />
+          {mostrarDetalles && (
+            <Grid container spacing={2}>
+              {detailCards.map((card, idx) => (
+                <Grid key={idx} size={{ xs: 12, sm: 6 }}>
+                  <Box
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                      p: 1.5,
+                      height: '100%',
+                      backgroundColor: 'background.paper',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.5,
+                    }}
+                  >
+                    <Row {...card} />
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          )}
 
-          <Box flex={1} display="flex" flexDirection="column" gap={2}>
-            <Box textAlign="center">
-              <Typography variant="overline" color="text.secondary">Valoración</Typography>
-              <Typography variant="h5" fontWeight={600}>{formatoBonito(estadoTexto)}</Typography>
-            </Box>
+          <Grid container spacing={2} alignItems="stretch">
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box
+                sx={{
+                  borderRadius: 2,
+                  p: 2,
+                  height: '100%',
+                  background: (theme) =>
+                    theme.palette.mode === 'dark'
+                      ? 'linear-gradient(135deg, rgba(33,150,83,0.22) 0%, rgba(38,166,154,0.18) 100%)'
+                      : 'linear-gradient(135deg, rgba(214,242,228,0.9) 0%, rgba(214,239,255,0.6) 100%)',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography variant="overline" color="text.secondary">Precio máximo</Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {precioMaximo == null ? '—' : fmtEUR(precioMaximo)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Estimado para un dispositivo en estado excelente. Se ajustará tras la auditoría.
+                </Typography>
+              </Box>
+            </Grid>
 
-            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderColor: 'primary.light', bgcolor: 'action.hover' }}>
-              <Typography variant="overline" color="text.secondary">Precio orientativo</Typography>
-              <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.1 }}>
-                {precioCalculado == null ? '—' : fmtEUR(precioCalculado)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                {precioCalculado == null ? 'Se valorará tras revisión técnica' : 'Estimación según estado'}
-              </Typography>
-            </Paper>
-          </Box>
-        </Box>
+            {Array.isArray(otrosPrecios) && otrosPrecios.length > 0 && (
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Box
+                  sx={{
+                    borderRadius: 2,
+                    p: 2,
+                    height: '100%',
+                    border: '1px dashed',
+                    borderColor: 'divider',
+                    backgroundColor: (theme) => theme.palette.action.hover,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 0.5,
+                  }}
+                >
+                  <Typography variant="overline" color="text.secondary">Otros estados</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Valores orientativos para el mismo modelo según el estado general.
+                  </Typography>
+                  <Stack spacing={0.25}>
+                    {otrosPrecios.map((p, idx) => (
+                      <Typography key={idx} variant="body2" color="text.secondary">
+                        {`${mapEtiqueta(p.etiqueta)}: ${p.valor == null ? '—' : fmtEUR(p.valor)}`}
+                      </Typography>
+                    ))}
+                  </Stack>
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+
+          <Typography variant="caption" color="text.secondary">
+            Valores sujetos a auditoría técnica (diagnóstico, bloqueos, piezas). FMI/Activation Lock debe estar desactivado.
+          </Typography>
+        </Stack>
       </Paper>
     </Box>
   )

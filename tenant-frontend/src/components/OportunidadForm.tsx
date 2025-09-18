@@ -6,7 +6,6 @@ import {
   TextField,
   Button,
   CircularProgress,
-  Typography,
 } from '@mui/material'
 import api from '@/services/api'
 import { useRouter } from 'next/navigation'
@@ -26,13 +25,16 @@ export default function OportunidadForm({ clienteId, onSuccess, onClose }: Props
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await api.post('api/oportunidades/', {
+      const res = await api.post('/api/oportunidades/', {
         cliente: clienteId,
         nombre,
       })
       if (onSuccess) onSuccess()
       if (onClose) onClose()
-      router.push(`oportunidades/${res.data.id}`)
+      const destino = res.data?.uuid || res.data?.hashid || res.data?.id
+      if (destino) {
+        router.push(`/clientes/oportunidades/${destino}`)
+      }
     } catch (err) {
       console.error('Error al crear oportunidad', err)
     } finally {

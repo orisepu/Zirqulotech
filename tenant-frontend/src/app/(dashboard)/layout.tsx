@@ -10,7 +10,11 @@ import 'dayjs/locale/es'
 import { useEffect } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/reactQuery'
-import { ToastContainer } from 'react-toastify'
+import dynamic from 'next/dynamic'
+const ToastContainer = dynamic(
+  () => import('react-toastify').then(m => m.ToastContainer),
+  { ssr: false }
+)
 import 'react-toastify/dist/ReactToastify.css'
 
 dayjs.locale('es')
@@ -55,7 +59,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {/* Devtools opcionales */}
           <ReactQueryDevtoolsClient />
 
-          {/* Toaster global */}
+          {/* Toaster global (client-only to avoid hydration mismatch) */}
           <ToastContainer position="top-right" newestOnTop theme="colored" />
         </LocalizationProvider>
       </UsuarioProvider>

@@ -1,6 +1,6 @@
 import {
   Box, Typography, Paper, List, ListItem, Tabs, Tab, Button,
-  CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent, DialogActions,
   TextField
 } from '@mui/material';
 import { useState } from 'react';
@@ -54,24 +54,24 @@ interface Props {
   oportunidad: Oportunidad;
   historial: EventoHistorial[];
   onGuardarRecogida: (data: any) => Promise<void>;
-  onRefrescar: () => Promise<void>;
+
   puedeEditarRecogida: boolean;
   puedeVerFacturas?: boolean;
   puedeVerDispositivosAuditados?: boolean;
-  tenantSlug?: string;
   esSuperadmin?: boolean;
+  onRefrescar?: () => void;
+
 }
 
 export default function OportunidadDetalleBase({
   oportunidad,
   historial,
   onGuardarRecogida,
-  onRefrescar,
   puedeEditarRecogida,
-  puedeVerFacturas = false,
-  puedeVerDispositivosAuditados = false,
-  tenantSlug,
-  esSuperadmin = false,
+  puedeVerDispositivosAuditados,
+  esSuperadmin,
+  onRefrescar,
+
 }: Props) {
   const [tab, setTab] = useState(0);
   const [modalRecogidaAbierto, setModalRecogidaAbierto] = useState(false);

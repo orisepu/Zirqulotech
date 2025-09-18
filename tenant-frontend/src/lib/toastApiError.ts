@@ -2,7 +2,7 @@
 import type { AxiosError } from 'axios'
 import { toast } from 'react-toastify'
 
-const toArray = (v: any) => (Array.isArray(v) ? v : [v])
+const toArray = (v: unknown) => (Array.isArray(v) ? v : [v])
 const label = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
 const looksLikeHTML = (s: string) =>
@@ -14,14 +14,16 @@ function toastLines(lines: string[], fallback = '❌ Error en la petición', sta
   toast.error(withStatus, { autoClose: 7000, style: { whiteSpace: 'pre-line' } })
 }
 
-function buildMessagesFromData(data: any): string[] {
+type Dict = Record<string, unknown>
+function buildMessagesFromData(data: unknown): string[] {
   const out: string[] = []
-  if (!data) return out
-  if (data.detail) out.push(String(data.detail))
-  if (data.non_field_errors) toArray(data.non_field_errors).forEach((m: any) => out.push(String(m)))
-  for (const [k, v] of Object.entries(data)) {
+  if (!data || typeof data !== 'object') return out
+  const d = data as Dict
+  if ('detail' in d && d.detail != null) out.push(String(d.detail))
+  if ('non_field_errors' in d && d.non_field_errors != null) toArray((d as Dict).non_field_errors).forEach((m) => out.push(String(m)))
+  for (const [k, v] of Object.entries(d)) {
     if (k === 'detail' || k === 'non_field_errors') continue
-    toArray(v).forEach((m: any) => out.push(`${label(k)}: ${m}`))
+    toArray(v).forEach((m) => out.push(`${label(k)}: ${String(m)}`))
   }
   return out
 }
@@ -31,7 +33,7 @@ function buildMessagesFromData(data: any): string[] {
  * Soporta data como string/JSON o Blob (lee el texto y decide).
  */
 export function toastApiError(err: unknown, fallback = '❌ Error en la petición') {
-  const e = err as AxiosError<any>
+  const e = err as AxiosError<unknown>
   const resp = e?.response
 
   // Caso Blob (responseType: 'blob'): leemos el texto para decidir

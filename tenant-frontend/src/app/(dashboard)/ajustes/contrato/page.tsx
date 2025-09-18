@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Box, Paper, Typography, Tabs, Tab, Stack, Button, TextField,
@@ -9,6 +9,7 @@ import {
   FormControl, InputLabel, Select
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
+import type { SelectChangeEvent } from '@mui/material/Select'
 import HistoryIcon from '@mui/icons-material/History'
 import api from '@/services/api'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -88,7 +89,7 @@ function useNamespaceVars(ns = 'default') {
     queryKey: ['contract-vars', ns],
     queryFn: async () => {
       const { data } = await api.get('/api/ajustes/legales/variables/', { params: { namespace: ns } })
-      return data as { namespace: string; data: any }
+      return data as { namespace: string; data: Record<string, unknown> }
     }
   })
 }
@@ -116,9 +117,8 @@ export default function AjustesContratoPage() {
   const [tplContent, setTplContent] = useState('')
 
   // Canal a previsualizar + override opcional de contexto
-  const [previewChannel, setPreviewChannel] = useState<'b2b'|'b2c'>('b2c')
-  const [ctxOverrideOpen, setCtxOverrideOpen] = useState(false)
-  const [ctxText, setCtxText] = useState('') // JSON opcional para request.preview
+  const [previewChannel, _setPreviewChannel] = useState<'b2b'|'b2c'>('b2c')
+  const [ctxText, _setCtxText] = useState('') // JSON opcional para request.preview
 
   useEffect(() => {
     if (tpl) {
@@ -136,24 +136,36 @@ export default function AjustesContratoPage() {
   const [diffNew, setDiffNew] = useState('')
 
 
+  // Helper seguro para extraer mensajes de error
+  const getErrorMsg = (e: unknown, fallback: string) => {
+    if (typeof e === 'object' && e !== null) {
+      const msg = (e as { message?: unknown }).message
+      if (typeof msg === 'string' && msg) return msg
+      const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+      if (typeof detail === 'string' && detail) return detail
+    }
+    return fallback
+  }
+
   const renderPreview = useMutation({
     mutationFn: async (content: string) => {
-        const body: any = {
-        content: sanitizeDjangoTemplate(content),
-        force_canal: "b2c",     // ← b2b/b2c
+        type PreviewBody = { content: string; force_canal: 'b2b'|'b2c'; context?: unknown }
+        const body: PreviewBody = {
+          content: sanitizeDjangoTemplate(content),
+          force_canal: previewChannel,
         }
         if (ctxText.trim()) {
-        try {
+          try {
             body.context = JSON.parse(ctxText) // ← override opcional
-        } catch {
+          } catch {
             throw new Error('JSON de contexto inválido')
-        }
+          }
         }
         const { data } = await api.post('/api/contratos/render-preview/', body)
         return data as { rendered: string }
     },
     onSuccess: (data) => { setPreviewHtml(data.rendered || ''); setPreviewOpen(true) },
-    onError: (e: any) => setToast({open:true, msg: e?.message || e?.response?.data?.detail || 'Error al previsualizar', sev:'error'})
+    onError: (e: unknown) => setToast({open:true, msg: getErrorMsg(e, 'Error al previsualizar'), sev:'error'})
     })
 
   const saveTpl = useMutation({
@@ -167,7 +179,7 @@ export default function AjustesContratoPage() {
       return data
     },
     onSuccess: () => { setToast({open:true, msg:'Plantilla guardada', sev:'success'}); refetchTpl(); refetchVersions() },
-    onError: (e: any) => setToast({open:true, msg: e?.response?.data?.detail || 'Error al guardar plantilla', sev:'error'})
+    onError: (e: unknown) => setToast({open:true, msg: getErrorMsg(e, 'Error al guardar plantilla'), sev:'error'})
   })
 
 
@@ -181,30 +193,32 @@ export default function AjustesContratoPage() {
         slug: SLUG
       })).data,
     onSuccess: () => { setToast({open:true, msg:'Nueva versión publicada', sev:'success'}) ; refetchTpl(); refetchVersions() },
-    onError: (e: any) => setToast({open:true, msg: e?.response?.data?.detail || 'Error al publicar versión', sev:'error'})
+    onError: (e: unknown) => setToast({open:true, msg: getErrorMsg(e, 'Error al publicar versión'), sev:'error'})
   })
 
   // variables compartidas (operador/empresa/cliente…)
   const [varsNs, setVarsNs] = useState('default')
   const { data: defaults, isLoading: loadDef, refetch: refetchDef } = useNamespaceVars(varsNs)
   const [ovMode, setOvMode] = useState<'visual'|'json'>('visual')
-  const [ovJson, setOvJson] = useState<any>({})
+  type Operador = { nombre?: string; cif?: string; direccion?: string; email?: string; telefono?: string; web?: string }
+  type VarsObj = { operador?: Operador } & Record<string, unknown>
+  const [ovJson, setOvJson] = useState<VarsObj>({})
   const [ovText, setOvText] = useState('')
 
   useEffect(() => {
     if (defaults?.data != null) {
-      setOvJson(defaults.data)
+      setOvJson(defaults.data as unknown as VarsObj)
       setOvText(JSON.stringify(defaults.data, null, 2))
     }
   }, [defaults?.data])
 
   const saveOv = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: VarsObj) => {
       const { data } = await api.put(`/api/ajustes/legales/variables/?namespace=${encodeURIComponent(varsNs)}`, { data: payload })
       return data
     },
     onSuccess: () => { setToast({open:true, msg:'Variables guardadas', sev:'success'}); refetchDef() },
-    onError: (e: any) => setToast({open:true, msg: e?.response?.data?.detail || 'Error al guardar variables', sev:'error'})
+    onError: (e: unknown) => setToast({open:true, msg: getErrorMsg(e, 'Error al guardar variables'), sev:'error'})
   })
 
   const loading = loadTpl || loadDef
@@ -213,7 +227,7 @@ export default function AjustesContratoPage() {
   const insertAtEnd = (text: string) =>
     setTplContent((c) => `${c}${c && !c.endsWith('\n') ? '\n' : ''}${text}`)
 
-  const handleChangeMode = (_: any, value: 'visual'|'json'|null) => {
+  const handleChangeMode = (_: React.MouseEvent<HTMLElement>, value: 'visual'|'json'|null) => {
     if (!value) return
     if (value === 'json') {
       setOvText(JSON.stringify(ovJson, null, 2))
@@ -249,7 +263,7 @@ export default function AjustesContratoPage() {
                 label="Perfil de contrato"
                 native={false}
                 value={profileId}
-                onChange={(e:any)=>setProfileId(e.target.value)}
+                onChange={(e: SelectChangeEvent<string>)=>setProfileId(e.target.value as string)}
               >
                 {PROFILES.map(p => (
                   <MenuItem key={p.id} value={p.id}>
@@ -382,7 +396,7 @@ export default function AjustesContratoPage() {
                 label="Namespace de variables"
                 native={false}
                 value={varsNs}
-                onChange={(e:any)=>setVarsNs(e.target.value)}
+                onChange={(e: SelectChangeEvent<string>)=>setVarsNs(e.target.value as string)}
               >
                 <MenuItem value="default">default (gestionados)</MenuItem>
               </Select>
@@ -412,22 +426,22 @@ export default function AjustesContratoPage() {
 
                 {ovMode === 'visual' ? (
                   <Paper variant="outlined" sx={{ p: 1, bgcolor: 'background.paper', borderColor: 'divider' }}>
-                    <JsonEditor data={ovJson} setData={setOvJson} />
+                    <JsonEditor data={ovJson} setData={(data: unknown) => setOvJson(data as VarsObj)} />
                     <Box mt={1} display="flex" gap={1} flexWrap="wrap">
                       <Button variant="contained" disabled={saveOv.isPending} onClick={()=>saveOv.mutate(ovJson)}>
                         {saveOv.isPending ? 'Guardando…' : 'Guardar'}
                       </Button>
                       <Tooltip title='Autocompleta operador.* típico'>
                         <Button variant="outlined" onClick={()=>{
-                          setOvJson((prev:any)=>({
+                          setOvJson((prev)=>({
                             ...prev,
                             operador: {
-                              nombre: prev?.operador?.nombre || 'Progeek Solutions S.L.',
-                              cif: prev?.operador?.cif || 'B00X00000',
-                              direccion: prev?.operador?.direccion || 'C/ Ejemplo 123, 08000 Barcelona, España',
-                              email: prev?.operador?.email || 'legal@progeek.es',
-                              telefono: prev?.operador?.telefono || '+34 600 000 000',
-                              web: prev?.operador?.web || 'https://progeek.es'
+                              nombre: prev.operador?.nombre || 'Progeek Solutions S.L.',
+                              cif: prev.operador?.cif || 'B00X00000',
+                              direccion: prev.operador?.direccion || 'C/ Ejemplo 123, 08000 Barcelona, España',
+                              email: prev.operador?.email || 'legal@progeek.es',
+                              telefono: prev.operador?.telefono || '+34 600 000 000',
+                              web: prev.operador?.web || 'https://progeek.es'
                             }
                           }))
                         }}>

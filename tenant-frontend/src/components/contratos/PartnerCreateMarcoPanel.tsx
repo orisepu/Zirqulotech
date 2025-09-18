@@ -7,13 +7,28 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import SendToMobileIcon from '@mui/icons-material/SendToMobile'
-import AutorenewIcon from '@mui/icons-material/Autorenew'
+// import SendToMobileIcon from '@mui/icons-material/SendToMobile'
+// import AutorenewIcon from '@mui/icons-material/Autorenew'
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { formatoBonito } from '@/context/precios'
 import api from '@/services/api'
+
+// Tipo compartido: usado tanto dentro del componente como en utilidades abajo
+type ContratoExistente = {
+  id: number
+  estado?: string
+  estado_legible?: string
+  pdf_sha256?: string
+  firmado_en?: string
+  kyc_token?: string
+  url_pdf_firmado?: string
+  tiene_dni_anverso?: boolean
+  tiene_dni_reverso?: boolean
+  kyc_estado?: string
+  tipo?: 'acta' | 'marco'
+}
 
 type Estimado = {
   modelo: string
@@ -28,7 +43,8 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
   const [open, setOpen] = useState(false)
   const seeded = useRef(false)
   const [copied, setCopied] = useState(false)
-  const [created, setCreated] = useState<any | null>(null)
+  type CreatedMinimal = { id?: number; pdf_sha256?: string }
+  const [created, setCreated] = useState<CreatedMinimal | null>(null)
 
   const [empresa] = useState({
     nombre: 'PROGEEK S.L.', cif: '', direccion: '', email: '', telefono: '', web: 'https://progeek.es'
@@ -51,7 +67,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
     retry: false,
     meta: { silent: true }
   })
-  const existente = contratoQ.data as any | undefined
+  const existente = contratoQ.data as ContratoExistente | undefined
 
   const oppQ = useQuery({
     queryKey: ['oportunidad', oportunidadUUID, open],
@@ -70,7 +86,14 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
     const direccion = buildAddressFromOpp(opp)
     setCliente({ nombre, dni, email, telefono: tel, direccion })
 
-    const rows: Estimado[] = Array.isArray(opp?.dispositivos) ? opp.dispositivos.map((d:any) => ({
+    type OppDevice = {
+      modelo?: { descripcion?: string }
+      capacidad?: { tamaño?: string; precio?: unknown }
+      estado_valoracion?: string
+      estado_fisico?: string
+      precio_orientativo?: unknown
+    }
+    const rows: Estimado[] = Array.isArray(opp?.dispositivos) ? opp.dispositivos.map((d: OppDevice) => ({
       modelo: [d?.modelo?.descripcion, d?.capacidad?.tamaño].filter(Boolean).join(' '),
       estado_declarado: d?.estado_valoracion || d?.estado_fisico || '',
       precio_provisional: parsePrecio(d?.precio_orientativo ?? d?.capacidad?.precio) ?? '',
@@ -169,7 +192,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
     },
     onSuccess: () => contratoQ.refetch(),
   })
-  const renovarKyc = useMutation({
+  const _renovarKyc = useMutation({
     mutationFn: async () => {
       if (!existente?.id) throw new Error('No hay contrato')
       const { data } = await api.post(`/api/b2c/contratos/${existente.id}/renovar-kyc/`, {
@@ -180,7 +203,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
     },
     onSuccess: () => contratoQ.refetch(),
   })
-  const enviarOtp = useMutation({
+  const _enviarOtp = useMutation({
     mutationFn: async () => {
       if (!existente?.id) throw new Error('No hay contrato')
       const { data } = await api.post(`/api/b2c/contratos/${existente.id}/enviar-otp/`, {})
@@ -193,6 +216,12 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
     const base = publicBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://progeek.es')
     return `${base}/kyc-upload/${existente.kyc_token}`
   }, [existente?.kyc_token, publicBaseUrl])
+
+  function isAxios404(e: unknown): boolean {
+    if (typeof e !== 'object' || e === null) return false
+    const resp = (e as { response?: { status?: number } }).response
+    return !!(resp && resp.status === 404)
+  }
 
   return (
     <>
@@ -207,7 +236,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
 
         <DialogContent dividers>
           {contratoQ.isLoading && <Alert severity="info" sx={{ mb: 2 }}>Buscando contrato existente…</Alert>}
-          {contratoQ.error && (contratoQ as any)?.error?.response?.status !== 404 && (
+          {contratoQ.error && !isAxios404(contratoQ.error) && (
             <Alert severity="error" sx={{ mb: 2 }}>No se pudo comprobar contratos existentes.</Alert>
           )}
 
@@ -232,7 +261,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
                           const ds = getDocsStatus(existente);
                           return (
                             <Tooltip title={ds.tip}>
-                              <Chip size="small" color={ds.color as any} label={ds.label} />
+                              <Chip size="small" color={ds.color} label={ds.label} />
                             </Tooltip>
                           );
                         })()}
@@ -436,22 +465,23 @@ function Field({ label, value }: { label: string; value?: string }) {
     </Box>
   )
 }
-function getDocsStatus(c: any) {
+type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'success' | 'info' | 'warning'
+function getDocsStatus(c: Partial<ContratoExistente>) {
   const requiereDni = c?.tipo !== 'acta';          // las actas no requieren DNI
   const a = !!c?.tiene_dni_anverso;
   const r = !!c?.tiene_dni_reverso;
 
-  if (!requiereDni) return { label: 'No requerida', color: 'default', tip: 'Para actas no es necesario DNI.' };
-  if (c?.kyc_estado === 'verificado') return { label: 'Verificada', color: 'success', tip: 'KYC verificado por un agente.' };
-  if (a && r) return { label: 'Entregada', color: 'info', tip: 'Anverso y reverso recibidos.' };
+  if (!requiereDni) return { label: 'No requerida', color: 'default' as ChipColor, tip: 'Para actas no es necesario DNI.' };
+  if (c?.kyc_estado === 'verificado') return { label: 'Verificada', color: 'success' as ChipColor, tip: 'KYC verificado por un agente.' };
+  if (a && r) return { label: 'Entregada', color: 'info' as ChipColor, tip: 'Anverso y reverso recibidos.' };
   if (a || r) {
     const falta = a ? 'reverso' : 'anverso';
-    return { label: 'Incompleta', color: 'warning', tip: `Falta ${falta} del DNI.` };
+    return { label: 'Incompleta', color: 'warning' as ChipColor, tip: `Falta ${falta} del DNI.` };
   }
-  return { label: 'Faltante', color: 'default', tip: 'No se han subido imágenes del DNI.' };
+  return { label: 'Faltante', color: 'default' as ChipColor, tip: 'No se han subido imágenes del DNI.' };
 }
-function num(v:any){ if(v===''||v==null) return undefined; const n=Number(v); return Number.isFinite(n)?n:undefined }
-function parsePrecio(v: any): number | undefined {
+function num(v: unknown){ if(v===''||v==null) return undefined as number | undefined; const n=Number(v as number | string); return Number.isFinite(n)?n:undefined }
+function parsePrecio(v: unknown): number | undefined {
   if (v == null) return undefined
   if (typeof v === 'number' && Number.isFinite(v)) return v
   if (typeof v !== 'string') return undefined
@@ -496,7 +526,15 @@ function formatDate(iso?: string){
     return String(iso) 
   }
 }
-function buildAddressFromOpp(opp:any) {
+type OppAddress = {
+  cliente?: {
+    direccion_calle?: string; direccion_piso?: string; direccion_puerta?: string;
+    direccion_cp?: string; direccion_poblacion?: string; direccion_provincia?: string; direccion_pais?: string;
+  };
+  calle?: string; numero?: string; piso?: string; puerta?: string;
+  codigo_postal?: string; poblacion?: string; provincia?: string;
+}
+function buildAddressFromOpp(opp: OppAddress) {
   const c = opp?.cliente || {}
   const parts = [c.direccion_calle, c.direccion_piso, c.direccion_puerta].filter(Boolean).join(' ')
   const loc = [c.direccion_cp, c.direccion_poblacion, c.direccion_provincia].filter(Boolean).join(' ')

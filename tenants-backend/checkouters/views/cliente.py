@@ -1,6 +1,6 @@
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, permissions, filters, serializers
 from rest_framework.exceptions import PermissionDenied
-from django_tenants.utils import schema_context
+from django_tenants.utils import schema_context, get_tenant_model
 from ..models.cliente import Cliente, ComentarioCliente
 from ..serializers import ClienteSerializer, ComentarioClienteSerializer,ClienteListSerializer
 from progeek.models import UserGlobalRole, RolPorTenant
@@ -99,8 +99,24 @@ class ClienteViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         tenant_slug = self.request.tenant.schema_name.lower()
+        schema_param = self.request.query_params.get("schema")
 
-        if self._es_super(user) and self.request.query_params.get("schema"):
+        # Determinar si el tenant objetivo solo admite empresas
+        solo_empresas = False
+        if schema_param:
+            TenantModel = get_tenant_model()
+            with schema_context("public"):
+                company = TenantModel.objects.filter(schema_name=schema_param).first()
+                if company:
+                    solo_empresas = getattr(company, "solo_empresas", False)
+        else:
+            solo_empresas = getattr(self.request.tenant, "solo_empresas", False)
+
+        tipo_cliente = serializer.validated_data.get("tipo_cliente")
+        if solo_empresas and tipo_cliente == "particular":
+            raise serializers.ValidationError({"tipo_cliente": "Este partner solo admite clientes empresa o autónomos."})
+
+        if self._es_super(user) and schema_param:
             serializer.save()
             return
 
@@ -113,6 +129,22 @@ class ClienteViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("No tienes tienda asignada.")
 
         serializer.save(tienda_id=rol.tienda_id)
+
+    def perform_update(self, serializer):
+        schema_param = self.request.query_params.get("schema")
+
+        if schema_param and self._es_super(self.request.user):
+            TenantModel = get_tenant_model()
+            with schema_context("public"):
+                company = TenantModel.objects.filter(schema_name=schema_param).first()
+                solo_empresas = getattr(company, "solo_empresas", False)
+        else:
+            solo_empresas = getattr(self.request.tenant, "solo_empresas", False)
+
+        tipo_cliente = serializer.validated_data.get("tipo_cliente")
+        if solo_empresas and tipo_cliente == "particular":
+            raise serializers.ValidationError({"tipo_cliente": "Este partner solo admite clientes empresa o autónomos."})
+        serializer.save()
 
 
 class ComentarioClienteViewSet(viewsets.ModelViewSet):

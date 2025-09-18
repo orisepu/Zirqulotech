@@ -62,23 +62,73 @@ def calcular(params: Params, i: dict):
         g = grado(i['glass_status'], i['housing_status'])
         V_tope = params.V_Aplus if g=='A+' else (A if g=='A' else (B if g=='B' else C))
     else:
+        # ===== Helpers de grado por dimensión =====
+        def grado_pantalla(glass: str) -> str:
+            # NOTA: los casos DEEP/CHIP/CRACK ya han forzado D en los gates
+            if glass == 'NONE':    return 'A+'
+            if glass == 'MICRO':   return 'A'
+            if glass == 'VISIBLE': return 'B'
+            return 'C'
+    
+        def grado_chasis(housing: str) -> str:
+            # Valores esperados: SIN_SIGNOS, MINIMOS, ALGUNOS, DESGASTE_VISIBLE, DOBLADO, BACKGLASS_ROTO?
+            if housing in ('SIN_SIGNOS',):                return 'A+'
+            if housing in ('MINIMOS',):                   return 'A'
+            if housing in ('ALGUNOS',):                   return 'B'
+            # DESGASTE_VISIBLE mantiene C (no fuerza D por sí mismo)
+            return 'C'
+
+        def tope_for(grado_dim: str) -> int:
+            return params.V_Aplus if grado_dim=='A+' else (A if grado_dim=='A' else (B if grado_dim=='B' else C))
+
         pantalla_ok = (i['display_image_status']=='OK' and i['glass_status'] in ['NONE','MICRO','VISIBLE'])
-        chasis_ok = (i['housing_status']!='DOBLADO')
-        if not pantalla_ok and chasis_ok: V_tope = params.V_Aplus
-        elif pantalla_ok and not chasis_ok: V_tope = B
-        else: V_tope = min(params.V_Aplus, A, B, C)
-        g = 'C'
+        chasis_doblado = (i['housing_status']=='DOBLADO' or i.get('backglass_status')=='AGRIETADO')
+        chasis_ok = not chasis_doblado
+        fallo_func = (i.get('funcional_basico_ok') is False)
+
+        gp = grado_pantalla(i['glass_status'])
+        gh = grado_chasis(i['housing_status'])
+        tp = tope_for(gp)
+        th = tope_for(gh)
+
+        d_pant = not pantalla_ok
+        d_chas = not chasis_ok
+
+        # ===== Reglas D (documento) =====
+        if d_pant and not d_chas and not fallo_func:
+            # D por pantalla -> excluir pantalla: usar grado de chasis
+            V_tope = th
+        elif d_chas and not d_pant and not fallo_func:
+            # D por chasis -> excluir chasis: usar grado de pantalla
+            V_tope = tp
+        elif d_pant and d_chas and not fallo_func:
+            # D por pantalla y chasis (resto OK) -> Propuesta B
+            V_tope = params.V_Aplus
+        elif fallo_func and not d_pant and not d_chas:
+            # D por fallo funcional con pantalla y chasis OK -> mínimo entre ambos
+            V_tope = min(tp, th)
+        else:
+            # Mezclas (p.ej. D por pantalla + fallo funcional, etc.): ser conservadores
+            # tomar el mínimo de los topes válidos de las dimensiones sanas
+            candidatos = []
+            if chasis_ok: candidatos.append(th)
+            if pantalla_ok: candidatos.append(tp)
+            V_tope = min(candidatos) if candidatos else C  # fallback conservador
+        g = 'D'
 
     # Deducciones (usamos tus costes DB ya calculados en la view)
     pr_bat  = params.pr_bateria if (i.get('battery_health_pct') is not None and i['battery_health_pct']<85) else 0
     pr_pant = params.pr_pantalla if (i['display_image_status']!='OK' or i['glass_status'] in ['DEEP','CHIP','CRACK']) else 0
-    pr_chas = params.pr_chasis   if (i['housing_status'] in ['DESGASTE_VISIBLE','DOBLADO']) else 0
+    pr_chas = params.pr_chasis   if (i['housing_status'] in ['DESGASTE_VISIBLE','DOBLADO']or
+    i.get('backglass_status') in ('AGRIETADO', 'ROTO')) else 0
 
     V1 = V_tope - (pr_bat+pr_pant+pr_chas)
     if not isfinite(V1): V1 = 0
 
-    aplica_pp_func = not (gate=='OK' and i.get('funcional_basico_ok') is True)
-    pp_func = 0.15
+    # Penalización funcional: sólo si el usuario declaró explícitamente fallo funcional (False).
+    # Si es None (aún no evaluado) no se aplica en etapas tempranas de la auditoría.
+    aplica_pp_func = (i.get('funcional_basico_ok') is False)
+    pp_func = 0.15 if aplica_pp_func else 0.0
     V2 = round(V1*(1-pp_func)) if aplica_pp_func else V1
 
     redondeo5 = round(V2/5)*5
@@ -89,6 +139,6 @@ def calcular(params: Params, i: dict):
         "gate": gate,
         "grado_estetico": g,
         "V_Aplus": params.V_Aplus, "V_A": A, "V_B": B, "V_C": C, "V_tope": V_tope,
-        "deducciones": {"pr_bat": pr_bat, "pr_pant": pr_pant, "pr_chas": pr_chas, "pp_func": 0.15},
+        "deducciones": {"pr_bat": pr_bat, "pr_pant": pr_pant, "pr_chas": pr_chas, "pp_func": pp_func},
         "calculo": {"V1": V1, "aplica_pp_func": aplica_pp_func, "V2": V2, "redondeo5": redondeo5, "suelo": params.V_suelo, "oferta_final": oferta},
     }
