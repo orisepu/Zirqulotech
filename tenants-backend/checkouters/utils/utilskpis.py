@@ -174,11 +174,12 @@ def _serie_vacia_desde_hasta(fecha_inicio, fecha_fin, granularidad):
             cur += timedelta(days=1)
         return puntos
     if granularidad == "semana":
-        # aproximación: saltos de 7 días
-        cur = fecha_inicio.date()
-        while cur <= fecha_fin.date():
-            puntos.append(cur.isoformat())
-            cur += timedelta(days=7)
+        cur_dt = fecha_inicio - timedelta(days=fecha_inicio.weekday())
+        cur_dt = cur_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_dt = fecha_fin.replace(hour=0, minute=0, second=0, microsecond=0)
+        while cur_dt <= end_dt:
+            puntos.append(cur_dt.date().isoformat())
+            cur_dt += timedelta(days=7)
         return puntos
     # mes
     y, m = fecha_inicio.year, fecha_inicio.month

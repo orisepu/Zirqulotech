@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Box, Grid, Stack, TextField, MenuItem, Button, Autocomplete } from '@mui/material'
+import { Box, Grid, Stack, TextField, Button, Autocomplete } from '@mui/material'
 import dayjs from 'dayjs'
 import { fetchDashboardManager, DashboardManagerResponse } from '@/services/api'
 import KpiCard from '@/components/dashboards/manager/KpiCard'
@@ -108,19 +108,6 @@ export default function ManagerDashboardPage() {
           onChange={(e) => setFechaFin(e.target.value)}
           InputLabelProps={{ shrink: true }}
         />
-        <TextField
-          select
-          label="Granularidad"
-          size="small"
-          value={granularidad}
-          onChange={(e) => setGranularidad(e.target.value as 'dia' | 'semana' | 'mes')}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="dia">Día</MenuItem>
-          <MenuItem value="semana">Semana</MenuItem>
-          <MenuItem value="mes">Mes</MenuItem>
-        </TextField>
-
         {/* Selección por nombre, guardando internamente el id numérico */}
         <Autocomplete<Option, false, false, false>
           size="small"
@@ -162,7 +149,11 @@ export default function ManagerDashboardPage() {
       {/* Evolución */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 6 }}>
-          <EvolucionChart data={data?.evolucion || []} />
+          <EvolucionChart
+            data={data?.evolucion || []}
+            granularidad={granularidad}
+            onGranularidadChange={setGranularidad}
+          />
         </Grid>
       
 
