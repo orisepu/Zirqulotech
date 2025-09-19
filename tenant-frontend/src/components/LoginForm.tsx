@@ -17,7 +17,8 @@ import {
   Checkbox,
   FormControlLabel,
   Snackbar,
-  Alert,alpha,
+  Alert,
+  alpha,
   useTheme,
 } from "@mui/material";
 import BusinessIcon from "@mui/icons-material/Business";

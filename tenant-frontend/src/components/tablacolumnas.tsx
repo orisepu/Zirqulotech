@@ -1,5 +1,5 @@
   import {getId} from '@/utils/id'
-  import { ESTADOS_META,ESTADOS_B2B } from '@/context/estados'
+  import { ESTADOS_META,ESTADOS_B2B, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
   import { Chip,Box } from '@mui/material'
   import type { ChipProps } from '@mui/material/Chip'
   import { ColumnDef } from '@tanstack/react-table'
@@ -157,9 +157,10 @@ const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros']
       render: (o) => {
         const meta = ESTADOS_META[o.estado] as { icon?: React.ElementType; color?: ChipProps['color'] } | undefined
         const Icono = meta?.icon as React.ElementType | undefined
+        const label = ESTADO_LABEL_OVERRIDES[o.estado] || o.estado
         return (
           <Chip
-            label={o.estado}
+            label={label}
             icon={Icono ? <Icono /> : undefined}
             color={meta?.color || 'default'}
             size="small"
@@ -488,5 +489,4 @@ const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros']
     },
     
   ]
-
 

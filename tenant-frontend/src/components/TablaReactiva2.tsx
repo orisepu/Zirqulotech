@@ -73,6 +73,7 @@ export default function TablaReactiva<TData>({
   const [globalFilter, setGlobalFilter] = useState('')
   const STORAGE_KEY_VISIBILITY = `columnasVisibles_oportunidades_${usuarioId}`
   const datos = Array.isArray(oportunidades) ? oportunidades : []
+  const isDev = process.env.NODE_ENV !== 'production'
 
   // Estado interno solo si NO usamos server-side
   const [internalPagination, setInternalPagination] = useState({ pageIndex: 0, pageSize: 10 })
@@ -231,7 +232,19 @@ export default function TablaReactiva<TData>({
         sx={{
           width: '100%',
           tableLayout: 'auto', // <- clave: dejamos que el layout estire
-          '& th, & td': { whiteSpace: 'nowrap' } // opcional: evita saltos
+          '& th, & td': {
+            whiteSpace: 'nowrap',
+            ...(isDev
+              ? {
+                  borderLeft: '1px dashed rgba(255, 255, 255, 0.16)',
+                }
+              : {}),
+          },
+          ...(isDev
+            ? {
+                '& th:first-of-type, & td:first-of-type': { borderLeft: 'none' },
+              }
+            : {}),
         }}
       >
         <colgroup>
@@ -314,57 +327,54 @@ export default function TablaReactiva<TData>({
 
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableCell
-                  key={header.id}
-                  
-                  align={header.column.columnDef.meta?.alignHeader || 'center'}
-                  sx={{
-                    minWidth: header.column.columnDef.meta?.minWidth,
-                    maxWidth:
-                      header.column.columnDef.meta?.maxWidth ??
-                      header.column.columnDef.meta?.headerMaxWidth,
-                    width: header.column.columnDef.meta?.maxWidth,
-                    whiteSpace: (header.column.columnDef.meta as any)?.nowrapHeader
-                      ? 'nowrap'
-                      : (header.column.columnDef.meta as any)?.headerWrap
-                        ? 'normal'
-                        : 'normal',
-                    overflow: (header.column.columnDef.meta as any)?.nowrapHeader
-                      ? 'hidden'
-                      : undefined,
-                    textOverflow: (header.column.columnDef.meta as any)?.nowrapHeader ? 'ellipsis' : undefined,
-                    wordBreak: (header.column.columnDef.meta as any)?.nowrapHeader
-                      ? 'normal'
-                      : 'break-word',
-                    display: 'table-cell',
-                  }}
-                >
-                  {!header.isPlaceholder && (
-                    <TableSortLabel
-                      active={header.column.getIsSorted() !== false}
-                      direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
-                      onClick={header.column.getToggleSortingHandler()}
-                      sx={{
-                        display: 'inline-flex',
-                        flexDirection: 'column',
-                        alignItems:
-                          (header.column.columnDef.meta?.alignHeader || 'left') === 'center'
-                            ? 'center'
-                            : (header.column.columnDef.meta?.alignHeader || 'left') === 'right'
-                              ? 'flex-end'
-                              : 'flex-start',
-                        gap: 0.25,
-                        textAlign:
-                          header.column.columnDef.meta?.alignHeader === 'center' ? 'center' : undefined,
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableSortLabel>
-                  )}
-                </TableCell>
-              ))}
+              {headerGroup.headers.map((header) => {
+                const headerMeta = header.column.columnDef.meta as {
+                  minWidth?: number
+                  maxWidth?: number
+                  headerMaxWidth?: number
+                  nowrapHeader?: boolean
+                  headerWrap?: boolean
+                } | undefined
+
+                return (
+                  <TableCell
+                    key={header.id}
+                    align="center"
+                    sx={{
+                      minWidth: headerMeta?.minWidth,
+                      maxWidth: headerMeta?.maxWidth ?? headerMeta?.headerMaxWidth,
+                      width: headerMeta?.maxWidth,
+                      whiteSpace: headerMeta?.nowrapHeader
+                        ? 'nowrap'
+                        : headerMeta?.headerWrap
+                          ? 'normal'
+                          : 'normal',
+                      overflow: headerMeta?.nowrapHeader ? 'hidden' : undefined,
+                      textOverflow: headerMeta?.nowrapHeader ? 'ellipsis' : undefined,
+                      wordBreak: headerMeta?.nowrapHeader ? 'normal' : 'break-word',
+                      display: 'table-cell',
+                    }}
+                  >
+                    {!header.isPlaceholder && (
+                      <TableSortLabel
+                        active={header.column.getIsSorted() !== false}
+                        direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
+                        onClick={header.column.getToggleSortingHandler()}
+                        sx={{
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 0.25,
+                          textAlign: 'center',
+                          lineHeight: 1.1,
+                        }}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableSortLabel>
+                    )}
+                  </TableCell>
+                )
+              })}
               {onRowClick && <TableCell />}
             </TableRow>
           ))}
@@ -427,6 +437,12 @@ export default function TablaReactiva<TData>({
                   );
                 }
 
+                const esGuion = (() => {
+                  if (typeof rawValue === 'string' && rawValue.trim() === '—') return true
+                  if (typeof content === 'string' && content.trim() === '—') return true
+                  return false
+                })()
+
                 return (
                   <TableCell
                     key={cell.id}
@@ -435,7 +451,8 @@ export default function TablaReactiva<TData>({
                       maxWidth: cell.column.columnDef.meta?.maxWidth,
                       width: cell.column.columnDef.meta?.maxWidth,
                     }}
-                    align={meta.align || 'left'}
+                    align={esGuion ? 'center' : meta.align || 'left'}
+                    
                   >
                     {content}
                   </TableCell>

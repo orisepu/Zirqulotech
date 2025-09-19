@@ -84,14 +84,27 @@ export default function PipelineChart({ data }: { data: Row[] }) {
       <CardHeader
         title="Pipeline por estado"
         action={
-          <ToggleButtonGroup size="small" value={metric} exclusive onChange={(_, v) => v && setMetric(v)}>
-            <ToggleButton value="valor">€</ToggleButton>
-            <ToggleButton value="count">Ops</ToggleButton>
+          <ToggleButtonGroup
+            size="small"
+            value={metric}
+            exclusive
+            onChange={(_, v) => v && setMetric(v)}
+            sx={{
+              backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.6 : 0.8),
+              borderRadius: 5,
+              p: 0.25,
+              '& .MuiToggleButton-root': {
+                px: 1.75,
+              },
+            }}
+          >
+            <ToggleButton value="count">Operaciones</ToggleButton>
+            <ToggleButton value="valor">Euros €</ToggleButton>
           </ToggleButtonGroup>
         }
-        sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }}
+        sx={{ px: 3, py: 2, '& .MuiCardHeader-title': { fontSize: 16, fontWeight: 600 } }}
       />
-      <CardContent sx={{ height: 320 }}>
+      <CardContent sx={{ height: 320, px: 3, py: 2.5 }}>
         <Box sx={{ width: '100%', height: '100%' }}>
           {sorted.length === 0 ? (
             <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>

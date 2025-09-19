@@ -9,6 +9,7 @@ from .dispositivo import (
 )
 from .cliente import Cliente, ComentarioCliente, ConsultaCliente
 from .tienda import Tienda, UserTenantExtension
+from .objetivo import Objetivo
 from .legal import B2CContrato, LegalTemplate
 from .documento import Documento
 from .utils import validar_imei
@@ -28,6 +29,7 @@ __all__ = [
     "ConsultaCliente",
     "Tienda",
     "UserTenantExtension",
+    "Objetivo",
     "B2CContrato",
     "LegalTemplate",
     "Documento",

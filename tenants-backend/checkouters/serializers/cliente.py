@@ -82,8 +82,22 @@ class ClienteListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = [
-            "id", "canal", "tipo_cliente", "display_name", "identificador_fiscal","contacto","posicion",
-            "correo", "telefono", "tienda", "tienda_nombre","oportunidades_count", "valor_total_final",
+            "id",
+            "canal",
+            "tipo_cliente",
+            "display_name",
+            "identificador_fiscal",
+            "contacto",
+            "posicion",
+            "correo",
+            "telefono",
+            "contacto_financiero",
+            "telefono_financiero",
+            "correo_financiero",
+            "tienda",
+            "tienda_nombre",
+            "oportunidades_count",
+            "valor_total_final",
         ]
 
     def get_display_name(self, obj: Cliente) -> str:

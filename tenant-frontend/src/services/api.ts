@@ -171,3 +171,41 @@ export async function fetchDashboardAdmin(params: {
   const { data } = await api.get('api/dashboard/admin/', { params })
   return data
 }
+
+export type PeriodoTipo = 'mes' | 'trimestre'
+export type ObjetivoScope = 'tienda' | 'usuario'
+
+export type ObjetivoResumenItem = {
+  objetivo_id: number | null
+  target_id: number
+  target_name: string
+  email?: string
+  tipo: ObjetivoScope
+  periodo_tipo: PeriodoTipo
+  periodo: string
+  objetivo_valor: number
+  objetivo_operaciones: number
+  progreso_valor: number
+  progreso_operaciones: number
+}
+
+export async function fetchObjetivosResumen(params: {
+  scope: ObjetivoScope
+  periodo_tipo: PeriodoTipo
+  periodo: string
+}) {
+  const { data } = await api.get<ObjetivoResumenItem[]>("/api/objetivos/resumen/", { params })
+  return data
+}
+
+export async function guardarObjetivo(payload: {
+  tipo: ObjetivoScope
+  periodo_tipo: PeriodoTipo
+  periodo_input: string
+  objetivo_valor: number
+  objetivo_operaciones: number
+  tienda_id?: number
+  usuario_id?: number
+}) {
+  await api.post("/api/objetivos/", payload)
+}

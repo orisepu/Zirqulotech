@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { getId } from '@/utils/id'
 import React from 'react'
-import { ESTADOS_META, ESTADOS_B2B } from '@/context/estados'
+import { ESTADOS_META, ESTADOS_B2B, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
 import { Chip, Box, Select, MenuItem, TextField, Typography, Stack } from '@mui/material'
 import { formatoBonito } from '@/context/precios'
 import { EllipsisTooltip } from './EllipsisTooltip'
@@ -43,15 +43,19 @@ const fmtEUR = (v: string | number | null | undefined): string =>
     ? '—'
     : new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(Number(v))
 
-const makeTwoLineHeader = (line1: string, line2: string) => () => (
-  <Box
-    component="span"
-    sx={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.1, textAlign: 'center' }}
-  >
-    <span>{line1}</span>
-    <span>{line2}</span>
-  </Box>
-)
+const makeTwoLineHeader = (line1: string, line2: string) => {
+  const HeaderComponent = () => (
+    <Box
+      component="span"
+      sx={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.1, textAlign: 'center' }}
+    >
+      <span>{line1}</span>
+      <span>{line2}</span>
+    </Box>
+  )
+  HeaderComponent.displayName = `${line1}-${line2}-header`
+  return HeaderComponent
+}
 
 export const columnasCapacidadesAdmin: ColumnDef<CapacidadRow>[] = [
   {
@@ -205,7 +209,7 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
   { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
   { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
   
-  { id: 'cliente', header: 'Cliente', meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,},accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()},
+  { id: 'cliente', header: 'Cliente', meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 280,},accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()},
   {
   id: 'valoracion',
   header: 'Valoración orientativa',
@@ -269,25 +273,40 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
       return d ? d.toLocaleDateString('es-ES') : '—'
     },
   },
-  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento' },
+  {
+    id: 'seguimiento',
+    header: 'Número de seguimiento',
+    accessorKey: 'numero_seguimiento',
+    meta: {
+      align: 'right',
+      minWidth: 100,
+      maxWidth: 200,
+      alignHeader: 'center',
+      ellipsis: true,
+      ellipsisMaxWidth: 180,
+    },
+  },
   {
     id: 'estado',
     header: 'Estado',
     accessorKey: 'estado',                 // <- clave para que row.getValue('estado') funcione
     meta: {
       label: 'Estado',
+      align: 'right',
       toCSV: (value: unknown /*, row */) =>
         typeof value === 'string' ? value : value == null ? '' : String(value),
-      minWidth: 140,
+      minWidth: 100,
+      maxWidth: 200,
     },
     cell: ({ getValue }) => {
       const estado = (getValue<string>() ?? '').trim();
       const meta = ESTADOS_B2B[estado] || {};
       const Icono = meta.icon;
 
+      const label = ESTADO_LABEL_OVERRIDES[estado] || estado || '—'
       return (
         <Chip
-          label={estado || '—'}
+          label={label}
           icon={Icono ? <Icono fontSize="small" /> : undefined}
           color={meta.color || 'default'}
           size="small"
@@ -342,7 +361,7 @@ export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { co
     // Nombre visible unificado
     { id: "display_name", header: "Nombre", accessorFn: (row: T) => toDisplayName(row as unknown as ClienteLike) || "",
       // Activamos ellipsis por meta para que la tabla gestione el recorte y tooltip
-      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 220 } as any,
+      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 240 } as any,
     },
 
     // Identificador fiscal unificado
@@ -381,13 +400,21 @@ export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { co
     { id: "n_oportunidades", header: "Oportunidades",
       accessorKey: "oportunidades_count",
       cell: ({ getValue }) => getValue() ?? 0,
-      meta: { headerMaxWidth: 120, nowrapHeader: true, minWidth: 120, ellipsis: true, ellipsisMaxWidth: 130 } as any },
+      meta: {
+        headerMaxWidth: 120,
+        align: 'right',
+        alignHeader: 'center',
+        nowrapHeader: true,
+        minWidth: 130,
+        ellipsis: true,
+        ellipsisMaxWidth: 130,
+      } as any },
       
 
     { id: "valor_total", header: "Valor total",
       accessorKey: "valor_total_final",
       cell: ({ getValue }) => eur(Number(getValue() || 0)),
-      meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
+      meta: { headerMaxWidth: 110,align: "center", nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
   ];
 
   return { columnas, zoom: 1 };

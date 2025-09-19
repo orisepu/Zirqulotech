@@ -35,21 +35,26 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
         Si existe la cabecera `X-Tenant`, busca el tenant por `schema_name`.
         Si no, se comporta como el middleware original de django-tenants.
         """
-        tenant_header = getattr(self, "request", None)
-        schema = tenant_header.headers.get("X-Tenant") if tenant_header else None
-        logger.info(f"🧭 Middleware activado. Cargando tenant: {schema}")
-        
+        request = getattr(self, "request", None)
+        schema = None
+
+        if request is not None:
+            schema = request.headers.get("X-Tenant") or request.headers.get("x-tenant")
+            if not schema:
+                schema = request.GET.get("schema")
+
+        logger.info("🧭 Middleware activado. Cabecera schema=%s", schema)
 
         if schema:
+            from django_tenants.utils import get_tenant_model
+
+            TenantModel = get_tenant_model()
             try:
-                return domain_model.objects.get(tenant__schema_name=schema).tenant
-            except domain_model.DoesNotExist:
+                tenant = TenantModel.objects.get(schema_name=schema)
+                logger.debug("✅ Tenant resuelto por cabecera/schema=%s", schema)
+                return tenant
+            except TenantModel.DoesNotExist:
                 logger.warning("❌ Tenant no encontrado para schema_name='%s'", schema)
-        else:
-            # ⚠️ Si no se envía X-Tenant, usar esquema público
-            from django_tenants.utils import get_public_schema_name
-            from django_test_app.companies.models import Company  # Ajusta si tu modelo real tiene otro nombre
-            return Company.objects.get(schema_name="public")
 
         return super().get_tenant(domain_model, hostname)
 

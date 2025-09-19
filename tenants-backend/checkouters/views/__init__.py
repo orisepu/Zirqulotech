@@ -28,6 +28,7 @@ from .legal import (
 from .user import UsuarioTenantViewSet, cambiar_contraseña, cambiar_contraseña_usuario
 from .kpis import ValorPorTiendaAPIView, mi_dashboard
 from .documento import SubirFacturaView, descargar_documento
+from .objetivo import ObjetivoViewSet, ObjetivoResumenAPIView
 
 __all__ = [
     "OportunidadViewSet",
@@ -64,4 +65,6 @@ __all__ = [
     "mi_dashboard",
     "SubirFacturaView",
     "descargar_documento",
+    "ObjetivoViewSet",
+    "ObjetivoResumenAPIView",
 ]

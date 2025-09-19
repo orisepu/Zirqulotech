@@ -74,9 +74,13 @@ export default function PasoValoracion({
 }) {
   const cantidadNum = typeof cantidad === 'string' ? parseInt(cantidad, 10) || 1 : cantidad
   const estadoLabel = formatoBonito(estadoTexto) || '—'
-  const resumenItems = [modeloObj?.descripcion, capacidadObj?.tamaño, `x${cantidadNum}`]
+  const descripcionBase = [modeloObj?.descripcion, capacidadObj?.tamaño]
     .filter((item) => typeof item === 'string' && item.trim().length > 0)
-  const modeloResumen = resumenItems.join(' · ') || `x${cantidadNum}`
+    .join(' ')
+  const cantidadTexto = `${cantidadNum} ${cantidadNum === 1 ? 'unidad' : 'unidades'}`
+  const modeloResumen = descripcionBase
+    ? `${descripcionBase} - ${cantidadTexto}`
+    : cantidadTexto
 
   const funcionalidadTexto =
     funcBasica === 'ok'
@@ -118,9 +122,17 @@ export default function PasoValoracion({
     const normalized = raw.trim().toUpperCase()
     if (normalized === 'A' || normalized === 'A+') return 'Muy bueno'
     if (normalized === 'B') return 'Bueno'
-    if (normalized === 'C') return 'Uso intensivo'
+    if (normalized === 'C') return 'Correcto'
     return formatoBonito(raw)
   }
+
+  const fmtEURSinDecimales = (valor: number) =>
+    new Intl.NumberFormat('es-ES', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(valor)
 
   const detailCards = mostrarDetalles
     ? [
@@ -202,6 +214,10 @@ export default function PasoValoracion({
                   borderRadius: 2,
                   p: 2,
                   height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textAlign: 'center',
                   background: (theme) =>
                     theme.palette.mode === 'dark'
                       ? 'linear-gradient(135deg, rgba(33,150,83,0.22) 0%, rgba(38,166,154,0.18) 100%)'
@@ -210,9 +226,9 @@ export default function PasoValoracion({
                   borderColor: 'divider',
                 }}
               >
-                <Typography variant="overline" color="text.secondary">Precio máximo</Typography>
+                <Typography variant="overline" color="text.secondary">Valoración máxima</Typography>
                 <Typography variant="h4" fontWeight={700}>
-                  {precioMaximo == null ? '—' : fmtEUR(precioMaximo)}
+                  {precioMaximo == null ? '—' : fmtEURSinDecimales(precioMaximo)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Estimado para un dispositivo en estado excelente. Se ajustará tras la auditoría.
@@ -235,17 +251,45 @@ export default function PasoValoracion({
                     gap: 0.5,
                   }}
                 >
-                  <Typography variant="overline" color="text.secondary">Otros estados</Typography>
+                  <Typography variant="overline" color="text.secondary">Comparativa de estados</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Valores orientativos para el mismo modelo según el estado general.
+                    Valores orientativos del mismo modelo en cada nivel de conservación.
                   </Typography>
-                  <Stack spacing={0.25}>
-                    {otrosPrecios.map((p, idx) => (
-                      <Typography key={idx} variant="body2" color="text.secondary">
-                        {`${mapEtiqueta(p.etiqueta)}: ${p.valor == null ? '—' : fmtEUR(p.valor)}`}
-                      </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                      gap: 1,
+                      mt: 1,
+                    }}
+                  >
+                    {[{ etiqueta: 'Excelente', valor: precioMaximo }, ...otrosPrecios.map((p) => ({
+                      etiqueta: mapEtiqueta(p.etiqueta),
+                      valor: p.valor,
+                    }))].map((item, idx) => (
+                      <Box
+                        key={`${item.etiqueta}-${idx}`}
+                        sx={{
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1.5,
+                          p: 1.25,
+                          backgroundColor: (theme) => theme.palette.background.paper,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1,
+                        }}
+                      >
+                        <Typography variant="body2" fontWeight={600} color="text.primary">
+                          {item.etiqueta}
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700}>
+                          {item.valor == null ? '—' : fmtEURSinDecimales(item.valor)}
+                        </Typography>
+                      </Box>
                     ))}
-                  </Stack>
+                  </Box>
                 </Box>
               </Grid>
             )}

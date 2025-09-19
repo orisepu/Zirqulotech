@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import CheckIcon from '@mui/icons-material/Check';
-import { ESTADOS_META } from '@/context/estados';
+import { ESTADOS_META, ESTADO_LABEL_OVERRIDES } from '@/context/estados';
 
 type Extras = { plazo_pago_dias: number } | { numero_seguimiento: string; url_seguimiento: string } | undefined;
 
@@ -37,6 +37,7 @@ function EstadoChipSelector({
 
   const IconoActual = ESTADOS_META[estadoActual]?.icon;
   const colorActual = ESTADOS_META[estadoActual]?.color || 'default';
+  const labelEstadoActual = ESTADO_LABEL_OVERRIDES[estadoActual] || estadoActual;
 
   const handleClose = () => {
     setAnchorEl(null);
@@ -95,7 +96,7 @@ function EstadoChipSelector({
               <Icono fontSize="small" />
             </ListItemIcon>
           )}
-          <ListItemText primary={estado} />
+          <ListItemText primary={ESTADO_LABEL_OVERRIDES[estado] || estado} />
         </MenuItem>
       </Tooltip>
     );
@@ -108,7 +109,7 @@ function EstadoChipSelector({
       
       <Chip
         icon={IconoActual ? <IconoActual /> : undefined}
-        label={estadoActual}
+        label={labelEstadoActual}
         color={colorActual}
         onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
         onDelete={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
@@ -136,7 +137,7 @@ function EstadoChipSelector({
           <ListItemIcon>
             <CheckIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary={estadoActual} secondary="Actual" />
+          <ListItemText primary={labelEstadoActual} secondary="Actual" />
         </MenuItem>
 
         <Divider />

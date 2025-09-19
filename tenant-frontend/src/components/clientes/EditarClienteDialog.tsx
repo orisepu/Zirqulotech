@@ -85,7 +85,6 @@ export default function EditarClienteDialog({
     const currentKey = steps[step]?.key;
 
     if (currentKey === "comercial") {
-      if (falta("correo")) return setErr("El correo es obligatorio");
       if (tipo === "empresa"   && (falta("razon_social") || falta("cif"))) return setErr("Razón social y CIF son obligatorios");
       if (tipo === "autonomo"  && (falta("nombre") || falta("apellidos") || falta("nif"))) return setErr("Nombre, apellidos y NIF son obligatorios");
       if (tipo === "particular"&& (falta("nombre") || falta("apellidos") || falta("dni_nie"))) return setErr("Nombre, apellidos y DNI/NIE son obligatorios");

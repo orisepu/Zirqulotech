@@ -42,6 +42,8 @@ from .views import (
     # Documento
     SubirFacturaView,
     descargar_documento,
+    ObjetivoViewSet,
+    ObjetivoResumenAPIView,
 )
 from .views.contrato import generar_pdf_view, enviar_correo_oferta
 
@@ -71,6 +73,7 @@ router.register(r'comentarios-oportunidad', ComentarioOportunidadViewSet, basena
 router.register(r'usuarios-tenant', UsuarioTenantViewSet, basename='usuarios-tenant')
 router.register(r'tiendas', TiendaViewSet, basename='tiendas')
 router.register(r"b2c/contratos", B2CContratoViewSet, basename="b2c-contratos")
+router.register(r"objetivoss", ObjetivoViewSet, basename="objetivo")
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -92,6 +95,7 @@ urlpatterns = [
     path("dashboard/rechazos-producto/", RechazosPorEstadoAPIView.as_view()),
     path("dashboard/manager/", DashboardManagerAPIView.as_view()),
     path("dashboard/total-pagado/", DashboardTotalPagadoAPIView.as_view(), name="dashboard-total-pagado"),
+    path("objetivos/resumen/", ObjetivoResumenAPIView.as_view(), name="objetivos-resumen"),
     path("b2c/contratos/kyc/<uuid:token>/flags/", B2CContratoFlagsAPIView.as_view(), name="b2c-kyc-flags"),
     path("b2c/contratos/kyc/<uuid:token>/finalizar/", B2CContratoKycFinalizarAPIView.as_view(), name="b2c-kyc-finalizar"),
     path("b2c/contratos/kyc/<int:pk>/renovar/", B2CContratoKycFinalizarAPIView.as_view(), name="b2c-kyc-renovar"),

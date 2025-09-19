@@ -7,7 +7,7 @@ import {
 import { useState, useMemo } from 'react'
 import { useQuery,useMutation} from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { ESTADOS_B2B } from '@/context/estados'
+import { ESTADOS_B2B, ESTADOS_OPERACIONESADMIN, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
 import TuneIcon from '@mui/icons-material/Tune'
 import TablaReactiva from '@/components/TablaReactiva2'
 import OportunidadForm from '@/components/OportunidadForm'
@@ -51,13 +51,17 @@ type ClienteOption = {
   tipo_cliente?: 'empresa' | 'autonomo' | 'particular';
 };
 export default function OportunidadesTenantPage() {
+  const ESTADOS_OPERACIONES_SET = useMemo(
+    () => new Set(ESTADOS_OPERACIONESADMIN.map((estado) => estado.toLowerCase())),
+    []
+  )
   const queryClient = useQueryClient()
   const router = useRouter()
   const usuario = useUsuarioActual()
   const soloEmpresas = usuario?.tenant?.solo_empresas ?? false
   const columnas = columnasTenant
   const [modalOpen, setModalOpen] = useState(false); // modal de nuevo cliente
-  const ESTADOS_FINALIZADOS = ['pagado', 'recibido por el cliente']
+  const ESTADOS_FINALIZADOS = ['Oferta confirmada']
   const [cliente, setCliente] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
@@ -109,6 +113,8 @@ export default function OportunidadesTenantPage() {
 
       const res = await api.get(`/api/oportunidades/?${params.toString()}`)
       let oportunidades = Array.isArray(res.data) ? res.data : []
+
+      oportunidades = oportunidades.filter((o) => !ESTADOS_OPERACIONES_SET.has(String(o.estado || '').toLowerCase()))
 
       if (finalizadas === 'finalizadas') {
         oportunidades = oportunidades.filter((o) => ESTADOS_FINALIZADOS.includes(o.estado))
@@ -194,13 +200,16 @@ export default function OportunidadesTenantPage() {
               Filtrar por estado
             </Typography>
             <Box display="flex" flexWrap="wrap" gap={1}>
-              {Object.entries(ESTADOS_B2B).map(([estadoKey, meta]) => {
+              {Object.entries(ESTADOS_B2B)
+              .filter(([estadoKey]) => !ESTADOS_OPERACIONES_SET.has(estadoKey.toLowerCase()))
+              .map(([estadoKey, meta]) => {
                 const Icono = meta.icon
                 const selected = estado.includes(estadoKey)
+                const displayLabel = ESTADO_LABEL_OVERRIDES[estadoKey] || estadoKey
                 return (
                   <Chip
                     key={estadoKey}
-                    label={estadoKey}
+                    label={displayLabel}
                     size="small"
                     color={meta.color}
                     icon={Icono ? <Icono fontSize="small" /> : undefined}

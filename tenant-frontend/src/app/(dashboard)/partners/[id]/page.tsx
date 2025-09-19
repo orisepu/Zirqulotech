@@ -18,6 +18,8 @@ import { useRouter } from 'next/navigation'
 import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query'
 import React from 'react'
 import { toast } from 'react-toastify'
+import SecurityIcon from '@mui/icons-material/Security'
+import { useUsuario } from '@/context/UsuarioContext'
 
 function computeEffectiveNamespaces(p: any): string[] {
   const ns: string[] = []
@@ -54,6 +56,7 @@ export default function PartnerDetailPage() {
   const [editMode, setEditMode] = useState(false)
   const router = useRouter()
   const queryClient = useQueryClient()
+  const usuario = useUsuario()
   const acuerdoFileInputRef = useRef<HTMLInputElement | null>(null)
   const [subiendoAcuerdo, setSubiendoAcuerdo] = useState(false)
   const [descargandoAcuerdo, setDescargandoAcuerdo] = useState(false)
@@ -225,6 +228,16 @@ export default function PartnerDetailPage() {
                 handleCloseMenu()
               }}
             ><StorefrontIcon fontSize="small" sx={{ mr: 1 }} /> Tiendas</MenuItem>
+            {usuario?.es_superadmin && (
+              <MenuItem
+                onClick={() => {
+                  router.push(`/partners/${partner.id}/permisos?schema=${partner.schema}`)
+                  handleCloseMenu()
+                }}
+              >
+                <SecurityIcon fontSize="small" sx={{ mr: 1 }} /> Permisos
+              </MenuItem>
+            )}
           </Menu>
 
         </Box>

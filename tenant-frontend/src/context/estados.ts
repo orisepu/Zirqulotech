@@ -68,6 +68,10 @@ export const ESTADOS_B2B: Record<string, { color: ChipColor; icon?: React.Elemen
   "Equipo enviado": { color: "info", icon: LocalShipping },
   "Recibido por el cliente": { color: "success", icon: AssignmentTurnedIn },
 }
+
+export const ESTADO_LABEL_OVERRIDES: Record<string, string> = {
+  "Nueva oferta confirmada": "Nueva oferta aceptada",
+};
 export const ESTADOS_TODOS = [
   "Pendiente",
   "Aceptado",
@@ -114,6 +118,15 @@ export const ESTADOS_PIPELINEADMIN = [
   "Recibido por el cliente",
 ]
 export const ESTADOS_OPERACIONESADMIN = [
+  "Pendiente factura",
+  "Factura recibida",
+  "Pendiente de pago",
+  "Pagado",
+  "Recibido por el cliente",
+  "Nuevo contrato",
+  "Contrato firmado",
+]
+export const ESTADOS_OPERACIONEPARTNER = [
   "Factura recibida",
   "Pendiente de pago",
   "Pagado",

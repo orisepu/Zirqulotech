@@ -6,6 +6,8 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import MenuIcon from "@mui/icons-material/Menu";
 import SpaceDashboardIcon from "@mui/icons-material/SpaceDashboard";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import ContactPhoneIcon from "@mui/icons-material/ContactPhone";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import LightbulbIcon from "@mui/icons-material/Lightbulb";
 import PublicIcon from "@mui/icons-material/Public";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
@@ -17,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useColorMode } from "@/context/ThemeContext";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import FlagIcon from "@mui/icons-material/Flag";
 import ToasterProvider from "@/components/ToasterProvider";
 import "react-toastify/dist/ReactToastify.css";
 import api from "@/services/api";
@@ -78,8 +81,10 @@ export default function DashboardShell({
     { label: "Dashboard", icon: <SpaceDashboardIcon />, to: "/dashboard" },
     // Gestión de clientes
     { label: "Clientes", icon: <PeopleAltIcon />, to: "/clientes" },
+    { label: "Contactos", icon: <ContactPhoneIcon />, to: "/clientes/contactos" },
     // Embudo de oportunidades
     { label: "Oportunidades", icon: <LightbulbIcon />, to: "/oportunidades" },
+    { label: "Operaciones", icon: <AssignmentTurnedInIcon />, to: "/operaciones" },
     // Admin (solo superadmin)
     ...(usuario?.es_superadmin ? [{ label: "Admin", icon: <AdminPanelSettingsIcon />, to: "/admin" }] : []),
     // Accesos globales (multi-tenant)
@@ -93,7 +98,10 @@ export default function DashboardShell({
     { label: "Mi Perfil", icon: <PersonIcon />, to: "/perfil" },
     // Administración
     ...(usuario?.rol_actual?.rol === "manager"
-      ? [{ label: "Gestionar Usuarios", icon: <GroupsIcon />, to: "/usuarios" }]
+      ? [
+          { label: "Gestionar Usuarios", icon: <GroupsIcon />, to: "/usuarios" },
+          { label: "Objetivos", icon: <FlagIcon />, to: "/objetivos" },
+        ]
       : []),
   ];
 

@@ -14,6 +14,7 @@ from .user import UsuarioTenantSerializer, CustomTokenObtainPairSerializer
 from .kpis import DashboardManagerSerializer
 from .documento import DocumentoSerializer
 from .producto import ModeloSerializer, CapacidadSerializer
+from .objetivo import ObjetivoSerializer
 
 __all__ = [
     "ClienteSimpleSerializer",
@@ -36,5 +37,6 @@ __all__ = [
     "DocumentoSerializer",
     "ModeloSerializer",
     "CapacidadSerializer",
-    "ClienteListSerializer"
+    "ClienteListSerializer",
+    "ObjetivoSerializer",
 ]

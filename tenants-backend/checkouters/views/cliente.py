@@ -15,9 +15,19 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
     filter_backends = [filters.SearchFilter]
     search_fields = [
-        "razon_social", "cif", "contacto", "correo",
-        "nombre", "apellidos", "nombre_comercial",
-        "nif", "dni_nie", "telefono",
+        "razon_social",
+        "cif",
+        "contacto",
+        "correo",
+        "nombre",
+        "apellidos",
+        "nombre_comercial",
+        "nif",
+        "dni_nie",
+        "telefono",
+        "contacto_financiero",
+        "correo_financiero",
+        "telefono_financiero",
     ]
     ordering_fields = ["razon_social", "nombre", "apellidos", "id", "tienda_id"]
 

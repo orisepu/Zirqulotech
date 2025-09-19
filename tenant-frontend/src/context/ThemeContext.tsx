@@ -5,8 +5,9 @@ import { ThemeProvider, createTheme, Theme, alpha } from '@mui/material/styles';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Paper from '@mui/material/Paper';
-import { SxProps } from '@mui/material';
+import { AlertColor, SxProps } from '@mui/material';
 import type { SystemStyleObject } from '@mui/system';
+import { getFilledAlertStyles } from '@/utils/alertStyles';
 
 
 type SemanticColorKey =
@@ -206,6 +207,18 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
                     ? '0 2px 12px rgba(0,0,0,0.35)'
                     : '0 6px 18px rgba(0,0,0,0.06)',
               }),
+            },
+          },
+
+          MuiAlert: {
+            styleOverrides: {
+              root: ({ theme, ownerState }: { theme: Theme; ownerState: { variant?: string; severity?: any } }) => {
+                if (ownerState.variant === 'filled') {
+                  const severity = (ownerState.severity as AlertColor | undefined) ?? 'info';
+                  return getFilledAlertStyles(severity)(theme);
+                }
+                return {};
+              },
             },
           },
 
