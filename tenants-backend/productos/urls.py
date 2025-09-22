@@ -1,7 +1,11 @@
 from rest_framework.routers import DefaultRouter
 from .views import tipos_modelo
 from django.urls import path, include
-from .views.admincapacidades import CapacidadAdminListView,SetPrecioRecompraAdminView
+from .views.admincapacidades import (
+    CapacidadAdminListView,
+    CapacidadAdminDetailView,
+    SetPrecioRecompraAdminView,
+)
 from .views.tiposreparacion import PiezaTipoViewSet, ManoObraTipoViewSet
 from .views.costespiezas import (
     ReparacionOpcionesView,CostosPiezaCoverageView,
@@ -27,6 +31,7 @@ urlpatterns = [
     # path("", include(router.urls)),  # sin uso
     path('tipos-modelo/', tipos_modelo, name='tipos-modelo'),
     path("admin/capacidades/", CapacidadAdminListView.as_view(), name="admin-capacidades-list"),
+    path("admin/capacidades/<int:pk>/", CapacidadAdminDetailView.as_view(), name="admin-capacidades-detail"),
     path("admin/precios/set/", SetPrecioRecompraAdminView.as_view(), name="admin-precio-set"),
     path("admin/reparacion/opciones/", ReparacionOpcionesView.as_view(), name="admin-reparacion-opciones"),
     path("admin/costos-pieza/", CostosPiezaListView.as_view(), name="admin-costos-pieza-list"),

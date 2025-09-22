@@ -1,8 +1,8 @@
 'use client'
-import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton } from '@mui/material'
+import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton, Stack, Typography } from '@mui/material'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme, alpha } from '@mui/material/styles'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
-import type { PieLabelRenderProps } from 'recharts'
+import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart'
 import { useMemo, useState, useCallback } from 'react'
 
 type RowOps = { usuario: string; ops: number }
@@ -27,18 +27,13 @@ export default function PieRankingComerciales({
   rowsOps = [],
   rowsValor = [],
   mode = 'toggle',
-  height = 340,
+  height = 320,
   maxSlices = 8,
   showTotal = true,
 }: PieRankingComercialesProps) {
   const theme = useTheme()
+  const isMdDown = useMediaQuery(theme.breakpoints.down('md'))
   const [metric, setMetric] = useState<'ops' | 'valor'>('ops')
-  const tooltipBg = theme.palette.mode === 'dark'
-    ? alpha(theme.palette.background.paper, 0.95)
-    : alpha('#FFFFFF', 0.95)
-  const tooltipBorder = theme.palette.mode === 'dark'
-    ? '1px solid rgba(255,255,255,0.08)'
-    : `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
   const fallbackName = 'Sin asignar'
 
   // Une datasets por usuario, poniendo 0 cuando falte alguna métrica
@@ -60,8 +55,7 @@ export default function PieRankingComerciales({
   // Construye data para el pie; ordena, filtra >0 y agrupa "Otros"
   const buildData = useCallback((key: 'ops' | 'valor') => {
     const sorted = [...merged]
-      .map(d => ({ name: d.usuario, value: Number(d[key] || 0) }))
-      .filter(d => d.value > 0)
+      .map((d) => ({ name: d.usuario, value: Number(d[key] || 0) }))
       .sort((a, b) => b.value - a.value)
     if (sorted.length <= maxSlices) return sorted
     const head = sorted.slice(0, maxSlices - 1)
@@ -91,27 +85,191 @@ export default function PieRankingComerciales({
   const colorByName = (name: string) => {
     const idx = Math.max(0, order.indexOf(name))
     const base = palette[idx % palette.length]
-    return { fill: alpha(base, 0.9), stroke: alpha(base, 0.6) }
+    return { fill: alpha(base, 0.9) }
   }
 
-  const current = metric === 'ops' ? dataOps : dataVal
+  const pieDataOps = dataOps.map((slice, index) => {
+    const { fill } = colorByName(slice.name)
+    return {
+      id: `ops-${slice.name}-${index}`,
+      value: slice.value,
+      label: slice.name,
+      color: fill,
+    }
+  })
+
+  const pieDataVal = dataVal.map((slice, index) => {
+    const { fill } = colorByName(slice.name)
+    return {
+      id: `valor-${slice.name}-${index}`,
+      value: slice.value,
+      label: slice.name,
+      color: fill,
+    }
+  })
+
+  const resolveNumeric = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+    if (value && typeof value === 'object' && 'value' in (value as Record<string, unknown>)) {
+      const candidate = (value as { value?: unknown }).value
+      const numeric = typeof candidate === 'number' ? candidate : Number(candidate ?? 0)
+      return Number.isFinite(numeric) ? numeric : 0
+    }
+    const numeric = Number(value ?? 0)
+    return Number.isFinite(numeric) ? numeric : 0
+  }
+
+  const opsValueFormatter = useCallback((value: unknown, context?: { dataIndex: number }) => {
+    let numeric = resolveNumeric(value)
+    if ((!numeric || Number.isNaN(numeric)) && context) {
+      const fallback = pieDataOps[context.dataIndex]?.value
+      if (typeof fallback === 'number') numeric = fallback
+    }
+    const pct = totalOps ? Math.round((numeric / totalOps) * 100) : 0
+    const base = `${formatINT(numeric)} ops`
+    return pct ? `${base} (${pct}%)` : base
+  }, [pieDataOps, totalOps])
+
+  const valorValueFormatter = useCallback((value: unknown, context?: { dataIndex: number }) => {
+    let numeric = resolveNumeric(value)
+    if ((!numeric || Number.isNaN(numeric)) && context) {
+      const fallback = pieDataVal[context.dataIndex]?.value
+      if (typeof fallback === 'number') numeric = fallback
+    }
+    const pct = totalVal ? Math.round((numeric / totalVal) * 100) : 0
+    const base = formatEUR(numeric)
+    return pct ? `${base} (${pct}%)` : base
+  }, [pieDataVal, totalVal])
+
+  const currentPieData = metric === 'ops' ? pieDataOps : pieDataVal
   const totalCurrent = metric === 'ops' ? totalOps : totalVal
 
+  const pieSeries = useMemo(() => {
+    if (mode === 'dual') {
+      return [
+        {
+          id: 'ops',
+          data: pieDataOps,
+          innerRadius: 40,
+          outerRadius: 70,
+          paddingAngle: 2,
+          cornerRadius: 4,
+          highlightScope: { faded: 'global', highlighted: 'item' } as const,
+          faded: { additionalRadius: -12 },
+          valueFormatter: opsValueFormatter,
+        },
+        {
+          id: 'valor',
+          data: pieDataVal,
+          innerRadius: 78,
+          outerRadius: 108,
+          paddingAngle: 2,
+          cornerRadius: 4,
+          highlightScope: { faded: 'global', highlighted: 'item' } as const,
+          faded: { additionalRadius: -12 },
+          valueFormatter: valorValueFormatter,
+          arcLabel: (item: { value: number }) => {
+            const percent = totalVal ? item.value / totalVal : 0
+            return percent > 0.05 ? `${Math.round(percent * 100)}%` : ''
+          },
+          arcLabelMinAngle: 12,
+        },
+      ]
+    }
+
+    return [
+      {
+        id: metric,
+        data: currentPieData,
+        innerRadius: 40,
+        outerRadius: 90,
+        paddingAngle: 5,
+        cornerRadius: 5,
+        highlightScope: { faded: 'global', highlighted: 'item' } as const,
+        faded: { additionalRadius: -16 },
+        valueFormatter: metric === 'ops' ? opsValueFormatter : valorValueFormatter,
+        arcLabel: (item: { value: number }) => {
+          const percent = totalCurrent ? item.value / totalCurrent : 0
+          return percent > 0.05 ? `${Math.round(percent * 100)}%` : ''
+        },
+        arcLabelMinAngle: 12,
+      },
+    ]
+  }, [mode, metric, pieDataOps, pieDataVal, currentPieData, totalCurrent, totalVal, opsValueFormatter, valorValueFormatter])
+
+  const legendEntries = useMemo(() => {
+    return order.map((name) => {
+      const ops = dataOps.find((d) => d.name === name)?.value ?? 0
+      const valor = dataVal.find((d) => d.name === name)?.value ?? 0
+      const { fill } = colorByName(name)
+      return { name, ops, valor, color: fill }
+    })
+  }, [order, dataOps, dataVal])
+
+  const legendEnabled = legendEntries.length > 0
+  const useSideLegend = legendEnabled && !isMdDown
+  const chartHeight = useSideLegend ? height : Math.min(height, 260)
+  const renderLegendItem = (entry: { name: string; ops: number; valor: number; color: string }) => {
+    const label = mode === 'dual'
+      ? `${entry.name} — ${formatINT(entry.ops)} ops · ${formatEUR(entry.valor)}`
+      : metric === 'ops'
+        ? `${entry.name} — ${formatINT(entry.ops)} ops`
+        : `${entry.name} — ${formatEUR(entry.valor)}`
+    return (
+      <Stack key={entry.name} direction="row" spacing={1.25} alignItems="center">
+        <Box
+          sx={{
+            width: 12,
+            height: 12,
+            borderRadius: 1,
+            bgcolor: entry.color,
+            boxShadow: `inset 0 0 0 1px ${alpha('#000', 0.08)}`,
+            flexShrink: 0,
+          }}
+        />
+        <Typography variant="body2" sx={{ fontSize: 12.5, lineHeight: 1.4 }}>
+          {label}
+        </Typography>
+      </Stack>
+    )
+  }
+
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 ,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)'}}>
+    <Card
+      variant="outlined"
+      sx={{ borderRadius: 3, boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)', height: '100%' }}
+    >
       <CardHeader
         title={title}
         action={
           mode === 'toggle' && (
-            <ToggleButtonGroup size="small" value={metric} exclusive onChange={(_, v) => v && setMetric(v)}>
-              <ToggleButton value="ops">Ops</ToggleButton>
-              <ToggleButton value="valor">€</ToggleButton>
+            <ToggleButtonGroup
+              size="small"
+              value={metric}
+              exclusive
+              onChange={(_, v) => v && setMetric(v)}
+              sx={{
+                backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.6 : 0.8),
+                borderRadius: 5,
+                p: 0.25,
+                '& .MuiToggleButton-root': {
+                  px: 1.6,
+                },
+              }}
+            >
+              <ToggleButton value="ops">Operaciones</ToggleButton>
+              <ToggleButton value="valor">Euros €</ToggleButton>
             </ToggleButtonGroup>
           )
         }
-        sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }}
+        sx={{
+          px: 3,
+          py: 2,
+          '& .MuiCardHeader-title': { fontSize: 16, fontWeight: 600 },
+          '& .MuiCardHeader-action': { alignSelf: 'center', m: 0 },
+        }}
       />
-      <CardContent sx={{ height, position: 'relative' }}>
+      <CardContent sx={{ height: { xs: 260, md: height }, position: 'relative', px: 3, py: 2.5 }}>
         {/* Totales centrados */}
         {showTotal && (
           <>
@@ -119,7 +277,7 @@ export default function PieRankingComerciales({
               <Box
                 sx={{
                   position: 'absolute',
-                  left: '60%',
+                  left: useSideLegend ? '45%' : '50%',
                   top: '50%',
                   transform: 'translate(-50%, -50%)',
                   textAlign: 'center',
@@ -135,17 +293,14 @@ export default function PieRankingComerciales({
               <Box
                 sx={{
                   position: 'absolute',
-                  left: '60%',
+                  left: useSideLegend ? '45%' : '50%',
                   top: '50%',
                   transform: 'translate(-50%, -50%)',
                   textAlign: 'center',
                   pointerEvents: 'none',
                 }}
               >
-                <Box sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
-                  {metric === 'ops' ? `${formatINT(totalOps)} ops` : formatEUR(totalVal)}
-                </Box>
-                <Box sx={{ fontSize: 12, color: 'text.secondary' }}>Total</Box>
+                
               </Box>
             )}
           </>
@@ -157,115 +312,39 @@ export default function PieRankingComerciales({
             Sin datos para este filtro
           </Box>
         ) : (
-          <ResponsiveContainer>
-            <PieChart>
-              {mode === 'toggle' && (
-                <Pie
-                  data={current}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="45%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={90}
-                  paddingAngle={5}
-                  cornerRadius={5}
-                  labelLine={false}
-                  label={(props: PieLabelRenderProps) => {
-                    const percentRaw = props?.percent
-                    const percent = typeof percentRaw === 'number' ? percentRaw : 0
-                    return percent > 0.05 ? `${Math.round(percent * 100)}%` : ''
-                  }}
-                >
-                  {current.map((entry, idx) => {
-                    const { fill, stroke } = colorByName(entry.name)
-                    return <Cell key={`c-${entry.name}-${idx}`} fill={fill} stroke={stroke} />
-                  })}
-                </Pie>
-              )}
-
-              {mode === 'dual' && (
-                <>
-                  <Pie
-                    data={dataOps}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="42%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    labelLine={false}
-                  >
-                    {dataOps.map((entry, idx) => {
-                      const { fill, stroke } = colorByName(entry.name)
-                      return <Cell key={`ops-${entry.name}-${idx}`} fill={alpha(fill, 0.85)} stroke={stroke} />
-                    })}
-                  </Pie>
-                  <Pie
-                    data={dataVal}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="42%"
-                    cy="50%"
-                    innerRadius={78}
-                    outerRadius={108}
-                    paddingAngle={2}
-                    labelLine={false}
-                  >
-                    {dataVal.map((entry, idx) => {
-                      const { fill, stroke } = colorByName(entry.name)
-                      return <Cell key={`eur-${entry.name}-${idx}`} fill={alpha(fill, 0.6)} stroke={stroke} />
-                    })}
-                  </Pie>
-                </>
-              )}
-
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: tooltipBg,
-                  borderRadius: 12,
-                  border: tooltipBorder,
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '0 12px 32px rgba(0,0,0,0.35)'
-                    : '0 10px 28px rgba(31,41,55,0.1)',
-                  color: theme.palette.text.primary,
-                }}
-                labelStyle={{ color: theme.palette.text.secondary, fontWeight: 600 }}
-                itemStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
-                cursor={false}
-                formatter={(value: number, _n: string, entry: { payload?: { name?: string } }) => {
-                  const name = entry?.payload?.name || ''
-                  if (mode === 'dual') {
-                    const vOps = dataOps.find(d => d.name === name)?.value || 0
-                    const vVal = dataVal.find(d => d.name === name)?.value || 0
-                    const pctOps = totalOps ? ` (${Math.round((vOps / totalOps) * 100)}%)` : ''
-                    const pctVal = totalVal ? ` (${Math.round((vVal / totalVal) * 100)}%)` : ''
-                    return [`${formatINT(vOps)} ops${pctOps} · ${formatEUR(vVal)}${pctVal}`, name]
-                  } else {
-                    const v = Number(value || 0)
-                    const pct = totalCurrent ? ` (${Math.round((v / totalCurrent) * 100)}%)` : ''
-                    return [metric === 'ops' ? `${formatINT(v)} ops${pct}` : `${formatEUR(v)}${pct}`, name]
-                  }
+          <Stack
+            direction={useSideLegend ? 'row' : 'column'}
+            spacing={useSideLegend ? 2.5 : 2}
+            justifyContent="center"
+            alignItems={useSideLegend ? 'center' : 'stretch'}
+            sx={{ height: '100%', flexWrap: useSideLegend ? 'nowrap' : 'wrap' }}
+          >
+            <Box sx={{ flex: useSideLegend ? '1 1 0' : 'unset', minWidth: 0 }}>
+              <MuiPieChart
+                series={pieSeries}
+                height={chartHeight}
+                margin={{ top: 16, right: 16, bottom: 16, left: 16 }}
+                hideLegend
+                slotProps={{
+                  tooltip: {
+                    trigger: 'item',
+                  },
                 }}
               />
-              <Legend
-                verticalAlign="middle"
-                align="right"
-                layout="vertical"
-                wrapperStyle={{ paddingLeft: 8 }}
-                formatter={(value: string) => {
-                  const ops = dataOps.find(d => d.name === value)?.value || 0
-                  const eur = dataVal.find(d => d.name === value)?.value || 0
-                  return mode === 'dual'
-                    ? `${value} — ${formatINT(ops)} ops · ${formatEUR(eur)}`
-                    : metric === 'ops'
-                      ? `${value} — ${formatINT(ops)} ops`
-                      : `${value} — ${formatEUR(eur)}`
+            </Box>
+            {legendEnabled ? (
+              <Stack
+                spacing={1.25}
+                sx={{
+                  minWidth: useSideLegend ? 220 : '100%',
+                  maxHeight: useSideLegend ? '100%' : 'auto',
+                  overflowY: useSideLegend ? 'auto' : 'visible',
                 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+              >
+                {legendEntries.map(renderLegendItem)}
+              </Stack>
+            ) : null}
+          </Stack>
         )}
       </CardContent>
     </Card>

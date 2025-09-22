@@ -2,14 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Box, Grid, Stack, TextField, Button, Autocomplete } from '@mui/material'
+import { Box, Grid, Stack, TextField, MenuItem, Button, Autocomplete } from '@mui/material'
 import dayjs from 'dayjs'
-import { fetchDashboardManager, DashboardManagerResponse } from '@/services/api'
+import { fetchDashboardManager, DashboardManagerResponse, fetchObjetivosResumen, type ObjetivoResumenItem } from '@/services/api'
 import KpiCard from '@/components/dashboards/manager/KpiCard'
 import EvolucionChart from '@/components/dashboards/manager/EvolucionChart'
 import PipelineChart from '@/components/dashboards/manager/PipelineChart'
 import PieRanking from '@/components/dashboards/manager/PieRankinga'
 import PieRankingComerciales from './manager/PieRankingComerciales'
+import ObjetivosBarChart from '@/components/dashboards/manager/ObjetivosBarChartMuiX'
 export default function ManagerDashboardPage() {
   // Filtros iniciales: mes actual
   const [fechaInicio, setFechaInicio] = useState(dayjs().startOf('month').format('YYYY-MM-DD'))
@@ -17,6 +18,7 @@ export default function ManagerDashboardPage() {
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes')
   const [tiendaId, setTiendaId] = useState<number | undefined>(undefined)
   const [usuarioId, setUsuarioId] = useState<number | undefined>(undefined)
+  const [periodPreset, setPeriodPreset] = useState<'custom' | 'ultimo_mes' | 'q1' | 'q2' | 'q3' | 'q4'>('custom')
 
   const { data, isLoading: _isLoading, refetch } = useQuery<DashboardManagerResponse>({
     queryKey: ['dashboard-manager', { fechaInicio, fechaFin, granularidad, tiendaId, usuarioId }],
@@ -88,6 +90,128 @@ export default function ManagerDashboardPage() {
     () => usuarioOptions.find((opt) => opt.value === usuarioId) ?? null,
     [usuarioOptions, usuarioId]
   )
+
+  const objetivoParams = useMemo(() => {
+    if (periodPreset === 'custom') return null
+    const parsedInicio = fechaInicio ? dayjs(fechaInicio, 'YYYY-MM-DD', true) : null
+    if (periodPreset === 'ultimo_mes') {
+      const base = parsedInicio?.isValid() ? parsedInicio : dayjs().subtract(1, 'month').startOf('month')
+      return { tipo: 'mes' as const, periodo: base.format('YYYY-MM') }
+    }
+    const match = periodPreset.match(/^q([1-4])$/)
+    if (match) {
+      const quarter = Number(match[1])
+      const base = parsedInicio?.isValid() ? parsedInicio : dayjs().year(dayjs().year()).month((quarter - 1) * 3).startOf('month')
+      return { tipo: 'trimestre' as const, periodo: `${base.year()}-Q${quarter}` }
+    }
+    return null
+  }, [periodPreset, fechaInicio])
+
+  type UsuarioDetalle = {
+    id: number
+    nombre: string
+    objetivoValor: number
+    progresoValor: number
+    objetivoOperaciones: number
+    progresoOperaciones: number
+  }
+
+  type ObjetivoDetalle = {
+    id: number
+    nombre: string
+    objetivoValor: number
+    progresoValor: number
+    objetivoOperaciones: number
+    progresoOperaciones: number
+    porcentajeValor: number
+    usuarios?: UsuarioDetalle[]
+  }
+
+  const { data: objetivosResumen, isFetching: objetivosLoading } = useQuery<
+    { tiendas: ObjetivoDetalle[]; usuarios: ObjetivoDetalle[] } | null
+  >({
+    queryKey: ['dashboard-manager-objetivos', objetivoParams, tiendaId, usuarioId],
+    enabled: Boolean(objetivoParams),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!objetivoParams) return null
+      const { tipo, periodo } = objetivoParams
+      const [tiendasResp, usuariosResp] = await Promise.all([
+        fetchObjetivosResumen({ scope: 'tienda', periodo_tipo: tipo, periodo }),
+        fetchObjetivosResumen({ scope: 'usuario', periodo_tipo: tipo, periodo }),
+      ])
+
+      const normalize = (items: ObjetivoResumenItem[], filterId?: number) => {
+        const filtered = filterId != null ? items.filter((item) => item.target_id === filterId) : items
+
+        return filtered
+          .map<ObjetivoDetalle>((item) => {
+            const objetivoValor = Number(item.objetivo_valor || 0)
+            const progresoValor = Number(item.progreso_valor || 0)
+            const objetivoOperaciones = Number(item.objetivo_operaciones || 0)
+            const progresoOperaciones = Number(item.progreso_operaciones || 0)
+            const porcentajeValor = objetivoValor > 0 ? (progresoValor / objetivoValor) * 100 : 0
+            const usuarios: UsuarioDetalle[] | undefined = Array.isArray(item.usuarios)
+              ? item.usuarios.map((usuario) => ({
+                  id: usuario.usuario_id,
+                  nombre: (usuario.nombre || '').toString().trim() || 'Sin asignar',
+                  objetivoValor: Number(usuario.objetivo_valor || 0),
+                  progresoValor: Number(usuario.progreso_valor || 0),
+                  objetivoOperaciones: Number(usuario.objetivo_operaciones || 0),
+                  progresoOperaciones: Number(usuario.progreso_operaciones || 0),
+                }))
+              : undefined
+            return {
+              id: item.target_id,
+              nombre: (item.target_name || item.email || '').toString().trim() || 'Sin nombre',
+              objetivoValor,
+              progresoValor,
+              objetivoOperaciones,
+              progresoOperaciones,
+              porcentajeValor,
+              usuarios,
+            }
+          })
+          .sort((a, b) => b.porcentajeValor - a.porcentajeValor)
+      }
+
+      return {
+        tiendas: normalize(tiendasResp, tiendaId),
+        usuarios: normalize(usuariosResp, usuarioId),
+      }
+    },
+  })
+
+  const objetivosDisponibles = objetivoParams !== null
+
+  const handlePresetChange = (preset: typeof periodPreset) => {
+    setPeriodPreset(preset)
+    if (preset === 'custom') return
+    const now = dayjs()
+    if (preset === 'ultimo_mes') {
+      const target = now.subtract(1, 'month')
+      setFechaInicio(target.startOf('month').format('YYYY-MM-DD'))
+      setFechaFin(target.endOf('month').format('YYYY-MM-DD'))
+      return
+    }
+
+    const year = now.year()
+    const quarterBounds: Record<'q1' | 'q2' | 'q3' | 'q4', { start: number; end: number }> = {
+      q1: { start: 0, end: 2 },
+      q2: { start: 3, end: 5 },
+      q3: { start: 6, end: 8 },
+      q4: { start: 9, end: 11 },
+    }
+
+    const bounds = quarterBounds[preset]
+    if (!bounds) return
+
+    const startDate = dayjs().year(year).month(bounds.start).startOf('month')
+    const endDate = dayjs().year(year).month(bounds.end).endOf('month')
+    setFechaInicio(startDate.format('YYYY-MM-DD'))
+    setFechaFin(endDate.format('YYYY-MM-DD'))
+  }
+
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
       {/* Filtros */}
@@ -97,7 +221,10 @@ export default function ManagerDashboardPage() {
           type="date"
           size="small"
           value={fechaInicio}
-          onChange={(e) => setFechaInicio(e.target.value)}
+          onChange={(e) => {
+            setPeriodPreset('custom')
+            setFechaInicio(e.target.value)
+          }}
           InputLabelProps={{ shrink: true }}
         />
         <TextField
@@ -105,9 +232,27 @@ export default function ManagerDashboardPage() {
           type="date"
           size="small"
           value={fechaFin}
-          onChange={(e) => setFechaFin(e.target.value)}
+          onChange={(e) => {
+            setPeriodPreset('custom')
+            setFechaFin(e.target.value)
+          }}
           InputLabelProps={{ shrink: true }}
         />
+        <TextField
+          select
+          label="Periodo"
+          size="small"
+          value={periodPreset}
+          onChange={(e) => handlePresetChange(e.target.value as typeof periodPreset)}
+          sx={{ minWidth: 170 }}
+        >
+          <MenuItem value="custom">Personalizado</MenuItem>
+          <MenuItem value="ultimo_mes">Último mes</MenuItem>
+          <MenuItem value="q1">Q1</MenuItem>
+          <MenuItem value="q2">Q2</MenuItem>
+          <MenuItem value="q3">Q3</MenuItem>
+          <MenuItem value="q4">Q4</MenuItem>
+        </TextField>
         {/* Selección por nombre, guardando internamente el id numérico */}
         <Autocomplete<Option, false, false, false>
           size="small"
@@ -139,33 +284,53 @@ export default function ManagerDashboardPage() {
 
       {/* KPIs – fila superior */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 6,  md: 3 }}><KpiCard title="Valor total (€)" value={resumen?.valor_total} /></Grid>
-        <Grid size={{ xs: 6,  md: 3 }}><KpiCard title="Ticket medio (€)" value={resumen?.ticket_medio} /></Grid>
-        <Grid size={{ xs: 6,  md: 3 }}><KpiCard title="Comisión total (€)" value={resumen?.comision_total} /></Grid>
-        <Grid size={{ xs: 6,  md: 3 }}><KpiCard title="Comisión media (€)" value={resumen?.comision_media} /></Grid>
-        
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}><KpiCard title="Valor total (€)" value={resumen?.valor_total} /></Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}><KpiCard title="Ticket medio (€)" value={resumen?.ticket_medio} /></Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}><KpiCard title="Comisión total (€)" value={resumen?.comision_total} /></Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}><KpiCard title="Comisión media (€)" value={resumen?.comision_media} /></Grid>
+      </Grid>
+
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <ObjetivosBarChart
+            enabled={objetivosDisponibles}
+            loading={objetivosLoading}
+            rows={objetivosResumen?.tiendas ?? []}
+            title="Objetivos por tienda"
+            emptyMessage="Sin objetivos definidos para las tiendas en este periodo o filtro."
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <ObjetivosBarChart
+            enabled={objetivosDisponibles}
+            loading={objetivosLoading}
+            rows={objetivosResumen?.usuarios ?? []}
+            title="Objetivos por comercial"
+            emptyMessage="Sin objetivos definidos para los usuarios en este periodo o filtro."
+          />
+        </Grid>
       </Grid>
 
       {/* Evolución */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }} >
           <EvolucionChart
             data={data?.evolucion || []}
             granularidad={granularidad}
             onGranularidadChange={setGranularidad}
           />
         </Grid>
-      
+
 
       {/* Ranking: productos */}
       
       
-        <Grid size={{ xs: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }} >
           <PieRanking title="Top productos por valor" rows={rankings?.productos || []} legendMode="floating" legendCompact />
         </Grid>
       </Grid>
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }} >
         <PieRankingComerciales
           title="Comerciales operaciones y €"
           rowsOps={rowsOps} // [{ usuario, ops }]
@@ -173,9 +338,9 @@ export default function ManagerDashboardPage() {
           mode="toggle"
         />
         </Grid>
-      
-    
-        <Grid size={{ xs: 6 }}>
+
+
+        <Grid size={{ xs: 12, md: 6 }} >
         <PieRankingComerciales
           title="Tiendas operaciones y €"
           rowsOps={tiendasOps}

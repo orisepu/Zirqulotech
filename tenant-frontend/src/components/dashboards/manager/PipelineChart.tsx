@@ -1,8 +1,8 @@
 'use client'
 import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton } from '@mui/material'
 import { useTheme, alpha } from '@mui/material/styles'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts'
-import { useMemo, useState,useCallback } from 'react'
+import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart'
+import { useMemo, useState, useCallback } from 'react'
 
 type Row = { estado: string; count: number; valor: number }
 
@@ -12,18 +12,6 @@ function formatEuro(n: number) {
 
 function formatInt(n: number) {
   return new Intl.NumberFormat('es-ES').format(Math.round(n || 0))
-}
-
-type TooltipPayloadItem = { value: number }
-function CustomTooltip({ active, payload, label, metric }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string; metric: 'count'|'valor' }) {
-  if (!active || !payload?.length) return null
-  const v = payload[0].value
-  return (
-    <Box sx={{ p: 1, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, boxShadow: 1 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div>{metric === 'valor' ? formatEuro(v) : `${formatInt(v)} ops`}</div>
-    </Box>
-  )
 }
 
 export default function PipelineChart({ data }: { data: Row[] }) {
@@ -70,14 +58,29 @@ export default function PipelineChart({ data }: { data: Row[] }) {
     return [...normalized].sort((a, b) => (byOrder.get(a.estado) ?? 999) - (byOrder.get(b.estado) ?? 999))
   }, [normalized])
   const labelFormatter = useCallback(
-    (label: React.ReactNode) => {
-      const n = typeof label === 'number' ? label : Number(label ?? 0)
+    (label: number | null) => {
+      const n = typeof label === 'number' && Number.isFinite(label) ? label : Number(label ?? 0)
       return metric === 'valor' ? formatEuro(n) : formatInt(n)
     },
     [metric]
   )
-  const yTickFormatter = (v: number) => (metric === 'valor' ? new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : formatInt(v))
+  const yTickFormatter = useCallback(
+    (v: number) => (metric === 'valor'
+      ? new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(v)
+      : formatInt(v)
+    ),
+    [metric]
+  )
   const showLabels = (sorted?.length ?? 0) <= 10
+
+  const valueFormatter = useCallback(
+    (value: number | null) => {
+      const numeric = typeof value === 'number' ? value : Number(value ?? 0)
+      if (!Number.isFinite(numeric)) return metric === 'valor' ? formatEuro(0) : `${formatInt(0)} ops`
+      return metric === 'valor' ? formatEuro(numeric) : `${formatInt(numeric)} ops`
+    },
+    [metric]
+  )
 
   return (
     <Card variant="outlined" sx={{ borderRadius: 3,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)' }}>
@@ -111,44 +114,48 @@ export default function PipelineChart({ data }: { data: Row[] }) {
               Sin datos para este filtro
             </Box>
           ) : (
-            <ResponsiveContainer>
-              <BarChart
-                data={sorted}
-                margin={{ top: 8, right: 16, left: 8, bottom: 24 }}
-                barCategoryGap={18}
-                barGap={4}
-              >
-                {/* Gradiente ligado al tema */}
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={alpha(theme.palette.primary.main, 0.85)} />
-                    <stop offset="100%" stopColor={alpha(theme.palette.primary.main, 0.55)} />
-                  </linearGradient>
-                </defs>
-
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="estado" tick={{ fontSize: 12 }} interval={0} angle={-15} dy={10} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={yTickFormatter} />
-                <Tooltip content={<CustomTooltip metric={metric} />} />
-
-                <Bar
-                  dataKey={metric}
-                  fill="url(#barGradient)"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={48}
-                  background={{ fill: alpha(theme.palette.primary.main, 0.06) }}
-                >
-                  {showLabels && (
-                    <LabelList
-                      dataKey={metric}
-                      position="top"
-                      formatter={labelFormatter}
-                      style={{ fontSize: 11 }}
-                    />
-                  )}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <MuiBarChart
+              dataset={sorted}
+              xAxis={[{
+                scaleType: 'band',
+                dataKey: 'estado',
+                tickLabelStyle: { fontSize: 12 },
+                slotProps: {
+                  axisTickLabel: {
+                    angle: -15,
+                    textAnchor: 'end',
+                    dx: -6,
+                    dy: 8,
+                  },
+                },
+              }]}
+              yAxis={[{
+                tickLabelStyle: { fontSize: 12 },
+                valueFormatter: (value) => yTickFormatter(typeof value === 'number' ? value : Number(value ?? 0)),
+              }]}
+              series={[{
+                id: metric,
+                dataKey: metric,
+                color: alpha(theme.palette.primary.main, 0.85),
+                highlightScope: { faded: 'global', highlighted: 'item' },
+                valueFormatter,
+                barLabel: showLabels
+                  ? (params) => {
+                      const numeric = typeof params.value === 'number' ? params.value : Number(params.value ?? 0)
+                      return labelFormatter(numeric)
+                    }
+                  : undefined,
+              }]}
+              height={320}
+              margin={{ top: 16, right: 24, bottom: 40, left: 24 }}
+              grid={{ horizontal: true, vertical: false }}
+              borderRadius={6}
+              slotProps={{
+                tooltip: {
+                  trigger: 'item',
+                },
+              }}
+            />
           )}
         </Box>
       </CardContent>

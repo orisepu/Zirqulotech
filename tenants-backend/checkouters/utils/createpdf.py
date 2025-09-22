@@ -3,21 +3,47 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image,
+    HRFlowable, KeepTogether
 )
+from django.contrib.staticfiles import finders
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from checkouters.models.dispositivo import Dispositivo
 import locale
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from django.utils import timezone
 from django.db import models  # (ya estaba)
 from django.db.models import Q
 from productos.models.precios import PrecioRecompra
 
+import os, logging
+logger = logging.getLogger(__name__)
 
-locale.setlocale(locale.LC_ALL, 'es_ES.UTF-8')  
+# ==========================
+# Localización y branding
+# ==========================
+locale.setlocale(locale.LC_ALL, 'es_ES.UTF-8')
 
+# Paleta/tema
+BRAND_PRIMARY = colors.HexColor("#0E7C66")  # verde oscuro marca
+BRAND_ACCENT  = colors.HexColor("#14B8A6")  # turquesa acento
+BRAND_DARK    = colors.HexColor("#0B3D3A")
+GREY_SOFT     = colors.HexColor("#F5F7FA")
+GREY_ROW      = colors.HexColor("#FAFBFC")
+GREY_BORDER   = colors.HexColor("#E5E7EB")
+
+# Logo (candidatos)
+_LOGO_CANDIDATES = [
+    'branding/zirqulo-logo.png',                               # vía staticfiles
+    '/srv/checkouters/Partners/static/branding/zirqulo-logo.png',  # absoluta
+]
+LOGO_PATH = finders.find(_LOGO_CANDIDATES[0]) or _LOGO_CANDIDATES[1]
+
+
+# ==========================
+# Utilidades de dominio
+# ==========================
 def _canal_from_oportunidad(oportunidad):
     cliente = getattr(oportunidad, "cliente", None)
     canal = (getattr(cliente, "canal", "") or "").strip().upper()
@@ -25,6 +51,7 @@ def _canal_from_oportunidad(oportunidad):
         return canal
     tipo = (getattr(cliente, "tipo_cliente", "") or "").strip().lower()
     return "B2B" if tipo == "empresa" else "B2C"
+
 
 def _precio_recompra_vigente(capacidad_id: int, canal: str, fecha=None, cache: dict | None = None):
     if not capacidad_id:
@@ -44,8 +71,11 @@ def _precio_recompra_vigente(capacidad_id: int, canal: str, fecha=None, cache: d
         cache[key] = precio
     return precio
 
+
 def euros(valor):
+    # Mantengo tu formato entero + € (puedes cambiarlo a 2 decimales si quieres)
     return f"{int(valor):,}".replace(",", ".") + " €"
+
 
 def get_factor(precio):
     if precio <= 100:
@@ -70,73 +100,206 @@ def get_factor(precio):
         return 0.89
 
 
+# ==========================
+# Helpers visuales
+# ==========================
+def _logo_diagnostics_text():
+    lines = []
+    try:
+        candidates = _LOGO_CANDIDATES if '_LOGO_CANDIDATES' in globals() else [LOGO_PATH] if LOGO_PATH else []
+        for p in candidates:
+            abs_p = os.path.abspath(p)
+            exists = os.path.exists(p)
+            lines.append(f"- {abs_p}  (existe: {'sí' if exists else 'no'})")
+    except Exception as e:
+        lines.append(f"(error recolectando diagnóstico: {e})")
+    return "<br/>".join(lines) if lines else "(sin candidatos)"
+
+
+def _draw_footer(canvas, doc):
+    """
+    Pie de página con numeración y línea sutil.
+    """
+    canvas.saveState()
+    width, height = A4
+    footer_y = 20  # desde el borde inferior
+    # línea separadora
+    canvas.setStrokeColor(GREY_BORDER)
+    canvas.setLineWidth(0.5)
+    canvas.line(doc.leftMargin, footer_y + 10, width - doc.rightMargin, footer_y + 10)
+    # texto: página X
+    canvas.setFillColor(colors.gray)
+    canvas.setFont("Helvetica", 8)
+    page_txt = f"Página {canvas.getPageNumber()}"
+    canvas.drawRightString(width - doc.rightMargin, footer_y, page_txt)
+    # texto: marca
+    canvas.drawString(doc.leftMargin, footer_y, "Zirqulo S.L. — Oferta de recompra")
+    canvas.restoreState()
+
+
+def _section_divider(color=GREY_BORDER, thickness=0.8, space=6):
+    return KeepTogether([
+        Spacer(1, space),
+        HRFlowable(width="100%", thickness=thickness, color=color, spaceBefore=0, spaceAfter=0, lineCap='round'),
+        Spacer(1, space),
+    ])
+
+
+# ==========================
+# Generación del PDF
+# ==========================
 def generar_pdf_oportunidad(oportunidad):
     cliente = oportunidad.cliente
     dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
 
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=24,      # compactado
+        bottomMargin=36,   # un poco más para el footer
+        leftMargin=36,
+        rightMargin=36,
+    )
     elements = []
-    styles = getSampleStyleSheet()
-    cell_style = ParagraphStyle(name="CellStyle", fontSize=8, leading=10)
 
+    # Estilos base
+    styles = getSampleStyleSheet()
+    styles["Title"].spaceBefore = 0
+    styles["Title"].spaceAfter = 6
+    styles["Title"].textColor = BRAND_DARK
+
+    h3 = ParagraphStyle(
+        "H3",
+        parent=styles["Heading3"],
+        textColor=BRAND_DARK,
+        spaceBefore=6,
+        spaceAfter=6
+    )
+    h4 = ParagraphStyle(
+        "H4",
+        parent=styles["Heading4"],
+        textColor=BRAND_PRIMARY,
+        spaceBefore=0,
+        spaceAfter=4
+    )
+    p_norm = ParagraphStyle(
+        "P",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=12
+    )
+    cell_center = ParagraphStyle(
+        "CellCenter",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        alignment=TA_CENTER
+    )
+    cell_right = ParagraphStyle(
+        "CellRight",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        alignment=TA_RIGHT
+    )
+    cell_left = ParagraphStyle(
+        "CellLeft",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT
+    )
+
+    # Encabezado superior (logo)
     fecha_generacion = datetime.now().strftime("%d/%m/%Y")
     comercial = oportunidad.usuario.get_full_name() if hasattr(oportunidad, "usuario") else "—"
 
-    # === Encabezado ===
-    elements.append(Paragraph(f"<b>Oferta personalizada</b>", styles["Title"]))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(f"<b>Fecha de generación:</b> {fecha_generacion}", styles["Normal"]))
-    elements.append(Paragraph(f"<b>Comercial:</b> {comercial}", styles["Normal"]))
-    elements.append(Spacer(1, 12))
+    if LOGO_PATH:
+        try:
+            im = Image(LOGO_PATH)
+            im.hAlign = 'LEFT'
+            im._restrictSize(220, 72)  # tamaño máximo
+            elements.append(im)
+        except Exception as e:
+            diag = _logo_diagnostics_text()
+            logger.warning("No se pudo cargar el logo desde %s: %s\nCandidatos:\n%s",
+                           LOGO_PATH, e, diag.replace("<br/>", "\n"))
+            elements.append(
+                Paragraph(
+                    f"<font color='red'><b>Advertencia:</b> no se pudo cargar el logo.</font><br/>"
+                    f"<b>Ruta seleccionada:</b> {os.path.abspath(LOGO_PATH) if LOGO_PATH else '(vacía)'}<br/>"
+                    f"<b>Rutas probadas:</b><br/>{diag}",
+                    p_norm
+                )
+            )
 
-    # === Datos del cliente y nuestros datos en paralelo ===
+    # Título + metadatos
+    elements.append(Paragraph("<b>Oferta personalizada</b>", styles["Title"]))
+    meta_table = Table([
+        [
+            Paragraph(f"<b>Fecha de generación:</b> {fecha_generacion}", p_norm),
+            Paragraph(f"<b>Comercial:</b> {comercial}", p_norm),
+        ]
+    ], colWidths=[doc.width/2, doc.width/2])
+    meta_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(meta_table)
+
+    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=8))
+
+    # Datos del cliente / nuestros datos (2 columnas)
     datos_cliente = [
-        Paragraph("<b>Datos del cliente</b>", styles["Heading4"]),
-        Paragraph(f"Razón social: {cliente.razon_social}", styles["Normal"]),
-        Paragraph(f"CIF: {cliente.cif}", styles["Normal"]),
-        Paragraph(f"Contacto: {cliente.contacto} ({cliente.posicion})", styles["Normal"]),
-        Paragraph(f"Email: {cliente.correo}", styles["Normal"]),
+        Paragraph("<b>Datos del cliente</b>", h4),
+        Paragraph(f"Razón social: {cliente.razon_social}", p_norm),
+        Paragraph(f"CIF: {cliente.cif}", p_norm),
+        Paragraph(f"Contacto: {cliente.contacto} ({cliente.posicion})", p_norm),
+        Paragraph(f"Email: {cliente.correo}", p_norm),
     ]
 
     datos_nuestros = [
-        Paragraph("<b>Nuestros datos</b>", styles["Heading4"]),
-        Paragraph("Progeek ReCommerce S.L.", styles["Normal"]),
-        Paragraph("CIF: B12345678", styles["Normal"]),
-        Paragraph("Calle Circular, 42", styles["Normal"]),
-        Paragraph("08080 Barcelona", styles["Normal"]),
-        Paragraph("Email: info@progeek.es", styles["Normal"]),
+        Paragraph("<b>Nuestros datos</b>", h4),
+        Paragraph("Zirqulo S.L.", p_norm),
+        Paragraph("CIF: B12345678", p_norm),
+        Paragraph("Santa María, 153, 5º 4ª", p_norm),
+        Paragraph("08340 Vilassar de Mar", p_norm),
+        Paragraph("Email: info@zirqulo.com", p_norm),
     ]
 
-    tabla_datos = Table(
-        [[datos_cliente, datos_nuestros]],
-        colWidths=[270, 230]  # Ajusta según ancho de A4
-    )
+    tabla_datos = Table([[datos_cliente, datos_nuestros]], colWidths=[doc.width * 0.55, doc.width * 0.45])
     tabla_datos.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
     ]))
     elements.append(tabla_datos)
-    elements.append(Spacer(1, 12))
 
-    # === Tabla principal ===
-    cell_style = ParagraphStyle(name="CellStyle", fontSize=8, leading=10,alignment=TA_CENTER)
+    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=8))
 
-    data = [[
-        Paragraph("<b>Modelo</b>", cell_style),
-        Paragraph("<b>Capacidad</b>", cell_style),
-        Paragraph("<b>Estado equipo</b>", cell_style),
-        Paragraph("<b>Cantidad</b>", cell_style),
-        Paragraph("<b>Precio unitario (€)</b>", cell_style),
-        Paragraph("<b>Total (€)</b>", cell_style)
-    ]]
+    # ==========================
+    # Tabla principal (líneas)
+    # ==========================
+    elements.append(Paragraph("<b>Detalle de equipos</b>", h3))
 
+    headers = [
+        Paragraph("<b>Modelo</b>", cell_center),
+        Paragraph("<b>Capacidad</b>", cell_center),
+        Paragraph("<b>Estado equipo</b>", cell_center),
+        Paragraph("<b>Cantidad</b>", cell_center),
+        Paragraph("<b>Precio unitario (€)</b>", cell_center),
+        Paragraph("<b>Total (€)</b>", cell_center),
+    ]
+
+    data = [headers]
     total_general = 0
 
-    for d in dispositivos:
-        modelo = Paragraph(d.modelo.descripcion if d.modelo else "—", cell_style)
-        capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_style)
-        estado_valoracion = Paragraph((d.estado_valoracion or "—").replace("_", " ").capitalize(), cell_style)
+    for idx, d in enumerate(dispositivos, start=1):
+        modelo = Paragraph(d.modelo.descripcion if d.modelo else "—", cell_left)
+        capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_center)
+        estado_valoracion = Paragraph((d.estado_valoracion or "—").replace("_", " ").capitalize(), cell_center)
         cantidad = getattr(d, "cantidad", 1)
         precio_unitario = d.precio_orientativo or 0
         total_linea = float(precio_unitario) * cantidad
@@ -146,87 +309,128 @@ def generar_pdf_oportunidad(oportunidad):
             modelo,
             capacidad,
             estado_valoracion,
-            cantidad,
-            euros(precio_unitario),
-            euros(total_linea)
+            Paragraph(str(cantidad), cell_center),
+            Paragraph(euros(precio_unitario), cell_right),
+            Paragraph(euros(total_linea), cell_right),
         ])
 
-    data.append(["", "", "","", "TOTAL:", f"{euros(total_general)}"])
+    # Fila de total (caja)
+    data.append([
+        "", "", "", "",
+        Paragraph("<b>TOTAL</b>", cell_right),
+        Paragraph(f"<b>{euros(total_general)}</b>", cell_right),
+    ])
 
-    table = Table(data, repeatRows=1, colWidths=[160, 60, 80, 60, 80, 80])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-        ("BACKGROUND", (-2, -1), (-1, -1), colors.lightgrey),
-        ("FONTNAME", (-2, -1), (-1, -1), "Helvetica-Bold"),
-    ]))
+    table = Table(data, repeatRows=1, colWidths=[160, 60, 80, 60, 90, 90])
+    # Estilos con filas alternas y caja de total resaltada
+    ts = [
+    # Encabezado sutil
+    ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+    ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
+    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+    ("FONTSIZE", (0, 0), (-1, -1), 8),
+    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
+
+    # Cuerpo con filas alternas
+    ("GRID", (0, 1), (-1, -2), 0.25, GREY_BORDER),
+    ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, GREY_ROW]),
+
+    # Fila TOTAL sutil (sin fondo de color)
+    ("LINEABOVE", (0, -1), (-1, -1), 1.0, GREY_BORDER),
+    ("TEXTCOLOR", (-3, -1), (-3, -1), BRAND_DARK),
+    ("FONTNAME", (-3, -1), (-3, -1), "Helvetica-Bold"),
+    ("FONTNAME", (-2, -1), (-1, -1), "Helvetica-Bold"),
+]
+    table.setStyle(TableStyle(ts))
     elements.append(table)
-    elements.append(Spacer(1, 18))
 
-    # === Tabla de precios por estado ===
-    elements.append(Paragraph("<b>Precios por estado del dispositivo</b>", styles["Heading3"]))
+    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
 
-    precios_data = [[
-        Paragraph("<b>Modelo</b>", cell_style),
-        Paragraph("<b>Capacidad</b>", cell_style),
-        Paragraph("<b>Excelente (€)</b>", cell_style),
-        Paragraph("<b>Muy bueno (€)</b>", cell_style),
-        Paragraph("<b>Bueno (€)</b>", cell_style)
-    ]]
-    # ▸ Canal según la oportunidad
+    # ==========================
+    # Tabla de precios por estado
+    # ==========================
+    elements.append(Paragraph("<b>Precios por estado del dispositivo</b>", h3))
+
+    precios_headers = [
+        Paragraph("<b>Modelo</b>", cell_center),
+        Paragraph("<b>Capacidad</b>", cell_center),
+        Paragraph("<b>Excelente (€)</b>", cell_center),
+        Paragraph("<b>Muy bueno (€)</b>", cell_center),
+        Paragraph("<b>Bueno (€)</b>", cell_center),
+    ]
+
+    precios_data = [precios_headers]
     canal_pdf = _canal_from_oportunidad(oportunidad)
     _cache_precios = {}
 
-
     elementos_mostrados = set()
     for d in dispositivos:
-        key = (d.modelo.descripcion, d.capacidad.tamaño)
+        key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
         if key in elementos_mostrados:
             continue
         elementos_mostrados.add(key)
 
-        # ▸ Precio base = precio de recompra vigente por canal
         cap_id = getattr(d.capacidad, 'id', None)
         base = _precio_recompra_vigente(cap_id, canal_pdf, cache=_cache_precios)
         precio_base = Decimal(str(base)) if base is not None else Decimal("0.00")
-        
+
         factor = Decimal(str(get_factor(float(precio_base))))
         precio_excelente = precio_base
         precio_muy_bueno = (precio_excelente * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         precio_bueno = (precio_muy_bueno * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         precios_data.append([
-            Paragraph(d.modelo.descripcion, cell_style),
-            Paragraph(str(d.capacidad.tamaño), cell_style),
-            euros(precio_excelente.to_integral_value(rounding=ROUND_HALF_UP)),
-            euros(precio_muy_bueno.to_integral_value(rounding=ROUND_HALF_UP)),
-            euros(precio_bueno.to_integral_value(rounding=ROUND_HALF_UP)),
+            Paragraph(key[0], cell_left),
+            Paragraph(str(key[1]), cell_center),
+            Paragraph(euros(precio_excelente.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+            Paragraph(euros(precio_muy_bueno.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+            Paragraph(euros(precio_bueno.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
         ])
 
-    precios_table = Table(precios_data, repeatRows=1, colWidths=[170, 70, 70, 70, 70])
+    precios_table = Table(precios_data, repeatRows=1, colWidths=[170, 70, 80, 80, 80])
     precios_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        # Encabezado sutil
+        ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+        ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
+
+        # Cuerpo
+        ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
     ]))
     elements.append(precios_table)
-    elements.append(Spacer(1, 18))
 
-    # === Descripción de estados ===
-    elements.append(Paragraph("<b>Descripción de estados</b>", styles["Heading3"]))
-    elements.append(Paragraph("<b>Excelente:</b> Sin marcas visibles, 100% funcional.", styles["Normal"]))
-    elements.append(Paragraph("<b>Muy bueno:</b> Pequeños signos de uso, totalmente funcional.", styles["Normal"]))
-    elements.append(Paragraph("<b>Bueno:</b> Signos visibles de uso, pero funcional.", styles["Normal"]))
+    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
 
-    # === Renderizado final ===
-    doc.build(elements)
+    # ==========================
+    # Descripción de estados
+    # ==========================
+    elements.append(Paragraph("<b>Descripción de estados</b>", h3))
+    desc_box = Table([[
+        Paragraph(
+            "<b>Excelente:</b> Sin marcas visibles, 100% funcional.<br/>"
+            "<b>Muy bueno:</b> Pequeños signos de uso, totalmente funcional.<br/>"
+            "<b>Bueno:</b> Signos visibles de uso, pero funcional.",
+            p_norm
+        )
+    ]], colWidths=[doc.width])
+    desc_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), GREY_SOFT),
+        ("BOX", (0, 0), (-1, -1), 0.5, GREY_BORDER),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(desc_box)
+
+    # Render final con pie de página en todas las páginas
+    doc.build(elements, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
     buffer.seek(0)
     return buffer

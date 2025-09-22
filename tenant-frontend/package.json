@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\"",
-    "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
-    "lint:file": "eslint"
+    "eslint": "eslint \"src/**/*.{ts,tsx,js,jsx}\"",
+    "eslint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
+    "eslint:file": "eslint"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-react": "11.0.0",
@@ -67,6 +67,7 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-config-next": "15.3.4",
     "tailwindcss": "^4",
     "typescript": "^5"

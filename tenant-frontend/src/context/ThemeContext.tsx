@@ -248,18 +248,48 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
             styleOverrides: {
               root: ({ theme }: { theme: Theme }) => ({
                 borderRadius: 10,
-                ...(theme.palette.mode === 'light' && {
-                  backgroundColor: '#F9FBF7',
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: alpha(theme.palette.text.primary, 0.25),
-                  },
-                }),
+                backgroundColor:
+                  theme.palette.mode === 'light'
+                    ? '#F9FBF7'
+                    : alpha(theme.palette.background.paper, 0.55),
+                transition: 'background-color 0.25s ease, border-color 0.25s ease',
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: alpha(
+                    theme.palette.text.primary,
+                    theme.palette.mode === 'light' ? 0.25 : 0.45
+                  ),
+                },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                   borderColor: theme.palette.primary.main,
                   boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.16)}`,
                 },
               }),
-              input: { paddingBlock: 12 },
+              input: ({ theme }: { theme: Theme }) => ({
+                paddingBlock: 12,
+                color: 'var(--date-input-color)',
+                caretColor: theme.palette.primary.main,
+                '&::placeholder': {
+                  color: 'var(--date-input-placeholder)',
+                  opacity: 1,
+                  transition: 'color 0.3s ease',
+                },
+                transition: 'color 0.3s ease, background-color 0.3s ease',
+                '&::-webkit-calendar-picker-indicator': {
+                  filter: theme.palette.mode === 'dark' ? 'invert(0.8)' : 'none',
+                  transition: 'filter 0.25s ease',
+                },
+              }),
+            },
+          },
+
+          MuiInputLabel: {
+            styleOverrides: {
+              root: ({ theme }: { theme: Theme }) => ({
+                color: alpha(theme.palette.text.secondary, 0.9),
+                '&.Mui-focused': {
+                  color: theme.palette.primary.main,
+                },
+              }),
             },
           },
 
@@ -452,12 +482,34 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
         body.style.color = fg;
       }
       html.style.backgroundColor = bg;
+
+      const dateBg = mode === 'dark'
+        ? alpha(theme.palette.background.paper, 0.9)
+        : alpha('#FFFFFF', 0.92);
+      const dateBorder = mode === 'dark'
+        ? '1px solid rgba(255,255,255,0.15)'
+        : `1px solid ${alpha(theme.palette.divider, 0.6)}`;
+      const dateShadow = mode === 'dark'
+        ? '0 1px 0 rgba(255,255,255,0.05) inset'
+        : '0 1px 0 rgba(0,0,0,0.03) inset';
+      const indicatorFilter = mode === 'dark'
+        ? 'invert(0.8) hue-rotate(180deg)'
+        : 'none';
+      const indicatorOpacity = mode === 'dark' ? '0.8' : '1';
+
+      html.style.setProperty('--date-input-bg', dateBg);
+      html.style.setProperty('--date-input-border', dateBorder);
+      html.style.setProperty('--date-input-shadow', dateShadow);
+      html.style.setProperty('--date-input-indicator-filter', indicatorFilter);
+      html.style.setProperty('--date-input-indicator-opacity', indicatorOpacity);
+      html.style.setProperty('--date-input-color', fg);
+      html.style.setProperty('--date-input-placeholder', alpha(theme.palette.text.secondary, 0.8));
     } catch {}
   }, [mode, theme]);
 
   return (
     <ColorModeContext.Provider value={colorMode}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider key={mode} theme={theme}>
         <CssBaseline />
         {/* Ensure body background/text follow the theme at all times */}
         <GlobalStyles
@@ -480,21 +532,23 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
               transition: 'background-color 9999s ease-in-out 0s',
             },
             'input[type="date"], input[type="datetime-local"], input[type="month"], input[type="time"]': {
-              color: theme.palette.text.primary,
+              color: 'var(--date-input-color)',
               colorScheme: theme.palette.mode,
-              ...(theme.palette.mode === 'dark'
-                ? {
-                    backgroundColor: alpha(theme.palette.background.paper, 0.88),
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset',
-                  }
-                : {}),
+              backgroundColor: 'var(--date-input-bg)',
+              borderRadius: 10,
+              border: 'var(--date-input-border)',
+              boxShadow: 'var(--date-input-shadow)',
+              transition: 'background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
             },
             'input[type="date"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator': {
-              ...(theme.palette.mode === 'dark'
-                ? { filter: 'invert(0.8) hue-rotate(180deg)', opacity: 0.8 }
-                : {}),
+              filter: 'var(--date-input-indicator-filter)',
+              opacity: 'var(--date-input-indicator-opacity)',
+              transition: 'filter 0.25s ease, opacity 0.25s ease',
+            },
+            'input[type="date"]::placeholder, input[type="datetime-local"]::placeholder, input[type="month"]::placeholder, input[type="time"]::placeholder': {
+              color: 'var(--date-input-placeholder)',
+              opacity: 1,
+              transition: 'color 0.3s ease',
             },
             'input[type="date"]::-moz-focus-inner, input[type="datetime-local"]::-moz-focus-inner, input[type="month"]::-moz-focus-inner, input[type="time"]::-moz-focus-inner': {
               border: 0,

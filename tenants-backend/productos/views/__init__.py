@@ -1,4 +1,4 @@
-from .admincapacidades import CapacidadAdminListView,tipos_modelo
+from .admincapacidades import CapacidadAdminListView, CapacidadAdminDetailView, tipos_modelo
 from .costespiezas import ReparacionOpcionesView,CostosPiezaListView,CostosPiezaSetView,CostosPiezaDeleteView,CostosPiezaCoverageView
 from .tiposreparacion import PiezaTipoViewSet,ManoObraTipoViewSet
 from .actualizador import (
@@ -24,6 +24,7 @@ from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoraci
 __all__ = [
    "CapacidadAdminListView",
    "tipos_modelo",
+   "CapacidadAdminDetailView",
    "ReparacionOpcionesView",
    "CostosPiezaListView",
    "CostosPiezaSetView",

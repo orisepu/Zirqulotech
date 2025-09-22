@@ -5,10 +5,12 @@ export default function KpiCard({
   title,
   value,
   suffix,
+  helper,
 }: {
   title: string
   value: number | string | null | undefined
   suffix?: string
+  helper?: string
 }) {
   const show = value ?? '—'
   return (
@@ -21,6 +23,11 @@ export default function KpiCard({
               ? Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(show) + (suffix || '')
               : show}
           </Typography>
+          {helper ? (
+            <Typography variant="caption" color="text.secondary">
+              {helper}
+            </Typography>
+          ) : null}
         </Stack>
       </CardContent>
     </Card>

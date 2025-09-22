@@ -147,11 +147,11 @@ export default function OfertaPDFDocument({
             </View>
             <View>
               <Text style={styles.sectionHeader}>Nuestros datos</Text>
-              <Text style={styles.subinfo}>Progeek ReCommerce S.L.</Text>
+              <Text style={styles.subinfo}>Zirqular S.L.</Text>
               <Text style={styles.subinfo}>CIF: B12345678</Text>
-              <Text style={styles.subinfo}>Calle Circular, 42</Text>
-              <Text style={styles.subinfo}>08080 Barcelona</Text>
-              <Text style={styles.subinfo}>info@progeek.es</Text>
+              <Text style={styles.subinfo}>Santa María, 153, 5º 4ª</Text>
+              <Text style={styles.subinfo}>08340 Vilassar de Mar</Text>
+              <Text style={styles.subinfo}>info@zirqular.com</Text>
             </View>
           </View>
 

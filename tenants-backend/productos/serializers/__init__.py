@@ -1,4 +1,9 @@
-from .admincapacidades import ModeloMiniSerializer,CapacidadAdminListSerializer,SetPrecioRecompraSerializer
+from .admincapacidades import (
+    ModeloMiniSerializer,
+    CapacidadAdminListSerializer,
+    SetPrecioRecompraSerializer,
+    CapacidadAdminUpsertSerializer,
+)
 from .costespiezas import CostoPiezaListSerializer
 from .tiposreparacion import PiezaTipoSerializer,ManoObraTipoSerializer
 from .actualizador import TareaLikewizeSerializer,LikewizeCazadorResultadoSerializer
@@ -7,6 +12,7 @@ __all__ = [
    "ModeloMiniSerializer",
    "CapacidadAdminListSerializer",
    "SetPrecioRecompraSerializer",
+   "CapacidadAdminUpsertSerializer",
    "CostoPiezaListSerializer",
    "PiezaTipoSerializer",
    "ManoObraTipoSerializer",

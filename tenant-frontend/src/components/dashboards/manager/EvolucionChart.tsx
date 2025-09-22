@@ -3,7 +3,7 @@
 import { useMemo, useCallback } from 'react'
 import { Card, CardHeader, CardContent, Box, ToggleButtonGroup, ToggleButton } from '@mui/material'
 import { useTheme, alpha } from '@mui/material/styles'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { LineChart as MuiLineChart } from '@mui/x-charts/LineChart'
 
 type Serie = { periodo: string; valor: number }
 
@@ -13,15 +13,13 @@ type Props = {
   onGranularidadChange?: (value: 'dia' | 'semana' | 'mes') => void
 }
 
+function formatCurrency(value?: number | null) {
+  const numeric = typeof value === 'number' ? value : Number(value ?? 0)
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(numeric)
+}
+
 export default function EvolucionChart({ data, granularidad = 'mes', onGranularidadChange }: Props) {
   const theme = useTheme()
-
-  const tooltipBg = theme.palette.mode === 'dark'
-    ? alpha(theme.palette.background.paper, 0.95)
-    : alpha('#FFFFFF', 0.95)
-  const tooltipBorder = theme.palette.mode === 'dark'
-    ? '1px solid rgba(255,255,255,0.08)'
-    : `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
 
   const handleGranularidad = useCallback(
     (_: React.MouseEvent<HTMLElement>, value: 'dia' | 'semana' | 'mes' | null) => {
@@ -73,6 +71,8 @@ export default function EvolucionChart({ data, granularidad = 'mes', onGranulari
       .map(({ periodo, valor }) => ({ periodo, valor }))
   }, [data, granularidad])
 
+  const chartHeight = 280
+
   return (
     <Card variant="outlined" sx={{ borderRadius: 3, boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)', height: '100%' }}>
       <CardHeader
@@ -106,28 +106,43 @@ export default function EvolucionChart({ data, granularidad = 'mes', onGranulari
       />
       <CardContent sx={{ height: { xs: 260, md: 320 }, pt: 2, px: 3, '&:last-child': { pb: 3 } }}>
         <Box sx={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="periodo" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: tooltipBg,
-                  borderRadius: 12,
-                  border: tooltipBorder,
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '0 12px 32px rgba(0,0,0,0.35)'
-                    : '0 10px 28px rgba(31,41,55,0.1)',
-                  color: theme.palette.text.primary,
-                }}
-                labelStyle={{ color: theme.palette.text.secondary, fontWeight: 600 }}
-                itemStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
-                cursor={{ stroke: alpha(theme.palette.primary.main, 0.2), strokeWidth: 2 }}
-              />
-              <Line type="monotone" dataKey="valor" dot={false} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          {!chartData.length ? (
+            <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
+              Sin datos para este filtro
+            </Box>
+          ) : (
+            <MuiLineChart
+              dataset={chartData}
+              xAxis={[{
+                dataKey: 'periodo',
+                scaleType: 'band',
+                tickLabelStyle: { fontSize: 12 },
+              }]}
+              yAxis={[{
+                tickLabelStyle: { fontSize: 12 },
+                valueFormatter: (value) => formatCurrency(typeof value === 'number' ? value : Number(value ?? 0)),
+              }]}
+              series={[{
+                id: 'valor',
+                dataKey: 'valor',
+                label: 'Valor',
+                showMark: false,
+                curve: 'monotoneX',
+                color: theme.palette.primary.main,
+                valueFormatter: (value) => formatCurrency(value),
+              }]}
+              height={chartHeight}
+              margin={{ top: 24, right: 24, bottom: 24, left: 32 }}
+              grid={{ vertical: false, horizontal: true }}
+              hideLegend
+              axisHighlight={{ x: 'line', y: 'none' }}
+              slotProps={{
+                tooltip: {
+                  trigger: 'item',
+                },
+              }}
+            />
+          )}
         </Box>
       </CardContent>
     </Card>

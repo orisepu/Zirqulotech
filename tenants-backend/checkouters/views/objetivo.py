@@ -168,6 +168,83 @@ class ObjetivoResumenAPIView(APIView):
             if target_id is not None:
                 operaciones_por_target[target_id] = int(row["total"] or 0)
 
+        usuarios_por_tienda: Dict[int, Dict[int, dict]] = defaultdict(dict)
+        if scope == "tienda":
+            usuarios_valor_rows = (
+                DispositivoReal.objects.filter(
+                    oportunidad__estado__iexact="Pagado",
+                    oportunidad__fecha_inicio_pago__gte=inicio_dt,
+                    oportunidad__fecha_inicio_pago__lte=fin_dt,
+                )
+                .values("oportunidad__tienda_id", "oportunidad__usuario_id")
+                .annotate(total=Coalesce(Sum("precio_final"), Decimal("0")))
+            )
+
+            for row in usuarios_valor_rows:
+                tienda_id = row["oportunidad__tienda_id"]
+                usuario_id = row["oportunidad__usuario_id"]
+                if tienda_id is None or usuario_id is None:
+                    continue
+                usuarios_por_tienda[tienda_id].setdefault(
+                    usuario_id,
+                    {
+                        "progreso_valor": Decimal("0"),
+                        "progreso_operaciones": 0,
+                    },
+                )["progreso_valor"] = Decimal(row["total"] or 0)
+
+            usuarios_ops_rows = (
+                Oportunidad.objects.filter(
+                    estado__iexact="Pagado",
+                    fecha_inicio_pago__gte=inicio_dt,
+                    fecha_inicio_pago__lte=fin_dt,
+                )
+                .values("tienda_id", "usuario_id")
+                .annotate(total=Count("id"))
+            )
+            for row in usuarios_ops_rows:
+                tienda_id = row["tienda_id"]
+                usuario_id = row["usuario_id"]
+                if tienda_id is None or usuario_id is None:
+                    continue
+                usuarios_por_tienda.setdefault(
+                    tienda_id,
+                    {
+                        usuario_id: {
+                            "progreso_valor": Decimal("0"),
+                            "progreso_operaciones": 0,
+                        }
+                    },
+                )
+                usuarios_por_tienda[tienda_id].setdefault(
+                    usuario_id,
+                    {
+                        "progreso_valor": Decimal("0"),
+                        "progreso_operaciones": 0,
+                    },
+                )["progreso_operaciones"] = int(row["total"] or 0)
+
+            usuario_objetivos_map: Dict[int, Objetivo] = {
+                obj.usuario_id: obj
+                for obj in Objetivo.objects.filter(
+                    tipo="usuario",
+                    periodo_tipo=periodo_tipo,
+                    periodo_inicio=periodo_inicio,
+                    usuario_id__isnull=False,
+                )
+            }
+
+            usuarios_ids = {
+                usuario_id
+                for usuarios in usuarios_por_tienda.values()
+                for usuario_id in usuarios.keys()
+            }
+            usuarios_info = {
+                user.id: user
+                for user in _fetch_usuarios_manager(tenant_slug)
+                if user.id in usuarios_ids
+            }
+
         results: List[dict] = []
         for target in targets:
             if scope == "tienda":
@@ -186,6 +263,31 @@ class ObjetivoResumenAPIView(APIView):
             progreso_valor = float(valor_por_target.get(target_id, Decimal("0")))
             progreso_operaciones = operaciones_por_target.get(target_id, 0)
 
+            usuarios_detalle: List[dict] = []
+            if scope == "tienda":
+                usuarios_en_tienda = usuarios_por_tienda.get(target_id, {})
+                for usuario_id, detalle in sorted(
+                    usuarios_en_tienda.items(),
+                    key=lambda item: item[1]["progreso_valor"],
+                    reverse=True,
+                ):
+                    user = usuarios_info.get(usuario_id)
+                    objetivo_usuario = usuario_objetivos_map.get(usuario_id)
+                    usuarios_detalle.append(
+                        {
+                            "usuario_id": usuario_id,
+                            "nombre": getattr(user, "name", "") or getattr(user, "email", ""),
+                            "objetivo_valor": float(objetivo_usuario.objetivo_valor)
+                            if objetivo_usuario
+                            else 0.0,
+                            "objetivo_operaciones": objetivo_usuario.objetivo_operaciones
+                            if objetivo_usuario
+                            else 0,
+                            "progreso_valor": float(detalle.get("progreso_valor", Decimal("0"))),
+                            "progreso_operaciones": detalle.get("progreso_operaciones", 0),
+                        }
+                    )
+
             results.append(
                 {
                     "objetivo_id": objetivo.id if objetivo else None,
@@ -199,6 +301,7 @@ class ObjetivoResumenAPIView(APIView):
                     "progreso_valor": progreso_valor,
                     "progreso_operaciones": progreso_operaciones,
                     **extra,
+                    **({"usuarios": usuarios_detalle} if scope == "tienda" else {}),
                 }
             )
 

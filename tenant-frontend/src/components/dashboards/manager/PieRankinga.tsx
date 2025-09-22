@@ -1,19 +1,9 @@
 'use client'
 
-import React, { type CSSProperties } from 'react'
-import { Card, CardHeader, CardContent, Box } from '@mui/material'
+import { Card, CardHeader, CardContent, Box, Stack, Typography } from '@mui/material'
 import { useTheme, alpha } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-  type LegendProps,
-  type PieLabelRenderProps,
-} from 'recharts'
+import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart'
 
 type PieRankingProps = {
   title: string
@@ -81,111 +71,130 @@ export default function PieRanking({
     return alpha(c, Math.max(0.4, a))
   })
 
-  type ValueType = number | string | Array<number | string>
-  type NameType = string | number
-  type PayloadItem = { payload?: { name?: string } }
-  const tooltipFormatter = (value: ValueType, _name: NameType, entry: PayloadItem) => {
-    const v = Number((Array.isArray(value) ? value[0] : value) ?? 0)
-    const pct = total ? ` (${Math.round((v / total) * 100)}%)` : ''
-    return [(valueIsOps ? `${formatINT(v)} ops` : formatEUR(v)) + pct, entry?.payload?.name]
+  const legendLabel = (name: string, value: number) => {
+    if (legendCompact || isNarrow) return name
+    return valueIsOps ? `${name} — ${formatINT(value)} ops` : `${name} — ${formatEUR(value)}`
   }
 
-  const legendText = (value: string) => {
-    const item = data.find(d => d.name === value)
-    if (!item) return value
-    if (legendCompact || isNarrow) return value
-    return valueIsOps ? `${value} — ${formatINT(item.value)} ops` : `${value} — ${formatEUR(item.value)}`
+  const pieData = data.map((item, index) => ({
+    id: `${item.name}-${index}`,
+    value: item.value,
+    label: legendLabel(item.name, item.value),
+    color: colors[index],
+  }))
+
+  const chartHeight = isNarrow ? 260 : height
+
+  const resolveNumeric = (input: unknown) => {
+    if (typeof input === 'number') return Number.isFinite(input) ? input : 0
+    if (input && typeof input === 'object' && 'value' in (input as Record<string, unknown>)) {
+      const candidate = (input as { value?: unknown }).value
+      const numeric = typeof candidate === 'number' ? candidate : Number(candidate ?? 0)
+      return Number.isFinite(numeric) ? numeric : 0
+    }
+    const numeric = Number(input ?? 0)
+    return Number.isFinite(numeric) ? numeric : 0
   }
 
-  // Props de leyenda según modo (tipado explícito)
-  const baseLegend: Partial<LegendProps> = { formatter: (value: string | number) => legendText(String(value)) }
-
-  let legendProps: Partial<LegendProps> = baseLegend
-
-  if (resolvedMode === 'bottom') {
-    legendProps = {
-      ...baseLegend,
-      verticalAlign: 'bottom',
-      align: 'center',
-      layout: 'horizontal',
-      wrapperStyle: {
-        paddingTop: 8,
-        fontSize: 12,
-        lineHeight: '18px',
-      } as CSSProperties,
-    }
-  } else if (resolvedMode === 'floating') {
-    legendProps = {
-      ...baseLegend,
-      verticalAlign: 'top',
-      align: 'right',
-      layout: 'vertical',
-      wrapperStyle: {
-        position: 'absolute' as CSSProperties['position'],
-        right: 8,
-        top: 8,
-        fontSize: 12,
-        lineHeight: '18px',
-      },
-    }
-  } else if (resolvedMode === 'right') {
-    legendProps = {
-      ...baseLegend,
-      verticalAlign: 'middle',
-      align: 'right',
-      layout: 'vertical',
-      wrapperStyle: {
-        paddingLeft: 8,
-        fontSize: 12,
-        lineHeight: '18px',
-      } as CSSProperties,
-    }
+  const valueFormatter = (value: unknown) => {
+    const numeric = resolveNumeric(value)
+    const pct = total ? Math.round((numeric / total) * 100) : 0
+    const base = valueIsOps ? `${formatINT(numeric)} ops` : formatEUR(numeric)
+    return total ? `${base} (${pct}%)` : base
   }
-  // 'none' => no pasamos Legend
+
+  const legendEnabled = showLegend && legendMode !== 'none' && pieData.length > 0
+  const useCustomLegend = legendEnabled && !isNarrow && resolvedMode !== 'bottom'
+
+  const builtInLegendProps = (() => {
+    if (!legendEnabled || useCustomLegend) return undefined
+    return {
+      direction: 'row' as const,
+      position: { vertical: 'bottom' as const, horizontal: 'center' as const },
+    }
+  })()
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 ,boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)'}}>
-      <CardHeader title={title} sx={{ p: 1.5, '& .MuiCardHeader-title': { fontSize: 16 } }} />
-      <CardContent sx={{ height }}>
-        <Box sx={{ width: '100%', height: '100%' }}>
-          {!data.length ? (
+    <Card
+      variant="outlined"
+      sx={{ borderRadius: 3, boxShadow: '0 8px 26px rgba(0, 0, 0, 0.3)', height: '100%' }}
+    >
+      <CardHeader
+        title={title}
+        sx={{
+          px: 3,
+          py: 2,
+          '& .MuiCardHeader-title': { fontSize: 16, fontWeight: 600 },
+        }}
+      />
+      <CardContent sx={{ height: { xs: 260, md: height }, px: 3, py: 2.5 }}>
+        <Box
+          sx={{
+            width: '100%',
+            height: '100%',
+            display: useCustomLegend ? 'flex' : 'block',
+            alignItems: useCustomLegend ? 'center' : undefined,
+            justifyContent: useCustomLegend ? 'space-between' : undefined,
+            columnGap: useCustomLegend ? 3 : undefined,
+          }}
+        >
+          {!pieData.length ? (
             <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
               Sin datos para este filtro
             </Box>
           ) : (
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={data}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={90}
-                  cornerRadius={5}
-                  paddingAngle={5}
-                  labelLine={false}
-                  label={(props: PieLabelRenderProps) => {
-                    const percentRaw = props?.percent
-                    const percent = typeof percentRaw === 'number' ? percentRaw : 0
-                    return percent > 0.04 ? `${Math.round(percent * 100)}%` : ''
+            <>
+              <Box sx={{ flex: useCustomLegend ? '1 1 0' : undefined, minWidth: 0 }}>
+                <MuiPieChart
+                  series={[{
+                    id: 'ranking',
+                    data: pieData,
+                    innerRadius: 40,
+                    outerRadius: 90,
+                    cornerRadius: 5,
+                    paddingAngle: 5,
+                    highlightScope: { faded: 'global', highlighted: 'item' },
+                    faded: { innerRadius: 40, additionalRadius: -20 },
+                    valueFormatter,
+                    arcLabel: (item) => {
+                      const percent = total ? item.value / total : 0
+                      return percent > 0.04 ? `${Math.round(percent * 100)}%` : ''
+                    },
+                    arcLabelMinAngle: 10,
+                  }]}
+                  height={chartHeight}
+                  margin={{ top: 16, right: 16, bottom: 16, left: 16 }}
+                  hideLegend={!builtInLegendProps}
+                  slotProps={{
+                    legend: builtInLegendProps,
+                    tooltip: {
+                      trigger: 'item',
+                    },
                   }}
-                >
-                  {data.map((entry, idx) => (
-                    <Cell
-                      key={`slice-${idx}`}
-                      fill={colors[idx]}
-                      stroke={alpha(colors[idx], 0.6)}
-                    />
+                />
+              </Box>
+              {useCustomLegend ? (
+                <Stack spacing={1} sx={{ minWidth: 180, pr: 1 }}>
+                  {pieData.map((slice) => (
+                    <Stack key={slice.id} direction="row" spacing={1.25} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 1,
+                          bgcolor: slice.color,
+                          boxShadow: `inset 0 0 0 1px ${alpha('#000', 0.08)}`,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ fontSize: 12.5, lineHeight: 1.4 }}>
+                        {slice.label}
+                      </Typography>
+                    </Stack>
                   ))}
-                </Pie>
-
-                <Tooltip formatter={tooltipFormatter} />
-
-                {showLegend && resolvedMode !== 'none' && <Legend {...legendProps} />}
-              </PieChart>
-            </ResponsiveContainer>
+                </Stack>
+              ) : null}
+            </>
           )}
         </Box>
       </CardContent>

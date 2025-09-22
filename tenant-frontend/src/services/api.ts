@@ -118,6 +118,7 @@ export type DashboardManagerResponse = {
     comision_total: number
     comision_media: number
     margen_medio: number | null
+    objetivo_total?: number | null
   }
   evolucion: { periodo: string; valor: number }[]
   comparativa?: { actual: number; anterior: number | null; variacion_pct: number | null }
@@ -187,6 +188,14 @@ export type ObjetivoResumenItem = {
   objetivo_operaciones: number
   progreso_valor: number
   progreso_operaciones: number
+  usuarios?: {
+    usuario_id: number
+    nombre: string
+    objetivo_valor: number
+    objetivo_operaciones: number
+    progreso_valor: number
+    progreso_operaciones: number
+  }[]
 }
 
 export async function fetchObjetivosResumen(params: {

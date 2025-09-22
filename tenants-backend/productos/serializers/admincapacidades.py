@@ -4,6 +4,40 @@ from django.utils.dateparse import parse_datetime
 from productos.models.modelos import Modelo, Capacidad
 from productos.models.utils import set_precio_recompra
 
+
+class CapacidadAdminUpsertSerializer(serializers.ModelSerializer):
+    """Serializer para crear/editar capacidades desde la consola admin."""
+
+    modelo_id = serializers.PrimaryKeyRelatedField(
+        queryset=Modelo.objects.all(),
+        source="modelo",
+        write_only=True,
+    )
+
+    class Meta:
+        model = Capacidad
+        fields = ("id", "modelo_id", "tamaño")
+        read_only_fields = ("id",)
+
+    def validate_tamaño(self, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise serializers.ValidationError("La capacidad es obligatoria.")
+        return cleaned
+
+    def validate(self, attrs):
+        modelo = attrs.get("modelo") or getattr(self.instance, "modelo", None)
+        tamaño = attrs.get("tamaño") or getattr(self.instance, "tamaño", None)
+        if not modelo or not tamaño:
+            return attrs
+
+        qs = Capacidad.objects.filter(modelo=modelo, tamaño__iexact=tamaño)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Ya existe una capacidad con ese modelo y tamaño.")
+        return attrs
+
 class ModeloMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Modelo
