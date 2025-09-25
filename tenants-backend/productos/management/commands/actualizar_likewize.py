@@ -16,16 +16,15 @@ from django.db.models import (
 )
 from typing import List, Dict, Optional
 from productos.models import TareaActualizacionLikewize, LikewizeItemStaging, LikewizeCazadorTarea
+from productos.likewize_config import get_apple_presets, get_extra_presets
 from playwright.sync_api import sync_playwright
 import requests
 from typing import Optional
 
-
 # ==========================
 # Config
 # ==========================
-# Categorías del endpoint de Likewize -> familia
-CATEGORIAS = {101: "iPhone", 102: "iPad", 103: "Mac"}
+# Categorías del endpoint de Likewize -> familia/marca
 ANUM_RE = re.compile(r"\bA\d{4}\b", re.I)
 _CPU_FAMILIAS = [
     "M4 Ultra", "M4 Max", "M4 Pro", "M4",
@@ -631,6 +630,9 @@ def resolver_capacidad_id(
     cpu: str = "",
     tipo: str | None = None,
     gpu_cores: int | None = None,
+    marca: str | None = None,
+    likewize_code: str | None = None,
+    likewize_code_raw: str | None = None,
 ) -> int | None:
     if not almacenamiento_gb:
         return None
@@ -639,6 +641,39 @@ def resolver_capacidad_id(
     cap_id = equivalencias.get((modelo_norm, int(almacenamiento_gb)))
     if cap_id:
         return cap_id
+
+    likewize_codes = []
+    for value in (likewize_code_raw, likewize_code):
+        if value:
+            val = value.strip()
+            if val:
+                likewize_codes.append(val)
+    likewize_codes_upper = {code.upper() for code in likewize_codes}
+
+    if likewize_codes_upper:
+        code_q = Q()
+        for code in likewize_codes:
+            code_q |= Q(likewize_modelo__iexact=code)
+            code_q |= Q(likewize_modelo__iendswith=code)
+        for code in likewize_codes_upper:
+            code_q |= Q(likewize_modelo__iexact=code)
+            code_q |= Q(likewize_modelo__iendswith=code)
+
+        qs_code = Modelo.objects.filter(code_q)
+        if tipo:
+            qs_code = qs_code.filter(tipo__iexact=tipo.strip())
+        if marca:
+            qs_code = qs_code.filter(marca__iexact=marca.strip())
+
+        if qs_code.exists():
+            qsize = Q()
+            for s in _patterns_for_capacity(int(almacenamiento_gb)):
+                qsize |= Q(**{f"{GB_FIELD}__icontains": s})
+
+            for modelo in qs_code[:10]:
+                cap = CapacidadModel.objects.filter(**{REL_FIELD: modelo}).filter(qsize).values_list("id", flat=True).first()
+                if cap:
+                    return cap
 
     # 1) Búsqueda por Modelo con señales fuertes
     cand = Modelo.objects.all()
@@ -935,8 +970,13 @@ def obtener_cookies() -> dict[str, str]:
         }
 
 
-def obtener_modelos_por_categoria(cookies: dict[str, str], categoria_id: int) -> list[dict]:
-    url = "https://appleb2bonlineesp.likewize.com/Home.aspx/GetList"
+def obtener_modelos_por_categoria(cookies: dict[str, str], categoria_id: int, *, brand_id: int | None = None) -> list[dict]:
+    if brand_id:
+        url = "https://appleb2bonlineesp.likewize.com/Home.aspx/GetSelectedModels"
+        payload = json.dumps({"productId": str(categoria_id), "brandId": str(brand_id)})
+    else:
+        url = "https://appleb2bonlineesp.likewize.com/Home.aspx/GetList"
+        payload = json.dumps({"id": categoria_id})
     headers = {
         "Content-Type": "application/json; charset=UTF-8",
         "Origin": "https://appleb2bonlineesp.likewize.com",
@@ -944,7 +984,6 @@ def obtener_modelos_por_categoria(cookies: dict[str, str], categoria_id: int) ->
         "User-Agent": "Mozilla/5.0",
         "X-Requested-With": "XMLHttpRequest",
     }
-    payload = json.dumps({"id": categoria_id})
     r = requests.post(url, headers=headers, cookies=cookies, data=payload, timeout=30)
     if not r.ok:
         return []
@@ -955,6 +994,146 @@ def obtener_modelos_por_categoria(cookies: dict[str, str], categoria_id: int) ->
         data = json.loads(data)
     return data if isinstance(data, list) else []
 
+def obtener_capacidades_por_master(cookies: dict[str, str], master_model_id: str | int) -> list[dict]:
+    """
+    Llama a https://appleb2bonlineesp.likewize.com/Home.aspx/GetSelectedCapacitys
+    con {'masterModelId': '<id>'} y devuelve la lista de variantes (hijos) por capacidad.
+    """
+    url = "https://appleb2bonlineesp.likewize.com/Home.aspx/GetSelectedCapacitys"
+    payload = json.dumps({"masterModelId": str(master_model_id)})
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Origin": "https://appleb2bonlineesp.likewize.com",
+        "Referer": "https://appleb2bonlineesp.likewize.com/",
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    try:
+        r = requests.post(url, headers=headers, cookies=cookies, data=payload, timeout=30)
+        if not r.ok:
+            return []
+        data = r.json()
+        if isinstance(data, dict) and "d" in data:
+            data = data["d"]
+        elif isinstance(data, str):
+            data = json.loads(data)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+    
+def _norm(s: str) -> str:
+    return (s or "").strip().lower()
+
+# Quita capacidad tipo 64GB/1 TB, códigos Google (GB7N6, GVU6C), 'Google', '5G', etc.
+_GOOGLE_CODE_RE = re.compile(r'\b(?!A\d{4})(?=[A-Z0-9]{5,6}\b)[A-Z0-9]{5,6}\b')
+_CAP_RE = re.compile(r'\b(\d+\s?TB|\d+\s?GB)\b', re.I)
+
+def _limpia_capacidad(s: str) -> str:
+    return _CAP_RE.sub('', s or '')
+
+def _limpia_codigo_google(s: str) -> str:
+    # Evita tocar A#### (Apple). El (?!A\d{4}) ya lo garantiza.
+    return _GOOGLE_CODE_RE.sub('', s or '')
+
+def normalizar_nombre_google(s: str) -> str:
+    if not s:
+        return ''
+    out = s
+    out = re.sub(r'^\s*Google\s+', '', out, flags=re.I)
+    out = _limpia_capacidad(out)
+    out = re.sub(r'\b5G\b', '', out, flags=re.I)
+    out = re.sub(r'\bDual\s*SIM\b', '', out, flags=re.I)
+    out = _limpia_codigo_google(out)
+    out = re.sub(r'\s+', ' ', out).strip()
+    return out
+
+def normalizar_google(s: str) -> str:
+    if not s:
+        return ""
+    out = s
+    out = re.sub(r'^\s*Google\s+', '', out, flags=re.I)
+    out = _CAP_RE.sub('', out)
+    out = re.sub(r'\b5G\b', '', out, flags=re.I)
+    out = re.sub(r'\bDual\s*SIM\b', '', out, flags=re.I)
+    out = _GOOGLE_CODE_RE.sub('', out)
+    out = re.sub(r'\s+', ' ', out).strip()
+    return out
+
+def normaliza_para_comparar(brand: str, name: str) -> str:
+    b = (brand or "").lower()
+    if b == "google":
+        return _norm(normalizar_google(name))
+    # Puedes añadir aquí normalizaciones por marca (Samsung, etc.)
+    return _norm(name)
+
+def precargar_indices_modelos():
+    """
+    Devuelve:
+      - idx_likewize: {(brand_lower, likewize_modelo_lower): modelo_id}
+      - idx_norm: {(brand_lower, normalizado): [modelo_id,...]}  (por si hay colisiones)
+      - idx_master: {masterModelId: modelo_id}  (si tu modelo lo guarda)
+    """
+    idx_likewize = {}
+    idx_norm = {}
+    idx_master = {}
+    # Sustituye 'Modelo' y campos por los reales:
+    for m in Modelo.objects.all().only("id", "marca", "likewize_modelo"):
+        brand_l = _norm(getattr(m, "marca", ""))
+        lk = _norm(getattr(m, "likewize_modelo", ""))
+        if brand_l and lk:
+            idx_likewize[(brand_l, lk)] = m.id
+            # índice normalizado:
+            nk = normaliza_para_comparar(brand_l, lk)
+            if nk:
+                idx_norm.setdefault((brand_l, nk), []).append(m.id)
+
+        # Si tienes el campo en tu modelo:
+        master_id = getattr(m, "likewize_master_model_id", None)
+        if master_id:
+            idx_master[str(master_id)] = m.id
+    return idx_likewize, idx_norm, idx_master
+
+def resolver_modelo_desde_bd(brand: str, m_dict: dict,
+                             idx_likewize, idx_norm, idx_master):
+    """
+    Aplica orden:
+      1) likewize_modelo exacto (M_Model / MasterModelName)
+      2) masterModelId (si lo tienes en BD)
+      3) normalizado contra idx_norm
+    """
+    brand_l = _norm(brand)
+    m_model = (m_dict.get("M_Model") or m_dict.get("MasterModelName") or "").strip()
+    master_id = (m_dict.get("MasterModelId") or m_dict.get("masterModelId") or "")
+    candidatos_texto = [m_model]
+    # a veces ModelName encaja mejor que M_Model:
+    model_name = (m_dict.get("ModelName") or "").strip()
+    if model_name and model_name not in candidatos_texto:
+        candidatos_texto.append(model_name)
+
+    # 1) exacto por likewize_modelo
+    for cand in candidatos_texto:
+        key = (brand_l, _norm(cand))
+        if key in idx_likewize:
+            return idx_likewize[key], f"likewize_modelo='{cand}'"
+
+    # 2) masterModelId
+    if master_id:
+        mid = str(master_id).strip()
+        if mid in idx_master:
+            return idx_master[mid], f"masterModelId={mid}"
+
+    # 3) normalizado
+    for cand in candidatos_texto:
+        nk = normaliza_para_comparar(brand_l, cand)
+        if (brand_l, nk) in idx_norm:
+            ids = idx_norm[(brand_l, nk)]
+            if len(ids) == 1:
+                return ids[0], f"normalizado='{nk}'"
+            # ambigüedad: elegir el primero y anotar
+            return ids[0], f"normalizado_ambiguous='{nk}' ids={ids}"
+
+    return None, "sin_match"
+
 
 # ==========================
 # Command
@@ -964,6 +1143,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--tarea", type=str, required=True)
+        parser.add_argument("--mode", type=str, default="apple")
+        parser.add_argument("--brands", nargs="*", type=str, default=None)
 
     def handle(self, *args, **opts):
         tarea = TareaActualizacionLikewize.objects.get(pk=opts["tarea"])
@@ -989,7 +1170,7 @@ class Command(BaseCommand):
 
         def log(msg: str):
             logger.info(msg)
-
+        idx_likewize, idx_norm, idx_master = precargar_indices_modelos()
         try:
             log("🚀 Descargando Likewize…")
             set_progress(tarea, 5, "Iniciando navegador")
@@ -1004,28 +1185,235 @@ class Command(BaseCommand):
             equivalencias_csv = getattr(settings, "EQUIVALENCIAS_CSV", "")
             equivalencias = cargar_equivalencias(equivalencias_csv)
 
+            mode = (opts.get("mode") or "apple").lower()
+            raw_brands = opts.get("brands") or []
+            brand_filter = {
+                b.strip().lower()
+                for b in raw_brands
+                if isinstance(b, str) and b.strip()
+            }
+
+            if mode == "others":
+                presets_source = get_extra_presets()
+            else:
+                presets_source = get_apple_presets()
+
+            presets = [p for p in presets_source if p.get("product_id")]
+            if brand_filter:
+                log("Filtrando marcas: " + ", ".join(sorted(brand_filter)))
+                presets = [
+                    p for p in presets
+                    if (p.get("marca") or "").strip().lower() in brand_filter
+                ]
+
+            if not presets:
+                raise RuntimeError("No hay categorías configuradas para la actualización solicitada.")
+
+            used_brands = sorted({
+                (preset.get("marca") or "").strip()
+                for preset in presets
+                if (preset.get("marca") or "").strip()
+            })
+            if hasattr(tarea, "meta"):
+                try:
+                    meta = dict(tarea.meta or {})
+                    meta.update({"mode": mode, "brands": used_brands})
+                    tarea.meta = meta
+                    tarea.save(update_fields=["meta"])
+                except Exception:
+                    pass
+
+            if not presets:
+                raise RuntimeError("No hay categorías configuradas para la actualización solicitada.")
+
             # Descargar y normalizar
             modelos_totales: list[dict] = []
-            total_cats = len(CATEGORIAS)
+            capacidades_cache: dict[str, list[dict]] = {}
+            total_cats = len(presets)
 
-            for i, (cat_id, tipo) in enumerate(CATEGORIAS.items(), start=1):
+            for i, preset in enumerate(presets, start=1):
+                product_id = int(preset.get("product_id"))
+                brand_id = preset.get("brand_id")
+                tipo = (preset.get("tipo") or "SmartPhone").strip() or "SmartPhone"
+                marca_por_defecto = (preset.get("marca") or "Apple").strip() or "Apple"
+                allowed_m_models_raw = [
+                    (code or "").strip()
+                    for code in (preset.get("allowed_m_models") or [])
+                    if (code or "").strip()
+                ]
+                excluded_m_models_raw = [
+                    (code or "").strip()
+                    for code in (preset.get("exclude_m_models") or [])
+                    if (code or "").strip()
+                ]
+                allowed_m_models = {code.upper() for code in allowed_m_models_raw}
+                excluded_m_models = {code.upper() for code in excluded_m_models_raw}
+                allowed_m_model_suffixes = {code.split()[-1].upper() for code in allowed_m_models_raw}
+                excluded_m_model_suffixes = {code.split()[-1].upper() for code in excluded_m_models_raw}
+                allowed_m_model_patterns: list[re.Pattern] = []
+                for raw in preset.get("allowed_m_model_regex") or []:
+                    try:
+                        allowed_m_model_patterns.append(re.compile(raw))
+                    except re.error as exc:
+                        log(f"⚠️ Patrón allow M_MODEL inválido '{raw}': {exc}")
+                excluded_m_model_patterns: list[re.Pattern] = []
+                for raw in preset.get("exclude_m_model_regex") or []:
+                    try:
+                        excluded_m_model_patterns.append(re.compile(raw))
+                    except re.error as exc:
+                        log(f"⚠️ Patrón exclude M_MODEL inválido '{raw}': {exc}")
+                allowed_model_name_patterns: list[re.Pattern] = []
+                for raw in preset.get("allowed_model_name_regex") or []:
+                    try:
+                        allowed_model_name_patterns.append(re.compile(raw, re.I))
+                    except re.error as exc:
+                        log(f"⚠️ Patrón allow ModelName inválido '{raw}': {exc}")
+                excluded_model_name_patterns: list[re.Pattern] = []
+                for raw in preset.get("exclude_model_name_regex") or []:
+                    try:
+                        excluded_model_name_patterns.append(re.compile(raw, re.I))
+                    except re.error as exc:
+                        log(f"⚠️ Patrón exclude ModelName inválido '{raw}': {exc}")
                 set_progress(
                     tarea,
                     15 + int(70 * (i - 1) / total_cats),
-                    f"Procesando {tipo} ({i}/{total_cats})"
+                    f"Procesando {marca_por_defecto} {tipo} ({i}/{total_cats})"
                 )
-                arr = obtener_modelos_por_categoria(cookies, cat_id)
-                log(f"✅ {len(arr)} modelos {tipo}")
+                arr = obtener_modelos_por_categoria(cookies, product_id, brand_id=brand_id)
+                # Para marcas con brandId (p.ej. Google): bajar variantes por capacidad
+                if brand_id:
+                    seen_ids: set[int] = set()
+                    expanded: list[dict] = []
+                    for m in arr or []:
+                        mmid = (m.get("MasterModelId") or m.get("masterModelId") or m.get("MasterModelID") or "")
+                        mmid = str(mmid).strip()
+                        if mmid:
+                            hijos = obtener_capacidades_por_master(cookies, mmid)
+                            if hijos:
+                                for h in hijos:
+                                    pid = h.get("PhoneModelId") or h.get("ModelId") or h.get("Id")
+                                    try:
+                                        key = int(pid) if pid is not None else None
+                                    except Exception:
+                                        key = None
+                                    if key is not None and key in seen_ids:
+                                        continue
+                                    if key is not None:
+                                        seen_ids.add(key)
+                                    expanded.append(h)
+                                continue
+                        # fallback: si no hay hijos, conservar el maestro
+                        expanded.append(m)
+                    log(f"↗️ Expandido por capacidad: {len(arr)} → {len(expanded)} filas ({marca_por_defecto} {tipo})")
+                    arr = expanded
+                log(f"✅ {len(arr)} modelos {marca_por_defecto} {tipo}")
 
                 for m in arr:
-                    nombre_raw = (m["ModelName"] or "").strip()
+                    nombre_raw = (m.get("ModelName") or m.get("FullName") or "").strip()
+                    if not nombre_raw:
+                        continue
+                    brand_name = (m.get("BrandName") or "").strip()
+
+                    modelo_id, motivo = resolver_modelo_desde_bd(
+                        brand=brand_name,
+                        m_dict=m,
+                        idx_likewize=idx_likewize,
+                        idx_norm=idx_norm,
+                        idx_master=idx_master,
+                    )
+                    m["__modelo_id_resuelto"] = modelo_id
+                    m["__motivo_mapeo"] = motivo
+                    brand_name = (m.get("BrandName") or "").strip()
+                    m_model     = (m.get("M_Model") or m.get("MasterModelName") or "").strip()
+                    full_name   = (m.get("FullName") or nombre_raw).strip()
+                    capacity    = (m.get("Capacity") or "").strip()   # "128GB", "256GB", etc.
+
+                    # Normalización para mapear a tu catálogo base (Pixel 6, Pixel 7, ...)
+                    if (brand_name or '').lower() == 'google':
+                        base_key = normalizar_nombre_google(m_model or nombre_raw)
+                    else:
+                        base_key = nombre_raw  # otras marcas usan su flujo habitual
+
+                    # Ejemplo: "Pixel 6 GB7N6" -> "Pixel 6"
+                    #         "Pixel 7 GVU6C 256GB" -> "Pixel 7"
+
+                    # A partir de aquí, puedes usar 'base_key' para cruzar con tus modelos internos.
+                    # Por ejemplo, guardar en staging:
+                    m['__modelo_base_normalizado'] = base_key
+                    m['__capacity_normalizada']    = capacity
+
+                    # (tu lógica existente de guardado sigue igual, sólo añades estas claves si te ayudan)
+                    m_model_raw = (m.get("M_Model") or "").strip()
+                    m_model_upper = m_model_raw.upper()
+                    m_model_suffix = m_model_raw.split()[-1].upper() if m_model_raw else ""
+
+                    if allowed_m_models and (m_model_upper not in allowed_m_models and m_model_suffix not in allowed_m_models):
+                        continue
+                    if allowed_m_model_suffixes and m_model_suffix and m_model_suffix not in allowed_m_model_suffixes:
+                        continue
+                    if allowed_m_model_patterns and not any(pattern.search(m_model_raw) for pattern in allowed_m_model_patterns):
+                        continue
+                    if excluded_m_models and (m_model_upper in excluded_m_models or m_model_suffix in excluded_m_models or m_model_suffix in excluded_m_model_suffixes):
+                        continue
+                    if excluded_m_model_patterns and any(pattern.search(m_model_raw) for pattern in excluded_m_model_patterns):
+                        continue
+                    if allowed_model_name_patterns and not any(pattern.search(nombre_raw) for pattern in allowed_model_name_patterns):
+                        continue
+                    if excluded_model_name_patterns and any(pattern.search(nombre_raw) for pattern in excluded_model_name_patterns):
+                        continue
                     s = norm_modelo(nombre_raw)
+                    marca = (m.get("BrandName") or marca_por_defecto).strip() or marca_por_defecto
+                    product_category = (m.get("ProductCategoryName") or tipo).strip() or tipo
+                    capacidad_raw = m.get("Capacity") or ""
+                    storage_gb = (extraer_storage_gb(nombre_raw)
+                                  or extraer_storage_gb(capacidad_raw)
+                                  or extraer_storage_gb(m.get("FullName") or ""))
+
+                    master_id = (m.get("MasterModelId") or m.get("MasterModelID") or "").strip()
+                    variant_price: Decimal | None = None
+                    if master_id:
+                        cache_key = str(master_id)
+                        capacity_rows = capacidades_cache.get(cache_key)
+                        if capacity_rows is None:
+                            capacity_rows = obtener_capacidades_por_master(cookies, master_id)
+                            capacidades_cache[cache_key] = capacity_rows or []
+                        for row in capacity_rows or []:
+                            cap_text = (row.get("Capacity") or row.get("CapacityName") or "").strip()
+                            cap_gb = extraer_storage_gb(cap_text) or extraer_storage_gb(row.get("ModelName") or "")
+                            if storage_gb is None and cap_gb:
+                                storage_gb = cap_gb
+                            if storage_gb and cap_gb and cap_gb == storage_gb:
+                                try:
+                                    variant_price = Decimal(str(row.get("ModelValue")))
+                                except Exception:
+                                    variant_price = None
+                                break
+                        if variant_price is None and capacity_rows:
+                            head = capacity_rows[0]
+                            try:
+                                variant_price = Decimal(str(head.get("ModelValue")))
+                            except Exception:
+                                variant_price = None
+
+                    precio_raw = m.get("DevicePrice")
+                    precio_decimal = Decimal("0")
+                    if variant_price is not None:
+                        precio_decimal = variant_price
+                    elif precio_raw not in (None, ""):
+                        try:
+                            precio_decimal = Decimal(str(precio_raw))
+                        except Exception:
+                            precio_decimal = Decimal("0")
 
                     modelos_totales.append({
-                        "tipo": tipo,
+                        "tipo": product_category,
+                        "marca": marca,
                         "modelo_raw": nombre_raw,
+                        "likewize_model_code": m_model_suffix,
+                        "likewize_model_code_raw": m_model_raw,
+                        "likewize_modelo": m_model_raw,
                         "modelo_norm": s,
-                        "almacenamiento_gb": extraer_storage_gb(nombre_raw),
+                        "almacenamiento_gb": storage_gb,
                         "pulgadas": extraer_pulgadas(nombre_raw),   # usar RAW para 'inch'
                         "any": extraer_anio(nombre_raw),            # <-- campo 'any' en tu modelo
                         "a_number": extraer_a_number(nombre_raw) or "",
@@ -1033,13 +1421,13 @@ class Command(BaseCommand):
                         "gpu_cores": extraer_gpu_cores(nombre_raw),
                         "disco": ("SSD" if re.search(r"\bSSD\b", s)
                                   else ("Fusion Drive" if re.search(r"Fusion Drive", s, flags=re.I) else "")),
-                        "precio_b2b": Decimal(str(m["DevicePrice"])),
+                        "precio_b2b": precio_decimal,
                     })
 
                 set_progress(
                     tarea,
                     15 + int(70 * i / total_cats),
-                    f"{tipo} listo ({i}/{total_cats})"
+                    f"{marca_por_defecto} {tipo} listo ({i}/{total_cats})"
                 )
 
             set_progress(tarea, 90, "Guardando staging")
@@ -1061,6 +1449,9 @@ class Command(BaseCommand):
                     cpu=x["cpu"] or "",
                     gpu_cores=x.get("gpu_cores"),
                     tipo=x["tipo"],
+                    marca=x.get("marca"),
+                    likewize_code=x.get("likewize_model_code"),
+                    likewize_code_raw=x.get("likewize_modelo") or x.get("likewize_model_code_raw"),
                 )
                 if not cap_id:
                     no_mapeados += 1
@@ -1069,7 +1460,9 @@ class Command(BaseCommand):
                     LikewizeItemStaging(
                         tarea=tarea,
                         tipo=x["tipo"],
+                        marca=x.get("marca", "Apple"),
                         modelo_raw=x["modelo_raw"],
+                        likewize_model_code=x.get("likewize_model_code", ""),
                         modelo_norm=x["modelo_norm"],
                         almacenamiento_gb=x["almacenamiento_gb"] or 0,
                         precio_b2b=x["precio_b2b"],

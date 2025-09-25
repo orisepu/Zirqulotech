@@ -1,5 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from .views import tipos_modelo
+from .views.admincapacidades import marcas_modelo
 from django.urls import path, include
 from .views.admincapacidades import (
     CapacidadAdminListView,
@@ -16,7 +17,7 @@ from .views.costespiezas import (
 from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewizeView,
   DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
   IphoneAuditoriaValoracionView,
-  LikewizeCazadorResultadoView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView
+  LikewizeCazadorResultadoView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView
 )
 
 # El router y el ViewSet de modelos no se utilizan actualmente
@@ -30,6 +31,7 @@ router.register(r"admin/mano-obra-tipos", ManoObraTipoViewSet, basename="admin-m
 urlpatterns = [
     # path("", include(router.urls)),  # sin uso
     path('tipos-modelo/', tipos_modelo, name='tipos-modelo'),
+    path('marcas-modelo/', marcas_modelo, name='marcas-modelo'),
     path("admin/capacidades/", CapacidadAdminListView.as_view(), name="admin-capacidades-list"),
     path("admin/capacidades/<int:pk>/", CapacidadAdminDetailView.as_view(), name="admin-capacidades-detail"),
     path("admin/precios/set/", SetPrecioRecompraAdminView.as_view(), name="admin-precio-set"),
@@ -39,6 +41,7 @@ urlpatterns = [
     path("admin/costos-pieza/<int:pk>/", CostosPiezaDeleteView.as_view(), name="admin-costos-pieza-delete"),
     path("admin/costos-pieza/coverage/", CostosPiezaCoverageView.as_view(), name="admin-costos-pieza-coverage"),
     path("precios/likewize/actualizar/", LanzarActualizacionLikewizeView.as_view()),
+    path("precios/likewize/presets/", LikewizePresetsView.as_view()),
     path("precios/likewize/ultima/", UltimaTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/", EstadoTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/diff/", DiffLikewizeView.as_view()),

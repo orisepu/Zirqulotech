@@ -23,6 +23,12 @@ def tipos_modelo(request):
     return Response(tipos)
 
 
+@api_view(["GET"])
+def marcas_modelo(request):
+    marcas = Modelo.objects.values_list("marca", flat=True).distinct().order_by("marca")
+    return Response(marcas)
+
+
 class AdminPageNumberPagination(PageNumberPagination):
     page_size = 25
     page_size_query_param = "page_size"
@@ -103,6 +109,18 @@ class CapacidadAdminListView(CapacidadAdminMixin, generics.ListCreateAPIView):
         tipo = params.get("tipo")
         if tipo:
             qs = qs.filter(modelo__tipo=tipo)
+
+        marca = params.get("marca")
+        if marca:
+            qs = qs.filter(modelo__marca=marca)
+
+        activo = params.get("activo")
+        if isinstance(activo, str):
+            activo_clean = activo.lower()
+            if activo_clean in ("true", "1"):
+                qs = qs.filter(activo=True)
+            elif activo_clean in ("false", "0"):
+                qs = qs.filter(activo=False)
 
         q = (params.get("q") or "").strip()
         if q:

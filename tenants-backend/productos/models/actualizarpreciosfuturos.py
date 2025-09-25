@@ -22,6 +22,7 @@ class TareaActualizacionLikewize(models.Model):
     error_message = models.TextField(blank=True, default="")
     progreso = models.PositiveSmallIntegerField(default=0)       # 0..100
     subestado = models.CharField(max_length=120, blank=True, default="")
+    meta = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "precios_tarea_actualizacion_likewize"
@@ -34,13 +35,15 @@ class LikewizeItemStaging(models.Model):
     Lo que trajo la tarea desde Likewize (normalizado por clave).
     """
     tarea = models.ForeignKey(TareaActualizacionLikewize, on_delete=models.CASCADE, related_name="staging")
-    tipo = models.CharField(max_length=50)                # iPhone / iPad / Mac
+    tipo = models.CharField(max_length=50)                # iPhone / iPad / Mac / SmartPhone
+    marca = models.CharField(max_length=100, default='Apple')
     modelo_norm = models.CharField(max_length=255)        # modelo normalizado
     almacenamiento_gb = models.IntegerField(null=True)    # 64,128,256...
     precio_b2b = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     capacidad_id = models.IntegerField(null=True, blank=True)
 
     modelo_raw = models.CharField(max_length=512, blank=True, default="")   # texto original de Likewize
+    likewize_model_code = models.CharField(max_length=64, blank=True, default="")
     pulgadas = models.IntegerField(null=True, blank=True)                   # 27, 24, 13...
     any = models.IntegerField(null=True, blank=True)                       # 2017, 2020...
     a_number = models.CharField(max_length=8, blank=True, default="")       # A1419, A2337...

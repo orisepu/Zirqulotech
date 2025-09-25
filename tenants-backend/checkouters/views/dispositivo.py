@@ -422,8 +422,8 @@ class ModeloViewSet(viewsets.ModelViewSet):
     queryset = Modelo.objects.all()
     serializer_class = ModeloSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['tipo']
-    search_fields = ['descripcion', 'tipo']
+    filterset_fields = ['tipo', 'marca']
+    search_fields = ['descripcion', 'tipo', 'marca']
     pagination_class = ModeloPagination
     ordering_fields = '__all__'   # o lista de campos reales del modelo
     ordering = ['descripcion']
@@ -436,6 +436,9 @@ class CapacidadViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        include_inactivos = self.request.query_params.get("include_inactive")
+        if not (isinstance(include_inactivos, str) and include_inactivos.lower() in ("1", "true", "yes")):
+            queryset = queryset.filter(activo=True)
         modelo_id = self.request.query_params.get("modelo")
         if modelo_id:
             queryset = queryset.filter(modelo_id=modelo_id)

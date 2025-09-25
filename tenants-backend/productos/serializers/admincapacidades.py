@@ -16,7 +16,7 @@ class CapacidadAdminUpsertSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Capacidad
-        fields = ("id", "modelo_id", "tamaño")
+        fields = ("id", "modelo_id", "tamaño", "activo")
         read_only_fields = ("id",)
 
     def validate_tamaño(self, value: str) -> str:
@@ -41,7 +41,7 @@ class CapacidadAdminUpsertSerializer(serializers.ModelSerializer):
 class ModeloMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Modelo
-        fields = ("id", "descripcion", "tipo", "pantalla", "año", "procesador")
+        fields = ("id", "descripcion", "tipo", "marca", "pantalla", "año", "procesador", "likewize_modelo")
 
 class CapacidadAdminListSerializer(serializers.ModelSerializer):
     modelo = ModeloMiniSerializer(read_only=True)
@@ -58,10 +58,10 @@ class CapacidadAdminListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Capacidad
         fields = [
-            "id", "tamaño", "modelo",
+            "id", "tamaño", "modelo", "activo",
             "precio_b2b", "b2b_valid_from", "b2b_valid_to", "b2b_fuente",
             "precio_b2c", "b2c_valid_from", "b2c_valid_to", "b2c_fuente",
-            
+
         ]
 
 class SetPrecioRecompraSerializer(serializers.Serializer):

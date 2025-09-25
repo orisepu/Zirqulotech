@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..models import TareaActualizacionLikewize, LikewizeItemStaging,LikewizeCazadorTarea
+from ..likewize_config import get_apple_presets, get_extra_presets, list_unique_brands
 from ..serializers import TareaLikewizeSerializer,LikewizeCazadorResultadoSerializer
 
 
@@ -80,21 +81,138 @@ def _apply_common_filters_channel(qs, channel: str):
     return qs
 
 
+def _format_storage_label(gb_value):
+    if gb_value is None:
+        return ""
+    try:
+        gb_int = int(gb_value)
+    except (TypeError, ValueError):
+        return ""
+    if gb_int >= 1024 and gb_int % 1024 == 0:
+        tb = gb_int / 1024
+        tb_str = ("%g" % tb).rstrip("0").rstrip(".") if isinstance(tb, float) else str(tb)
+        return f"{tb_str}TB"
+    return f"{gb_int} GB"
+
+
+def _parse_storage_to_gb(text):
+    if not text:
+        return None
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB|G)\b", str(text), flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        amount = float(match.group(1).replace(",", "."))
+    except ValueError:
+        return None
+    unit = match.group(2).upper()
+    if unit.startswith("T"):
+        return int(round(amount * 1024))
+    return int(round(amount))
+
+
+def _coerce_int_or_none(value):
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+
 def _key_cap(cap_id: int) -> str:
     return str(cap_id)
 
 
 # ============== API views ==============
 
+class LikewizePresetsView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        apple_brands = list_unique_brands(get_apple_presets())
+        extra_brands = list_unique_brands(get_extra_presets())
+        return Response({
+            "apple": apple_brands,
+            "others": extra_brands,
+        })
+
+
 class LanzarActualizacionLikewizeView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
-        tarea = TareaActualizacionLikewize.objects.create()
+        mode = (request.data.get("mode") or request.query_params.get("mode") or "apple").lower()
+
+        body_brands = request.data.get("brands")
+        query_brands = request.query_params.getlist("brands") if hasattr(request.query_params, "getlist") else []
+
+        collected: list[str] = []
+        if isinstance(body_brands, str):
+            collected.append(body_brands)
+        elif isinstance(body_brands, (list, tuple, set)):
+            collected.extend(body_brands)
+        collected.extend(query_brands)
+
+        cleaned_brands: list[str] = []
+        seen_lower: set[str] = set()
+        for item in collected:
+            if not isinstance(item, str):
+                continue
+            val = item.strip()
+            if not val:
+                continue
+            key = val.lower()
+            if key in seen_lower:
+                continue
+            seen_lower.add(key)
+            cleaned_brands.append(val)
+
+        if mode == "apple":
+            available = list_unique_brands(get_apple_presets())
+        else:
+            available = list_unique_brands(get_extra_presets())
+
+        lookup = {opt.lower(): opt for opt in available}
+
+        if mode == "apple" and not cleaned_brands:
+            cleaned_brands = available
+
+        canonical_brands: list[str] = []
+        invalid: list[str] = []
+        for brand in cleaned_brands:
+            canonical = lookup.get(brand.lower())
+            if not canonical:
+                invalid.append(brand)
+            elif canonical not in canonical_brands:
+                canonical_brands.append(canonical)
+
+        if invalid:
+            return Response({
+                "detail": "Las siguientes marcas no están disponibles para este modo.",
+                "invalid": invalid,
+                "disponibles": available,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if mode != "apple" and not canonical_brands:
+            return Response({
+                "detail": "Selecciona al menos una marca para sincronizar.",
+                "disponibles": available,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        tarea = TareaActualizacionLikewize.objects.create(
+            meta={
+                "mode": mode,
+                "brands": canonical_brands,
+            }
+        )
 
         def _runner():
             # ejecuta el management command en este mismo proceso/venv
-            call_command('actualizar_likewize', tarea=str(tarea.id))
+            call_command('actualizar_likewize', tarea=str(tarea.id), mode=mode, brands=canonical_brands)
 
         Thread(target=_runner, daemon=True).start()
         return Response({"tarea_id": str(tarea.id)}, status=status.HTTP_202_ACCEPTED)
@@ -125,12 +243,56 @@ class DiffLikewizeView(APIView):
         if t.estado != "SUCCESS":
             return Response({"detail": "La tarea aún no está lista."}, status=409)
 
+        allowed_brands = {
+            (b or "").strip()
+            for b in LikewizeItemStaging.objects
+            .filter(tarea=t)
+            .values_list("marca", flat=True)
+            if (b or "").strip()
+        }
+        if not allowed_brands:
+            meta = getattr(t, "meta", {}) or {}
+            meta_brands = meta.get("brands") if isinstance(meta, dict) else None
+            if meta_brands:
+                allowed_brands = {
+                    (b or "").strip()
+                    for b in meta_brands
+                    if isinstance(b, str) and (b or "").strip()
+                }
+        allowed_brands = {b for b in allowed_brands if b}
+        allowed_brands_lower = {b.lower() for b in allowed_brands}
+
+        meta = getattr(t, "meta", {}) or {}
+        meta_mode = (meta.get("mode") or "apple").lower()
+        meta_brands = {
+            (item or "").strip()
+            for item in (meta.get("brands") or [])
+            if isinstance(item, str) and (item or "").strip()
+        }
+        if not meta_brands and allowed_brands:
+            meta_brands = allowed_brands
+        if meta_mode not in {"apple", "others"} and any(b.lower() != "apple" for b in allowed_brands_lower):
+            meta_mode = "others"
+        if meta_mode == "apple" and any(b.lower() not in {"apple", ""} for b in allowed_brands_lower):
+            meta_mode = "others"
+        preset_source = get_extra_presets() if meta_mode == "others" else get_apple_presets()
+        excluded_codes = {
+            (code or "").strip().upper()
+            for preset in preset_source
+            if (not meta_brands or (preset.get("marca") or "").strip() in meta_brands)
+            for code in (preset.get("exclude_m_models") or [])
+            if (code or "").strip()
+        }
+
         # 1) STAGING (solo los mapeados a capacidad_id)
         S_qs = (LikewizeItemStaging.objects
                 .filter(tarea=t, capacidad_id__isnull=False)
-                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb"))
+                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb", "marca", "likewize_model_code"))
         S = {}
         for s in S_qs:
+            code = (s.get("likewize_model_code") or "").strip().upper()
+            if excluded_codes and code in excluded_codes:
+                continue
             k = _key_cap(s["capacidad_id"])
             S[k] = s  # si hubiese duplicados, se pisa; normalmente 1:1
 
@@ -171,6 +333,7 @@ class DiffLikewizeView(APIView):
                     "tipo": s["tipo"],
                     "modelo_norm": s["modelo_norm"],
                     "almacenamiento_gb": s["almacenamiento_gb"],
+                    "marca": s.get("marca"),
                 })
             else:
                 precio_viejo = Decimal(str(E[k]["precio_neto"]))
@@ -185,6 +348,7 @@ class DiffLikewizeView(APIView):
                         "tipo": s["tipo"],
                         "modelo_norm": s["modelo_norm"],
                         "almacenamiento_gb": s["almacenamiento_gb"],
+                        "marca": s.get("marca"),
                     })
 
         # Bajas (enriquece con info de capacidad/modelo si está disponible)
@@ -198,7 +362,9 @@ class DiffLikewizeView(APIView):
             qs_cap = (CapacidadModel.objects
                       .filter(id__in=delete_ids)
                       .select_related(rel_field)
-                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo"))
+                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo", f"{rel_field}__marca", f"{rel_field}__likewize_modelo"))
+            if allowed_brands:
+                qs_cap = qs_cap.filter(**{f"{rel_field}__marca__in": list(allowed_brands)})
 
             def _gb_from_text(txt: str) -> int | None:
                 if not txt:
@@ -217,15 +383,30 @@ class DiffLikewizeView(APIView):
                 modelo = getattr(cap, rel_field)
                 cap_info_map[cap.id] = {
                     "tipo": getattr(modelo, "tipo", "-") or "-",
+                    "marca": getattr(modelo, "marca", "-") or "-",
                     "modelo_norm": getattr(modelo, rel_name, "-") or "-",
                     "almacenamiento_gb": _gb_from_text(getattr(cap, gb_field, "") or ""),
                     "cap_text": getattr(cap, gb_field, "") or "",
+                    "likewize_modelo": getattr(modelo, "likewize_modelo", "") or "",
                 }
 
         for k, e in E.items():
             if k not in S:
                 cap_id = int(k)
-                info = cap_info_map.get(cap_id, {})
+                info = cap_info_map.get(cap_id)
+                if allowed_brands_lower and info is None:
+                    continue
+                marca_info = (info.get("marca") if info else "-")
+                marca_clean = (marca_info or "").strip()
+                if allowed_brands_lower and (not marca_clean or marca_clean.lower() not in allowed_brands_lower):
+                    continue
+                likewize_code_model = (info or {}).get("likewize_modelo", "").strip().upper()
+                likewize_code_suffix = likewize_code_model.split()[-1] if likewize_code_model else ""
+                if excluded_codes and (
+                    (likewize_code_model and likewize_code_model in excluded_codes) or
+                    (likewize_code_suffix and likewize_code_suffix in excluded_codes)
+                ):
+                    continue
                 deletes.append({
                     "id": f"D|{k}|{e['precio_neto']}",
                     "capacidad_id": cap_id,
@@ -233,17 +414,21 @@ class DiffLikewizeView(APIView):
                     "despues": None,
                     "delta": None,
                     "kind": "DELETE",
-                    "tipo": info.get("tipo", "-"),
-                    "modelo_norm": info.get("modelo_norm", "-"),
-                    "almacenamiento_gb": info.get("almacenamiento_gb"),
+                    "tipo": (info or {}).get("tipo", "-"),
+                    "marca": marca_info or "-",
+                    "modelo_norm": (info or {}).get("modelo_norm", "-"),
+                    "almacenamiento_gb": (info or {}).get("almacenamiento_gb"),
                 })
 
         # No mapeados (para que los veas en UI)
         no_mapeados = list(
             LikewizeItemStaging.objects
             .filter(tarea=t, capacidad_id__isnull=True)
-            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b")
+            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b", "marca", "likewize_model_code")
         )
+
+        if excluded_codes:
+            no_mapeados = [row for row in no_mapeados if (row.get("likewize_model_code") or "").strip().upper() not in excluded_codes]
 
         return Response({
             "summary": {
@@ -433,6 +618,57 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
         if s.capacidad_id:
             return Response({"capacidad_id": s.capacidad_id, "created": False}, status=200)
 
+        override_tipo = (request.data.get("tipo") or "").strip()
+        override_marca = (request.data.get("marca") or "").strip()
+        override_modelo = (request.data.get("modelo") or request.data.get("modelo_norm") or "").strip()
+        override_cap_text = (request.data.get("capacidad") or request.data.get("capacidad_text") or "").strip()
+        override_gb = _coerce_int_or_none(request.data.get("almacenamiento_gb"))
+        override_likewize_code = (request.data.get("likewize_model_code") or request.data.get("m_model") or "").strip().upper()
+
+        fields_to_update = set()
+
+        tipo_val = override_tipo or (s.tipo or "").strip()
+        if not tipo_val:
+            return Response({"detail": "No se pudo determinar el tipo del modelo."}, status=400)
+        if tipo_val != s.tipo:
+            s.tipo = tipo_val
+            fields_to_update.add("tipo")
+
+        marca_val = override_marca or "Apple"
+        modelo_nombre = override_modelo or (s.modelo_norm or s.modelo_raw or "").strip()
+        if not modelo_nombre:
+            return Response({"detail": "No se pudo determinar el nombre del modelo."}, status=400)
+        if modelo_nombre != (s.modelo_norm or "").strip():
+            s.modelo_norm = modelo_nombre
+            fields_to_update.add("modelo_norm")
+
+        gb_value = override_gb if override_gb is not None else s.almacenamiento_gb
+        if override_cap_text:
+            parsed_gb = _parse_storage_to_gb(override_cap_text)
+            if parsed_gb is not None:
+                gb_value = parsed_gb
+
+        if gb_value is None:
+            return Response({"detail": "Fila sin capacidad en GB; no se puede crear Capacidad."}, status=400)
+
+        try:
+            gb_value = int(gb_value)
+        except (TypeError, ValueError):
+            return Response({"detail": "Capacidad inválida."}, status=400)
+
+        if gb_value != s.almacenamiento_gb:
+            s.almacenamiento_gb = gb_value
+            fields_to_update.add("almacenamiento_gb")
+
+        likewize_code_val = override_likewize_code or (s.likewize_model_code or "").strip().upper()
+        if likewize_code_val != (s.likewize_model_code or "").strip().upper():
+            s.likewize_model_code = likewize_code_val
+            fields_to_update.add("likewize_model_code")
+
+        tamaño_txt = override_cap_text or _format_storage_label(gb_value)
+        if not tamaño_txt:
+            tamaño_txt = f"{gb_value} GB"
+
         # Resolver modelos configurables
         CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
         rel_field = getattr(settings, "CAPACIDAD_REL_MODEL_FIELD", "modelo")
@@ -442,10 +678,10 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
 
         # Buscar o crear Modelo
         filtros = {
-            rel_name: (s.modelo_norm or s.modelo_raw or "").strip(),
-            "tipo": s.tipo,
+            rel_name: modelo_nombre,
+            "tipo": tipo_val,
+            "marca": marca_val,
         }
-        # Campos opcionales si existen
         pantalla_val = f"{s.pulgadas}\"" if getattr(s, "pulgadas", None) else ""
         any_val = getattr(s, "any", None)
         cpu_val = getattr(s, "cpu", "") or ""
@@ -458,24 +694,49 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
 
         modelo, _ = ModeloModel.objects.get_or_create(**filtros)
 
-        # Crear/obtener Capacidad
-        if not s.almacenamiento_gb:
-            return Response({"detail": "Fila sin capacidad en GB; no se puede crear Capacidad."}, status=400)
-        tamaño_txt = f"{int(s.almacenamiento_gb)} GB"
-        cap_defaults = {}
-        if hasattr(CapacidadModel, "precio_b2b"):
-            cap_defaults["precio_b2b"] = None
-        cap, _ = CapacidadModel.objects.get_or_create(**{rel_field: modelo, gb_field: tamaño_txt}, defaults=cap_defaults)
+        modelo_update_fields = []
+        if hasattr(modelo, "likewize_modelo"):
+            target_code = (likewize_code_val or s.modelo_raw or "").strip()
+            if target_code and (modelo.likewize_modelo or "") != target_code:
+                modelo.likewize_modelo = target_code
+                modelo_update_fields.append("likewize_modelo")
+        if modelo_update_fields:
+            modelo.save(update_fields=modelo_update_fields)
 
-        # Actualizar staging con el nuevo capacidad_id
+        # Crear/obtener Capacidad
+        cap_qs = CapacidadModel.objects.filter(**{rel_field: modelo})
+        cap = cap_qs.filter(**{f"{gb_field}__iexact": tamaño_txt}).first()
+        if not cap:
+            for existing in cap_qs:
+                try:
+                    existing_txt = getattr(existing, gb_field, "") or ""
+                except AttributeError:
+                    existing_txt = ""
+                existing_gb = _parse_storage_to_gb(existing_txt)
+                if existing_gb == gb_value:
+                    cap = existing
+                    tamaño_txt = existing_txt or tamaño_txt
+                    break
+
+        if not cap:
+            cap_defaults = {}
+            if hasattr(CapacidadModel, "precio_b2b"):
+                cap_defaults["precio_b2b"] = None
+            cap = CapacidadModel.objects.create(**{rel_field: modelo, gb_field: tamaño_txt}, **cap_defaults)
+
         s.capacidad_id = cap.id
-        s.save(update_fields=["capacidad_id"])
+        fields_to_update.add("capacidad_id")
+        if fields_to_update:
+            s.save(update_fields=list(fields_to_update))
 
         return Response({
             "created": True,
             "modelo_id": getattr(modelo, "id", None),
             "capacidad_id": cap.id,
             "capacidad_text": tamaño_txt,
+            "modelo_norm": modelo_nombre,
+            "tipo": tipo_val,
+            "marca": marca_val,
         }, status=201)
 
 
@@ -510,7 +771,7 @@ class DiffB2CView(APIView):
         # 1) STAGING (solo mapeados a capacidad_id) — reutiliza LikewizeItemStaging
         S_qs = (LikewizeItemStaging.objects
                 .filter(tarea=t, capacidad_id__isnull=False)
-                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb"))
+                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb", "marca"))
         S = {}
         for s in S_qs:
             k = _key_cap(s["capacidad_id"])
@@ -557,6 +818,7 @@ class DiffB2CView(APIView):
                     "tipo": s["tipo"],
                     "modelo_norm": s["modelo_norm"],
                     "almacenamiento_gb": s["almacenamiento_gb"],
+                    "marca": s.get("marca"),
                 })
             else:
                 precio_viejo = Decimal(str(E[k]["precio_neto"]))
@@ -571,6 +833,7 @@ class DiffB2CView(APIView):
                         "tipo": s["tipo"],
                         "modelo_norm": s["modelo_norm"],
                         "almacenamiento_gb": s["almacenamiento_gb"],
+                        "marca": s.get("marca"),
                     })
 
         # Bajas con detalle de capacidad/modelo
@@ -584,7 +847,7 @@ class DiffB2CView(APIView):
             qs_cap = (CapacidadModel.objects
                       .filter(id__in=delete_ids)
                       .select_related(rel_field)
-                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo"))
+                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo", f"{rel_field}__marca"))
 
             def _gb_from_text(txt: str) -> int | None:
                 if not txt:
@@ -603,6 +866,7 @@ class DiffB2CView(APIView):
                 modelo = getattr(cap, rel_field)
                 cap_info_map[cap.id] = {
                     "tipo": getattr(modelo, "tipo", "-") or "-",
+                    "marca": getattr(modelo, "marca", "-") or "-",
                     "modelo_norm": getattr(modelo, rel_name, "-") or "-",
                     "almacenamiento_gb": _gb_from_text(getattr(cap, gb_field, "") or ""),
                     "cap_text": getattr(cap, gb_field, "") or "",
@@ -621,6 +885,7 @@ class DiffB2CView(APIView):
                     "delta": None,
                     "kind": "DELETE",
                     "tipo": info.get("tipo", "-"),
+                    "marca": info.get("marca", "-"),
                     "modelo_norm": info.get("modelo_norm", "-"),
                     "almacenamiento_gb": info.get("almacenamiento_gb"),
                 }
@@ -638,7 +903,7 @@ class DiffB2CView(APIView):
         no_mapeados = list(
             LikewizeItemStaging.objects
             .filter(tarea=t, capacidad_id__isnull=True)
-            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b")
+            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b", "marca")
         )
 
         return Response({
@@ -798,7 +1063,7 @@ class DiffBackmarketView(APIView):
         # Staging iPhone
         S_qs = (LikewizeItemStaging.objects
                 .filter(tarea=t, capacidad_id__isnull=False)
-                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb"))
+                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb", "marca"))
         S = {}
         for s in S_qs:
             S[_key_cap(s["capacidad_id"])] = s
@@ -843,6 +1108,7 @@ class DiffBackmarketView(APIView):
                     "tipo": s["tipo"],
                     "modelo_norm": s["modelo_norm"],
                     "almacenamiento_gb": s["almacenamiento_gb"],
+                    "marca": s.get("marca"),
                 })
             else:
                 precio_viejo = Decimal(str(E[k]["precio_neto"]))
@@ -857,6 +1123,7 @@ class DiffBackmarketView(APIView):
                         "tipo": s["tipo"],
                         "modelo_norm": s["modelo_norm"],
                         "almacenamiento_gb": s["almacenamiento_gb"],
+                        "marca": s.get("marca"),
                     })
 
         # Bajas enriquecidas
@@ -870,7 +1137,7 @@ class DiffBackmarketView(APIView):
             qs_cap = (CapacidadModel.objects
                       .filter(id__in=delete_ids)
                       .select_related(rel_field)
-                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo"))
+                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo", f"{rel_field}__marca"))
 
             def _gb_from_text(txt: str) -> int | None:
                 if not txt:
@@ -889,6 +1156,7 @@ class DiffBackmarketView(APIView):
                 modelo = getattr(cap, rel_field)
                 cap_info_map[cap.id] = {
                     "tipo": getattr(modelo, "tipo", "-") or "-",
+                    "marca": getattr(modelo, "marca", "-") or "-",
                     "modelo_norm": getattr(modelo, rel_name, "-") or "-",
                     "almacenamiento_gb": _gb_from_text(getattr(cap, gb_field, "") or ""),
                 }
@@ -905,6 +1173,7 @@ class DiffBackmarketView(APIView):
                     "delta": None,
                     "kind": "DELETE",
                     "tipo": info.get("tipo", "-"),
+                    "marca": info.get("marca", "-"),
                     "modelo_norm": info.get("modelo_norm", "-"),
                     "almacenamiento_gb": info.get("almacenamiento_gb"),
                 })
@@ -912,7 +1181,7 @@ class DiffBackmarketView(APIView):
         no_mapeados = list(
             LikewizeItemStaging.objects
             .filter(tarea=t, capacidad_id__isnull=True)
-            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b")
+            .values("id", "tipo", "modelo_norm", "almacenamiento_gb", "precio_b2b", "marca")
         )
 
         return Response({
