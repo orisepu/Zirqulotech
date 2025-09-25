@@ -120,7 +120,7 @@ export default function EvolucionChart({ data, granularidad = 'mes', onGranulari
               }]}
               yAxis={[{
                 tickLabelStyle: { fontSize: 12 },
-                valueFormatter: (value) => formatCurrency(typeof value === 'number' ? value : Number(value ?? 0)),
+                valueFormatter: (value: number) => formatCurrency(typeof value === 'number' ? value : Number(value ?? 0)),
               }]}
               series={[{
                 id: 'valor',

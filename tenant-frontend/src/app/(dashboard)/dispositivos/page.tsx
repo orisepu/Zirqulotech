@@ -31,6 +31,11 @@ async function postSetPrecio(body: { capacidad_id: number; canal: 'B2B' | 'B2C';
   return data
 }
 
+async function fetchTiposModelo() {
+  const { data } = await api.get<string[]>('/api/tipos-modelo/')
+  return data
+}
+
 export default function AdminCapacidadesTablaReactiva() {
   // Filtros
   const [q, setQ] = useState('')
@@ -71,6 +76,13 @@ export default function AdminCapacidadesTablaReactiva() {
     enabled: canFetch,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
+  })
+
+  const { data: tiposModelo, isLoading: isLoadingTipos, isError: tiposError, error: tiposFetchError } = useQuery({
+    queryKey: ['tipos-modelo'],
+    queryFn: fetchTiposModelo,
+    enabled: canFetch,
+    staleTime: 60_000,
   })
 
   const queryClient = useQueryClient()
@@ -142,17 +154,20 @@ export default function AdminCapacidadesTablaReactiva() {
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <TextField size="small" label="Buscar" placeholder="Modelo, capacidad, procesador…" value={q} onChange={(e: ChangeEvent<HTMLInputElement>) => setQ(e.target.value)} />
             <TextField size="small" label="Modelo ID" type="number" value={modeloId} onChange={(e: ChangeEvent<HTMLInputElement>) => setModeloId(e.target.value)} />
-            <Select size="small" value={tipo} onChange={(e) => setTipo(e.target.value)} displayEmpty>
+            <Select
+              size="small"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              displayEmpty
+              disabled={isLoadingTipos && !tiposModelo?.length}
+            >
               <MenuItem value=""><em>Tipo (todos)</em></MenuItem>
-              <MenuItem value="iPhone">iPhone</MenuItem>
-              <MenuItem value="iPad">iPad</MenuItem>
-              <MenuItem value="iMac">iMac</MenuItem>
-              <MenuItem value="MacBook Air">MacBook Air</MenuItem>
-              <MenuItem value="MacBook Pro">MacBook Pro</MenuItem>
-              <MenuItem value="Mac Pro">Mac Pro</MenuItem>
-              <MenuItem value="Mac Studio">Mac Studio</MenuItem>
-              <MenuItem value="Mac mini">Mac Mini</MenuItem>
-
+              {tiposModelo?.map((option) => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+              {!isLoadingTipos && !tiposModelo?.length && (
+                <MenuItem value="" disabled>Sin opciones disponibles</MenuItem>
+              )}
             </Select>
             <TextField size="small" label="Fecha" type="datetime-local" value={fecha} onChange={(e: ChangeEvent<HTMLInputElement>) => setFecha(e.target.value)} slotProps={{ inputLabel: { shrink: true } }}/>
             <Tooltip title="Recargar">
@@ -171,6 +186,12 @@ export default function AdminCapacidadesTablaReactiva() {
             onPageChange={setPageIndex}
             onPageSizeChange={setPageSize}
           />
+
+          {tiposError && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              {tiposFetchError instanceof Error ? tiposFetchError.message : 'No se pudieron cargar los tipos'}
+            </Alert>
+          )}
 
           {isError && (<Alert severity="error" sx={{ mt: 1 }}>{(error as Error)?.message || 'Error cargando datos'}</Alert>)}
         </Paper>

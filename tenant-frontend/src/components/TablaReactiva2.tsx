@@ -334,13 +334,19 @@ export default function TablaReactiva<TData>({
                   headerMaxWidth?: number
                   nowrapHeader?: boolean
                   headerWrap?: boolean
+                  alignHeader?: 'left' | 'center' | 'right'
                 } | undefined
+                const headerAlign = headerMeta?.alignHeader ?? 'left'
+                const justify =
+                  headerAlign === 'right' ? 'flex-end' :
+                  headerAlign === 'center' ? 'center' : 'flex-start'
 
                 return (
                   <TableCell
                     key={header.id}
-                    align="center"
+                    align={headerAlign}
                     sx={{
+                      textAlign: headerAlign,
                       minWidth: headerMeta?.minWidth,
                       maxWidth: headerMeta?.maxWidth ?? headerMeta?.headerMaxWidth,
                       width: headerMeta?.maxWidth,
@@ -353,24 +359,67 @@ export default function TablaReactiva<TData>({
                       textOverflow: headerMeta?.nowrapHeader ? 'ellipsis' : undefined,
                       wordBreak: headerMeta?.nowrapHeader ? 'normal' : 'break-word',
                       display: 'table-cell',
+                      position: 'relative',
                     }}
                   >
                     {!header.isPlaceholder && (
-                      <TableSortLabel
-                        active={header.column.getIsSorted() !== false}
-                        direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
-                        onClick={header.column.getToggleSortingHandler()}
+                      <Box
                         sx={{
-                          display: 'inline-flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 0.25,
-                          textAlign: 'center',
-                          lineHeight: 1.1,
+                          position: 'relative',
+                          width: '100%',
+                          pl: 0,         // reserva para no pegar el texto al borde
+                          pr: 0         // reserva sitio para el icono
                         }}
                       >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableSortLabel>
+                        {/* Capa centrada para el título (no envuelve) */}
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            inset: 0,
+                            top: 0,
+                            bottom: 0,
+                            left: 8,          // respeta padding izquierdo
+                            right: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: justify,    // center / flex-start / flex-end
+                            pointerEvents: 'none',
+                            whiteSpace: 'nowrap',       // <- evita salto de línea
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            zIndex: 0,
+                          }}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </Box>
+                                               {/* Área clicable de sort (ocupa todo, sin desplazar el título) */}
+                        <TableSortLabel
+                          active={header.column.getIsSorted() !== false}
+                          direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
+                          onClick={header.column.getToggleSortingHandler()}
+                          sx={{
+                            display: 'block',
+                            width: '100%',
+                            height: 30,                 // altura mínima del header
+                            lineHeight: '40px',
+                            whiteSpace: 'nowrap',
+                            position: 'relative', 
+                            zIndex: 1,     
+                            '& .MuiTableSortLabel-icon': {
+                              position: 'absolute',
+                              right: 0,
+                              top: '50%',               // <- centrado vertical
+                              transform: 'translateY(-50%)',
+                              margin: 0,
+                              zIndex: 2,
+                            },
+                          }}
+                        >
+                          {/* Mantén algo de contenido para no romper accesibilidad,
+                              pero invisible (el título real está en la capa absolute) */}
+                          <span style={{ opacity: 0 }}>.</span>
+                        </TableSortLabel>
+                      </Box>
                     )}
                   </TableCell>
                 )
@@ -394,8 +443,12 @@ export default function TablaReactiva<TData>({
                   } | undefined) || {}
                 const rawValue = cell.getValue(); // lo que devuelve el accessor
                 let content = flexRender(cell.column.columnDef.cell, cell.getContext());
-
-                // Si no hay cell custom, usamos el valor "crudo" de forma segura
+                const alignCell = ((): 'left'|'center'|'right' => {
+                  const esGuion = (typeof rawValue === 'string' && rawValue.trim() === '—') ||
+                                  (typeof content === 'string' && content.trim() === '—')
+                  return esGuion ? 'center' : (meta.align || 'left')
+                })()
+                  // Si no hay cell custom, usamos el valor "crudo" de forma segura
                 if (content == null || content === false) {
                   if (
                     React.isValidElement(rawValue) ||
@@ -430,6 +483,9 @@ export default function TablaReactiva<TData>({
                           meta.minWidth ??
                           240,
                         overflow: 'hidden',
+                        textAlign: 'inherit',     
+                        display: 'inline-block',  
+                        width: '100%',
                       }}
                     >
                       <EllipsisTooltip text={text} maxWidth="100%" />
@@ -446,13 +502,9 @@ export default function TablaReactiva<TData>({
                 return (
                   <TableCell
                     key={cell.id}
-                    style={{
-                      minWidth: cell.column.columnDef.meta?.minWidth,
-                      maxWidth: cell.column.columnDef.meta?.maxWidth,
-                      width: cell.column.columnDef.meta?.maxWidth,
-                    }}
-                    align={esGuion ? 'center' : meta.align || 'left'}
-                    
+                    style={{ minWidth: meta.minWidth, maxWidth: meta.maxWidth, width: meta.maxWidth }}
+                    align={alignCell}
+                    sx={{ textAlign: alignCell }}   // <- fuerza el text-align real del td
                   >
                     {content}
                   </TableCell>

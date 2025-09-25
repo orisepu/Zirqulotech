@@ -215,10 +215,24 @@ async function fetchOportunidadesRecientes(params: {
   tienda?: string | null;
   limit?: number;
 }) {
-  const q = { ...params, ordering: '-fecha_creacion' };
+  const size = Math.max(1, params.limit ?? 5);
+  const q: Record<string, unknown> = {
+    ...params,
+    ordering: '-fecha_creacion',
+    pageIndex: 0,
+    pageSize: size,
+    page_size: size,
+    limit: undefined,
+  };
   const { data } = await api.get('/api/oportunidades/', { params: q });
-  return (Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : []) as OportunidadRow[];
+  const rows = Array.isArray(data?.results)
+    ? data.results
+    : Array.isArray(data)
+      ? data
+      : [];
+  return (rows as OportunidadRow[]).slice(0, size);
 }
+
 
 /* ---------------- Página ---------------- */
 export default function TenantDashboardPage() {
@@ -266,7 +280,7 @@ export default function TenantDashboardPage() {
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
-        limit: 8,
+        limit: 5,
       }),
     placeholderData: keepPreviousData,
   });
@@ -375,14 +389,14 @@ export default function TenantDashboardPage() {
 
   /* -------- Render -------- */
   return (
-    <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+    <Box sx={{ px: { xs: 2, md: 3 },  }}>
       {/* Filtros */}
       <Box
         sx={{
           position: 'sticky',
           top: 0,
           zIndex: 5,
-          pb: 2,
+          pb: 0,
           mb: 2,
           background: (t) =>
             `linear-gradient(180deg, ${t.palette.background.default} 60%, transparent)`,

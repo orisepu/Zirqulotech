@@ -150,22 +150,20 @@ export default function PieRankingComerciales({
         {
           id: 'ops',
           data: pieDataOps,
-          innerRadius: 40,
-          outerRadius: 70,
-          paddingAngle: 2,
-          cornerRadius: 4,
-          highlightScope: { faded: 'global', highlighted: 'item' } as const,
+          innerRadius: 20,
+          outerRadius: 100,
+          paddingAngle: 5,
+          cornerRadius: 5,
           faded: { additionalRadius: -12 },
           valueFormatter: opsValueFormatter,
         },
         {
           id: 'valor',
           data: pieDataVal,
-          innerRadius: 78,
-          outerRadius: 108,
-          paddingAngle: 2,
-          cornerRadius: 4,
-          highlightScope: { faded: 'global', highlighted: 'item' } as const,
+          innerRadius: 20,
+          outerRadius: 100,
+          paddingAngle: 5,
+          cornerRadius: 5,
           faded: { additionalRadius: -12 },
           valueFormatter: valorValueFormatter,
           arcLabel: (item: { value: number }) => {
@@ -181,18 +179,13 @@ export default function PieRankingComerciales({
       {
         id: metric,
         data: currentPieData,
-        innerRadius: 40,
-        outerRadius: 90,
+        innerRadius: 20,
+        outerRadius: 100,
         paddingAngle: 5,
         cornerRadius: 5,
-        highlightScope: { faded: 'global', highlighted: 'item' } as const,
         faded: { additionalRadius: -16 },
         valueFormatter: metric === 'ops' ? opsValueFormatter : valorValueFormatter,
-        arcLabel: (item: { value: number }) => {
-          const percent = totalCurrent ? item.value / totalCurrent : 0
-          return percent > 0.05 ? `${Math.round(percent * 100)}%` : ''
-        },
-        arcLabelMinAngle: 12,
+        
       },
     ]
   }, [mode, metric, pieDataOps, pieDataVal, currentPieData, totalCurrent, totalVal, opsValueFormatter, valorValueFormatter])

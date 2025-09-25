@@ -18,8 +18,7 @@ export function PipelinePie({ pipeline, num: _num }: { pipeline: PipelineRow[]; 
         outerRadius: 100,
         paddingAngle: 5,
         cornerRadius: 5,
-        startAngle: -45,
-        endAngle: 225,
+        
         cx: 160,
         cy: 130,
         }]}
@@ -28,7 +27,7 @@ export function PipelinePie({ pipeline, num: _num }: { pipeline: PipelineRow[]; 
       slotProps={{
         legend: {
           direction: 'horizontal',
-          position: { vertical: 'middle', horizontal: 'end' },
+          position: { vertical: 'bottom', horizontal: 'center' },
           sx: {
             gap: 1,
             [`.${legendClasses.mark}`]: { width: 12, height: 12 },

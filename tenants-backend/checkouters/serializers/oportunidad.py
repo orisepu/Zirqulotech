@@ -1,11 +1,27 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from ..models.oportunidad import Oportunidad, ComentarioOportunidad, HistorialOportunidad
+from ..models.tienda import Tienda
 from .dispositivo import DispositivoSerializer
 from .base import ClienteSimpleSerializer
 from .documento import DocumentoSerializer
 from django.db.models import Sum
 
+User = get_user_model()
 
+class TiendaMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tienda
+        fields = ("id", "nombre")  # añade lo que te interese
+
+class UsuarioMiniSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ("id","name" )  # añade lo que te interese
+
+    
+    
 class HistorialOportunidadSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.SerializerMethodField()
 
@@ -39,6 +55,12 @@ class ComentarioOportunidadSerializer(serializers.ModelSerializer):
 class OportunidadSerializer(serializers.ModelSerializer):
     facturas = serializers.SerializerMethodField()
     valor_total_final = serializers.SerializerMethodField()
+    tienda = serializers.PrimaryKeyRelatedField(queryset=Tienda.objects.all(), required=False, write_only=True)
+    usuario = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, write_only=True)
+
+    # Info resuelta de salida (read-only)
+    tienda_info = TiendaMiniSerializer(source="tienda", read_only=True)
+    usuario_info = UsuarioMiniSerializer(source="usuario", read_only=True)
 
     dispositivos = DispositivoSerializer(
         many=True,

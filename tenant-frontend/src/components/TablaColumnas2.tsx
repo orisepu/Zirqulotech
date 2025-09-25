@@ -37,11 +37,27 @@ export interface CapacidadRow {
   b2c_fuente: string | null
 }
 const estadosFisicos = ['perfecto', 'bueno', 'regular', 'dañado']
-const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros']  
-const fmtEUR = (v: string | number | null | undefined): string =>
-  v === null || v === undefined || v === ''
-    ? '—'
-    : new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(Number(v))
+const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros'] 
+const EUR = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+}); 
+export const fmtEUR = (v: string | number | null | undefined): string => {
+  if (v === null || v === undefined || v === '') return '—';
+
+  const raw = typeof v === 'string' ? v.trim() : v;
+  const normalized =
+    typeof raw === 'string'
+      ? Number(raw.replace(/\./g, '').replace(',', '.'))
+      : Number(raw);
+
+  if (!Number.isFinite(normalized)) return '—';
+
+  const formatted = EUR.format(normalized).replace(/[\u00A0\u202F]/g, ' ').trim();
+  return formatted.includes('€') ? formatted : `${formatted} €`;
+};
 
 const makeTwoLineHeader = (line1: string, line2: string) => {
   const HeaderComponent = () => (
@@ -146,21 +162,23 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
   { id: 'id', header: 'ID', accessorFn: getId ,meta: { minWidth: 90, maxWidth: 110, align: 'center', alignHeader: 'center'},},
   { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: { minWidth: 110, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200 }, },
   { id: 'tienda', header: 'Tienda', accessorFn: (r: { tienda?: { nombre?: string } }) => r.tienda?.nombre || '—',meta: { minWidth: 100, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200}, },
-  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: { minWidth: 130, maxWidth: 250, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 250},},
+  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: { minWidth: 130, maxWidth: 250, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 250},
+
+},
   { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: { minWidth: 140, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200},},
   {
     id: 'fecha_creacion',
     header: 'Fecha',
     accessorKey: 'fecha_creacion',
-    meta: { minWidth: 100, maxWidth: 130, align: 'center', alignHeader: 'center', nowrapHeader: true },
+    meta: { minWidth: 110, maxWidth: 130, align: 'center', alignHeader: 'center', nowrapHeader: true },
     cell: ({ getValue }) => new Date(String(getValue())).toLocaleDateString()
   },
   {
     id: 'valoracion_partner',
     header: makeTwoLineHeader('Valoración', 'partner'),
     meta: {
-      minWidth: 80,
-      maxWidth: 90,
+      minWidth: 140,
+      maxWidth: 200,
       align: 'center',
       alignHeader: 'center',
     },
@@ -173,8 +191,8 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
     id: 'valoracion_final',
     header: makeTwoLineHeader('Valoración', 'final'),
     meta: {
-      minWidth: 80,
-      maxWidth: 90,
+      minWidth: 150,
+      maxWidth: 180,
       align: 'center',
       alignHeader: 'center',
     },
@@ -183,7 +201,7 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
       return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
     },
   },
-  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: { minWidth: 150, maxWidth: 220, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 220}, },
+  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: { minWidth: 250, maxWidth: 260, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 220}, },
   {
     id: 'estado',
     header: 'Estado',
@@ -209,10 +227,21 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
   { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
   { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
   
-  { id: 'cliente', header: 'Cliente', meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 280,},accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()},
+  { 
+    id: 'cliente',
+    header: 'Cliente', 
+    meta: { 
+            minWidth: 200, 
+            align: 'center',
+            alignHeader: 'center',
+            ellipsis: true,
+            ellipsisMaxWidth: 280,
+          },
+    accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
+  },
   {
   id: 'valoracion',
-  header: 'Valoración orientativa',
+  header: 'Val. orientativa',
   accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
     (r.dispositivos ?? []).reduce(
       (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
@@ -223,8 +252,8 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
   meta: {
     label: 'Valoración orientativa',
     minWidth: 120,
-    align: 'right',
-    alignHeader: 'right',
+    align: 'center',
+    alignHeader: 'center',
     headerMaxWidth: 140,
     // CSV crudo (número):
     toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
@@ -245,8 +274,8 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     meta: {
       label: 'Valoración final',
       minWidth: 120,
-      align: 'right',
-      alignHeader: 'right',
+      align: 'center',
+      alignHeader: 'center',
       headerMaxWidth: 140,
       toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     },
@@ -262,6 +291,7 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     meta: {
       minWidth: 100,
       align: 'center',
+      alignHeader: 'center',
       toCSV: (value: unknown /*, row */) => {
         const d = value instanceof Date ? value : value ? new Date(String(value)) : null
         return d ? d.toISOString() : ''
@@ -275,7 +305,7 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
   },
   {
     id: 'seguimiento',
-    header: 'Número de seguimiento',
+    header: 'N de seguimiento',
     accessorKey: 'numero_seguimiento',
     meta: {
       align: 'right',
@@ -292,11 +322,12 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     accessorKey: 'estado',                 // <- clave para que row.getValue('estado') funcione
     meta: {
       label: 'Estado',
-      align: 'right',
+      align: 'center',
+      alignHeader: 'center',
       toCSV: (value: unknown /*, row */) =>
         typeof value === 'string' ? value : value == null ? '' : String(value),
       minWidth: 100,
-      maxWidth: 200,
+      maxWidth: 150,
     },
     cell: ({ getValue }) => {
       const estado = (getValue<string>() ?? '').trim();
@@ -318,25 +349,31 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
 ]
 
 export const columnasDispositivosReales: ColumnDef<GenericRow>[] = [
-  { id: 'modelo', header: 'Modelo', accessorFn: (row: { modelo?: string }) => row.modelo || '—' },
-  { id: 'capacidad', header: 'Capacidad', accessorFn: (row: { capacidad?: string }) => row.capacidad || '—' },
-  { id: 'imei', header: 'IMEI', accessorFn: (row: { imei?: string }) => row.imei || '—' },
-  { id: 'numero_serie', header: 'Nº Serie', accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—' },
-  { id: 'estado_fisico', header: 'Estado físico', accessorFn: (row: { estado_fisico?: string }) => formatoBonito(row.estado_fisico) || '—' },
-  { id: 'estado_funcional', header: 'Estado funcional', accessorFn: (row: { estado_funcional?: string }) => formatoBonito(row.estado_funcional) || '—' },
-  { id: 'estado_valoracion', header: 'Valoración', accessorFn: (row: { estado_valoracion?: string }) => row.estado_valoracion || '—' },
-  {
-    id: 'precio_final',
-    header: 'Precio recompra',
-    cell: ({ row }) => {
-      const valor = Number((row.original as { precio_final?: unknown }).precio_final ?? 0);
-      return (
-        <Box textAlign="right">
-          {valor > 0 ? valor.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: true }) + ' €' : ''}
-        </Box>
-      );
-    },
+  { id: 'modelo', header: 'Modelo', accessorFn: (row: { modelo?: string }) => row.modelo || '—',
+    meta: { minWidth: 200,maxWidth:450, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 370,},  },
+  { id: 'capacidad', header: 'Capacidad', accessorFn: (row: { capacidad?: string }) => row.capacidad || '—',
+   meta: { minWidth: 150,maxWidth:150, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 120,},  },
+  { id: 'imei', header: 'IMEI', accessorFn: (row: { imei?: string }) => row.imei || '—',
+   meta: { minWidth: 150,maxWidth:250, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 240,},  },
+  { id: 'numero_serie', header: 'Nº Serie', accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—',
+   meta: { minWidth: 150,maxWidth:250, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 240,},  },
+  { id: 'estado_fisico', header: 'Estado físico', accessorFn: (row: { estado_fisico?: string }) => formatoBonito(row.estado_fisico) || '—',
+   meta: { minWidth: 150,maxWidth:160, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 140,},  },
+  { id: 'estado_funcional', header: 'Estado funcional', accessorFn: (row: { estado_funcional?: string }) => formatoBonito(row.estado_funcional) || '—',
+   meta: { minWidth: 150,maxWidth:200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 190,},  },
+  { id: 'estado_valoracion', header: 'Valoración', accessorFn: (row: { estado_valoracion?: string }) => row.estado_valoracion || '—',
+   meta: { minWidth: 150,maxWidth:150, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 130,},  },
+ {
+  id: 'precio_final',
+  header: 'Precio recompra',
+  accessorFn: (row: any) => {
+    const n = Number(row?.precio_final);
+    if (!Number.isFinite(n)) return '—';
+    return EUR.format(n).replace('\u00A0€', ' €');
   },
+  meta: { minWidth: 160, maxWidth: 220, align: 'center', alignHeader: 'center' },
+},
+
   {
     id: 'fecha_recepcion',
     header: 'Fecha recepción',
@@ -361,7 +398,8 @@ export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { co
     // Nombre visible unificado
     { id: "display_name", header: "Nombre", accessorFn: (row: T) => toDisplayName(row as unknown as ClienteLike) || "",
       // Activamos ellipsis por meta para que la tabla gestione el recorte y tooltip
-      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 240 } as any,
+      meta: { minWidth: 190, ellipsis: true, ellipsisMaxWidth: 230,align: 'center',
+      alignHeader: 'center', } as any,
     },
 
     // Identificador fiscal unificado
@@ -370,10 +408,12 @@ export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { co
       return r.identificador_fiscal || r.cif || r.nif || r.dni_nie || "—"
     },
       cell: ({ getValue }) => mayus(getValue() as string),
-      meta: { minWidth: 120, ellipsis: true, ellipsisMaxWidth: 140 } as any },
+      meta: { minWidth: 120, ellipsis: true, ellipsisMaxWidth: 140,align: 'center',
+      alignHeader: 'center', } as any },
 
     // Tipo y canal (útiles para filtrar)
-    { id: "tipo_cliente", header: "Tipo", accessorFn: (row: T) => formatoBonito((row as unknown as ClienteLike).tipo_cliente), meta: { minWidth: 110, ellipsis: true, ellipsisMaxWidth: 130 } as any },   // empresa | autonomo | particular
+    { id: "tipo_cliente", header: "Tipo", accessorFn: (row: T) => formatoBonito((row as unknown as ClienteLike).tipo_cliente), meta: { minWidth: 110, ellipsis: true, ellipsisMaxWidth: 130,align: 'center',
+      alignHeader: 'center', } as any },   // empresa | autonomo | particular
   
     // Contacto (solo empresas; en B2C muestra —)
     { id: "contacto", header: "Contacto",
@@ -381,40 +421,47 @@ export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { co
         const r = row as unknown as ClienteLike
         return r.tipo_cliente === "empresa" ? (r.contacto || "—") : "—"
       },
-      meta: { minWidth: 160, ellipsis: true, ellipsisMaxWidth: 180 } as any },
+      meta: { minWidth: 160, ellipsis: true, ellipsisMaxWidth: 180,align: 'center',
+      alignHeader: 'center', } as any },
     { id: "posicion", header: "Posición",
       accessorFn: (row: T) => {
         const r = row as unknown as ClienteLike
         return r.tipo_cliente === "empresa" ? (r.posicion || "—") : "—"
       },
-      meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
+      meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,align: 'center',
+      alignHeader: 'center', } as any },
 
     // Comunicación
-    { id: "correo", header: "Correo", accessorFn: (row: T) => (row as unknown as ClienteLike).correo || "—", meta: { minWidth: 220, ellipsis: true, ellipsisMaxWidth: 240 } as any },
-    { id: "telefono", header: "Teléfono", accessorFn: (row: T) => formatoTel((row as unknown as ClienteLike).telefono), meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 130, ellipsis: true, ellipsisMaxWidth: 140 } as any },
+    { id: "correo", header: "Correo", accessorFn: (row: T) => (row as unknown as ClienteLike).correo || "—", meta: { minWidth: 190, ellipsis: true, ellipsisMaxWidth: 230,align: 'center',
+      alignHeader: 'center', } as any },
+    { id: "telefono", header: "Teléfono", accessorFn: (row: T) => formatoTel((row as unknown as ClienteLike).telefono), meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 130, ellipsis: true, ellipsisMaxWidth: 140,align: 'center',
+      alignHeader: 'center', } as any },
 
     // Tienda
-    { id: "tienda_nombre", header: "Tienda", accessorFn: (row: T) => (row as unknown as ClienteLike).tienda_nombre ?? "—", meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
+    { id: "tienda_nombre", header: "Tienda", accessorFn: (row: T) => (row as unknown as ClienteLike).tienda_nombre ?? "—", meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,align: 'center',
+      alignHeader: 'center', } as any },
 
     // Oportunidades / Valor total
-    { id: "n_oportunidades", header: "Oportunidades",
+    { id: "n_oportunidades", header: "OP",
       accessorKey: "oportunidades_count",
       cell: ({ getValue }) => getValue() ?? 0,
       meta: {
         headerMaxWidth: 120,
-        align: 'right',
+        align: 'center',
         alignHeader: 'center',
         nowrapHeader: true,
-        minWidth: 130,
+        minWidth: 100,
         ellipsis: true,
         ellipsisMaxWidth: 130,
+        
       } as any },
       
 
     { id: "valor_total", header: "Valor total",
       accessorKey: "valor_total_final",
       cell: ({ getValue }) => eur(Number(getValue() || 0)),
-      meta: { headerMaxWidth: 110,align: "center", nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160 } as any },
+      meta: { headerMaxWidth: 110,align: "center", nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,
+        alignHeader: 'center', } as any },
   ];
 
   return { columnas, zoom: 1 };
@@ -595,3 +642,142 @@ export function getColumnasAuditoria({
     zoom: 0.82, // 👈 escala visual para esta tabla
   };
 }
+
+export const columnasOperaciones: ColumnDef<GenericRow>[] = [
+  { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 80,maxWidth: 130, align: 'center', alignHeader: 'center'}, },
+  {
+    id: 'comercial',
+    header: 'Comercial',
+    accessorFn: (r: { usuario_info?: { name?: string; } }) => r.usuario_info?.name || '—',
+    meta: {
+      align: 'center',
+      minWidth: 100,
+      maxWidth: 220,
+      alignHeader: 'center',
+      ellipsis: true,
+      ellipsisMaxWidth: 180,
+    },
+  },
+  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 100,maxWidth: 220, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
+  
+  { 
+    id: 'cliente',
+    header: 'Cliente', 
+    meta: { 
+            minWidth: 200, 
+            maxWidth: 220,
+            align: 'center',
+            alignHeader: 'center',
+            ellipsis: true,
+            ellipsisMaxWidth: 230,
+          },
+    accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
+  },
+  {
+  id: 'valoracion',
+  header: 'Val. orientativa',
+  accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
+    (r.dispositivos ?? []).reduce(
+      (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
+      0
+    ),
+  sortingFn: (a, b, id) =>
+    Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
+  meta: {
+    label: 'Valoración orientativa',
+    minWidth: 120,
+    align: 'center',
+    alignHeader: 'center',
+    headerMaxWidth: 140,
+    // CSV crudo (número):
+    toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
+    // Si prefieres exportar formateado:
+    // toCSV: (v: number) => formatoMoneda(v ?? 0),
+  },
+  cell: ({ getValue }) => {
+    const total = Number(getValue<number>() ?? 0);
+    return total > 0 ? formatoMoneda(total) : '—';
+  },
+  },
+  {
+    id: 'valoracion_final',
+    header: 'Valoración final',
+    accessorFn: (r: { valor_total_final?: unknown }) => Number(r.valor_total_final ?? 0),
+    sortingFn: (a, b, id) =>
+      Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
+    meta: {
+      label: 'Valoración final',
+      minWidth: 120,
+      align: 'center',
+      alignHeader: 'center',
+      headerMaxWidth: 140,
+      toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
+    },
+    cell: ({ getValue }) => {
+      const valor = Number(getValue<number>() ?? 0);
+      return valor > 0 ? formatoMoneda(valor) : '—';
+    },
+  },
+  {
+    id: 'fecha_creacion',
+    header: 'Fecha',
+    accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
+    meta: {
+      minWidth: 100,
+      align: 'center',
+      alignHeader: 'center',
+      toCSV: (value: unknown /*, row */) => {
+        const d = value instanceof Date ? value : value ? new Date(String(value)) : null
+        return d ? d.toISOString() : ''
+      },
+    },
+    cell: ({ getValue }) => {
+      const v = getValue<Date | string | number | null>()
+      const d = v instanceof Date ? v : v ? new Date(v) : null
+      return d ? d.toLocaleDateString('es-ES') : '—'
+    },
+  },
+  {
+    id: 'seguimiento',
+    header: 'N de seguimiento',
+    accessorKey: 'numero_seguimiento',
+    meta: {
+      align: 'center',
+      minWidth: 100,
+      maxWidth: 200,
+      alignHeader: 'center',
+      ellipsis: true,
+      ellipsisMaxWidth: 180,
+    },
+  },
+  {
+    id: 'estado',
+    header: 'Estado',
+    accessorKey: 'estado',                 // <- clave para que row.getValue('estado') funcione
+    meta: {
+      label: 'Estado',
+      align: 'center',
+      alignHeader: 'center',
+      toCSV: (value: unknown /*, row */) =>
+        typeof value === 'string' ? value : value == null ? '' : String(value),
+      minWidth: 100,
+      maxWidth: 150,
+    },
+    cell: ({ getValue }) => {
+      const estado = (getValue<string>() ?? '').trim();
+      const meta = ESTADOS_B2B[estado] || {};
+      const Icono = meta.icon;
+
+      const label = ESTADO_LABEL_OVERRIDES[estado] || estado || '—'
+      return (
+        <Chip
+          label={label}
+          icon={Icono ? <Icono fontSize="small" /> : undefined}
+          color={meta.color || 'default'}
+          size="small"
+          sx={{ fontWeight: 500 }}
+        />
+      );
+    },
+  },
+]

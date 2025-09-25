@@ -306,3 +306,4 @@ class ObjetivoResumenAPIView(APIView):
             )
 
         return Response(results)
+

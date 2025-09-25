@@ -1,3 +1,5 @@
+import math
+
 from rest_framework import viewsets, serializers, status
 from rest_framework import generics, permissions
 from rest_framework.decorators import action
@@ -8,6 +10,7 @@ from django.db import transaction
 from django_tenants.utils import schema_context
 from checkouters.mixins import SchemaAwareCreateMixin
 import re
+from rest_framework.pagination import PageNumberPagination
 
 from ..models.oportunidad import Oportunidad, HistorialOportunidad,ComentarioOportunidad
 from ..models.dispositivo import Dispositivo, DispositivoReal
@@ -20,8 +23,56 @@ from progeek.utils import enviar_correo
 UUID_REGEX = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 NUM_REGEX = re.compile(r"^\d+$")
 
+
+
+
 class OportunidadViewSet(viewsets.ModelViewSet):
     serializer_class = OportunidadSerializer
+    tanstack_page_index_param = "pageIndex"
+    tanstack_page_size_param = "pageSize"
+
+    def list(self, request, *args, **kwargs):
+        page_index_raw = request.query_params.get(self.tanstack_page_index_param)
+        page_size_raw = request.query_params.get(self.tanstack_page_size_param)
+
+        if page_index_raw is not None or page_size_raw is not None:
+            queryset = self.filter_queryset(self.get_queryset())
+
+            try:
+                page_index = max(0, int(page_index_raw)) if page_index_raw is not None else 0
+            except (TypeError, ValueError):
+                page_index = 0
+
+            default_page_size = getattr(self.pagination_class, 'page_size', None) or 20
+            try:
+                requested_page_size = int(page_size_raw) if page_size_raw is not None else default_page_size
+            except (TypeError, ValueError):
+                requested_page_size = default_page_size
+
+            page_size = max(1, requested_page_size)
+            max_page_size = getattr(self.pagination_class, 'max_page_size', None)
+            if max_page_size is not None:
+                page_size = min(page_size, max_page_size)
+
+            total = queryset.count()
+            start = page_index * page_size
+            end = start + page_size
+            page_queryset = queryset[start:end]
+
+            serializer = self.get_serializer(page_queryset, many=True)
+            page_count = math.ceil(total / page_size) if page_size else 0
+
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pageIndex": page_index,
+                    "pageSize": page_size,
+                    "total": total,
+                    "pageCount": page_count,
+                }
+            )
+
+        return super().list(request, *args, **kwargs)
 
     def get_object(self):
         lookup_value = self.kwargs.get(self.lookup_field)

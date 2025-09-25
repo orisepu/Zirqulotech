@@ -10,14 +10,14 @@ import {
   Popover,
   TextField,
   Button,
-  Grid,
+  Grid,InputAdornment,
 } from "@mui/material";
 import TuneIcon from "@mui/icons-material/Tune";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import TablaReactiva from "@/components/TablaReactiva2";
-import { columnasTenant } from "@/components/TablaColumnas2";
+import { columnasOperaciones } from "@/components/TablaColumnas2";
 import { ESTADOS_B2B, ESTADOS_OPERACIONEPARTNER } from "@/context/estados";
 import api from "@/services/api";
 import { getIdlink } from "@/utils/id";
@@ -26,7 +26,7 @@ const ESTADOS_OPERACIONES_DEFAULT = ESTADOS_OPERACIONEPARTNER;
 
 export default function OperacionesTenantPage() {
   const router = useRouter();
-  const columnas = columnasTenant;
+  const columnas = columnasOperaciones;
 
   const estadosOperacionesSet = useMemo(
     () => new Set(ESTADOS_OPERACIONES_DEFAULT.map((estado) => estado.toLowerCase())),
@@ -82,13 +82,13 @@ export default function OperacionesTenantPage() {
     setFechaFin("");
     refetch();
   };
-
+  const CONTROL_H = (theme: any) => theme.spacing(6.2);
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
         Operaciones
       </Typography>
-
+      
       <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, sm: 3 }}>
           <TextField
@@ -96,20 +96,35 @@ export default function OperacionesTenantPage() {
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             fullWidth
+            size="medium"
+            sx={{ '& .MuiInputBase-root': { height: CONTROL_H } }}
           />
         </Grid>
-
         <Grid size={{ xs: 12, sm: 3 }}>
-          <Button
-            variant="outlined"
+          <TextField
+            label="Estados"
+            value={estado.length ? `${estado.length} estado(s)` : ''}
+            placeholder="Estados"
             onClick={handleOpenPopover}
             fullWidth
-            endIcon={<TuneIcon />}
-            sx={{ height: "57px", justifyContent: "space-between", px: 2 }}
-          >
-            {estado.length > 0 ? `${estado.length} estado(s)` : "Estados"}
-          </Button>
-
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <TuneIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              cursor: 'pointer',
+              '& .MuiInputBase-root': { height: CONTROL_H },
+              '& .MuiInputBase-input': { cursor: 'pointer' },
+            }}
+            // accesibilidad: abre con Enter/Espacio
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') handleOpenPopover(e as any)
+            }}
+          />
           <Popover
             open={estadoPopoverOpen}
             anchorEl={estadoAnchorEl}
@@ -130,6 +145,7 @@ export default function OperacionesTenantPage() {
                     key={estadoKey}
                     label={estadoKey}
                     size="small"
+                    variant={selected ? 'filled' : 'outlined'}
                     color={meta.color}
                     icon={Icono ? <Icono fontSize="small" /> : undefined}
                     onClick={() => {
@@ -140,11 +156,7 @@ export default function OperacionesTenantPage() {
                       );
                     }}
                     sx={{
-                      cursor: "pointer",
-                      opacity: selected ? 1 : 0.5,
-                      border: selected ? "2px solid" : "1px solid",
-                      borderColor: selected ? "primary.main" : "divider",
-                    }}
+                      cursor: "pointer",}}
                   />
                 );
               })}
@@ -158,7 +170,6 @@ export default function OperacionesTenantPage() {
             )}
           </Popover>
         </Grid>
-
         <Grid size={{ xs: 12, sm: 2 }}>
           <TextField
             label="Desde"
@@ -167,6 +178,7 @@ export default function OperacionesTenantPage() {
             onChange={(e) => setFechaInicio(e.target.value)}
             InputLabelProps={{ shrink: true }}
             fullWidth
+ 
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 2 }}>

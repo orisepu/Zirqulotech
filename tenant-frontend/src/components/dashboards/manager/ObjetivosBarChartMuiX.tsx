@@ -5,10 +5,17 @@ import { Card, CardHeader, CardContent, Box, CircularProgress, Typography, Stack
 import { useTheme, alpha } from '@mui/material/styles'
 import { BarChart } from '@mui/x-charts/BarChart'
 
+/* ==========================
+ * Constantes
+ * ========================== */
 const CARD_HEIGHT = 360
 const CHART_HEIGHT = 220
 const BAR_RADIUS = 15
+const MAX_PCT = 130
 
+/* ==========================
+ * Tipos
+ * ========================== */
 export type ObjetivoUsuarioDetalle = {
   id: number
   nombre: string
@@ -56,11 +63,60 @@ type ChartRow = {
   segments: Segment[]
 }
 
+/* ==========================
+ * Utils
+ * ========================== */
+const clampPct = (n: number) => Math.max(0, Math.min(MAX_PCT, n))
 const percentFormatter = (value: number | null) => `${Math.round(value ?? 0)}%`
 
+function Fallback({ message, minHeight = CHART_HEIGHT }: { message: string; minHeight?: number }) {
+  return (
+    <Box
+      sx={{
+        minHeight,
+        display: 'grid',
+        placeItems: 'center',
+        textAlign: 'center',
+        color: 'text.secondary',
+        px: 2,
+        flexGrow: 1,
+      }}
+    >
+      <Typography variant="body2">{message}</Typography>
+    </Box>
+  )
+}
+
+/* ==========================
+ * Componente
+ * ========================== */
 export default function ObjetivosBarChartMuiX({ title, rows, loading, enabled, emptyMessage }: Props) {
   const theme = useTheme()
 
+  // Paleta base -> alpha según modo (oscuro/claro)
+  const basePalette = useMemo(() => {
+    const base = [
+      theme.palette.primary.main,
+      theme.palette.secondary.main,
+      theme.palette.accent?.main ?? theme.palette.warning.main,
+      theme.palette.success.main,
+      theme.palette.info.main,
+      theme.palette.error.main,
+    ]
+    const a = theme.palette.mode === 'dark' ? 0.85 : 0.9
+    return base.map((c) => alpha(c, a))
+  }, [theme])
+
+  // Color estable por usuarioId
+  const colorForUser = useCallback(
+    (usuarioId: number) => {
+      const idx = Math.abs(usuarioId) % basePalette.length
+      return basePalette[idx]
+    },
+    [basePalette]
+  )
+
+  // Normalización de datos -> filas del chart, claves de segmentos, etiquetas y dominio superior
   const { chartData, segmentKeys, segmentLabels, upperDomain } = useMemo(() => {
     if (!Array.isArray(rows) || rows.length === 0) {
       return {
@@ -72,24 +128,26 @@ export default function ObjetivosBarChartMuiX({ title, rows, loading, enabled, e
     }
 
     const labels = new Map<string, string>()
+
     const chartRows: ChartRow[] = rows.map((item) => {
-      const porcentaje = Math.max(0, Math.min(130, item.porcentajeValor))
+      const porcentaje = clampPct(Number(item.porcentajeValor || 0))
+
       const segments: Segment[] = Array.isArray(item.usuarios)
         ? item.usuarios
-            .filter((usuario) => usuario && typeof usuario.id === 'number')
-            .map((usuario) => {
-              const valor = Number(usuario.progresoValor || 0)
-              const objetivo = Number(item.objetivoValor || 0)
-              const porcentajeSegmento = objetivo > 0 ? (valor / objetivo) * 100 : 0
-              const key = `usuario_${usuario.id}`
-              labels.set(key, usuario.nombre)
+            .filter((u) => u && typeof u.id === 'number')
+            .map((u) => {
+              const valor = Number(u.progresoValor || 0)
+              const objetivoItem = Number(item.objetivoValor || 0) // objetivo del contenedor (tienda)
+              const pct = objetivoItem > 0 ? clampPct((valor / objetivoItem) * 100) : 0
+              const key = `usuario_${u.id}`
+              labels.set(key, u.nombre)
               return {
                 key,
-                usuarioId: usuario.id,
-                nombre: usuario.nombre,
-                porcentaje: Math.max(0, Math.min(130, porcentajeSegmento)),
+                usuarioId: u.id,
+                nombre: u.nombre,
+                porcentaje: pct,
                 valor,
-                objetivoValor: Number(usuario.objetivoValor || 0),
+                objetivoValor: Number(u.objetivoValor || 0), // por si en el futuro se muestra
               }
             })
         : []
@@ -106,64 +164,42 @@ export default function ObjetivosBarChartMuiX({ title, rows, loading, enabled, e
     })
 
     const segmentKeySet = new Set<string>()
-    for (const row of chartRows) {
-      for (const segment of row.segments) {
-        segmentKeySet.add(segment.key)
-      }
-    }
+    for (const row of chartRows) for (const seg of row.segments) segmentKeySet.add(seg.key)
 
     const maxPercentage = chartRows.reduce((acc, row) => Math.max(acc, row.porcentaje), 0)
-    const upperDomain = maxPercentage > 100 ? Math.min(130, Math.ceil(maxPercentage / 5) * 5) : 100
+    const upper = maxPercentage > 100 ? Math.min(MAX_PCT, Math.ceil(maxPercentage / 5) * 5) : 100
 
     return {
       chartData: chartRows,
       segmentKeys: Array.from(segmentKeySet),
       segmentLabels: labels,
-      upperDomain,
+      upperDomain: upper,
     }
   }, [rows])
 
-  const colorPalette = useMemo(() => {
-    const base = [
-      theme.palette.primary.main,
-      theme.palette.secondary.main,
-      theme.palette.accent?.main ?? theme.palette.warning.main,
-      theme.palette.success.main,
-      theme.palette.info.main,
-      theme.palette.error.main,
-    ]
-    return base.map((color) => alpha(color, theme.palette.mode === 'dark' ? 0.85 : 0.9))
-  }, [theme])
-
-  const colorForIndex = useCallback((index: number) => colorPalette[index % colorPalette.length], [colorPalette])
-
-  const colorByKey = useMemo(() => {
-    const map = new Map<string, string>()
-    segmentKeys.forEach((key, index) => {
-      map.set(key, colorForIndex(index))
-    })
-    return map
-  }, [segmentKeys, colorForIndex])
-
   const isStacked = segmentKeys.length > 0
-
   const categories = useMemo(() => chartData.map((row) => row.label), [chartData])
 
+  // Series para x-charts (stack de usuarios o única serie total)
   const series = useMemo(() => {
     if (chartData.length === 0) return []
 
     if (isStacked) {
       return segmentKeys.map((key, index) => {
         const label = segmentLabels.get(key) ?? `Segmento ${index + 1}`
+        // Encuentra el usuarioId en cualquier fila (todas comparten el mismo key pattern)
+        const sampleSeg = chartData.find((r) => r.segments.some((s) => s.key === key))?.segments.find((s) => s.key === key)
+        const color = sampleSeg ? colorForUser(sampleSeg.usuarioId) : undefined
+
         return {
           id: key,
           label,
           stack: 'usuarios',
-          color: colorByKey.get(key) ?? colorForIndex(index),
+          color,
           valueFormatter: percentFormatter,
           data: chartData.map((row) => {
-            const segment = row.segments.find((seg) => seg.key === key)
-            return segment ? Number(segment.porcentaje) : 0
+            const seg = row.segments.find((s) => s.key === key)
+            return seg ? Number(seg.porcentaje) : 0
           }),
         }
       })
@@ -173,27 +209,44 @@ export default function ObjetivosBarChartMuiX({ title, rows, loading, enabled, e
       {
         id: 'porcentaje_total',
         label: 'Porcentaje alcanzado',
-        color: colorForIndex(0),
+        color: colorForUser(0),
         valueFormatter: percentFormatter,
         data: chartData.map((row) => Number(row.porcentaje)),
       },
     ]
-  }, [chartData, isStacked, segmentKeys, segmentLabels, colorByKey, colorForIndex])
+  }, [chartData, isStacked, segmentKeys, segmentLabels, colorForUser])
 
-  const chartHeight = CHART_HEIGHT
+  // Helpers de configuración del chart
+  const mkXAxis = useCallback(
+    () => [
+      {
+        id: 'tiendas',
+        data: categories,
+        scaleType: 'band' as const,
+        tickLabelStyle: { fontSize: 12, fontWeight: 600 },
+        tickLabelInterval: 'auto' as const,
+        slotProps: {
+          axisTickLabel: {
+            textAnchor: 'end' as const,
+            dx: -8,
+          },
+        },
+      },
+    ],
+    [categories]
+  )
 
-  const renderFallback = (message: string) => (
-    <Box sx={{
-      minHeight: chartHeight,
-      display: 'grid',
-      placeItems: 'center',
-      textAlign: 'center',
-      color: 'text.secondary',
-      px: 2,
-      flexGrow: 1,
-    }}>
-      <Typography variant="body2">{message}</Typography>
-    </Box>
+  const mkYAxis = useCallback(
+    () => [
+      {
+        id: 'porcentaje',
+        min: 0,
+        max: upperDomain,
+        tickLabelStyle: { fontSize: 12 },
+        valueFormatter: percentFormatter,
+      },
+    ],
+    [upperDomain]
   )
 
   return (
@@ -214,53 +267,29 @@ export default function ObjetivosBarChartMuiX({ title, rows, loading, enabled, e
       />
       <CardContent sx={{ px: 3, pt: 1.5, pb: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         {!enabled ? (
-          renderFallback('Selecciona un periodo mensual o trimestral para visualizar los objetivos.')
+          <Fallback message="Selecciona un periodo mensual o trimestral para visualizar los objetivos." />
         ) : loading ? (
-          <Box sx={{ minHeight: chartHeight, display: 'grid', placeItems: 'center', color: 'text.secondary', flexGrow: 1 }}>
+          <Box sx={{ minHeight: CHART_HEIGHT, display: 'grid', placeItems: 'center', color: 'text.secondary', flexGrow: 1 }}>
             <Stack spacing={1} alignItems="center">
               <CircularProgress size={28} thickness={4} />
               <Typography variant="body2">Cargando objetivos…</Typography>
             </Stack>
           </Box>
         ) : chartData.length === 0 ? (
-          renderFallback(emptyMessage)
+          <Fallback message={emptyMessage} />
         ) : (
-          <Box sx={{ width: '100%', height: chartHeight, flexGrow: 1 }}>
+          <Box sx={{ width: '100%', height: CHART_HEIGHT, flexGrow: 1 }}>
             <BarChart
               series={series}
-              xAxis={[{
-                id: 'tiendas',
-                data: categories,
-                scaleType: 'band',
-                tickLabelStyle: { fontSize: 12, fontWeight: 600 },
-                tickLabelInterval: 0,
-                slotProps: {
-                  axisTickLabel: {
-                    angle: -20,
-                    textAnchor: 'end',
-                    dominantBaseline: 'middle',
-                    dx: -8,
-                  },
-                },
-              }]}
-              yAxis={[{
-                id: 'porcentaje',
-                min: 0,
-                max: upperDomain,
-                tickLabelStyle: { fontSize: 12 },
-                valueFormatter: percentFormatter,
-              }]}
-              height={chartHeight}
+              xAxis={mkXAxis()}
+              yAxis={mkYAxis()}
+              height={CHART_HEIGHT}
               borderRadius={BAR_RADIUS}
               barLabel={isStacked ? undefined : ({ value }) => (value != null ? percentFormatter(value) : null)}
               margin={{ top: 24, right: 16, bottom: 44, left: 36 }}
               grid={{ horizontal: true, vertical: false }}
               hideLegend={!isStacked}
-              slotProps={{
-                tooltip: {
-                  trigger: 'item',
-                },
-              }}
+              slotProps={{ tooltip: { trigger: 'item' } }}
             />
           </Box>
         )}

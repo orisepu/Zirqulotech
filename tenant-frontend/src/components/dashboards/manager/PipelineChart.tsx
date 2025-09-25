@@ -21,7 +21,8 @@ export default function PipelineChart({ data }: { data: Row[] }) {
   const normalized = useMemo(() => {
     const acc = new Map<string, Row>()
     for (const item of data || []) {
-      const estado = (item?.estado ?? '').toString() || 'Sin estado'
+      const estadoNormalized = (item?.estado ?? '').toString().trim()
+      const estado = estadoNormalized || 'Sin estado'
       const existing = acc.get(estado)
       const count = Number(item?.count || 0)
       const valor = Number(item?.valor || 0)
@@ -55,7 +56,12 @@ export default function PipelineChart({ data }: { data: Row[] }) {
     ] as const
     if (!normalized.length) return []
     const byOrder = new Map<string, number>(ORDER.map((e, i) => [e, i]))
-    return [...normalized].sort((a, b) => (byOrder.get(a.estado) ?? 999) - (byOrder.get(b.estado) ?? 999))
+    return [...normalized].sort((a, b) => {
+      const rankA = byOrder.get(a.estado) ?? 999
+      const rankB = byOrder.get(b.estado) ?? 999
+      if (rankA === rankB) return a.estado.localeCompare(b.estado)
+      return rankA - rankB
+    })
   }, [normalized])
   const labelFormatter = useCallback(
     (label: number | null) => {
@@ -119,36 +125,38 @@ export default function PipelineChart({ data }: { data: Row[] }) {
               xAxis={[{
                 scaleType: 'band',
                 dataKey: 'estado',
-                tickLabelStyle: { fontSize: 12 },
+                tickLabelStyle: { fontSize: 10 },
+                tickLabelInterval: () => true,
                 slotProps: {
                   axisTickLabel: {
-                    angle: -15,
                     textAnchor: 'end',
-                    dx: -6,
-                    dy: 8,
+                    dx: -4,
+                    dy: 6,
                   },
                 },
               }]}
               yAxis={[{
                 tickLabelStyle: { fontSize: 12 },
-                valueFormatter: (value) => yTickFormatter(typeof value === 'number' ? value : Number(value ?? 0)),
+                valueFormatter: (value: number) => yTickFormatter(typeof value === 'number' ? value : Number(value ?? 0)),
               }]}
               series={[{
                 id: metric,
                 dataKey: metric,
                 color: alpha(theme.palette.primary.main, 0.85),
-                highlightScope: { faded: 'global', highlighted: 'item' },
+                highlightScope: { fade: 'global', highlight: 'item' },
                 valueFormatter,
-                barLabel: showLabels
-                  ? (params) => {
-                      const numeric = typeof params.value === 'number' ? params.value : Number(params.value ?? 0)
-                      return labelFormatter(numeric)
-                    }
-                  : undefined,
+                
               }]}
               height={320}
               margin={{ top: 16, right: 24, bottom: 40, left: 24 }}
               grid={{ horizontal: true, vertical: false }}
+              barLabel= { 
+                showLabels
+                  ? (params: { value: number | null }) => { 
+                    const v = typeof params.value === 'number' ? params.value : Number(params.value ?? 0)
+                    return labelFormatter(v)
+                  }
+                  : undefined}
               borderRadius={6}
               slotProps={{
                 tooltip: {

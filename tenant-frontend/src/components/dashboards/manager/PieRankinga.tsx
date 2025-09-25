@@ -109,8 +109,8 @@ export default function PieRanking({
   const builtInLegendProps = (() => {
     if (!legendEnabled || useCustomLegend) return undefined
     return {
-      direction: 'row' as const,
-      position: { vertical: 'bottom' as const, horizontal: 'center' as const },
+      direction: 'row',
+      
     }
   })()
 
@@ -149,24 +149,24 @@ export default function PieRanking({
                   series={[{
                     id: 'ranking',
                     data: pieData,
-                    innerRadius: 40,
-                    outerRadius: 90,
+                    innerRadius: 20,
+                    outerRadius: 100,
                     cornerRadius: 5,
                     paddingAngle: 5,
-                    highlightScope: { faded: 'global', highlighted: 'item' },
                     faded: { innerRadius: 40, additionalRadius: -20 },
                     valueFormatter,
-                    arcLabel: (item) => {
-                      const percent = total ? item.value / total : 0
-                      return percent > 0.04 ? `${Math.round(percent * 100)}%` : ''
-                    },
-                    arcLabelMinAngle: 10,
+                    
                   }]}
                   height={chartHeight}
                   margin={{ top: 16, right: 16, bottom: 16, left: 16 }}
                   hideLegend={!builtInLegendProps}
+                  
                   slotProps={{
-                    legend: builtInLegendProps,
+                    legend: builtInLegendProps && {
+                      ...builtInLegendProps,
+                    direction: 'horizontal',
+                    position: { vertical: 'bottom', horizontal: 'center' },
+                    },
                     tooltip: {
                       trigger: 'item',
                     },

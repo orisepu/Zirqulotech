@@ -1,13 +1,13 @@
 'use client'
 
 import {
-  Box, Typography, Paper, Chip, CircularProgress, Autocomplete, Divider,
+  Box, Typography, Paper, Chip, CircularProgress, Autocomplete, Divider,InputAdornment,
   Popover, TextField, Button, Grid, Dialog, DialogTitle, DialogActions, DialogContent
 } from '@mui/material'
 import { useState, useMemo } from 'react'
 import { useQuery,useMutation} from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { ESTADOS_B2B, ESTADOS_OPERACIONESADMIN, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
+import { ESTADOS_B2B, ESTADOS_OPERACIONESADMIN, ESTADO_LABEL_OVERRIDES,ESTADOS_OPERACIONEPARTNER } from '@/context/estados'
 import TuneIcon from '@mui/icons-material/Tune'
 import TablaReactiva from '@/components/TablaReactiva2'
 import OportunidadForm from '@/components/OportunidadForm'
@@ -55,6 +55,7 @@ export default function OportunidadesTenantPage() {
     () => new Set(ESTADOS_OPERACIONESADMIN.map((estado) => estado.toLowerCase())),
     []
   )
+  const ESTADOS_OPERACIONES_DEFAULT = ESTADOS_OPERACIONEPARTNER;
   const queryClient = useQueryClient()
   const router = useRouter()
   const usuario = useUsuarioActual()
@@ -165,6 +166,8 @@ export default function OportunidadesTenantPage() {
     },
     
   });
+    const CONTROL_H = (theme: any) => theme.spacing(6.2);
+
   return (
     <Box >
       <Typography variant="h5" gutterBottom>Oportunidades</Typography>
@@ -175,63 +178,76 @@ export default function OportunidadesTenantPage() {
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             fullWidth
+            size="medium"
+            sx={{ '& .MuiInputBase-root': { height: CONTROL_H } }}
           />
         </Grid>
 
-        <Grid size={{xs: 12, sm:3}}>
-          <Button
-            variant="outlined"
+        <Grid size={{ xs: 12, sm: 3 }}>
+          <TextField
+            label="Estados"
+            value={estado.length ? `${estado.length} estado(s)` : ''}
+            placeholder="Estados"
             onClick={handleOpenPopover}
             fullWidth
-            endIcon={<TuneIcon />}
-            sx={{ height: '57px', justifyContent: 'space-between', px: 2 }}
-          >
-            {estado.length > 0 ? `${estado.length} estado(s)` : 'Estados'}
-          </Button>
-
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <TuneIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              cursor: 'pointer',
+              '& .MuiInputBase-root': { height: CONTROL_H },
+              '& .MuiInputBase-input': { cursor: 'pointer' },
+            }}
+            // accesibilidad: abre con Enter/Espacio
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') handleOpenPopover(e as any)
+            }}
+          />
           <Popover
             open={estadoPopoverOpen}
             anchorEl={estadoAnchorEl}
             onClose={handleClosePopover}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-            PaperProps={{ sx: { p: 2, maxWidth: 555, width: '100%' } }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            PaperProps={{ sx: { p: 2, maxWidth: 420, width: "100%" } }}
           >
             <Typography variant="subtitle2" gutterBottom>
               Filtrar por estado
             </Typography>
             <Box display="flex" flexWrap="wrap" gap={1}>
-              {Object.entries(ESTADOS_B2B)
-              .filter(([estadoKey]) => !ESTADOS_OPERACIONES_SET.has(estadoKey.toLowerCase()))
-              .map(([estadoKey, meta]) => {
-                const Icono = meta.icon
-                const selected = estado.includes(estadoKey)
-                const displayLabel = ESTADO_LABEL_OVERRIDES[estadoKey] || estadoKey
+              {ESTADOS_OPERACIONES_DEFAULT.map((estadoKey) => {
+                const meta = ESTADOS_B2B[estadoKey] || { color: "default" };
+                const Icono = meta.icon;
+                const selected = estado.includes(estadoKey);
                 return (
                   <Chip
                     key={estadoKey}
-                    label={displayLabel}
+                    label={estadoKey}
                     size="small"
+                    variant={selected ? 'filled' : 'outlined'}
                     color={meta.color}
                     icon={Icono ? <Icono fontSize="small" /> : undefined}
                     onClick={() => {
                       setEstado((prev) =>
-                        selected ? prev.filter((e) => e !== estadoKey) : [...prev, estadoKey]
-                      )
+                        selected
+                          ? prev.filter((e) => e !== estadoKey)
+                          : [...prev, estadoKey]
+                      );
                     }}
                     sx={{
-                      cursor: 'pointer',
-                      opacity: selected ? 1 : 0.5,
-                      border: selected ? '2px solid' : '1px solid',
-                      borderColor: selected ? 'primary.main' : 'divider',
-                    }}
+                      cursor: "pointer",}}
                   />
-                )
+                );
               })}
             </Box>
-            {estado.length > 0 && (
+            {estado.length !== ESTADOS_OPERACIONES_DEFAULT.length && (
               <Box mt={2} display="flex" justifyContent="flex-end">
-                <Button size="small" onClick={() => setEstado([])}>
-                  Limpiar
+                <Button size="small" onClick={() => setEstado([...ESTADOS_OPERACIONES_DEFAULT])}>
+                  Mostrar todos
                 </Button>
               </Box>
             )}

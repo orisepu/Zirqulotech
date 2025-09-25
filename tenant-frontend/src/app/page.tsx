@@ -36,7 +36,7 @@ export default function HomePage() {
       {/* NAVBAR */}
       <AppBar position="sticky" color="transparent" elevation={0}>
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight={700}>Progeek</Typography>
+          <Typography variant="h6" fontWeight={700}>Zirqulo</Typography>
           <Box>
             <Button component={Link} href="/login" color="primary">Login</Button>
             <Button variant="contained" color="primary" onClick={() => setOpen(true)}>
@@ -243,7 +243,7 @@ export default function HomePage() {
 
           <Divider sx={{ my: 6 }} />
           <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
-            © {new Date().getFullYear()} Progeek S.L · Todos los derechos reservados
+            © {new Date().getFullYear()} Zirqulo S.L · Todos los derechos reservados
           </Typography>
         </Container>
       </Box>
