@@ -35,7 +35,7 @@ import BrushIcon from '@mui/icons-material/Brush'
 import DevicesIcon from '@mui/icons-material/Devices'
 import EuroIcon from '@mui/icons-material/Euro'
 
-type ModelOpt = { id: number | string; tipo?: string; descripcion: string }
+type ModelOpt = { id: number | string; tipo?: string; descripcion: string; marca?: string }
 type ModeloObj = ModelOpt
 type CapOpt = { id: number | string }
 type ItemDraft = {
@@ -81,6 +81,7 @@ export default function FormularioValoracionOportunidad({
   item, onClose, onSuccess, oportunidadId, oportunidadUuid, oportunidad,
 }: Props) {
   const [activeStep, setActiveStep] = useState<number>(0)
+  const [marca, setMarca] = useState<string>('')
   const [tipo, setTipo] = useState<string>('')
   const [precioBase, setPrecioBase] = useState<number | null>(null)
   const [cantidad, setCantidad] = useState<number | string>(1)
@@ -234,17 +235,17 @@ export default function FormularioValoracionOportunidad({
     setDebugDecision(null)
   }, [cfgModo, cfgElegida, dispositivosExistentes, esEmpresaAutonomo, item?.id, oppCfgKey, queryClient])
 
-  const { data: tipos = [], isLoading: loadingTipos } = useQuery({
-    queryKey: ['tipos-modelo'],
-    queryFn: async () => (await api.get('/api/tipos-modelo/')).data,
+  const { data: marcas = [], isLoading: loadingMarcas } = useQuery({
+    queryKey: ['marcas-modelo'],
+    queryFn: async () => (await api.get('/api/marcas-modelo/')).data,
     staleTime: 5 * 60 * 1000,
   })
 
   const { data: modelos = [], isLoading: loadingModelos } = useQuery({
-    queryKey: ['modelos', tipo],
-    enabled: !!tipo,
+    queryKey: ['modelos', marca],
+    enabled: !!marca,
     queryFn: async () => {
-      const { data } = await api.get(`/api/modelos/?tipo=${tipo}`)
+      const { data } = await api.get('/api/modelos/', { params: { marca, page_size: 500 } })
       return Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : [])
     },
     staleTime: 2 * 60 * 1000,
@@ -257,13 +258,90 @@ export default function FormularioValoracionOportunidad({
     staleTime: 2 * 60 * 1000,
   })
 
+  const handleMarcaChange = useCallback((value: string) => {
+    setMarca((prev) => {
+      if (prev === value) return prev
+      setTipo('')
+      setModelo('')
+      setModeloInicial(null)
+      setCapacidad('')
+      return value
+    })
+  }, [])
+
+  const handleTipoChange = useCallback((value: string) => {
+    setTipo((prev) => {
+      if (prev === value) return prev
+      setModelo('')
+      setModeloInicial(null)
+      setCapacidad('')
+      return value
+    })
+  }, [])
+
+  const modelosArr = useMemo<ModeloObj[]>(() => {
+    const raw: unknown[] = Array.isArray(modelos)
+      ? (modelos as unknown[])
+      : (Array.isArray((modelos as { results?: unknown[] })?.results)
+          ? ((modelos as { results?: unknown[] }).results as unknown[])
+          : [])
+    const getField = (o: unknown, key: string): unknown => (o && typeof o === 'object') ? (o as Record<string, unknown>)[key] : undefined
+    return raw
+      .map((m): ModeloObj | null => {
+        const id = getField(m, 'id')
+        const descripcion = getField(m, 'descripcion')
+        const tipoVal = getField(m, 'tipo')
+        const marcaVal = getField(m, 'marca')
+        const idOk = (typeof id === 'number' || typeof id === 'string') ? id : null
+        const tipoOk = typeof tipoVal === 'string' ? tipoVal : undefined
+        if (idOk === null) return null
+        return {
+          id: idOk,
+          descripcion: String(descripcion ?? ''),
+          tipo: tipoOk,
+          marca: typeof marcaVal === 'string' ? marcaVal : undefined,
+        }
+      })
+      .filter((m): m is ModeloObj => !!m && m.id != null && m.descripcion.length > 0)
+  }, [modelos])
+
+  const modelosFiltrados = useMemo<ModeloObj[]>(() => {
+    return modelosArr.filter((m) => {
+      const matchesMarca = marca ? (m.marca ? m.marca === marca : true) : true
+      const matchesTipo = tipo ? (m.tipo ? m.tipo === tipo : false) : true
+      return matchesMarca && matchesTipo
+    })
+  }, [modelosArr, marca, tipo])
+
+  const tipos = useMemo(() => {
+    const set = new Set<string>()
+    modelosArr.forEach((m) => {
+      if (marca && m.marca && m.marca !== marca) return
+      if (m.tipo) set.add(m.tipo)
+    })
+    return Array.from(set)
+  }, [modelosArr, marca])
+
+  const loadingTipos = loadingModelos && !!marca && modelosArr.length === 0
+
   useEffect(() => {
-    if (tipos.length && !tipos.includes(tipo)) setTipo(tipos[0])
-  }, [tipos]) // eslint-disable-line
+    if (!marca) {
+      setTipo('')
+      return
+    }
+    if (!tipos.length) {
+      setTipo('')
+      return
+    }
+    if (!tipos.includes(tipo)) {
+      setTipo(tipos[0])
+    }
+  }, [tipos, marca]) // eslint-disable-line
 
   useEffect(() => {
     if (item?.modelo) {
       setModeloInicial(item.modelo)
+      if (item.modelo?.marca) setMarca(item.modelo.marca)
       setModelo(item.modelo.id)
       setTipo(item.tipo ?? item.modelo?.tipo ?? '')
     }
@@ -292,31 +370,6 @@ export default function FormularioValoracionOportunidad({
   }
 
   const isLaptop = /\b(mac|macbook|laptop|portátil)\b/i.test(tipo || '')
-  const modelosArr = useMemo<ModeloObj[]>(() => {
-    const raw: unknown[] = Array.isArray(modelos)
-      ? (modelos as unknown[])
-      : (Array.isArray((modelos as { results?: unknown[] })?.results)
-          ? ((modelos as { results?: unknown[] }).results as unknown[])
-          : [])
-    // normaliza/limpia a {id, descripcion, tipo}
-    const getField = (o: unknown, key: string): unknown => (o && typeof o === 'object') ? (o as Record<string, unknown>)[key] : undefined
-    return raw
-      .map((m): ModeloObj | null => {
-        const id = getField(m, 'id')
-        const descripcion = getField(m, 'descripcion')
-        const tipoVal = getField(m, 'tipo')
-        const idOk = (typeof id === 'number' || typeof id === 'string') ? id : null
-        const tipoOk = typeof tipoVal === 'string' ? tipoVal : undefined
-        if (idOk === null) return null
-        return {
-          id: idOk,
-          descripcion: String(descripcion ?? ''),
-          tipo: tipoOk,
-        }
-      })
-      .filter((m): m is ModeloObj => !!m && m.id != null && m.descripcion.length > 0)
-  }, [modelos])
-
   const capacidadesArr = useMemo(
     () => Array.isArray(capacidades)
       ? capacidades
@@ -551,7 +604,7 @@ export default function FormularioValoracionOportunidad({
   const puedeAvanzarStrict = () => {
     switch (current) {
       case 'Datos básicos':
-        return !!tipo && !!modelo && !!capacidad && (!item ? Number(cantidad) > 0 : true)
+        return !!marca && !!tipo && !!modelo && !!capacidad && (!item ? Number(cantidad) > 0 : true)
       case 'Batería':
         // iPhone/iPad: obligamos a responder encendido/carga; otros: libre
         return !esComercial || (enciende !== null && cargaOk !== null)
@@ -581,7 +634,7 @@ export default function FormularioValoracionOportunidad({
     if (puedeAvanzar()) return null
     switch (current) {
       case 'Datos básicos':
-        return 'Selecciona tipo, modelo y capacidad.'
+        return 'Selecciona marca, tipo, modelo y capacidad.'
       case 'Batería':
         return 'Indica si enciende y si carga por cable.'
       case 'Funcionalidad':
@@ -900,13 +953,16 @@ export default function FormularioValoracionOportunidad({
         
         {current === 'Datos básicos' && (
           <PasoDatosBasicos
+            marcas={Array.isArray(marcas) ? marcas : []}
+            loadingMarcas={loadingMarcas}
             tipos={tipos}
             loadingTipos={loadingTipos}
-            modelos={modelosArr}
+            modelos={modelosFiltrados}
             loadingModelos={loadingModelos}
             capacidades={capacidadesArr}
             loadingCaps={loadingCaps}
-            tipo={tipo} setTipo={setTipo}
+            marca={marca} setMarca={handleMarcaChange}
+            tipo={tipo} setTipo={handleTipoChange}
             modelo={modelo} setModelo={setModelo}
             modeloInicial={modeloInicial}
             capacidad={capacidad} setCapacidad={setCapacidad}

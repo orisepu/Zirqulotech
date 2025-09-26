@@ -7,28 +7,34 @@ type ModelOpt = { id: number | string; descripcion: string }
 type CapOpt = { id: number | string; tamaño: string }
 
 export default function PasoDatosBasicos({
+  marcas, loadingMarcas,
   tipos, loadingTipos,
   modelos, loadingModelos,
   capacidades, loadingCaps,
+  marca, setMarca,
   tipo, setTipo,
   modelo, setModelo, modeloInicial,
   capacidad, setCapacidad,
   cantidad, setCantidad,
   isB2C,
 }: {
+  marcas: string[]
+  loadingMarcas: boolean
   tipos: string[]
   loadingTipos: boolean
   modelos: ModelOpt[]
   loadingModelos: boolean
   capacidades: CapOpt[]
   loadingCaps: boolean
+  marca: string
+  setMarca: (v: string) => void
   tipo: string
   setTipo: (v: string) => void
   modelo: number | string
   setModelo: (v: number | string) => void
   modeloInicial?: ModelOpt | null
   capacidad: number | string
-  setCapacidad: (v: number) => void
+  setCapacidad: (v: number | string) => void
   cantidad: number | string
   setCantidad: (v: number | string) => void
   isB2C?: boolean
@@ -41,18 +47,36 @@ export default function PasoDatosBasicos({
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 6 }}>
         <FormControl fullWidth size="small">
+          <InputLabel>Fabricante</InputLabel>
+          <Select
+            value={marca}
+            onChange={(e) => setMarca(e.target.value as string)}
+            label="Marca"
+            size="small"
+            disabled={loadingMarcas}
+            error={!marca}
+          >
+            <MenuItem value=""><em>Selecciona un fabricante</em></MenuItem>
+            {marcas.map((m) => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+          </Select>
+          {loadingMarcas ? <Skeleton variant="text" width={120} /> : (!marca && <FormHelperText>Requerido</FormHelperText>)}
+        </FormControl>
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 6 }}>
+        <FormControl fullWidth size="small">
           <InputLabel>Tipo de producto</InputLabel>
           <Select
             value={tipo}
             onChange={(e) => setTipo(e.target.value)}
             label="Tipo de producto"
             size="small"
-            disabled={loadingTipos}
+            disabled={loadingTipos || !marca}
             error={!tipo}
           >
             {tipos.map((t: string) => (<MenuItem key={t} value={t}>{t}</MenuItem>))}
           </Select>
-          {loadingTipos ? <Skeleton variant="text" width={120} /> : (!tipo && <FormHelperText>Requerido</FormHelperText>)}
+          {loadingTipos ? <Skeleton variant="text" width={120} /> : (!tipo && marca && <FormHelperText>Requerido</FormHelperText>)}
         </FormControl>
       </Grid>
 
@@ -70,7 +94,10 @@ export default function PasoDatosBasicos({
                 (modeloInicial && { ...modeloInicial, id: modeloInicial.id }) ||
                 null
               }
-              onChange={(_e, newValue) => setModelo(newValue ? newValue.id : '')}
+              onChange={(_e, newValue) => {
+                setModelo(newValue ? newValue.id : '')
+                setCapacidad('')
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}

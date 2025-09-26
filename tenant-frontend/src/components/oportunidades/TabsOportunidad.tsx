@@ -1,6 +1,6 @@
 'use client'
 import { Box, Paper, Tabs, Tab, Typography, Button, Link, Grid, List, ListItem, Switch, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, ReactNode } from 'react'
 import SimpleBar from 'simplebar-react'
 import { formatoBonito } from '@/context/precios'
 import TablaReactiva from '@/components/TablaReactiva2'
@@ -35,7 +35,15 @@ type OportunidadResumen = {
 }
 
 export default function TabsOportunidad({
-  oportunidad, dispositivosReales, onEditarItem, onEliminarItem, onAbrirRecogida, usuarioId, onTabChange,
+  oportunidad,
+  dispositivosReales,
+  onEditarItem,
+  onEliminarItem,
+  onAbrirRecogida,
+  usuarioId,
+  onTabChange,
+  renderAccionesReales,
+  permitirEdicionResumen,
 }: {
   oportunidad: OportunidadResumen
   dispositivosReales: DispositivoRecibido[]
@@ -44,6 +52,8 @@ export default function TabsOportunidad({
   onAbrirRecogida: () => void
   usuarioId?: number
   onTabChange?: (i: number, info?: { realesIdx: number; recogidaIdx: number }) => void
+  renderAccionesReales?: () => ReactNode
+  permitirEdicionResumen?: boolean
 }) {
   const [tab, setTab] = useState(0)
   const [vistaCompacta, setVistaCompacta] = useState(true)
@@ -76,6 +86,8 @@ export default function TabsOportunidad({
     const realesIdx   = (dispositivosReales?.length ?? 0) > 0 ? idx++ : -1
     return { resumenIdx, recogidaIdx, realesIdx, totalTabs: idx }
   }, [mostrarDatosrecogida, dispositivosReales?.length])
+
+  const puedeEditar = permitirEdicionResumen ?? (estado === 'Pendiente')
 
   useEffect(() => {
     if (tab > totalTabs - 1) setTab(totalTabs - 1)
@@ -191,7 +203,7 @@ export default function TabsOportunidad({
                               <Typography><strong>Modelo:</strong> {modeloDesc} {capacidadTam}</Typography>
                               <Typography><strong>Cantidad:</strong> {cantidadStr}</Typography>
                               <Typography><strong>Precio orientativo:</strong> {formatEUR(precioOrientativo)}</Typography>
-                              {estado === 'Pendiente' && (
+                              {puedeEditar && (
                                 <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                                   <Button size="small" variant="outlined" onClick={() => onEditarItem(d)}>Editar</Button>
                                   <Button
@@ -282,7 +294,7 @@ export default function TabsOportunidad({
                                 )}
                               </Box>
 
-                              {estado === 'Pendiente' && (
+                              {puedeEditar && (
                                 <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                                   <Button size="small" variant="outlined" onClick={() => onEditarItem(d)}>Editar</Button>
                                   <Button
@@ -308,7 +320,7 @@ export default function TabsOportunidad({
               </Box>
             )}
 
-            {estado === 'Pendiente' && (
+            {puedeEditar && (
               <Button sx={{ mt: 2, alignSelf: 'flex-start' }} variant="contained" onClick={() => onEditarItem(null)}>
                 Añadir dispositivo
               </Button>
@@ -361,6 +373,7 @@ export default function TabsOportunidad({
         {realesIdx !== -1 && tab === realesIdx && (
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" gutterBottom>Dispositivos reales recibidos</Typography>
+            {renderAccionesReales?.()}
             {mostrarTablaReales ? (
               <Box sx={{ mt: 2, flex: 1, minHeight: 0, overflow: 'auto' }}>
                 <TablaReactiva

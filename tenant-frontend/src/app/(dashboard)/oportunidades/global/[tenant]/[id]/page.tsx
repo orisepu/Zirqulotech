@@ -1,33 +1,40 @@
 'use client'
 
 import {
-  Box, Typography, Paper, List, ListItem, Button, Dialog,
-  DialogTitle, DialogContent, Tabs, Tab, TextField, Grid, Stack,
-  DialogActions, CircularProgress
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  Paper,
+  Stack,
+  Typography,
 } from '@mui/material'
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ComponentProps } from 'react'
 import { useParams } from 'next/navigation'
-import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot } from '@mui/lab'
-import { timelineItemClasses } from '@mui/lab/TimelineItem';
 import api from '@/services/api'
-import FormularioValoracionOportunidad from '@/components/FormularioValoracionOportunidad'
+import FormularioValoracionOportunidad from '@/components/formularios/dispositivos/FormularioValoracionOportunidad'
 import DatosRecogidaForm from '@/components/DatosRecogida'
 import { toast } from "react-toastify";
 import { getId, getIdlink } from '@/utils/id'
-import SimpleBar from 'simplebar-react'
-import 'simplebar-react/dist/simplebar.min.css'
-import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight';
-import TablaReactiva from '@/components/TablaReactiva2'
+import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight'
 import useUsuarioActual from "@/hooks/useUsuarioActual";
-import { formatoBonito } from '@/context/precios'
 import EstadoChipSelector from '@/components/cambiosestadochipselector'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ColumnDef } from '@tanstack/react-table'
 import { pdf } from '@react-pdf/renderer'                // // quitar en producción si solo usas PDF backend
 import OfertaPDFDocument from '@/components/pdf/OfertaPDFDocument'
-import { columnasDispositivosReales } from '@/components/TablaColumnas2'
 import { ColoredPaper } from '@/context/ThemeContext'
 import { ESTADOS_META } from '@/context/estados'
+import TabsOportunidad from '@/components/oportunidades/TabsOportunidad'
+import ComentariosPanel from '@/components/oportunidades/ComentariosPanel'
+import HistorialPanel from '@/components/oportunidades/HistorialPanel'
+
+type TabsOportunidadProps = ComponentProps<typeof TabsOportunidad>
+type OportunidadResumen = TabsOportunidadProps['oportunidad']
 // Tipos (opcionales, para claridad)
 interface Modelo { descripcion: string }
 interface Capacidad { tamaño?: string | number }
@@ -114,53 +121,61 @@ type RecogidaForm = {
 };
 type CampoRecogida = keyof RecogidaForm;
 
+type ColorKey = 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
+
+const allowedColorKeys = new Set<ColorKey>(['primary', 'secondary', 'error', 'info', 'success', 'warning'])
+
+const resolveColorKey = (rawColor?: string | null): ColorKey => {
+  if (rawColor && allowedColorKeys.has(rawColor as ColorKey)) return rawColor as ColorKey
+  return 'primary'
+}
+
+const calcularDiasRestantesPago = (opp?: Oportunidad): number | null => {
+  if (!opp?.plazo_pago_dias || !opp?.fecha_inicio_pago) return null
+  const inicio = new Date(opp.fecha_inicio_pago)
+  const hoy = new Date()
+  hoy.setMinutes(hoy.getMinutes() + 1) // evita sumar +1 día por desajustes de hora
+  const transcurridos = Math.floor((hoy.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, (opp.plazo_pago_dias ?? 0) - transcurridos)
+}
+
 export default function OportunidadDetallePageGlobal() {
   const { tenant, id } = useParams()
-  const [tab, setTab] = useState(0)
+  const [tabActivo, setTabActivo] = useState(0)
+  const [realesIdx, setRealesIdx] = useState<number | null>(null)
   const queryClient = useQueryClient()
-  const [nuevoComentario, setNuevoComentario] = useState('')
   const [abrirModal, setAbrirModal] = useState(false)
   const [itemAEditar, setItemAEditar] = useState<Dispositivo | null>(null)
   const [modalRecogidaAbierto, setModalRecogidaAbierto] = useState(false)
   const [modalFacturasAbierto, setModalFacturasAbierto] = useState(false)
   const [facturaSeleccionada, setFacturaSeleccionada] = useState<string | null>(null)
-  const finComentariosRef = useRef<HTMLDivElement | null>(null)
   const usuario = useUsuarioActual();  
-  
-  const [form, setForm] = useState<RecogidaForm>({
-    calle: "", numero: "", piso: "", puerta: "",
-    codigo_postal: "", poblacion: "", provincia: "",
-    persona_contacto: "", telefono_contacto: "",
-    fecha_recogida: "", horario_recogida: "", instrucciones: "",
-  });
-  const [formEdicion, setFormEdicion] = useState<RecogidaForm>(form);
-  const tieneDatosRecogida = () => {
-    return (
-      form.calle ||
-      form.numero ||
-      form.piso ||
-      form.puerta ||
-      form.codigo_postal ||
-      form.poblacion ||
-      form.provincia ||
-      form.persona_contacto ||
-      form.telefono_contacto
-    )
+  const emptyPickupForm: RecogidaForm = {
+    calle: '', numero: '', piso: '', puerta: '',
+    codigo_postal: '', poblacion: '', provincia: '',
+    persona_contacto: '', telefono_contacto: '',
+    fecha_recogida: '', horario_recogida: '', instrucciones: '',
+    correo_recogida: '',
   }
-  const calcularDiasRestantesPago = (opp?: Oportunidad): number | null => {
-    if (!opp?.plazo_pago_dias || !opp?.fecha_inicio_pago) return null;
-    const inicio = new Date(opp.fecha_inicio_pago);
-    const hoy = new Date();
-    hoy.setMinutes(hoy.getMinutes() + 1); // evitar +1 día por bordes de hora
-    const transcurridos = Math.floor((hoy.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, (opp.plazo_pago_dias ?? 0) - transcurridos);
-  };
+  const [formEdicion, setFormEdicion] = useState<RecogidaForm>(emptyPickupForm)
+  const detalleQueryKey = useMemo(
+    () => ['oportunidad-global', String(tenant), String(id)] as const,
+    [tenant, id]
+  )
+  const transicionesQueryKey = useMemo(
+    () => ['transiciones-validas', String(id)] as const,
+    [id]
+  )
+  const invalidateDetalle = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: detalleQueryKey })
+  }, [detalleQueryKey, queryClient])
+  const invalidateTransiciones = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: transicionesQueryKey })
+  }, [queryClient, transicionesQueryKey])
   
   // === useQuery: detalle unificado ===
   const { data, isLoading } = useQuery<DetalleOportunidadGlobal>({
-    queryKey: ['oportunidad-global', String(tenant), String(id)],
-    // // quitar en producción:
-    // meta: { debug: true },
+    queryKey: detalleQueryKey,
     queryFn: async () => {
       const { data } = await api.get(`/api/oportunidades-globales/${tenant}/${id}/detalle-completo/`)
       const payload: DetalleOportunidadGlobal = {
@@ -180,26 +195,51 @@ export default function OportunidadDetallePageGlobal() {
   const transiciones = data?.transiciones_validas ?? { anteriores: [], siguientes: [], transiciones: [] }
   const dispositivosReales = data?.dispositivos_reales ?? []
   const historial = data?.historial ?? []
- // Sincroniza el formulario de recogida cuando hay datos
- useEffect(() => {
-    if (data?.oportunidad) {
-      const o = data.oportunidad
-      setForm({
-        calle: o.calle || "",
-        numero: o.numero || "",
-        piso: o.piso || "",
-        puerta: o.puerta || "",
-        codigo_postal: o.codigo_postal || "",
-        poblacion: o.poblacion || "",
-        provincia: o.provincia || "",
-        persona_contacto: o.persona_contacto || "",
-        telefono_contacto: o.telefono_contacto || "",
-        fecha_recogida: o.fecha_recogida || "",
-        horario_recogida: o.horario_recogida || "",
-        instrucciones: o.instrucciones || "",
-      })
-    }
-  }, [data?.oportunidad])
+  const meta = oportunidad?.estado ? ESTADOS_META[oportunidad.estado] : null
+  const colorKey = resolveColorKey(meta?.color)
+  const comentarios = oportunidad?.comentarios ?? []
+  const facturas = oportunidad?.facturas ?? []
+  const diasRestantesPago = calcularDiasRestantesPago(oportunidad)
+  const isCanalB2B = oportunidad?.cliente?.canal === 'b2b'
+  const isCanalB2C = oportunidad?.cliente?.canal === 'b2c'
+  const totalFacturas = facturas.length
+  const dispositivosPdf = useMemo(() => (
+    dispositivosReales.map((d: DispositivoReal) => ({
+      modelo: d.modelo || '',
+      capacidad: d.capacidad || '',
+      estado: d.estado_valoracion || '',
+      imei: d.imei || '',
+      numero_serie: d.numero_serie || '',
+      precio: Number(d.precio_final) || 0,
+    }))
+  ), [dispositivosReales])
+  const totalOfertaPdf = useMemo(
+    () => dispositivosReales.reduce((acc: number, d: DispositivoReal) => acc + (Number(d.precio_final) || 0), 0),
+    [dispositivosReales]
+  )
+  const pickupFormValues = useMemo<RecogidaForm>(() => ({
+    calle: oportunidad?.calle || '',
+    numero: oportunidad?.numero || '',
+    piso: oportunidad?.piso || '',
+    puerta: oportunidad?.puerta || '',
+    codigo_postal: oportunidad?.codigo_postal || '',
+    poblacion: oportunidad?.poblacion || '',
+    provincia: oportunidad?.provincia || '',
+    persona_contacto: oportunidad?.persona_contacto || '',
+    telefono_contacto: oportunidad?.telefono_contacto || '',
+    fecha_recogida: oportunidad?.fecha_recogida || '',
+    horario_recogida: oportunidad?.horario_recogida || '',
+    instrucciones: oportunidad?.instrucciones || '',
+    correo_recogida: oportunidad?.cliente?.correo || '',
+  }), [oportunidad])
+
+  const oportunidadResumen = useMemo(() => {
+    if (!oportunidad) return undefined
+    return {
+      ...oportunidad,
+      dispositivos: oportunidad.dispositivos?.map((d) => ({ ...d } as Record<string, unknown>)),
+    } as OportunidadResumen
+  }, [oportunidad])
 
   // === Mutations ===
   const mAgregarComentario = useMutation({
@@ -211,15 +251,15 @@ export default function OportunidadDetallePageGlobal() {
       })
     },
     onSuccess: async () => {
-      setNuevoComentario('')
       toast.success('Comentario añadido')
-      await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+      await invalidateDetalle()
     },
     onError: () => toast.error('❌ Error al añadir comentario')
   })
-  const enviarComentario = () => {
-    if (!nuevoComentario.trim()) return
-    mAgregarComentario.mutate(nuevoComentario)
+  const enviarComentario = (texto: string) => {
+    const limpio = texto.trim()
+    if (!limpio) return
+    mAgregarComentario.mutate(limpio)
   }
 
   const handleGenerarPDF = async () => {
@@ -249,15 +289,8 @@ export default function OportunidadDetallePageGlobal() {
   const verPDFEnNuevaPestana = async () => {
     const blob = await pdf(
       <OfertaPDFDocument
-        dispositivos={dispositivosReales.map((d: DispositivoReal) => ({
-          modelo: d.modelo || '',
-          capacidad: d.capacidad || '',
-          estado: d.estado_valoracion || '',
-          imei: d.imei || '',
-          numero_serie: d.numero_serie || '',
-          precio: Number(d.precio_final) || 0,
-        }))}
-        total={dispositivosReales.reduce((acc: number, d: DispositivoReal) => acc + (Number(d.precio_final) || 0), 0)}
+        dispositivos={dispositivosPdf}
+        total={totalOfertaPdf}
         nombre={String(oportunidad?.hashid ?? oportunidad?.id ?? '')}
         oportunidad={oportunidad}
         cif={oportunidad?.cliente?.cif}
@@ -277,8 +310,8 @@ export default function OportunidadDetallePageGlobal() {
     },
     onSuccess: async () => {
       toast.success('Estado actualizado')
-      queryClient.invalidateQueries({ queryKey: ['transiciones-validas', id] });
-      await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+      await invalidateTransiciones()
+      await invalidateDetalle()
     },
     onError: () => toast.error('❌ Error al cambiar el estado')
   })
@@ -288,7 +321,7 @@ export default function OportunidadDetallePageGlobal() {
     },
     onSuccess: async () => {
       toast.success('Datos de recogida actualizados')
-      await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+      await invalidateDetalle()
     },
     onError: () => toast.error('Error al guardar los datos')
   })
@@ -314,12 +347,11 @@ export default function OportunidadDetallePageGlobal() {
     },
     onSuccess: async () => {
       toast.success('Dispositivo eliminado')
-      await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+      await invalidateDetalle()
     },
     onError: () => toast.error('❌ Error al eliminar el dispositivo.')
   })
   const handleDelete = (dispositivoId: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este dispositivo?')) return
     mBorrarDispositivo.mutate(dispositivoId)
   }
 
@@ -332,13 +364,14 @@ export default function OportunidadDetallePageGlobal() {
     },
     onSuccess: async () => {
       toast.success('✅ Factura subida correctamente')
-      await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+      await invalidateDetalle()
     },
     onError: () => toast.error('❌ Error al subir la factura')
   })
   const handleSubirFactura = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) mSubirFactura.mutate(file)
+    event.target.value = ''
   }
 
   const descargarFactura = async (facturaId: number) => {
@@ -369,26 +402,24 @@ export default function OportunidadDetallePageGlobal() {
   };
   useEffect(() => {
     if (modalRecogidaAbierto) {
-      setFormEdicion({ ...form })
+      setFormEdicion(pickupFormValues)
     }
-  }, [modalRecogidaAbierto])
+  }, [modalRecogidaAbierto, pickupFormValues])
 
-  useEffect(() => {
-    if (finComentariosRef.current) finComentariosRef.current.scrollIntoView({ behavior: 'smooth' })
-  }, [data?.oportunidad?.comentarios])
-  const meta = oportunidad?.estado ? ESTADOS_META[oportunidad.estado] : null
-  type ColorKey = 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
-  const allowedColors = new Set<ColorKey>(['primary','secondary','error','info','success','warning'])
-  const colorKey: ColorKey = allowedColors.has((meta?.color as ColorKey)) ? (meta?.color as ColorKey) : 'primary'
+
   if (isLoading) return <CircularProgress />
   if (!oportunidad) return <Typography>Oportunidad no encontrada</Typography>
 
-return (
-  <>
-  <Box>
-    {/* COLUMNA PRINCIPAL */}
-      <ColoredPaper colorKey={colorKey} elevation={3}stripeSide="left"stripeWidth={4} sx={{ p: 2, mb: 3, width: '100%', boxSizing: 'border-box' }}>
-        {/* CABECERA */}
+  return (
+    <>
+      <Box>
+        <ColoredPaper
+          colorKey={colorKey}
+          elevation={3}
+          stripeSide="left"
+          stripeWidth={4}
+          sx={{ p: 2, mb: 3, width: '100%', boxSizing: 'border-box' }}
+        >
           <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={2}>
             <Box>
               <Typography variant="h5" fontWeight="bold">
@@ -398,15 +429,15 @@ return (
                 {getId(oportunidad)}
               </Typography>
             </Box>
-             <EstadoChipSelector
+            <EstadoChipSelector
               estadoActual={oportunidad.estado}
               anteriores={transiciones.anteriores}
               siguientes={transiciones.siguientes}
               onSelect={(nuevo, extras) => {
                 const payload = { estado: nuevo, ...(extras || {}) }
-                mCambiarEstado.mutate(payload) 
+                mCambiarEstado.mutate(payload)
               }}
-              disabledItem={(estado: string) => /* lógica de bloqueo si aplica */ false}
+              disabledItem={() => false}
               getTooltip={(estado: string) =>
                 transiciones.siguientes.includes(estado)
                   ? 'Mover a estado siguiente'
@@ -418,25 +449,25 @@ return (
           </Stack>
 
           <Grid container spacing={2} mt={2}>
-            <Grid size={{xs:12 ,md:12}}>
+            <Grid size={{ xs: 12, md: 12 }}>
               <Typography variant="body2" color="text.secondary">
                 <strong>Fecha de creación:</strong> {new Date(oportunidad.fecha_creacion).toLocaleString()}
               </Typography>
 
-              {oportunidad.estado === 'Pendiente de pago' && (
+              {oportunidad.estado === 'Pendiente de pago' && diasRestantesPago !== null && (
                 <Typography
                   variant="body2"
-                  color={calcularDiasRestantesPago(oportunidad)! <= 5 ? 'error.main' : 'warning.main'}
+                  color={diasRestantesPago <= 5 ? 'error.main' : 'warning.main'}
                 >
-                  <strong>Días restantes para el pago:</strong> {calcularDiasRestantesPago(oportunidad)} días
+                  <strong>Días restantes para el pago:</strong> {diasRestantesPago} días
                 </Typography>
-              )}          
+              )}
+
               {oportunidad.numero_seguimiento && (
                 <Typography variant="body2" color="text.secondary">
                   <strong>Nº de seguimiento:</strong> {oportunidad.numero_seguimiento}{' '}
                   <a
                     href={oportunidad.url_seguimiento}
-                    target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontWeight: 'bold', color: 'inherit', textDecoration: 'underline' }}
                   >
@@ -446,7 +477,7 @@ return (
               )}
             </Grid>
           </Grid>
-          {/* BOTONES ACCIONES */}
+
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" mt={3}>
             <Button
               variant="contained"
@@ -456,254 +487,112 @@ return (
             >
               Descargar oferta
             </Button>
-              { oportunidad?.cliente?.canal === "b2b" &&
-            <Button
-              variant="contained"
-              component="label"
-              startIcon={<KeyboardDoubleArrowRightIcon />}
-            >
-              Subir factura
-              <input hidden type="file" accept="application/pdf" onChange={handleSubirFactura} />
-            </Button>
-              }
+            {isCanalB2B && (
+              <Button variant="contained" component="label" startIcon={<KeyboardDoubleArrowRightIcon />}>
+                Subir factura
+                <input hidden type="file" accept="application/pdf" onChange={handleSubirFactura} />
+              </Button>
+            )}
             <Button
               variant="contained"
               color="secondary"
-              onClick={() =>
-                window.location.href = `/auditorias/${getIdlink(oportunidad)}?tenant=${tenant}`
-              }
+              onClick={() => window.location.assign(`/auditorias/${getIdlink(oportunidad)}?tenant=${tenant}`)}
             >
-             Auditoría
+              Auditoría
             </Button>
-
             <Button
               variant="contained"
               color="info"
-              onClick={() =>
-                window.location.href = `/recepcion/${getIdlink(oportunidad)}?tenant=${tenant}`
-              }
+              onClick={() => window.location.assign(`/recepcion/${getIdlink(oportunidad)}?tenant=${tenant}`)}
             >
               Recepción
             </Button>
-            {oportunidad?.cliente?.canal === 'b2c' && (
+            {isCanalB2C && (
               <Button
                 variant="outlined"
                 size="small"
                 onClick={() => {
-                  const url = `/oportunidades/global/${tenant}/${getIdlink(oportunidad)}/b2c`;
-                  window.open(url, "_blank");
+                  const url = `/oportunidades/global/${tenant}/${getIdlink(oportunidad)}/b2c`
+                  window.open(url, '_blank')
                 }}
               >
                 Revisar KYC / Acta
               </Button>
             )}
-            {(oportunidad.facturas?.length ?? 0) > 0 && (
-              <Button
-                variant="outlined"
-                color="warning"
-                onClick={() => setModalFacturasAbierto(true)}
-              >
-                Ver facturas ({oportunidad.facturas?.length ?? 0})
+            {totalFacturas > 0 && (
+              <Button variant="outlined" color="warning" onClick={() => setModalFacturasAbierto(true)}>
+                Ver facturas ({totalFacturas})
               </Button>
             )}
           </Stack>
-      </ColoredPaper>
-
-        {/* TABS solo si no estamos en dispositivos reales */}
-      <Grid container spacing={1}  sx={{ justifyContent: "space-between", alignItems: "stretch" }}>
-        <Grid size={{xs:12, md: tab === 2 ? 12 : 6 }}  > 
-          <ColoredPaper colorKey={colorKey}elevation={3} sx={{ p: 3, mb: 3, height: '100%',width: "100%" }}>
-            <Tabs
-              value={tab}
-              onChange={(_, v) => {
-                setTab(v)
-                if (v === 1 && !tieneDatosRecogida()) {
-                  setModalRecogidaAbierto(true)
-                }
-              }}
-              sx={{ mb: 2 }}
-            >
-              <Tab label="Resumen" />
-              <Tab label="Datos de recogida" />
-              <Tab label="Dispositivos recibidos" />
-            </Tabs>
-       
-
-          {/* CONTENIDO SEGÚN TAB */}
-          {tab === 0 && (
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-              <Typography variant="h6">Dispositivos asociados</Typography>
-              {(oportunidad.dispositivos?.length ?? 0)=== 0 ? (
-                <Typography>No hay dispositivos aún</Typography>
-              ) : (
-                <SimpleBar style={{ maxHeight: 445 }}>
-                <List>
-                  {(oportunidad.dispositivos ?? []).map((d) => (
-                    <ListItem key={d.id}>
-                      <Paper sx={{ p: 2, width: '100%' }}>
-                        <Typography><strong>Modelo:</strong> {d.modelo?.descripcion} {d.capacidad?.tamaño ?? ''}</Typography>
-                        <Typography><strong>Cantidad:</strong> {d.cantidad}</Typography>
-                        <Typography><strong>Estado estético:</strong> {formatoBonito(d.estado_fisico)}</Typography>
-                        <Typography><strong>Estado funcional:</strong> {formatoBonito(d.estado_funcional)}</Typography>
-                        <Typography><strong>Precio:</strong> {d.precio_orientativo} €</Typography>
-                        <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                          <Button size="small" variant="outlined" onClick={() => {
-                            setItemAEditar(d)
-                            setAbrirModal(true)
-                          }}>Editar</Button>
-                          <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(d.id)}>
-                            Eliminar
-                          </Button>
-                        </Box>
-                      </Paper>
-                    </ListItem>
-                  ))}
-                </List></SimpleBar>
-              )}
-              <Button sx={{ mt: 2 }} variant="contained" onClick={() => {
-                setItemAEditar(null)
-                setAbrirModal(true)
-              }}>Añadir dispositivo</Button>
-            </Box>
-          )}
-
-          {tab === 1 && (
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-              {tieneDatosRecogida() ? (
-                <>
-                  <Typography variant="h6" gutterBottom>Dirección de recogida</Typography>
-                  <Typography>{`${form.calle || ''} ${form.numero || ''}, Piso ${form.piso || ''}, Puerta ${form.puerta || ''}`}</Typography>
-                  <Typography>{`${form.codigo_postal || ''} ${form.poblacion || ''}, ${form.provincia || ''}`}</Typography>
-                  <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>Contacto</Typography>
-                  <Typography>Persona: {form.persona_contacto || '-'}</Typography>
-                  <Typography>Teléfono: {form.telefono_contacto || '-'}</Typography>
-                  <Typography>Instrucciones: {form.instrucciones || '-'}</Typography>
-                  <Button sx={{ mt: 2 }} variant="outlined" onClick={() => setModalRecogidaAbierto(true)}>
-                    Modificar datos de recogida
-                  </Button>
-                </>
-              ) : (
-                <Typography>Sin datos de recogida aún</Typography>
-              )}
-            </Box>
-          )}
-
-          {tab === 2 && (
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-              <Typography variant="h6" gutterBottom>Dispositivos reales recibidos</Typography>
-              {dispositivosReales?.length > 0 ? (
-                <>
-                  <Box mt={2}>
-                    <Button variant="outlined" color="primary" onClick={verPDFEnNuevaPestana}>
-                      Ver oferta PDF
-                    </Button>
-                  </Box>
-                  <Box mt={2}>
-                    <TablaReactiva<Record<string, unknown>>
-                      oportunidades={dispositivosReales as unknown as Record<string, unknown>[]}
-                      columnas={columnasDispositivosReales as unknown as ColumnDef<Record<string, unknown>>[]}
-                      usuarioId={usuario?.id}
-                      defaultSorting={[{ id: 'modelo', desc: false }]}
-                    />
-                  </Box>
-                </>
-              ) : (
-                <Typography variant="body2">Aún no se ha recibido la oportunidad.</Typography>
-              )}
-            </Box>
-          )}
         </ColoredPaper>
-        </Grid>  
 
-        {/* COLUMNA DERECHA: SOLO SI tab !== 2 */}
-        {tab !== 2 && (
-          <>
-          <Grid size={{xs:12 ,md:3}} sx={{ minWidth: 400 }}>
-            <Paper elevation={3} sx={{ p: 3, mb: 3, height: '100%' }}>
-              {/* Comentarios */}
-              <Box>
-                <Typography variant="h6" gutterBottom>Comentarios</Typography>
-                <Box>
-                {(oportunidad.comentarios?.length ?? 0) === 0 ? (
-                  <Typography>No hay comentarios aún</Typography>
-                ) : (
-                  <SimpleBar style={{ maxHeight: 360 }}>
-                  <List disablePadding>
-                    {oportunidad.comentarios.map((c) => (
-                      <ListItem key={c.id}>
-                        <Paper sx={{ p: 2, width: '100%' }}>
-                          <Typography>{c.texto}</Typography>
-                          <Typography variant="caption">
-                            — {c.autor_nombre}, {new Date(c.fecha).toLocaleString()}
-                          </Typography>
-                        </Paper>
-                      </ListItem>
-                    ))}
-                    <div ref={finComentariosRef} />
-                  </List></SimpleBar>
-                )}
-                <TextField
-                  label="Nuevo comentario"
-                  fullWidth
-                  multiline
-                  minRows={3}
-                  value={nuevoComentario}
-                  onChange={(e) => setNuevoComentario(e.target.value)}
-                  sx={{ mt: 2 }}
-                />
-                <Button sx={{ mt: 1 }} variant="contained" onClick={enviarComentario}>
-                  Añadir comentario
-                </Button>
-              </Box>
-            </Box></Paper>
-          </Grid>  
-
-              {/* Historial */}
-          <Grid size={{xs:12 ,md:3}} sx={{ minWidth: 300}} >
-            <Paper elevation={3} sx={{ p: 3, mb: 3, height: '100%' }}>
-              <Box>
-                <Typography variant="h6" gutterBottom>Historial de cambios</Typography>
-                <Box>
-                {(historial.length === 0) ? (
-                  <Typography>No hay historial registrado</Typography>
-                ) : (
-                  <SimpleBar style={{ maxHeight: 520 }}>
-                    <Timeline sx={{
-                      [`& .${timelineItemClasses.root}:before`]: {
-                        flex: 0,
-                        padding: 0,
-                      },
-                    }}>
-                      {historial.map((evento) => (
-                        <TimelineItem key={evento.id}>
-                          <TimelineSeparator>
-                            <TimelineDot color={
-                              evento.tipo_evento === 'comentario' ? 'primary' :
-                              evento.tipo_evento === 'cambio_estado' ? 'secondary' : 'grey'
-                            } />
-                            <TimelineConnector />
-                          </TimelineSeparator>
-                          <TimelineContent>
-                            <Typography>{evento.descripcion}</Typography>
-                            <Typography variant="caption">
-                              {evento.usuario_nombre} — {new Date(evento.fecha).toLocaleString()}
-                            </Typography>
-                          </TimelineContent>
-                        </TimelineItem>
-                      ))}
-                    </Timeline>
-                  </SimpleBar>
-                )}
-              </Box>
-            </Box></Paper>
+        <Grid container spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'stretch' }}>
+          <Grid
+            size={{ xs: 12, md: realesIdx !== null && tabActivo === realesIdx ? 12 : 6 }}
+            sx={{ display: 'flex', minWidth: 400 }}
+          >
+            <TabsOportunidad
+              oportunidad={oportunidadResumen as OportunidadResumen}
+              dispositivosReales={dispositivosReales as unknown as Record<string, unknown>[]}
+              usuarioId={usuario?.id}
+              onEditarItem={(item) => {
+                if (item) {
+                  const raw = item as Record<string, unknown>
+                  const rawId = raw['id']
+                  const parsedId =
+                    typeof rawId === 'number'
+                      ? rawId
+                      : typeof rawId === 'string'
+                      ? Number(rawId)
+                      : null
+                  const seleccionado =
+                    parsedId !== null && Number.isFinite(parsedId)
+                      ? oportunidad?.dispositivos?.find((d) => d.id === parsedId) ?? null
+                      : null
+                  setItemAEditar(seleccionado)
+                } else {
+                  setItemAEditar(null)
+                }
+                setAbrirModal(true)
+              }}
+              onEliminarItem={handleDelete}
+              onAbrirRecogida={() => setModalRecogidaAbierto(true)}
+              onTabChange={(index, info) => {
+                setTabActivo(index)
+                const realesIndex = info && typeof info.realesIdx === 'number' && info.realesIdx >= 0 ? info.realesIdx : null
+                setRealesIdx(realesIndex)
+              }}
+              renderAccionesReales={dispositivosReales.length > 0
+                ? () => (
+                    <Box mt={2}>
+                      <Button variant="outlined" color="primary" onClick={verPDFEnNuevaPestana}>
+                        Ver oferta PDF
+                      </Button>
+                    </Box>
+                  )
+                : undefined}
+              permitirEdicionResumen
+            />
           </Grid>
-          </>
+
+          {(realesIdx === null || tabActivo !== realesIdx) && (
+            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: 400 }}>
+              <ComentariosPanel
+                comentarios={comentarios}
+                onEnviar={enviarComentario}
+                enviando={mAgregarComentario.isPending}
+              />
+            </Grid>
           )}
-      </Grid>
 
-
-  </Box>
-    
+          {(realesIdx === null || tabActivo !== realesIdx) && (
+            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: 300 }}>
+              <HistorialPanel historial={historial} />
+            </Grid>
+          )}
+        </Grid>
+      </Box>
 
       <Dialog
         open={abrirModal}
@@ -722,7 +611,7 @@ return (
             setItemAEditar(null)
           }}
           onSuccess={async () => {
-            await queryClient.invalidateQueries({ queryKey: ['oportunidad-global', String(tenant), String(id)] })
+            await invalidateDetalle()
             setAbrirModal(false)
             setItemAEditar(null)
           }}
@@ -749,7 +638,7 @@ return (
               setModalRecogidaAbierto(false)
             }}
             rellenarDesdeOportunidad={(opp: Oportunidad) => {
-              setFormEdicion(prev => ({
+              setFormEdicion((prev) => ({
                 ...prev,
                 calle: opp.cliente?.direccion_calle || '',
                 piso: opp.cliente?.direccion_piso || '',
@@ -766,6 +655,7 @@ return (
           />
         </DialogContent>
       </Dialog>
+
       <Dialog
         open={modalFacturasAbierto}
         onClose={() => {
@@ -777,33 +667,27 @@ return (
       >
         <DialogTitle>Facturas subidas</DialogTitle>
         <DialogContent dividers>
-          {(oportunidad.facturas ?? []).map((factura) => (
+          {facturas.map((factura) => (
             <Paper key={factura.id} sx={{ p: 2, mb: 2 }}>
               <Typography variant="body2">
                 Subida el {new Date(factura.fecha_subida).toLocaleString()}
               </Typography>
               <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => verFacturaEnIframe(factura.id)}
-                >
+                <Button size="small" variant="outlined" onClick={() => verFacturaEnIframe(factura.id)}>
                   Ver
                 </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => descargarFactura(factura.id)}
-                >
+                <Button size="small" variant="outlined" onClick={() => descargarFactura(factura.id)}>
                   Descargar
-</Button>
+                </Button>
               </Box>
             </Paper>
           ))}
 
           {facturaSeleccionada && (
             <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>Vista previa:</Typography>
+              <Typography variant="subtitle1" gutterBottom>
+                Vista previa:
+              </Typography>
               <iframe
                 src={facturaSeleccionada}
                 width="100%"
@@ -817,9 +701,6 @@ return (
           <Button onClick={() => setModalFacturasAbierto(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
- </> 
-)
-
-
-
+    </>
+  )
 }

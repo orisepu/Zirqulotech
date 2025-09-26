@@ -17,6 +17,7 @@ export interface ModeloMini {
   id: number
   descripcion: string
   tipo: string
+  marca: string
   pantalla?: string | null
   año?: number | null
   procesador?: string | null
@@ -27,6 +28,7 @@ export interface CapacidadRow {
   id: number
   tamaño: string
   modelo: ModeloMini
+  activo: boolean
   precio_b2b: string | null
   precio_b2c: string | null
   b2b_valid_from: string | null
@@ -80,10 +82,25 @@ export const columnasCapacidadesAdmin: ColumnDef<CapacidadRow>[] = [
     meta: { minWidth: 180, align: 'left', alignHeader: 'center', label: 'Modelo' },
     accessorFn: (r) => r.modelo?.descripcion ?? '—',
     cell: ({ row, getValue }) => (
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+        <Chip size="small" label={row.original.modelo?.marca ?? '—'} color="default" variant="outlined" />
         <Chip size="small" label={row.original.modelo?.tipo ?? '—'} />
         <Typography variant="body2">{getValue<string>()}</Typography>
       </Stack>
+    ),
+  },
+  {
+    id: 'activo',
+    header: 'Estado',
+    accessorFn: (r) => r.activo,
+    meta: { minWidth: 100, align: 'center', alignHeader: 'center', label: 'Estado' },
+    cell: ({ row }) => (
+      <Chip
+        size="small"
+        color={row.original.activo ? 'success' : 'default'}
+        label={row.original.activo ? 'Activo' : 'Baja'}
+        variant={row.original.activo ? 'filled' : 'outlined'}
+      />
     ),
   },
   {
