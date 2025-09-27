@@ -1,16 +1,50 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Grid, Paper, Stack, TextField, Select, MenuItem, Tooltip, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, InputLabel, FormControl, Typography, Alert, Snackbar, Autocomplete } from '@mui/material'
+import {
+  Grid,
+  Paper,
+  Stack,
+  TextField,
+  Select,
+  MenuItem,
+  Tooltip,
+  IconButton,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputLabel,
+  FormControl,
+  Typography,
+  Alert,
+  Snackbar,
+  Autocomplete,
+  Box,
+  Chip,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  LinearProgress
+} from '@mui/material'
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import PriceChangeIcon from '@mui/icons-material/PriceChange'
+import UpdateIcon from '@mui/icons-material/Update'
+import BusinessIcon from '@mui/icons-material/Business'
+import PersonIcon from '@mui/icons-material/Person'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { Dayjs } from 'dayjs'
+import { useRouter } from 'next/navigation'
 import api, { getAccessToken } from '@/services/api'
 import TablaReactiva from '@/components/TablaReactiva2'
 import type { CapacidadRow, ModeloMini } from '@/components/TablaColumnas2'
 import { columnasCapacidadesAdmin } from '@/components/TablaColumnas2'
 
-// ===== API helpers =====
+// ===== TYPES =====
 export type CapacidadesParams = {
   q?: string
   modelo_id?: string | number
@@ -23,12 +57,31 @@ export type CapacidadesParams = {
   activo?: string
 }
 
+type SetPrecioBody = {
+  capacidad_id: number
+  canal: 'B2B' | 'B2C'
+  precio_neto: string
+  effective_at?: string
+}
+
+type SnackState = {
+  open: boolean
+  msg: string
+  sev: 'success' | 'error'
+}
+
+// ===== API FUNCTIONS =====
 async function fetchCapacidades(params: CapacidadesParams) {
   const { data } = await api.get('/api/admin/capacidades/', { params })
   return data as { results: CapacidadRow[]; count: number } | CapacidadRow[]
 }
 
-async function postSetPrecio(body: { capacidad_id: number; canal: 'B2B' | 'B2C'; precio_neto: string; effective_at?: string }) {
+async function fetchModelosSinCapacidades(params: { q?: string; tipo?: string; marca?: string }) {
+  const { data } = await api.get('/api/admin/modelos/sin-capacidades/', { params })
+  return data as ModeloMini[]
+}
+
+async function postSetPrecio(body: SetPrecioBody) {
   const { data } = await api.post('/api/admin/precios/set/', body)
   return data
 }
@@ -53,28 +106,54 @@ async function patchCapacidad(id: number, body: Partial<{ tamaño: string; activ
   return data as CapacidadRow
 }
 
+
+// ===== MAIN COMPONENT =====
 export default function AdminCapacidadesTablaReactiva() {
-  // Filtros
+  // ===== FILTER STATE =====
   const [q, setQ] = useState('')
   const [modeloId, setModeloId] = useState('')
   const [tipo, setTipo] = useState('')
   const [marcaFilter, setMarcaFilter] = useState('')
-  const [fecha, setFecha] = useState('') // datetime-local
+  const [fechaValue, setFechaValue] = useState<Dayjs | null>(null)
   const [activoFilter, setActivoFilter] = useState<'todos' | 'activos' | 'inactivos'>('activos')
 
-  // Server pagination
+  // ===== PAGINATION STATE =====
   const [pageIndex, setPageIndex] = useState(0) // 0-based
   const [pageSize, setPageSize] = useState(10)
 
-  // Ordering (opcional: usa backend). Si no lo usas, deja cadena vacía.
+  // ===== ORDERING =====
   const [ordering] = useState('modelo__descripcion,tamaño')
 
-  // Query params
+  // ===== DIALOG STATE =====
+  const [openSetPrice, setOpenSetPrice] = useState(false)
+  const [target, setTarget] = useState<CapacidadRow | null>(null)
+  const [canal, setCanal] = useState<'B2B' | 'B2C'>('B2B')
+  const [lastCanal, setLastCanal] = useState<'B2B' | 'B2C'>('B2B')
+  const [precio, setPrecio] = useState('')
+  const [effectiveAt, setEffectiveAt] = useState<Dayjs | null>(null)
+  const [snack, setSnack] = useState<SnackState>({ open: false, msg: '', sev: 'success' })
+
+  // B2C selection modal
+  const [openB2CModal, setOpenB2CModal] = useState(false)
+
+  const [openEditDatos, setOpenEditDatos] = useState(false)
+  const [rowTarget, setRowTarget] = useState<CapacidadRow | null>(null)
+  const [modelTarget, setModelTarget] = useState<ModeloMini | null>(null)
+  const [modelName, setModelName] = useState('')
+  const [modelTipo, setModelTipo] = useState('')
+  const [modelMarca, setModelMarca] = useState('Apple')
+  const [capacidadNombre, setCapacidadNombre] = useState('')
+  const [showSinCapacidades, setShowSinCapacidades] = useState(false)
+
+  // ===== ROUTER & QUERY CLIENT =====
+  const router = useRouter()
+  const queryClient = useQueryClient()
+
+  // ===== QUERY PARAMS =====
   const fechaISO = useMemo(() => {
-    if (!fecha) return undefined
-    const d = new Date(fecha)
-    return Number.isNaN(d.getTime()) ? undefined : d.toISOString()
-  }, [fecha])
+    if (!fechaValue) return undefined
+    return fechaValue.toISOString()
+  }, [fechaValue])
 
   const params = useMemo<CapacidadesParams>(() => ({
     q: q || undefined,
@@ -88,6 +167,13 @@ export default function AdminCapacidadesTablaReactiva() {
     activo: activoFilter === 'todos' ? undefined : activoFilter === 'activos' ? 'true' : 'false',
   }), [q, modeloId, tipo, marcaFilter, fechaISO, ordering, pageIndex, pageSize, activoFilter])
 
+  const sinCapParams = useMemo(() => ({
+    q: q || undefined,
+    tipo: tipo || undefined,
+    marca: marcaFilter || undefined,
+  }), [q, tipo, marcaFilter])
+
+  // ===== QUERIES =====
   const canFetch = typeof window !== 'undefined' && !!getAccessToken()
 
   const { data, isFetching, isError, error, refetch } = useQuery({
@@ -113,11 +199,28 @@ export default function AdminCapacidadesTablaReactiva() {
     staleTime: 60_000,
   })
 
-  // Normaliza payload
+  const modelosSinCapQuery = useQuery({
+    queryKey: ['modelos-sin-capacidades', sinCapParams],
+    queryFn: () => fetchModelosSinCapacidades(sinCapParams),
+    enabled: canFetch && showSinCapacidades,
+    staleTime: 60_000,
+  })
+
+  // ===== DATA NORMALIZATION =====
   const rows: CapacidadRow[] = useMemo(() => Array.isArray(data) ? data : (data?.results ?? []), [data])
   const totalCount: number | undefined = useMemo(() => Array.isArray(data) ? undefined : data?.count, [data])
 
-  const prevFiltersRef = useRef<{ q: string; modeloId: string; tipo: string; marca: string; fechaISO: string | undefined; ordering: string; pageSize: number; activoFilter: string }>({
+  // ===== FILTER RESET LOGIC =====
+  const prevFiltersRef = useRef<{
+    q: string;
+    modeloId: string;
+    tipo: string;
+    marca: string;
+    fechaISO: string | undefined;
+    ordering: string;
+    pageSize: number;
+    activoFilter: string
+  }>({
     q,
     modeloId,
     tipo,
@@ -149,25 +252,7 @@ export default function AdminCapacidadesTablaReactiva() {
     }
   }, [q, modeloId, tipo, marcaFilter, fechaISO, ordering, pageSize, activoFilter, pageIndex])
 
-  // Set precio dialog
-  const [openSetPrice, setOpenSetPrice] = useState(false)
-  const [target, setTarget] = useState<CapacidadRow | null>(null)
-  const [canal, setCanal] = useState<'B2B' | 'B2C'>('B2B')
-  const [lastCanal, setLastCanal] = useState<'B2B' | 'B2C'>('B2B')
-  const [precio, setPrecio] = useState('')
-  const [effectiveAt, setEffectiveAt] = useState('')
-  const [snack, setSnack] = useState<{ open: boolean; msg: string; sev: 'success' | 'error' }>({ open: false, msg: '', sev: 'success' })
-
-  const [openEditDatos, setOpenEditDatos] = useState(false)
-  const [rowTarget, setRowTarget] = useState<CapacidadRow | null>(null)
-  const [modelTarget, setModelTarget] = useState<ModeloMini | null>(null)
-  const [modelName, setModelName] = useState('')
-  const [modelTipo, setModelTipo] = useState('')
-  const [modelMarca, setModelMarca] = useState('Apple')
-  const [capacidadNombre, setCapacidadNombre] = useState('')
-
-  const queryClient = useQueryClient()
-
+  // ===== MUTATIONS =====
   const setPrecioMutation = useMutation({
     mutationFn: postSetPrecio,
     onSuccess: async () => {
@@ -240,10 +325,7 @@ export default function AdminCapacidadesTablaReactiva() {
     },
   })
 
-  const {
-    mutate: toggleCapacidad,
-    isPending: toggleCapacidadPending,
-  } = useMutation({
+  const { mutate: toggleCapacidad, isPending: toggleCapacidadPending } = useMutation({
     mutationFn: async ({ id, nextActivo }: { id: number; nextActivo: boolean }) => {
       return patchCapacidad(id, { activo: nextActivo })
     },
@@ -256,11 +338,23 @@ export default function AdminCapacidadesTablaReactiva() {
     },
   })
 
+  // Event handlers for B2C navigation
+  const handleBackMarketClick = () => {
+    setOpenB2CModal(false)
+    router.push('/dispositivos/actualizar-b2c-backmarket')
+  }
+
+  const handleSwappieClick = () => {
+    setOpenB2CModal(false)
+    router.push('/dispositivos/actualizar-b2c')
+  }
+
+  // ===== EVENT HANDLERS =====
   const onClickSetPrice = useCallback((row: CapacidadRow) => {
     setTarget(row)
     setCanal(lastCanal)
     setPrecio('')
-    setEffectiveAt('')
+    setEffectiveAt(null)
     setOpenSetPrice(true)
   }, [lastCanal])
 
@@ -290,7 +384,20 @@ export default function AdminCapacidadesTablaReactiva() {
     toggleCapacidad({ id: row.id, nextActivo: !row.activo })
   }, [toggleCapacidad])
 
-  // Extiende las columnas añadiendo acciones
+  const handleSetPrecio = () => {
+    if (!target) return
+    const body: SetPrecioBody = {
+      capacidad_id: target.id,
+      canal,
+      precio_neto: String(precio)
+    }
+    if (effectiveAt) {
+      body.effective_at = effectiveAt.toISOString()
+    }
+    setPrecioMutation.mutate(body)
+  }
+
+  // ===== COLUMN DEFINITIONS =====
   const columnas = useMemo(() => {
     const base = [...columnasCapacidadesAdmin]
     base.push({
@@ -299,7 +406,9 @@ export default function AdminCapacidadesTablaReactiva() {
       meta: { minWidth: 220, align: 'right', alignHeader: 'center', label: 'Acciones' },
       cell: ({ row }) => (
         <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ flexWrap: 'wrap' }}>
-          <Button size="small" variant="text" onClick={() => onClickEditar(row.original)}>Editar</Button>
+          <Button size="small" variant="text" onClick={() => onClickEditar(row.original)}>
+            Editar
+          </Button>
           <Button
             size="small"
             variant="outlined"
@@ -309,13 +418,21 @@ export default function AdminCapacidadesTablaReactiva() {
           >
             {row.original.activo ? 'Desactivar' : 'Activar'}
           </Button>
-          <Button size="small" variant="outlined" startIcon={<PriceChangeIcon />} onClick={() => onClickSetPrice(row.original)}>Precios</Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<PriceChangeIcon />}
+            onClick={() => onClickSetPrice(row.original)}
+          >
+            Precios
+          </Button>
         </Stack>
       )
     })
     return base
   }, [onClickEditar, onClickSetPrice, onToggleActivo, toggleCapacidadPending])
 
+  // ===== RENDER =====
   if (!canFetch) {
     return (
       <Grid container spacing={2}>
@@ -330,44 +447,82 @@ export default function AdminCapacidadesTablaReactiva() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 12 }}>
-        <Paper style={{ padding: 16 }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-            <TextField size="small" label="Buscar" placeholder="Modelo, capacidad, procesador…" value={q} onChange={(e: ChangeEvent<HTMLInputElement>) => setQ(e.target.value)} />
-            <TextField size="small" label="Modelo ID" type="number" value={modeloId} onChange={(e: ChangeEvent<HTMLInputElement>) => setModeloId(e.target.value)} />
-            <Select
+      <Grid size={{ xs: 12 }}>
+        <Paper sx={{ p: 2 }}>
+          {/* Header with update buttons */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h5">Gestión de Dispositivos</Typography>
+            <Box display="flex" gap={1}>
+              <Button
+                variant="contained"
+                startIcon={<BusinessIcon />}
+                onClick={() => router.push('/dispositivos/actualizar')}
+                color="primary"
+              >
+                Actualizar B2B
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<PersonIcon />}
+                onClick={() => setOpenB2CModal(true)}
+                color="secondary"
+              >
+                Actualizar B2C
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Filters */}
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <TextField
               size="small"
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
-              displayEmpty
-              disabled={isLoadingTipos && !tiposModelo?.length}
-            >
-              <MenuItem value=""><em>Tipo (todos)</em></MenuItem>
-              {tiposModelo?.map((option) => (
-                <MenuItem key={option} value={option}>{option}</MenuItem>
-              ))}
-              {!isLoadingTipos && !tiposModelo?.length && (
-                <MenuItem value="" disabled>Sin opciones disponibles</MenuItem>
-              )}
-            </Select>
+              label="Buscar"
+              placeholder="Modelo, capacidad, procesador…"
+              value={q}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
+              sx={{ minWidth: 200 }}
+            />
+            <TextField
+              size="small"
+              label="Modelo ID"
+              type="number"
+              value={modeloId}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setModeloId(e.target.value)}
+              sx={{ minWidth: 120 }}
+            />
             <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id="marca-filter">Marca</InputLabel>
+              <InputLabel>Tipo</InputLabel>
               <Select
-                labelId="marca-filter"
+                value={tipo}
+                label="Tipo"
+                onChange={(e) => setTipo(e.target.value)}
+                disabled={isLoadingTipos && !tiposModelo?.length}
+              >
+                <MenuItem value=""><em>Todos</em></MenuItem>
+                {tiposModelo?.map((option) => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+                {!isLoadingTipos && !tiposModelo?.length && (
+                  <MenuItem value="" disabled>Sin opciones disponibles</MenuItem>
+                )}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Marca</InputLabel>
+              <Select
                 value={marcaFilter}
                 label="Marca"
                 onChange={(e) => setMarcaFilter(e.target.value)}
               >
-                <MenuItem value=""><em>Marca (todas)</em></MenuItem>
+                <MenuItem value=""><em>Todas</em></MenuItem>
                 {marcasModelo?.map((option) => (
                   <MenuItem key={option} value={option}>{option}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id="activo-filter">Estado</InputLabel>
+              <InputLabel>Estado</InputLabel>
               <Select
-                labelId="activo-filter"
                 value={activoFilter}
                 label="Estado"
                 onChange={(e) => setActivoFilter(e.target.value as typeof activoFilter)}
@@ -377,12 +532,84 @@ export default function AdminCapacidadesTablaReactiva() {
                 <MenuItem value="todos">Todos</MenuItem>
               </Select>
             </FormControl>
-            <TextField size="small" label="Fecha" type="datetime-local" value={fecha} onChange={(e: ChangeEvent<HTMLInputElement>) => setFecha(e.target.value)} slotProps={{ inputLabel: { shrink: true } }}/>
+            <DateTimePicker
+              label="Fecha"
+              value={fechaValue}
+              onChange={(newValue) => setFechaValue(newValue)}
+              slotProps={{
+                textField: {
+                  size: "small",
+                  sx: { minWidth: 180 }
+                },
+              }}
+            />
             <Tooltip title="Recargar">
-              <IconButton onClick={() => refetch()}><RefreshIcon /></IconButton>
+              <IconButton onClick={() => refetch()}>
+                <RefreshIcon />
+              </IconButton>
             </Tooltip>
           </Stack>
+          
 
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+              <Typography variant="h6">Modelos sin capacidades</Typography>
+              <Button
+                size="small"
+                variant={showSinCapacidades ? 'contained' : 'outlined'}
+                onClick={() => setShowSinCapacidades((prev) => !prev)}
+              >
+                {showSinCapacidades ? 'Ocultar' : 'Mostrar'}
+              </Button>
+            </Stack>
+            {showSinCapacidades && (
+              <Box>
+                {modelosSinCapQuery.isLoading ? (
+                  <LinearProgress />
+                ) : modelosSinCapQuery.isError ? (
+                  <Alert severity="error">No se pudieron cargar los modelos sin capacidades.</Alert>
+                ) : (
+                  <>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Total: {modelosSinCapQuery.data?.length ?? 0}
+                    </Typography>
+                    {(modelosSinCapQuery.data?.length ?? 0) === 0 ? (
+                      <Typography variant="body2">Todos los modelos tienen al menos una capacidad asociada.</Typography>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Descripción</TableCell>
+                            <TableCell>Tipo</TableCell>
+                            <TableCell>Marca</TableCell>
+                            <TableCell>Pantalla</TableCell>
+                            <TableCell>Año</TableCell>
+                            <TableCell>Procesador</TableCell>
+                            <TableCell>Likewize</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {modelosSinCapQuery.data?.map((modelo) => (
+                            <TableRow key={modelo.id}>
+                              <TableCell>{modelo.descripcion}</TableCell>
+                              <TableCell>{modelo.tipo || '—'}</TableCell>
+                              <TableCell>{modelo.marca || '—'}</TableCell>
+                              <TableCell>{modelo.pantalla || '—'}</TableCell>
+                              <TableCell>{modelo['año'] ?? '—'}</TableCell>
+                              <TableCell>{modelo.procesador || '—'}</TableCell>
+                              <TableCell>{modelo.likewize_modelo || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </>
+                )}
+              </Box>
+            )}
+          </Paper>
+
+          {/* Table */}
           <TablaReactiva<CapacidadRow>
             oportunidades={rows}
             columnas={columnas}
@@ -393,24 +620,32 @@ export default function AdminCapacidadesTablaReactiva() {
             pageSize={pageSize}
             onPageChange={setPageIndex}
             onPageSizeChange={setPageSize}
+            usuarioId="dispositivos"
           />
 
+          {/* Error alerts */}
           {tiposError && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               {tiposFetchError instanceof Error ? tiposFetchError.message : 'No se pudieron cargar los tipos'}
             </Alert>
           )}
 
-          {isError && (<Alert severity="error" sx={{ mt: 1 }}>{(error as Error)?.message || 'Error cargando datos'}</Alert>)}
+          {isError && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {(error as Error)?.message || 'Error cargando datos'}
+            </Alert>
+          )}
         </Paper>
       </Grid>
 
-      <Grid size={{ xs: 12, md: 12 }}>
-        <Paper style={{ padding: 16 }}>
+      <Grid size={{ xs: 12 }}>
+        <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>Consejos</Typography>
-          <Typography variant="body2" paragraph>
+          <Typography variant="body2" sx={{ mb: 2 }}>
             • Filtra por modelo/tipo y ajusta la fecha para ver vigencias.
-            <br />• Usa “Precios” para cambios inmediatos o programados.
+            <br />• Usa "Precios" para cambios inmediatos o programados.
+            <br />• "Actualizar B2B" lleva a la página de actualización masiva.
+            <br />• "Actualizar B2C" permite elegir entre BackMarket y Swappie.
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Mostrando precios netos (sin IVA). Vigencias en rango semiabierto [inicio, fin).
@@ -418,7 +653,7 @@ export default function AdminCapacidadesTablaReactiva() {
         </Paper>
       </Grid>
 
-      {/* Diálogo Set Precio */}
+      {/* Set Price Dialog */}
       <Dialog open={openSetPrice} onClose={() => setOpenSetPrice(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Fijar precio de recompra</DialogTitle>
         <DialogContent>
@@ -427,9 +662,8 @@ export default function AdminCapacidadesTablaReactiva() {
               <b>Modelo:</b> {target?.modelo?.descripcion ?? '—'} — <b>{target?.tamaño ?? '—'}</b>
             </Typography>
             <FormControl size="small">
-              <InputLabel id="canal-lbl">Canal</InputLabel>
+              <InputLabel>Canal</InputLabel>
               <Select
-                labelId="canal-lbl"
                 label="Canal"
                 value={canal}
                 onChange={(e) => {
@@ -442,32 +676,42 @@ export default function AdminCapacidadesTablaReactiva() {
                 <MenuItem value="B2C">B2C</MenuItem>
               </Select>
             </FormControl>
-            <TextField size="small" label="Precio neto (€)" type="number" value={precio} onChange={(e: ChangeEvent<HTMLInputElement>) => setPrecio(e.target.value)} />
             <TextField
               size="small"
+              label="Precio neto (€)"
+              type="number"
+              value={precio}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setPrecio(e.target.value)}
+            />
+            <DateTimePicker
               label="Fecha de efecto (opcional)"
-              type="datetime-local"
               value={effectiveAt}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setEffectiveAt(e.target.value)}
-              helperText="Si se deja vacío, aplica ahora"
-              slotProps={{ inputLabel: { shrink: true } }} // 👈 evita solape
+              onChange={(newValue) => setEffectiveAt(newValue)}
+              slotProps={{
+                textField: {
+                  size: "small",
+                  helperText: "Si se deja vacío, aplica ahora"
+                },
+              }}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenSetPrice(false)} disabled={setPrecioMutation.isPending}>Cancelar</Button>
-          <Button variant="contained" onClick={() => {
-            if (!target) return
-            const body: Parameters<typeof postSetPrecio>[0] = { capacidad_id: target.id, canal, precio_neto: String(precio) }
-            if (effectiveAt) {
-              const d = new Date(effectiveAt)
-              if (!Number.isNaN(d.getTime())) body.effective_at = d.toISOString()
-            }
-            setPrecioMutation.mutate(body)
-          }} disabled={setPrecioMutation.isPending || !precio} startIcon={<PriceChangeIcon />}>Guardar</Button>
+          <Button onClick={() => setOpenSetPrice(false)} disabled={setPrecioMutation.isPending}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSetPrecio}
+            disabled={setPrecioMutation.isPending || !precio}
+            startIcon={<PriceChangeIcon />}
+          >
+            Guardar
+          </Button>
         </DialogActions>
       </Dialog>
 
+      {/* Edit Data Dialog */}
       <Dialog open={openEditDatos} onClose={closeEditDatos} maxWidth="sm" fullWidth>
         <DialogTitle>Editar datos</DialogTitle>
         <DialogContent>
@@ -524,7 +768,9 @@ export default function AdminCapacidadesTablaReactiva() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeEditDatos} disabled={saveEdicionMutation.isPending}>Cancelar</Button>
+          <Button onClick={closeEditDatos} disabled={saveEdicionMutation.isPending}>
+            Cancelar
+          </Button>
           <Button
             variant="contained"
             onClick={() => saveEdicionMutation.mutate()}
@@ -540,8 +786,46 @@ export default function AdminCapacidadesTablaReactiva() {
         </DialogActions>
       </Dialog>
 
+      {/* B2C Selection Modal */}
+      <Dialog open={openB2CModal} onClose={() => setOpenB2CModal(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Seleccionar proveedor B2C</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 3 }}>
+            Elige el proveedor del que deseas actualizar los precios B2C:
+          </Typography>
+          <Stack spacing={2}>
+            <Button
+              variant="outlined"
+              size="large"
+              fullWidth
+              onClick={handleBackMarketClick}
+            >
+              BackMarket
+            </Button>
+            <Button
+              variant="outlined"
+              size="large"
+              fullWidth
+              onClick={handleSwappieClick}
+            >
+              Swappie
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setOpenB2CModal(false)}
+          >
+            Cancelar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
       <Snackbar open={snack.open} autoHideDuration={3000} onClose={() => setSnack({ ...snack, open: false })}>
-        <Alert onClose={() => setSnack({ ...snack, open: false })} severity={snack.sev} variant="filled">{snack.msg}</Alert>
+        <Alert onClose={() => setSnack({ ...snack, open: false })} severity={snack.sev} variant="filled">
+          {snack.msg}
+        </Alert>
       </Snackbar>
     </Grid>
   )

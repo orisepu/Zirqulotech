@@ -52,6 +52,8 @@ export interface TablaReactivaProps<TData> {
   pageSize?: number;
   onPageChange?: (pageIndex: number) => void;      // 0-based
   onPageSizeChange?: (pageSize: number) => void;
+  hideColumnSelector?: boolean;  // Ocultar selector de columnas
+  hideExport?: boolean;          // Ocultar botón de exportación
 }
 
 export default function TablaReactiva<TData>({
@@ -68,6 +70,8 @@ export default function TablaReactiva<TData>({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  hideColumnSelector = false,
+  hideExport = false,
 }: TablaReactivaProps<TData>) {
 
   const [globalFilter, setGlobalFilter] = useState('')
@@ -263,67 +267,73 @@ export default function TablaReactiva<TData>({
         </colgroup>
 
         <TableHead>
-          <TableRow>
-            <TableCell colSpan={visibleCols.length + (onRowClick ? 1 : 0)}>
-              <Box display="flex" justifyContent="right" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <IconButton onClick={handleOpen}>
-                    <ViewColumnIcon />
-                  </IconButton>
-                  <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
-                    <Box display="flex" flexDirection="column">
-                      {table.getAllLeafColumns().map((col) => {
-                        const plainLabel = col.columnDef.meta?.label || col.id
-                        return (
-                          <MenuItem
-                            key={col.id}
-                            disableRipple
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleColumna(col.id)
-                            }}
-                          >
-                            <Checkbox checked={!!table.getColumn(col.id)?.getIsVisible()} size="small" sx={{ p: 0 }} />
-                            <Box fontSize={14}>{plainLabel}</Box>
-                          </MenuItem>
-                        )
-                      })}
-                      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
-                      <Box display="flex" justifyContent="space-between" px={1}>
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            const allVisible = table.getAllLeafColumns().every(c => c.getIsVisible())
-                            const updated: VisibilityState = Object.fromEntries(
-                              table.getAllLeafColumns().map(col => [col.id, !allVisible])
+          {(!hideColumnSelector || !hideExport) && (
+            <TableRow>
+              <TableCell colSpan={visibleCols.length + (onRowClick ? 1 : 0)}>
+                <Box display="flex" justifyContent="right" alignItems="center">
+                  {!hideColumnSelector && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <IconButton onClick={handleOpen}>
+                        <ViewColumnIcon />
+                      </IconButton>
+                      <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
+                        <Box display="flex" flexDirection="column">
+                          {table.getAllLeafColumns().map((col) => {
+                            const plainLabel = col.columnDef.meta?.label || col.id
+                            return (
+                              <MenuItem
+                                key={col.id}
+                                disableRipple
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleColumna(col.id)
+                                }}
+                              >
+                                <Checkbox checked={!!table.getColumn(col.id)?.getIsVisible()} size="small" sx={{ p: 0 }} />
+                                <Box fontSize={14}>{plainLabel}</Box>
+                              </MenuItem>
                             )
-                            setColumnVisibility(updated)
-                          }}
-                        >
-                          Mostrar/Ocultar todos
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            const reset: VisibilityState = Object.fromEntries(
-                              table.getAllLeafColumns().map(c => [c.id, true])
-                            )
-                            setColumnVisibility(reset)
-                          }}
-                        >
-                          Reset
-                        </Button>
-                      </Box>
+                          })}
+                          <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
+                          <Box display="flex" justifyContent="space-between" px={1}>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                const allVisible = table.getAllLeafColumns().every(c => c.getIsVisible())
+                                const updated: VisibilityState = Object.fromEntries(
+                                  table.getAllLeafColumns().map(col => [col.id, !allVisible])
+                                )
+                                setColumnVisibility(updated)
+                              }}
+                            >
+                              Mostrar/Ocultar todos
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                const reset: VisibilityState = Object.fromEntries(
+                                  table.getAllLeafColumns().map(c => [c.id, true])
+                                )
+                                setColumnVisibility(reset)
+                              }}
+                            >
+                              Reset
+                            </Button>
+                          </Box>
+                        </Box>
+                      </Menu>
                     </Box>
-                  </Menu>
-                </Box>
+                  )}
 
-                <IconButton onClick={exportToCSV} size="small" title="Exportar CSV">
-                  <DownloadIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            </TableCell>
-          </TableRow>
+                  {!hideExport && (
+                    <IconButton onClick={exportToCSV} size="small" title="Exportar CSV">
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+              </TableCell>
+            </TableRow>
+          )}
 
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>

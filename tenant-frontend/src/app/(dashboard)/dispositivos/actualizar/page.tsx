@@ -2,12 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import {
-  Grid, Paper, Button, Typography, LinearProgress, Stack, Link as MuiLink,
+  Grid, Paper, Button, Typography, LinearProgress, CircularProgress, Stack, Link as MuiLink,
   Alert, Checkbox, Table, TableHead, TableRow, TableCell, TableBody, Chip,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete,
+  Card, CardContent, CardHeader, Box, FormControl, InputLabel, Select, MenuItem,
+  Switch, FormControlLabel, Collapse, IconButton, Tooltip, Divider
 } from '@mui/material'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import {
+  FilterList as FilterListIcon,
+  Search as SearchIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Info as InfoIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  ExpandMore as ExpandMoreIcon,
+  ArrowForward as ArrowForwardIcon
+} from '@mui/icons-material'
 
 type EstadoTarea = {
   id: string
@@ -27,6 +40,10 @@ type Cambio = {
   antes: string | null
   despues: string | null
   delta: number | null
+  nombre_likewize_original?: string
+  nombre_normalizado?: string
+  confianza_mapeo?: 'alta' | 'media' | 'baja'
+  necesita_revision?: boolean
 }
 type NoMap = {
   id: number
@@ -38,6 +55,315 @@ type NoMap = {
   likewize_model_code?: string | null
 }
 type EstadoTareaExt = EstadoTarea & { progreso?: number; subestado?: string }
+
+type ModeloMini = {
+  id: number
+  descripcion: string
+  tipo?: string | null
+  marca?: string | null
+  pantalla?: string | null
+  'año'?: number | null
+  procesador?: string | null
+  likewize_modelo?: string | null
+}
+
+const sanitizeNombre = (valor?: string | null) => (valor ?? '').trim()
+
+// Extract year from text using various patterns
+const extractYear = (text: string): number | null => {
+  const patterns = [
+    /\b(20\d{2})\b/g,           // 2021, 2024, etc.
+    /\b(\d{2})\/(\d{4})\b/g,    // 10/2024
+    /\b(\d{1,2})\/(\d{2})\b/g   // 10/24
+  ]
+
+  for (const pattern of patterns) {
+    const matches = Array.from(text.matchAll(pattern))
+    for (const match of matches) {
+      if (match[1] && match[1].length === 4) {
+        const year = parseInt(match[1])
+        if (year >= 2000 && year <= 2030) return year
+      }
+      if (match[2] && match[2].length === 4) {
+        const year = parseInt(match[2])
+        if (year >= 2000 && year <= 2030) return year
+      }
+      if (match[2] && match[2].length === 2) {
+        const year = 2000 + parseInt(match[2])
+        if (year >= 2000 && year <= 2030) return year
+      }
+    }
+  }
+  return null
+}
+
+// Extract processor info (M1, M2, M3, M4, Intel, etc.)
+const extractProcessor = (text: string): string | null => {
+  const processorPatterns = [
+    /\b(M[1-4](?:\s+(?:Max|Pro|Ultra))?)\b/i,  // M1, M2, M3, M4 + variants
+    /\b(Intel\s+Core\s+i[3-9])\b/i,           // Intel Core i5, i7, etc.
+    /\b(Apple\s+Silicon)\b/i,                 // Apple Silicon
+    /\b(Intel)\b/i                            // Generic Intel
+  ]
+
+  for (const pattern of processorPatterns) {
+    const match = text.match(pattern)
+    if (match) return match[1].trim()
+  }
+  return null
+}
+
+// Extract screen size (14 inch, 16 inch, etc.)
+const extractScreenSize = (text: string): string | null => {
+  const sizePatterns = [
+    /\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|pulgadas?|")\b/i,
+    /\b(\d{1,2}(?:\.\d+)?)''\b/i
+  ]
+
+  for (const pattern of sizePatterns) {
+    const match = text.match(pattern)
+    if (match) return match[1] + '"'
+  }
+  return null
+}
+
+// Get detailed mapping analysis
+const getMappingAnalysis = (cambio: Cambio) => {
+  const original = cambio.nombre_likewize_original || ''
+  const normalized = cambio.nombre_normalizado || cambio.modelo_norm
+
+  const originalYear = extractYear(original)
+  const normalizedYear = extractYear(normalized)
+  const originalProcessor = extractProcessor(original)
+  const normalizedProcessor = extractProcessor(normalized)
+  const originalSize = extractScreenSize(original)
+  const normalizedSize = extractScreenSize(normalized)
+
+  const issues = []
+  const warnings = []
+
+  if (originalYear && normalizedYear && originalYear !== normalizedYear) {
+    const diff = Math.abs(originalYear - normalizedYear)
+    if (diff >= 2) {
+      issues.push(`Diferencia de año significativa: ${normalizedYear} vs ${originalYear}`)
+    } else {
+      warnings.push(`Posible diferencia de año: ${normalizedYear} vs ${originalYear}`)
+    }
+  }
+
+  if (originalProcessor && normalizedProcessor &&
+      originalProcessor.toLowerCase() !== normalizedProcessor.toLowerCase()) {
+    issues.push(`Procesador diferente: ${normalizedProcessor} vs ${originalProcessor}`)
+  }
+
+  if (originalSize && normalizedSize && originalSize !== normalizedSize) {
+    warnings.push(`Tamaño de pantalla diferente: ${normalizedSize} vs ${originalSize}`)
+  }
+
+  return { issues, warnings, originalYear, normalizedYear, originalProcessor, normalizedProcessor }
+}
+
+// Enhanced mapping confidence with intelligent detection
+const getMappingConfidence = (cambio: Cambio): 'alta' | 'media' | 'baja' => {
+  if (cambio.confianza_mapeo) return cambio.confianza_mapeo
+
+  const original = cambio.nombre_likewize_original || ''
+  const normalized = cambio.nombre_normalizado || cambio.modelo_norm
+
+  if (!original) return 'media'
+
+  // Basic similarity check
+  if (original.toLowerCase() === normalized.toLowerCase()) return 'alta'
+
+  // Extract key attributes
+  const originalYear = extractYear(original)
+  const normalizedYear = extractYear(normalized)
+  const originalProcessor = extractProcessor(original)
+  const normalizedProcessor = extractProcessor(normalized)
+  const originalSize = extractScreenSize(original)
+  const normalizedSize = extractScreenSize(normalized)
+
+  let confidence: 'alta' | 'media' | 'baja' = 'media'
+  let issues = 0
+
+  // Year mismatch is a major red flag
+  if (originalYear && normalizedYear && Math.abs(originalYear - normalizedYear) > 0) {
+    issues += 2 // Major issue
+  }
+
+  // Processor mismatch is also important
+  if (originalProcessor && normalizedProcessor &&
+      originalProcessor.toLowerCase() !== normalizedProcessor.toLowerCase()) {
+    issues += 2 // Major issue
+  }
+
+  // Screen size mismatch
+  if (originalSize && normalizedSize && originalSize !== normalizedSize) {
+    issues += 1 // Minor issue
+  }
+
+  // Basic text similarity
+  const textSimilarity =
+    original.toLowerCase().includes(normalized.toLowerCase()) ||
+    normalized.toLowerCase().includes(original.toLowerCase())
+
+  if (!textSimilarity) {
+    issues += 1
+  }
+
+  // Determine confidence based on issues
+  if (issues >= 3) confidence = 'baja'
+  else if (issues >= 1) confidence = 'media'
+  else confidence = 'alta'
+
+  return confidence
+}
+
+const NameMappingCell = ({ cambio, marca, getMappingAnalysis, exactMatchCache, populateExactMatchCache }: {
+  cambio: Cambio;
+  marca?: string;
+  getMappingAnalysis: (cambio: Cambio) => { issues: string[]; warnings: string[]; originalYear: number | null; normalizedYear: number | null; originalProcessor: string | null; normalizedProcessor: string | null; }
+  exactMatchCache: Record<string, boolean>;
+  populateExactMatchCache: (cambio: Cambio) => Promise<void>;
+}) => {
+  const nombreSistema = sanitizeNombre(cambio.nombre_normalizado) || sanitizeNombre(cambio.modelo_norm)
+  const nombreLikewize = sanitizeNombre(cambio.nombre_likewize_original) || nombreSistema
+  const sonIguales = nombreSistema.localeCompare(nombreLikewize, undefined, { sensitivity: 'accent', usage: 'search' }) === 0
+
+  const analysis = getMappingAnalysis(cambio)
+  const hasIssues = analysis.issues.length > 0
+  const hasWarnings = analysis.warnings.length > 0
+
+  const arrowColor = sonIguales ? 'text.disabled' :
+                    hasIssues ? 'error.main' :
+                    hasWarnings ? 'warning.main' : 'info.main'
+
+  // Check if there might be exact matches in database using the centralized cache
+  const likewizeName = sanitizeNombre(cambio.nombre_likewize_original)
+  const hasExactMatch = likewizeName ? exactMatchCache[likewizeName] : false
+
+  // Trigger cache population if not already present
+  useEffect(() => {
+    if (likewizeName && exactMatchCache[likewizeName] === undefined) {
+      populateExactMatchCache(cambio)
+    }
+  }, [likewizeName, exactMatchCache, cambio, populateExactMatchCache])
+
+  return (
+    <Stack spacing={0.75}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+        {marca && <Chip size="small" variant="outlined" label={marca} />}
+        {hasExactMatch === true && (
+          <Chip
+            size="small"
+            color="success"
+            variant="outlined"
+            icon={<CheckCircleIcon fontSize="small" />}
+            label="Match exacto en BD"
+          />
+        )}
+        {hasExactMatch === false && hasIssues && (
+          <Chip
+            size="small"
+            color="warning"
+            variant="outlined"
+            icon={<WarningIcon fontSize="small" />}
+            label="Requiere revisión"
+          />
+        )}
+      </Stack>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        sx={{ flexWrap: 'wrap' }}
+      >
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            Sistema
+          </Typography>
+          <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-word' }}>
+            {nombreSistema || '—'}
+          </Typography>
+          {analysis.normalizedYear && (
+            <Typography variant="caption" color="text.secondary">
+              {analysis.normalizedYear}
+            </Typography>
+          )}
+          {analysis.normalizedProcessor && (
+            <Typography variant="caption" color="primary.main" sx={{ display: 'block' }}>
+              {analysis.normalizedProcessor}
+            </Typography>
+          )}
+        </Box>
+        <Tooltip
+          title={
+            hasExactMatch ? 'Hay coincidencias exactas en la base de datos - usa "Asociar modelo"' :
+            sonIguales ? 'El nombre coincide con el registrado en Likewize' :
+            hasIssues ? 'Problemas detectados en el mapeo - requiere revisión' :
+            hasWarnings ? 'Advertencias en el mapeo - revisa las diferencias' :
+            'Nombre distinto al registrado en Likewize'
+          }
+        >
+          <ArrowForwardIcon sx={{ color: arrowColor }} fontSize="small" />
+        </Tooltip>
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            Likewize
+          </Typography>
+          <Typography
+            variant="body2"
+            fontWeight={sonIguales ? 500 : 600}
+            color={sonIguales ? 'text.primary' : hasIssues ? 'error.main' : 'warning.main'}
+            sx={{ wordBreak: 'break-word' }}
+          >
+            {nombreLikewize || '—'}
+          </Typography>
+          {analysis.originalYear && (
+            <Typography variant="caption" color="text.secondary">
+              {analysis.originalYear}
+            </Typography>
+          )}
+          {analysis.originalProcessor && (
+            <Typography variant="caption" color="primary.main" sx={{ display: 'block' }}>
+              {analysis.originalProcessor}
+            </Typography>
+          )}
+        </Box>
+      </Stack>
+
+      {/* Show specific issues */}
+      {analysis.issues.length > 0 && (
+        <Stack spacing={0.5}>
+          {analysis.issues.map((issue, index) => (
+            <Typography key={index} variant="caption" color="error.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <WarningIcon fontSize="inherit" />
+              {issue}
+            </Typography>
+          ))}
+        </Stack>
+      )}
+
+      {/* Show warnings */}
+      {analysis.warnings.length > 0 && (
+        <Stack spacing={0.5}>
+          {analysis.warnings.map((warning, index) => (
+            <Typography key={index} variant="caption" color="warning.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <InfoIcon fontSize="inherit" />
+              {warning}
+            </Typography>
+          ))}
+        </Stack>
+      )}
+
+      {!sonIguales && analysis.issues.length === 0 && analysis.warnings.length === 0 && (
+        <Typography variant="caption" color="info.main">
+          Los nombres difieren: revisa el mapeo si es necesario.
+        </Typography>
+      )}
+    </Stack>
+  )
+}
 
 const formatStorage = (gb?: number | null): string => {
   if (gb == null || Number.isNaN(gb)) return ''
@@ -91,6 +417,7 @@ function LiveLog({ tareaId, enabled }: { tareaId: string; enabled: boolean }) {
   )
 }
 export default function LikewizeB2BPage() {
+  const queryClient = useQueryClient()
   const [tareaId, setTareaId] = useState<string | null>(null)
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [openCrearDialog, setOpenCrearDialog] = useState(false)
@@ -106,6 +433,55 @@ export default function LikewizeB2BPage() {
   const [capMarcaLookup, setCapMarcaLookup] = useState<Record<number, string>>({})
   const [selectedOtherBrands, setSelectedOtherBrands] = useState<string[]>([])
   const [pendingMode, setPendingMode] = useState<'apple' | 'others' | null>(null)
+  const [mapTarget, setMapTarget] = useState<Cambio | null>(null)
+  const [selectedModelo, setSelectedModelo] = useState<ModeloMini | null>(null)
+  const [mapNombre, setMapNombre] = useState('')
+  const [modeloSearchTerm, setModeloSearchTerm] = useState('')
+  const [showCrearModelo, setShowCrearModelo] = useState(false)
+  const [nuevoModeloDescripcion, setNuevoModeloDescripcion] = useState('')
+  const [nuevoModeloTipo, setNuevoModeloTipo] = useState('')
+  const [nuevoModeloMarca, setNuevoModeloMarca] = useState('')
+  const [nuevoModeloPantalla, setNuevoModeloPantalla] = useState('')
+  const [nuevoModeloAno, setNuevoModeloAno] = useState('')
+  const [nuevoModeloProcesador, setNuevoModeloProcesador] = useState('')
+
+  // New filter states
+  const [showDeactivated, setShowDeactivated] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterKind, setFilterKind] = useState<'all' | 'INSERT' | 'UPDATE' | 'DELETE'>('all')
+  const [filterMarca, setFilterMarca] = useState<string>('all')
+  const [filterConfidence, setFilterConfidence] = useState<'all' | 'alta' | 'media' | 'baja'>('all')
+  const [showOnlyProblematic, setShowOnlyProblematic] = useState(false)
+  const [showOnlyExactMatches, setShowOnlyExactMatches] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Cache for exact match checks to avoid excessive API calls
+  const [exactMatchCache, setExactMatchCache] = useState<Record<string, boolean>>({})
+
+  // Function to populate cache for exact matches
+  const populateExactMatchCache = useCallback(async (cambio: Cambio) => {
+    const likewizeName = sanitizeNombre(cambio.nombre_likewize_original)
+    if (!likewizeName || exactMatchCache[likewizeName] !== undefined) return
+
+    try {
+      const { data } = await api.get('/api/admin/modelos/', {
+        params: {
+          likewize_modelo: likewizeName,
+          limit: 1
+        }
+      })
+      const models = Array.isArray(data) ? data : data.results || []
+      const hasMatch = models.length > 0
+
+      // Update cache
+      setExactMatchCache(prev => ({ ...prev, [likewizeName]: hasMatch }))
+    } catch {
+      // Update cache with false
+      setExactMatchCache(prev => ({ ...prev, [likewizeName]: false }))
+    }
+  }, [exactMatchCache])
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   useEffect(() => {
     setCapStatus({})
@@ -179,6 +555,261 @@ export default function LikewizeB2BPage() {
     },
     enabled: !!tareaId && estado.data?.estado === 'SUCCESS',
   })
+
+  // Exact match query by likewize_modelo
+  const exactLikewizeMatch = useQuery<ModeloMini[]>({
+    queryKey: ['exact-likewize-match', mapTarget?.nombre_likewize_original],
+    queryFn: async () => {
+      const likewizeName = sanitizeNombre(mapTarget?.nombre_likewize_original)
+      if (!likewizeName) return []
+
+      // Try exact match first
+      try {
+        const { data } = await api.get('/api/admin/modelos/', {
+          params: {
+            likewize_modelo: likewizeName,
+            limit: 10
+          }
+        })
+        return (Array.isArray(data) ? data : data.results || []) as ModeloMini[]
+      } catch (error) {
+        // Fallback: search without capacity/specs
+        const cleanLikewizeName = likewizeName
+          .replace(/\b\d+\s*(GB|TB)\b/gi, '') // Remove capacity
+          .replace(/\b\d+\s*(inch|pulgadas?|''|")\b/gi, '') // Remove screen size
+          .replace(/\(\d+\/\d+\)/g, '') // Remove date patterns
+          .trim()
+
+        if (cleanLikewizeName && cleanLikewizeName !== likewizeName) {
+          const { data } = await api.get('/api/admin/modelos/', {
+            params: {
+              likewize_modelo: cleanLikewizeName,
+              limit: 10
+            }
+          })
+          return (Array.isArray(data) ? data : data.results || []) as ModeloMini[]
+        }
+        return []
+      }
+    },
+    enabled: Boolean(mapTarget?.nombre_likewize_original),
+    staleTime: 60_000,
+  })
+
+  const modelosSearch = useQuery<ModeloMini[]>({
+    queryKey: ['admin-modelos-search', modeloSearchTerm, mapTarget?.tipo, mapTarget?.marca],
+    queryFn: async () => {
+      const params: Record<string, string> = { q: modeloSearchTerm }
+      if (mapTarget?.tipo) params.tipo = mapTarget.tipo
+      const marcaPreferida = mapTarget?.marca || (mapTarget?.capacidad_id ? capMarcaLookup[mapTarget.capacidad_id] : undefined)
+      if (marcaPreferida) params.marca = marcaPreferida
+      const { data } = await api.get('/api/admin/modelos/search/', { params })
+      return data as ModeloMini[]
+    },
+    enabled: Boolean(mapTarget && modeloSearchTerm.trim().length >= 2),
+    staleTime: 30_000,
+  })
+
+  // Smart suggestions based on mapping analysis
+  const getSmartSuggestions = useMemo(() => {
+    if (!mapTarget) return []
+
+    const analysis = getMappingAnalysis(mapTarget)
+    const suggestions = []
+
+    // Suggest search terms based on detected attributes
+    if (analysis.originalYear && analysis.originalYear !== analysis.normalizedYear) {
+      const baseModel = mapTarget.modelo_norm.replace(/\b20\d{2}\b/g, '').trim()
+      suggestions.push(`${baseModel} ${analysis.originalYear}`)
+    }
+
+    if (analysis.originalProcessor && analysis.originalProcessor !== analysis.normalizedProcessor) {
+      const baseModel = mapTarget.modelo_norm.replace(/\b(M[1-4]|Intel).*?\b/gi, '').trim()
+      suggestions.push(`${baseModel} ${analysis.originalProcessor}`)
+    }
+
+    // Extract base model name without technical specs
+    const baseModelName = mapTarget.modelo_norm
+      .replace(/\([^)]*\)/g, '') // Remove parentheses content
+      .replace(/\b\d+\s*(GB|TB|inch|pulgadas?|''|")\b/gi, '') // Remove capacity/size specs
+      .replace(/\b(M[1-4]|Intel).*$/gi, '') // Remove processor specs
+      .replace(/\bA\d{4}\b/gi, '') // Remove model numbers
+      .trim()
+
+    if (baseModelName && baseModelName !== mapTarget.modelo_norm) {
+      suggestions.push(baseModelName)
+    }
+
+    return [...new Set(suggestions)].slice(0, 3) // Remove duplicates and limit to 3
+  }, [mapTarget, getMappingAnalysis])
+
+  // Auto-suggest searches when dialog opens
+  useEffect(() => {
+    if (mapTarget && getSmartSuggestions.length > 0 && !modeloSearchTerm) {
+      setModeloSearchTerm(getSmartSuggestions[0])
+    }
+  }, [mapTarget, getSmartSuggestions])
+
+  // Auto-select exact matches when found
+  useEffect(() => {
+    if (exactLikewizeMatch.data && exactLikewizeMatch.data.length === 1 && !selectedModelo) {
+      const exactMatch = exactLikewizeMatch.data[0]
+      setSelectedModelo(exactMatch)
+      setModeloSearchTerm(exactMatch.descripcion)
+    }
+  }, [exactLikewizeMatch.data, selectedModelo])
+
+  function openMapDialog(c: Cambio) {
+    setMapTarget(c)
+    const likewizeName = sanitizeNombre(c.nombre_likewize_original) || c.modelo_norm
+    setMapNombre(likewizeName)
+    const initialSearch = sanitizeNombre(c.nombre_normalizado) || c.modelo_norm
+    setModeloSearchTerm(initialSearch)
+    setSelectedModelo(null)
+    setShowCrearModelo(false)
+    setNuevoModeloDescripcion(initialSearch)
+    setNuevoModeloTipo(c.tipo)
+    const marcaSugerida = c.marca || (c.capacidad_id ? capMarcaLookup[c.capacidad_id] : '') || 'Apple'
+    setNuevoModeloMarca(marcaSugerida)
+    setNuevoModeloPantalla('')
+    setNuevoModeloAno('')
+    setNuevoModeloProcesador('')
+  }
+
+  function closeMapDialog() {
+    setMapTarget(null)
+    setSelectedModelo(null)
+    setModeloSearchTerm('')
+    setMapNombre('')
+    setShowCrearModelo(false)
+    setNuevoModeloDescripcion('')
+    setNuevoModeloTipo('')
+    setNuevoModeloMarca('')
+    setNuevoModeloPantalla('')
+    setNuevoModeloAno('')
+    setNuevoModeloProcesador('')
+    crearModeloManual.reset()
+  }
+
+  const asociarLikewize = useMutation({
+    mutationFn: async (
+      {
+        modeloId,
+        nombre,
+        cambioId,
+        cambioKind,
+      }: {
+        modeloId: number
+        nombre: string
+        cambioId?: string
+        cambioKind?: Cambio['kind']
+      }
+    ) => {
+      const { data } = await api.post(`/api/admin/modelos/${modeloId}/asociar-likewize/`, { nombre })
+
+      if (
+        cambioId &&
+        tareaId &&
+        cambioKind &&
+        (cambioKind === 'INSERT' || cambioKind === 'UPDATE')
+      ) {
+        await api.post(`/api/precios/likewize/tareas/${tareaId}/aplicar/`, {
+          ids: [cambioId],
+        })
+      }
+
+      return data as ModeloMini
+    },
+    onSuccess: () => {
+      setToggleMessage({ msg: 'Modelo asociado manualmente', sev: 'success' })
+      if (mapTarget) {
+        const newNombreSistema = selectedModelo?.descripcion?.trim() || mapTarget.nombre_normalizado || mapTarget.modelo_norm
+        const newNombreLikewize = trimmedMapNombre || mapTarget.nombre_likewize_original || mapTarget.modelo_norm
+        if (tareaId) {
+          queryClient.setQueryData(['likewize_diff', tareaId], (prev: any) => {
+            if (!prev || !prev.changes) return prev
+            const updatedChanges = prev.changes.map((change: any) => {
+              if (change.id !== mapTarget.id) return change
+              return {
+                ...change,
+                nombre_normalizado: newNombreSistema,
+                modelo_norm: newNombreSistema,
+                nombre_likewize_original: newNombreLikewize,
+              }
+            })
+            return { ...prev, changes: updatedChanges }
+          })
+        }
+      }
+      closeMapDialog()
+      diff.refetch()
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'No se pudo asociar el modelo'
+      setToggleMessage({ msg: message, sev: 'error' })
+    },
+  })
+
+  const handleAssociate = () => {
+    if (!mapTarget || !selectedModelo) return
+    const nombre = mapNombre.trim()
+    if (!nombre) {
+      setToggleMessage({ msg: 'Introduce el nombre de Likewize para asociar.', sev: 'error' })
+      return
+    }
+    asociarLikewize.mutate({
+      modeloId: selectedModelo.id,
+      nombre,
+      cambioId: mapTarget.id,
+      cambioKind: mapTarget.kind,
+    })
+  }
+
+  const crearModeloManual = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = {
+        descripcion: nuevoModeloDescripcion.trim(),
+        tipo: nuevoModeloTipo.trim(),
+        marca: nuevoModeloMarca.trim(),
+        pantalla: nuevoModeloPantalla.trim(),
+        likewize_modelo: mapNombre.trim(),
+      }
+      const anoLimpio = nuevoModeloAno.trim()
+      if (anoLimpio) {
+        const parsed = Number.parseInt(anoLimpio, 10)
+        if (!Number.isNaN(parsed)) payload['año'] = parsed
+      }
+      const procLimpio = nuevoModeloProcesador.trim()
+      if (procLimpio) payload.procesador = procLimpio
+      const { data } = await api.post('/api/admin/modelos/', payload)
+      return data as ModeloMini
+    },
+    onSuccess: (modelo) => {
+      setToggleMessage({ msg: 'Modelo creado correctamente', sev: 'success' })
+      setSelectedModelo(modelo)
+      setModeloSearchTerm(modelo.descripcion)
+      setShowCrearModelo(false)
+      modelosSearch.refetch()
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'No se pudo crear el modelo'
+      setToggleMessage({ msg: message, sev: 'error' })
+    },
+  })
+
+  const selectedModeloLikewize = useMemo(
+    () => (selectedModelo?.likewize_modelo || '').trim(),
+    [selectedModelo]
+  )
+  const trimmedMapNombre = mapNombre.trim()
+  const willOverrideLikewize = useMemo(() => {
+    if (!selectedModeloLikewize) return false
+    if (!trimmedMapNombre) return false
+    return selectedModeloLikewize.localeCompare(trimmedMapNombre, undefined, {
+      sensitivity: 'accent',
+      usage: 'search',
+    }) !== 0
+  }, [selectedModeloLikewize, trimmedMapNombre])
 
   const { data: likewizePresets } = useQuery({
     queryKey: ['likewize-presets'],
@@ -344,13 +975,92 @@ export default function LikewizeB2BPage() {
     },
   })
 
+  // Filtered changes based on current filters
+  const filteredChanges = useMemo(() => {
+    if (!diff.data?.changes) return []
+
+    return diff.data.changes.filter((c) => {
+      // Filter out deactivated devices unless explicitly shown
+      if (!showDeactivated && c.kind === 'DELETE' && capStatus[c.capacidad_id!] === false) {
+        return false
+      }
+
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase()
+        const matches =
+          c.modelo_norm.toLowerCase().includes(searchLower) ||
+          (c.marca || '').toLowerCase().includes(searchLower) ||
+          c.tipo.toLowerCase().includes(searchLower) ||
+          (c.nombre_likewize_original || '').toLowerCase().includes(searchLower)
+        if (!matches) return false
+      }
+
+      // Kind filter
+      if (filterKind !== 'all' && c.kind !== filterKind) {
+        return false
+      }
+
+      // Brand filter
+      if (filterMarca !== 'all') {
+        const marca = c.marca || capMarcaLookup[c.capacidad_id!] || ''
+        if (marca !== filterMarca) return false
+      }
+
+      // Confidence filter
+      if (filterConfidence !== 'all') {
+        const confidence = getMappingConfidence(c)
+        if (confidence !== filterConfidence) return false
+      }
+
+      // Show only problematic mappings
+      if (showOnlyProblematic) {
+        const analysis = getMappingAnalysis(c)
+        const hasProblems = analysis.issues.length > 0 || analysis.warnings.length > 0
+        if (!hasProblems) return false
+      }
+
+      // Show only items with exact matches
+      if (showOnlyExactMatches) {
+        const likewizeName = sanitizeNombre(c.nombre_likewize_original)
+        const hasExactMatch = likewizeName ? exactMatchCache[likewizeName] : false
+        if (!hasExactMatch) return false
+      }
+
+      return true
+    })
+  }, [diff.data?.changes, showDeactivated, searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, showOnlyExactMatches, exactMatchCache, capStatus, capMarcaLookup, getMappingConfidence, getMappingAnalysis])
+
+  // Paginated changes
+  const paginatedChanges = useMemo(() => {
+    const startIndex = page * pageSize
+    return filteredChanges.slice(startIndex, startIndex + pageSize)
+  }, [filteredChanges, page, pageSize])
+
+  // Available brands for filter
+  const availableBrands = useMemo(() => {
+    if (!diff.data?.changes) return []
+    const brands = new Set<string>()
+    diff.data.changes.forEach(c => {
+      const marca = c.marca || capMarcaLookup[c.capacidad_id!] || ''
+      if (marca) brands.add(marca)
+    })
+    return Array.from(brands).sort()
+  }, [diff.data?.changes, capMarcaLookup])
+
   const bulkDeactivateTargets = useMemo(() => {
     if (!diff.data) return []
-    const ids = diff.data.changes
+    const ids = filteredChanges
       .filter((c) => seleccion.has(c.id) && c.kind === 'DELETE' && c.capacidad_id)
       .map((c) => c.capacidad_id!)
     return Array.from(new Set(ids))
-  }, [diff.data, seleccion])
+  }, [filteredChanges, seleccion])
+
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0)
+  }, [searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, showDeactivated])
 
   function closeCrearDialog() {
     setOpenCrearDialog(false)
@@ -386,8 +1096,15 @@ export default function LikewizeB2BPage() {
   }
 
   const selectAll = () => {
-    if (!diff.data) return
-    setSeleccion(new Set(diff.data.changes.map(c => c.id)))
+    setSeleccion(new Set(filteredChanges.map(c => c.id)))
+  }
+
+  const selectPage = () => {
+    setSeleccion(prev => {
+      const newSelection = new Set(prev)
+      paginatedChanges.forEach(c => newSelection.add(c.id))
+      return newSelection
+    })
   }
 
   const clearAll = () => setSeleccion(new Set())
@@ -397,215 +1114,526 @@ export default function LikewizeB2BPage() {
     k === 'UPDATE' ? <Chip size="small" color="warning" label="CAMBIO" /> :
                      <Chip size="small" color="default" label="BAJA" />
 
-  return (
-    <Grid container spacing={2} sx={{ p: 2 }}>
-      <Grid size={{ xs: 12, md: 10 }}>
-        <Paper sx={{ p: 2 }}>
-          <Stack spacing={2}>
-            <Typography variant="h5">Actualizar precios B2B (Likewize)</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Paso 1: descarga a staging. Paso 2: revisa los cambios y aplica solo los seleccionados.
-            </Typography>
+  const MappingConfidenceIndicator = ({ cambio }: { cambio: Cambio }) => {
+    const confidence = getMappingConfidence(cambio)
+    const icon = confidence === 'alta' ? <CheckCircleIcon /> :
+                 confidence === 'media' ? <InfoIcon /> : <WarningIcon />
+    const color = confidence === 'alta' ? 'success' :
+                  confidence === 'media' ? 'info' : 'warning'
 
-            {!running && estado.data?.estado !== 'SUCCESS' && (
-              <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-                <Autocomplete
-                  multiple
-                  disableCloseOnSelect
-                  size="small"
-                  options={otherBrandOptions}
-                  value={selectedOtherBrands}
-                  onChange={(_, newValue) => setSelectedOtherBrands(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Marcas (otros)"
-                      placeholder="Selecciona marcas"
-                    />
-                  )}
-                  sx={{ minWidth: 260, maxWidth: 320 }}
-                  disabled={lanzarActualizacionPending}
-                />
+    return (
+      <Tooltip title={`Confianza del mapeo: ${confidence.toUpperCase()}`}>
+        <Chip
+          size="small"
+          icon={icon}
+          label={confidence.charAt(0).toUpperCase() + confidence.slice(1)}
+          color={color}
+          variant="outlined"
+        />
+      </Tooltip>
+    )
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Stack spacing={3}>
+        {/* Header */}
+        <Card variant="outlined">
+          <CardHeader
+            title="Actualizar precios B2B (Likewize)"
+            subheader="Descarga, revisa y aplica cambios de precios desde Likewize"
+            avatar={
+              <Box sx={{
+                bgcolor: 'primary.main',
+                borderRadius: '50%',
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Typography variant="h6" color="primary.contrastText" fontWeight={600}>
+                  B2B
+                </Typography>
+              </Box>
+            }
+            action={
+              <Stack direction="row" spacing={1}>
                 <Button
-                  variant="contained"
-                  onClick={() => lanzarTarea('apple', appleBrandDefaults)}
-                  disabled={lanzarActualizacionPending}
-                >
-                  {pendingMode === 'apple' && lanzarActualizacionPending ? 'Lanzando…' : 'Actualizar Apple'}
-                </Button>
-                <Button
-                  variant="contained"
+                  variant="outlined"
                   color="secondary"
-                  onClick={() => {
-                    if (!selectedOtherBrands.length) {
-                      setToggleMessage({ msg: 'Selecciona al menos una marca para sincronizar.', sev: 'error' })
-                      return
-                    }
-                    lanzarTarea('others', selectedOtherBrands)
-                  }}
-                  disabled={lanzarActualizacionPending || selectedOtherBrands.length === 0}
+                  onClick={() => { window.location.href = '/dispositivos/actualizar-b2c' }}
                 >
-                  {pendingMode === 'others' && lanzarActualizacionPending ? 'Lanzando…' : 'Actualizar otros'}
+                  Actualizar B2C
                 </Button>
-                <Button variant="outlined" onClick={() => cargarUltima.mutate()} disabled={cargarUltima.isPending}>
-                  {cargarUltima.isPending ? 'Cargando…' : 'Ver último descargado'}
-                </Button>
-                <Button variant="outlined" color="secondary" onClick={() => { window.location.href = '/dispositivos/actualizar-b2c' }}>
-                  Actualizar precios B2C
-                </Button>
-                <Button variant="outlined" color="secondary" onClick={() => { window.location.href = '/dispositivos/actualizar-b2c-backmarket' }}>
-                  Actualizar B2C (Back Market)
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={() => { window.location.href = '/dispositivos/actualizar-b2c-backmarket' }}
+                >
+                  B2C (Back Market)
                 </Button>
               </Stack>
-            )}
+            }
+          />
+        </Card>
 
-            {running && (
-            <>
+        {/* Process Steps */}
+        <Card variant="outlined">
+          <CardHeader title="Proceso de Actualización" />
+          <CardContent>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Chip
+                label="1. Descargar"
+                color={estado.data?.estado === 'SUCCESS' ? 'success' : 'default'}
+                variant={estado.data?.estado === 'SUCCESS' ? 'filled' : 'outlined'}
+              />
+              <Typography variant="body2" color="text.secondary">→</Typography>
+              <Chip
+                label="2. Revisar"
+                color={diff.data ? 'success' : 'default'}
+                variant={diff.data ? 'filled' : 'outlined'}
+              />
+              <Typography variant="body2" color="text.secondary">→</Typography>
+              <Chip
+                label="3. Aplicar"
+                color="default"
+                variant="outlined"
+              />
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* Download Controls */}
+        {!running && estado.data?.estado !== 'SUCCESS' && (
+          <Card variant="outlined">
+            <CardHeader title="Paso 1: Descargar datos de Likewize" />
+            <CardContent>
+              <Stack spacing={3}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Autocomplete
+                      multiple
+                      disableCloseOnSelect
+                      size="small"
+                      options={otherBrandOptions}
+                      value={selectedOtherBrands}
+                      onChange={(_, newValue) => setSelectedOtherBrands(newValue)}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Marcas adicionales"
+                          placeholder="Selecciona marcas"
+                        />
+                      )}
+                      disabled={lanzarActualizacionPending}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 8 }}>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Button
+                        variant="contained"
+                        size="large"
+                        onClick={() => lanzarTarea('apple', appleBrandDefaults)}
+                        disabled={lanzarActualizacionPending}
+                      >
+                        {pendingMode === 'apple' && lanzarActualizacionPending ? 'Lanzando…' : 'Actualizar Apple'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        size="large"
+                        onClick={() => {
+                          if (!selectedOtherBrands.length) {
+                            setToggleMessage({ msg: 'Selecciona al menos una marca para sincronizar.', sev: 'error' })
+                            return
+                          }
+                          lanzarTarea('others', selectedOtherBrands)
+                        }}
+                        disabled={lanzarActualizacionPending || selectedOtherBrands.length === 0}
+                      >
+                        {pendingMode === 'others' && lanzarActualizacionPending ? 'Lanzando…' : 'Actualizar otros'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => cargarUltima.mutate()}
+                        disabled={cargarUltima.isPending}
+                      >
+                        {cargarUltima.isPending ? 'Cargando…' : 'Ver último descargado'}
+                      </Button>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Progress */}
+        {running && (
+          <Card variant="outlined">
+            <CardHeader title="Descargando datos..." />
+            <CardContent>
+              <Stack spacing={2}>
                 <LinearProgress
                   variant={typeof (estado.data as EstadoTareaExt | undefined)?.progreso === 'number' ? 'determinate' : 'indeterminate'}
                   value={(estado.data as EstadoTareaExt | undefined)?.progreso ?? 0}
                 />
-                <Typography>
+                <Typography variant="body2" color="text.secondary">
                   {(estado.data as EstadoTareaExt | undefined)?.subestado || 'Procesando…'}
                 </Typography>
-
-                {/* Log en vivo */}
                 <LiveLog tareaId={tareaId!} enabled={running} />
-            </>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Messages */}
+        {estado.data?.estado === 'ERROR' && (
+          <Alert severity="error">
+            Falló la actualización: {estado.data.error_message || 'Error desconocido'}{' '}
+            {estado.data.log_url && (
+              <MuiLink href={estado.data.log_url} target="_blank" rel="noopener">Ver log</MuiLink>
             )}
+          </Alert>
+        )}
 
-            {estado.data?.estado === 'ERROR' && (
-              <Alert severity="error">
-                Falló la actualización: {estado.data.error_message || 'Error desconocido'}{' '}
-                {estado.data.log_url && (
-                  <MuiLink href={estado.data.log_url} target="_blank" rel="noopener">Ver log</MuiLink>
-                )}
-              </Alert>
-            )}
+        {toggleMessage && (
+          <Alert
+            severity={toggleMessage.sev}
+            onClose={() => setToggleMessage(null)}
+          >
+            {toggleMessage.msg}
+          </Alert>
+        )}
 
-            {/* Mensajería B2C no necesaria aquí; se maneja en la página B2C */}
+        {/* Success State and Actions */}
+        {estado.data?.estado === 'SUCCESS' && (
+          <>
+            <Alert severity="success">Staging listo. Revisa cambios antes de aplicar.</Alert>
 
-            {toggleMessage && (
-              <Alert
-                severity={toggleMessage.sev}
-                onClose={() => setToggleMessage(null)}
-              >
-                {toggleMessage.msg}
-              </Alert>
-            )}
+            {/* Actions Card */}
+            <Card variant="outlined">
+              <CardHeader title="Paso 2: Revisar y Aplicar Cambios" />
+              <CardContent>
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+                    <Button size="small" variant="outlined" onClick={selectAll}>
+                      Seleccionar filtrados ({filteredChanges.length})
+                    </Button>
+                    <Button size="small" variant="outlined" onClick={selectPage}>
+                      Seleccionar página ({paginatedChanges.length})
+                    </Button>
+                    <Button size="small" variant="outlined" onClick={clearAll}>
+                      Limpiar selección
+                    </Button>
+                    <Divider orientation="vertical" flexItem />
+                    <Chip
+                      label={`Seleccionados: ${seleccion.size}`}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  </Stack>
 
-            {estado.data?.estado === 'SUCCESS' && (
-              <>
-                <Alert severity="success">Staging listo. Revisa cambios antes de aplicar.</Alert>
-
-                <Stack direction="row" spacing={1}>
-                  <Button size="small" variant="outlined" onClick={selectAll}>Seleccionar todo</Button>
-                  <Button size="small" variant="outlined" onClick={clearAll}>Limpiar selección</Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    disabled={seleccion.size === 0 || aplicar.isPending}
-                    onClick={() => aplicar.mutate()}
-                  >
-                    {aplicar.isPending ? 'Aplicando…' : `Aplicar seleccionados (${seleccion.size})`}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="warning"
-                    disabled={bulkDeactivateTargets.length === 0 || toggleCapacidad.isPending}
-                    onClick={async () => {
-                      if (bulkDeactivateTargets.length === 0) {
-                        setToggleMessage({ msg: 'Selecciona filas de tipo baja para desactivar.', sev: 'error' })
-                        return
-                      }
-                      try {
-                        for (const capId of bulkDeactivateTargets) {
-                          await toggleCapacidad.mutateAsync({ capacidadId: capId, activo: false })
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Button
+                      variant="contained"
+                      size="large"
+                      disabled={seleccion.size === 0 || aplicar.isPending}
+                      onClick={() => aplicar.mutate()}
+                    >
+                      {aplicar.isPending ? 'Aplicando…' : `Aplicar seleccionados (${seleccion.size})`}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      disabled={bulkDeactivateTargets.length === 0 || toggleCapacidad.isPending}
+                      onClick={async () => {
+                        if (bulkDeactivateTargets.length === 0) {
+                          setToggleMessage({ msg: 'Selecciona filas de tipo baja para desactivar.', sev: 'error' })
+                          return
                         }
-                        setToggleMessage({ msg: `Capacidades marcadas como baja (${bulkDeactivateTargets.length})`, sev: 'success' })
-                      } catch (err) {
-                        setToggleMessage({ msg: err instanceof Error ? err.message : 'Error desactivando capacidades', sev: 'error' })
-                      }
-                    }}
-                  >
-                    Marcar seleccionados como baja
-                  </Button>
+                        try {
+                          for (const capId of bulkDeactivateTargets) {
+                            await toggleCapacidad.mutateAsync({ capacidadId: capId, activo: false })
+                          }
+                          setToggleMessage({ msg: `Capacidades marcadas como baja (${bulkDeactivateTargets.length})`, sev: 'success' })
+                        } catch (err) {
+                          setToggleMessage({ msg: err instanceof Error ? err.message : 'Error desactivando capacidades', sev: 'error' })
+                        }
+                      }}
+                    >
+                      Marcar seleccionados como baja
+                    </Button>
+                  </Stack>
                 </Stack>
+              </CardContent>
+            </Card>
 
-                {diff.isLoading && <LinearProgress />}
+            {diff.isLoading && <LinearProgress />}
 
                 {diff.data && (
                   <>
-                    <Typography variant="body2" color="text.secondary">
-                      Cambios propuestos: {diff.data.summary.total}
-                      {' · Altas: '}{diff.data.summary.inserts}
-                      {' · Cambios: '}{diff.data.summary.updates}
-                      {' · Bajas: '}{diff.data.summary.deletes}
-                    </Typography>
+                    <Card variant="outlined">
+                      <CardHeader
+                        title="Resumen de Cambios"
+                        action={
+                          <Stack direction="row" spacing={1}>
+                            <Chip
+                              label={`Total: ${diff.data.summary.total}`}
+                              color="primary"
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={`Filtrados: ${filteredChanges.length}`}
+                              color="secondary"
+                              variant="outlined"
+                            />
+                          </Stack>
+                        }
+                      />
+                      <CardContent>
+                        <Stack direction="row" spacing={2} flexWrap="wrap">
+                          <Chip label={`Altas: ${diff.data.summary.inserts}`} color="success" variant="outlined" />
+                          <Chip label={`Cambios: ${diff.data.summary.updates}`} color="warning" variant="outlined" />
+                          <Chip label={`Bajas: ${diff.data.summary.deletes}`} color="default" variant="outlined" />
+                        </Stack>
+                      </CardContent>
+                    </Card>
 
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell />
-                          <TableCell>Tipo</TableCell>
-                          <TableCell>Modelo</TableCell>
-                          <TableCell align="right">Cap.</TableCell>
-                          <TableCell align="center">Acción</TableCell>
-                          <TableCell>Tipo cambio</TableCell>
-                          <TableCell align="right">Antes</TableCell>
-                          <TableCell align="right">Después</TableCell>
-                          <TableCell align="right">Δ</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {diff.data.changes.map(c => (
+                    {/* Filters Card */}
+                    <Card variant="outlined">
+                      <CardHeader
+                        title="Filtros y Búsqueda"
+                        action={
+                          <IconButton onClick={() => setShowFilters(!showFilters)}>
+                            <ExpandMoreIcon sx={{ transform: showFilters ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }} />
+                          </IconButton>
+                        }
+                      />
+                      <Collapse in={showFilters}>
+                        <CardContent>
+                          <Grid container spacing={2}>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Buscar"
+                                placeholder="Modelo, marca, código..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                InputProps={{
+                                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                                }}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Tipo de Cambio</InputLabel>
+                                <Select
+                                  value={filterKind}
+                                  label="Tipo de Cambio"
+                                  onChange={(e) => setFilterKind(e.target.value as any)}
+                                >
+                                  <MenuItem value="all">Todos</MenuItem>
+                                  <MenuItem value="INSERT">Altas</MenuItem>
+                                  <MenuItem value="UPDATE">Cambios</MenuItem>
+                                  <MenuItem value="DELETE">Bajas</MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Marca</InputLabel>
+                                <Select
+                                  value={filterMarca}
+                                  label="Marca"
+                                  onChange={(e) => setFilterMarca(e.target.value)}
+                                >
+                                  <MenuItem value="all">Todas</MenuItem>
+                                  {availableBrands.map((brand) => (
+                                    <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Confianza</InputLabel>
+                                <Select
+                                  value={filterConfidence}
+                                  label="Confianza"
+                                  onChange={(e) => setFilterConfidence(e.target.value as any)}
+                                >
+                                  <MenuItem value="all">Todas</MenuItem>
+                                  <MenuItem value="alta">Alta</MenuItem>
+                                  <MenuItem value="media">Media</MenuItem>
+                                  <MenuItem value="baja">Baja</MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                              <Stack spacing={1}>
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={showOnlyProblematic}
+                                      onChange={(e) => setShowOnlyProblematic(e.target.checked)}
+                                      color="warning"
+                                    />
+                                  }
+                                  label="Solo mapeos problemáticos"
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={showOnlyExactMatches}
+                                      onChange={(e) => setShowOnlyExactMatches(e.target.checked)}
+                                      color="success"
+                                    />
+                                  }
+                                  label="Solo con matches exactos en BD"
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={showDeactivated}
+                                      onChange={(e) => setShowDeactivated(e.target.checked)}
+                                      icon={<VisibilityOffIcon />}
+                                      checkedIcon={<VisibilityIcon />}
+                                    />
+                                  }
+                                  label="Mostrar dispositivos en baja"
+                                />
+                              </Stack>
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 2 }}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Por página</InputLabel>
+                                <Select
+                                  value={pageSize}
+                                  label="Por página"
+                                  onChange={(e) => setPageSize(Number(e.target.value))}
+                                >
+                                  <MenuItem value={25}>25</MenuItem>
+                                  <MenuItem value={50}>50</MenuItem>
+                                  <MenuItem value={100}>100</MenuItem>
+                                  <MenuItem value={200}>200</MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                          </Grid>
+                        </CardContent>
+                      </Collapse>
+                    </Card>
+
+                    <Card variant="outlined">
+                      <CardHeader
+                        title={`Cambios (${filteredChanges.length} de ${diff.data.summary.total})`}
+                        subheader={`Página ${page + 1} de ${Math.ceil(filteredChanges.length / pageSize)}`}
+                        action={
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Button
+                              size="small"
+                              disabled={page === 0}
+                              onClick={() => setPage(p => Math.max(0, p - 1))}
+                            >
+                              Anterior
+                            </Button>
+                            <Typography variant="body2" color="text.secondary">
+                              {page * pageSize + 1}-{Math.min((page + 1) * pageSize, filteredChanges.length)} de {filteredChanges.length}
+                            </Typography>
+                            <Button
+                              size="small"
+                              disabled={page >= Math.ceil(filteredChanges.length / pageSize) - 1}
+                              onClick={() => setPage(p => p + 1)}
+                            >
+                              Siguiente
+                            </Button>
+                          </Stack>
+                        }
+                      />
+                      <CardContent sx={{ p: 0 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell />
+                              <TableCell>Tipo</TableCell>
+                              <TableCell>Modelo / Mapeo</TableCell>
+                              <TableCell align="right">Cap.</TableCell>
+                              <TableCell align="center">Confianza</TableCell>
+                              <TableCell align="center">Acción</TableCell>
+                              <TableCell>Tipo cambio</TableCell>
+                              <TableCell align="right">Antes</TableCell>
+                              <TableCell align="right">Después</TableCell>
+                              <TableCell align="right">Δ</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {paginatedChanges.map(c => (
                           <TableRow key={c.id} hover>
                             <TableCell padding="checkbox">
                               <Checkbox checked={seleccion.has(c.id)} onChange={() => toggle(c.id)} />
                             </TableCell>
                             <TableCell>{c.tipo}</TableCell>
                           <TableCell>
-                            <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-                              {c.capacidad_id && capMarcaLookup[c.capacidad_id] && (
-                                <Chip size="small" variant="outlined" label={capMarcaLookup[c.capacidad_id]} />
-                              )}
-                              <Typography variant="body2">{c.modelo_norm}</Typography>
-                            </Stack>
+                            <NameMappingCell
+                              cambio={c}
+                              marca={c.capacidad_id ? capMarcaLookup[c.capacidad_id] : undefined}
+                              getMappingAnalysis={getMappingAnalysis}
+                              exactMatchCache={exactMatchCache}
+                              populateExactMatchCache={populateExactMatchCache}
+                            />
                           </TableCell>
                             <TableCell align="right">{c.almacenamiento_gb || '-'}</TableCell>
                             <TableCell align="center">
-                              {c.kind === 'DELETE' && c.capacidad_id ? (
-                                <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                                  <Button
-                                    size="small"
-                                    color="warning"
-                                    variant="outlined"
-                                    onClick={() => toggleCapacidad.mutate(
-                                      { capacidadId: c.capacidad_id!, activo: false },
-                                      {
-                                        onSuccess: (data) => setToggleMessage({
-                                          msg: data.activo ? 'Capacidad activada' : 'Capacidad marcada como baja',
-                                          sev: 'success',
-                                        })
+                              <MappingConfidenceIndicator cambio={c} />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Stack spacing={1} alignItems="center">
+                                {c.kind === 'DELETE' && c.capacidad_id ? (
+                                  <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                                    <Button
+                                      size="small"
+                                      color="warning"
+                                      variant="outlined"
+                                      onClick={() => toggleCapacidad.mutate(
+                                        { capacidadId: c.capacidad_id!, activo: false },
+                                        {
+                                          onSuccess: (data) => setToggleMessage({
+                                            msg: data.activo ? 'Capacidad activada' : 'Capacidad marcada como baja',
+                                            sev: 'success',
+                                          })
+                                        }
+                                      )}
+                                      disabled={
+                                        (toggleCapacidad.isPending && togglingId === c.capacidad_id) ||
+                                        capStatus[c.capacidad_id!] === false
                                       }
+                                    >
+                                      {toggleCapacidad.isPending && togglingId === c.capacidad_id
+                                        ? 'Marcando…'
+                                        : capStatus[c.capacidad_id!] === false
+                                          ? 'Ya en baja'
+                                          : 'Marcar baja'}
+                                    </Button>
+                                    {capStatus[c.capacidad_id!] === false && (
+                                      <Chip size="small" label="Baja" color="default" variant="outlined" />
                                     )}
-                                    disabled={
-                                      (toggleCapacidad.isPending && togglingId === c.capacidad_id) ||
-                                      capStatus[c.capacidad_id!] === false
-                                    }
-                                  >
-                                    {toggleCapacidad.isPending && togglingId === c.capacidad_id
-                                      ? 'Marcando…'
-                                      : capStatus[c.capacidad_id!] === false
-                                        ? 'Ya en baja'
-                                        : 'Marcar baja'}
-                                  </Button>
-                                  {capStatus[c.capacidad_id!] === false && (
-                                    <Chip size="small" label="Baja" color="default" variant="outlined" />
-                                  )}
-                                </Stack>
-                              ) : '—'}
+                                  </Stack>
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary">
+                                    Sin acción automática
+                                  </Typography>
+                                )}
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  startIcon={<SearchIcon fontSize="small" />}
+                                  onClick={() => openMapDialog(c)}
+                                >
+                                  Asociar modelo
+                                </Button>
+                              </Stack>
                             </TableCell>
                             <TableCell>{badge(c.kind)}</TableCell>
                             <TableCell align="right">{c.antes ?? '-'}</TableCell>
@@ -615,56 +1643,352 @@ export default function LikewizeB2BPage() {
                             </TableCell>
                           </TableRow>
                         ))}
-                      </TableBody>
-                    </Table>
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
                     {diff.data?.no_mapeados?.length ? (
-                        <>
-                            <Typography variant="h6" sx={{ mt: 2 }}>No mapeados a capacidad</Typography>
+                        <Card variant="outlined">
+                          <CardHeader
+                            title="Dispositivos no mapeados a capacidad"
+                            subheader={`${diff.data.no_mapeados.length} dispositivos requieren revisión`}
+                            avatar={<WarningIcon color="warning" />}
+                          />
+                          <CardContent sx={{ p: 0 }}>
                             <Table size="small">
-                            <TableHead>
+                              <TableHead>
                                 <TableRow>
-                                <TableCell />
-                                <TableCell>Tipo</TableCell>
-                                <TableCell>Modelo</TableCell>
-                                <TableCell>Código</TableCell>
-                                <TableCell>Marca</TableCell>
-                                <TableCell align="right">Cap.</TableCell>
-                                <TableCell align="right">Precio B2B</TableCell>
+                                  <TableCell />
+                                  <TableCell>Tipo</TableCell>
+                                  <TableCell>Modelo</TableCell>
+                                  <TableCell>Código Likewize</TableCell>
+                                  <TableCell>Marca</TableCell>
+                                  <TableCell align="right">Cap.</TableCell>
+                                  <TableCell align="right">Precio B2B</TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
+                              </TableHead>
+                              <TableBody>
                                 {diff.data.no_mapeados.map((r: NoMap, i: number) => (
-                                <TableRow key={i}>
+                                  <TableRow key={i} hover>
                                     <TableCell>
                                       <Button
                                         size="small"
                                         variant="outlined"
+                                        color="primary"
                                         onClick={() => openCrearDesdeRow(r)}
                                         disabled={crearCapacidad.isPending}
                                       >
                                         {crearCapacidad.isPending && noMapTarget?.id === r.id ? 'Creando…' : 'Revisar y crear'}
                                       </Button>
                                     </TableCell>
-                                    <TableCell>{r.tipo}</TableCell>
-                                    <TableCell>{r.modelo_norm}</TableCell>
-                                    <TableCell>{r.likewize_model_code ?? '—'}</TableCell>
-                                    <TableCell>{r.marca ?? '—'}</TableCell>
-                                    <TableCell align="right">{r.almacenamiento_gb ?? '-'}</TableCell>
-                                    <TableCell align="right">{r.precio_b2b}</TableCell>
-                                </TableRow>
+                                    <TableCell>
+                                      <Chip size="small" label={r.tipo} variant="outlined" />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={500}>
+                                        {r.modelo_norm}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2" fontFamily="monospace">
+                                        {r.likewize_model_code ?? '—'}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      {r.marca ? (
+                                        <Chip size="small" label={r.marca} variant="outlined" />
+                                      ) : '—'}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2">
+                                        {formatStorage(r.almacenamiento_gb)}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={500}>
+                                        €{r.precio_b2b}
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
                                 ))}
-                            </TableBody>
+                              </TableBody>
                             </Table>
-                        </>
+                          </CardContent>
+                        </Card>
                         ) : null}
 
                   </>
                 )}
-              </>
+          </>
+        )}
+      </Stack>
+
+      <Dialog
+        open={Boolean(mapTarget)}
+        onClose={closeMapDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Asociar modelo manualmente</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {mapTarget && (() => {
+              const analysis = getMappingAnalysis(mapTarget)
+              const hasIssues = analysis.issues.length > 0
+
+              return (
+                <>
+                  <Alert severity={hasIssues ? "error" : "info"}>
+                    <Stack spacing={0.5}>
+                      <Typography variant="body2">
+                        Sistema actual: <strong>{sanitizeNombre(mapTarget.nombre_normalizado) || mapTarget.modelo_norm}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Likewize detectado: <strong>{sanitizeNombre(mapTarget.nombre_likewize_original) || mapTarget.modelo_norm}</strong>
+                      </Typography>
+                      <Typography variant="caption">
+                        Capacidad: {mapTarget.almacenamiento_gb ? `${mapTarget.almacenamiento_gb} GB` : '—'} · Tipo: {mapTarget.tipo}
+                      </Typography>
+                    </Stack>
+                  </Alert>
+
+                  {/* Show mapping issues */}
+                  {analysis.issues.length > 0 && (
+                    <Alert severity="warning">
+                      <Typography variant="body2" fontWeight={600} gutterBottom>
+                        Problemas detectados:
+                      </Typography>
+                      <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2 }}>
+                        {analysis.issues.map((issue, index) => (
+                          <Typography key={index} component="li" variant="body2">
+                            {issue}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    </Alert>
+                  )}
+
+                  {/* Smart suggestions */}
+                  {getSmartSuggestions.length > 0 && (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Sugerencias de búsqueda:
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {getSmartSuggestions.map((suggestion, index) => (
+                          <Chip
+                            key={index}
+                            label={suggestion}
+                            size="small"
+                            variant="outlined"
+                            clickable
+                            onClick={() => setModeloSearchTerm(suggestion)}
+                            color={modeloSearchTerm === suggestion ? "primary" : "default"}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </>
+              )
+            })()}
+            <TextField
+              label="Nombre Likewize"
+              value={mapNombre}
+              onChange={(event) => setMapNombre(event.target.value)}
+              helperText="Se guardará en el campo likewize_modelo del modelo seleccionado"
+            />
+            {/* Exact Matches Section */}
+            {exactLikewizeMatch.data && exactLikewizeMatch.data.length > 0 && (
+              <Box>
+                <Typography variant="body2" fontWeight={600} color="success.main" gutterBottom>
+                  ✓ Coincidencias exactas en likewize_modelo:
+                </Typography>
+                <Stack spacing={1}>
+                  {exactLikewizeMatch.data.map((modelo) => (
+                    <Card
+                      key={`exact-${modelo.id}`}
+                      variant="outlined"
+                      sx={{
+                        p: 1,
+                        cursor: 'pointer',
+                        borderColor: selectedModelo?.id === modelo.id ? 'success.main' : 'divider',
+                        bgcolor: selectedModelo?.id === modelo.id ? 'success.light' : 'background.paper'
+                      }}
+                      onClick={() => {
+                        setSelectedModelo(modelo)
+                        setModeloSearchTerm(modelo.descripcion)
+                      }}
+                    >
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <CheckCircleIcon color="success" fontSize="small" />
+                        <Stack flex={1}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {modelo.descripcion}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {modelo.marca} · {modelo.tipo}
+                          </Typography>
+                          <Typography variant="caption" color="success.main">
+                            Likewize: {modelo.likewize_modelo}
+                          </Typography>
+                        </Stack>
+                        {selectedModelo?.id === modelo.id && (
+                          <CheckCircleIcon color="success" />
+                        )}
+                      </Stack>
+                    </Card>
+                  ))}
+                </Stack>
+              </Box>
             )}
+
+            {/* General Search Section */}
+            <Box>
+              <Typography variant="body2" fontWeight={600} gutterBottom>
+                {exactLikewizeMatch.data?.length ? 'O buscar otros modelos:' : 'Buscar modelo:'}
+              </Typography>
+              <Autocomplete
+                options={modelosSearch.data ?? []}
+                value={selectedModelo}
+                inputValue={modeloSearchTerm}
+                onInputChange={(_, value) => setModeloSearchTerm(value)}
+                onChange={(_, value) => setSelectedModelo(value)}
+                filterOptions={(x) => x}
+                getOptionLabel={(option) => option.descripcion || ''}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                loading={modelosSearch.isFetching || exactLikewizeMatch.isFetching}
+                noOptionsText={modeloSearchTerm.trim().length < 2 ? 'Escribe al menos 2 caracteres' : 'Sin resultados'}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Buscar modelo del sistema"
+                    helperText="Busca por nombre del sistema"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {(modelosSearch.isFetching || exactLikewizeMatch.isFetching) ? <CircularProgress color="inherit" size={16} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => {
+                  const isExactMatch = exactLikewizeMatch.data?.some(exact => exact.id === option.id)
+                  return (
+                    <li {...props} key={option.id}>
+                      <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ width: '100%' }}>
+                        {isExactMatch && <CheckCircleIcon color="success" fontSize="small" />}
+                        <Stack spacing={0.25} flex={1}>
+                          <Typography fontWeight={600}>{option.descripcion}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {(option.marca ?? '—')} · {(option.tipo ?? '—')}
+                          </Typography>
+                          {option.likewize_modelo && (
+                            <Typography variant="caption" color={isExactMatch ? "success.main" : "warning.main"}>
+                              Likewize: {option.likewize_modelo}
+                            </Typography>
+                          )}
+                          {isExactMatch && (
+                            <Typography variant="caption" color="success.main" fontWeight={600}>
+                              ✓ Coincidencia exacta
+                            </Typography>
+                          )}
+                        </Stack>
+                      </Stack>
+                    </li>
+                  )
+                }}
+              />
+            </Box>
+            {selectedModeloLikewize && (
+              willOverrideLikewize ? (
+                <Alert severity="warning" variant="outlined">
+                  Este modelo ya tiene asociado un nombre Likewize: <strong>{selectedModeloLikewize}</strong>. Se sobrescribirá con el nuevo valor.
+                </Alert>
+              ) : (
+                <Alert severity="info" variant="outlined">
+                  El modelo ya tiene asociado el mismo nombre de Likewize.
+                </Alert>
+              )
+            )}
+            <Button
+              size="small"
+              variant={showCrearModelo ? 'contained' : 'outlined'}
+              onClick={() => setShowCrearModelo((prev) => !prev)}
+            >
+              {showCrearModelo ? 'Ocultar creación manual' : 'Crear modelo manualmente'}
+            </Button>
+            <Collapse in={showCrearModelo}>
+              <Stack spacing={1.5} sx={{ border: '1px dashed', borderColor: 'divider', p: 2, borderRadius: 1 }}>
+                <Typography variant="subtitle2">Nuevo modelo en el sistema</Typography>
+                {crearModeloManual.isError && (
+                  <Alert severity="error">
+                    {crearModeloManual.error instanceof Error ? crearModeloManual.error.message : 'No se pudo crear el modelo.'}
+                  </Alert>
+                )}
+                <TextField
+                  label="Descripción"
+                  value={nuevoModeloDescripcion}
+                  onChange={(e) => setNuevoModeloDescripcion(e.target.value)}
+                  required
+                />
+                <TextField
+                  label="Tipo"
+                  value={nuevoModeloTipo}
+                  onChange={(e) => setNuevoModeloTipo(e.target.value)}
+                  helperText="Ej: iPhone, iPad, MacBook"
+                />
+                <TextField
+                  label="Marca"
+                  value={nuevoModeloMarca}
+                  onChange={(e) => setNuevoModeloMarca(e.target.value)}
+                />
+                <TextField
+                  label="Pantalla"
+                  value={nuevoModeloPantalla}
+                  onChange={(e) => setNuevoModeloPantalla(e.target.value)}
+                  helperText="Opcional (ej. 6.1'')"
+                />
+                <TextField
+                  label="Año"
+                  value={nuevoModeloAno}
+                  onChange={(e) => setNuevoModeloAno(e.target.value.replace(/[^0-9]/g, ''))}
+                  inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 4 }}
+                />
+                <TextField
+                  label="Procesador"
+                  value={nuevoModeloProcesador}
+                  onChange={(e) => setNuevoModeloProcesador(e.target.value)}
+                  helperText="Opcional"
+                />
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => crearModeloManual.mutate()}
+                    disabled={crearModeloManual.isPending || !nuevoModeloDescripcion.trim() || !nuevoModeloTipo.trim() || !nuevoModeloMarca.trim()}
+                  >
+                    {crearModeloManual.isPending ? 'Creando…' : 'Guardar modelo'}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Collapse>
           </Stack>
-        </Paper>
-      </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeMapDialog} disabled={asociarLikewize.isPending}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleAssociate}
+            disabled={!selectedModelo || !mapNombre.trim() || asociarLikewize.isPending}
+          >
+            {asociarLikewize.isPending ? 'Asociando…' : 'Asociar modelo'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={openCrearDialog} onClose={closeCrearDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Crear capacidad a partir de staging</DialogTitle>
@@ -735,6 +2059,6 @@ export default function LikewizeB2BPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Grid>
+    </Box>
   )
 }

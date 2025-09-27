@@ -225,7 +225,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
             <ComentariosPanel
               comentarios={opp?.comentarios || []}
               onEnviar={(t) => enviarComentario.mutate(t)}
-              enviando={enviarComentario.isPending}
+              _enviando={enviarComentario.isPending}
             />
           </Grid>)}
 

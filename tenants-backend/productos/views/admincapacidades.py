@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db.models import Q, OuterRef, Subquery
@@ -13,6 +14,8 @@ from productos.models.precios import PrecioRecompra
 from productos.serializers import (
     CapacidadAdminListSerializer,
     CapacidadAdminUpsertSerializer,
+    ModeloCreateSerializer,
+    ModeloMiniSerializer,
     SetPrecioRecompraSerializer,
 )
 
@@ -27,6 +30,106 @@ def tipos_modelo(request):
 def marcas_modelo(request):
     marcas = Modelo.objects.values_list("marca", flat=True).distinct().order_by("marca")
     return Response(marcas)
+
+
+class ModeloSearchView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        query = (request.query_params.get("q") or "").strip()
+        if len(query) < 2:
+            return Response([], status=status.HTTP_200_OK)
+
+        base_qs = Modelo.objects.all()
+        tipo = (request.query_params.get("tipo") or "").strip()
+        marca = (request.query_params.get("marca") or "").strip()
+
+        filtros = {}  # exact filters
+        if tipo:
+            filtros["tipo__iexact"] = tipo
+        if marca:
+            filtros["marca__iexact"] = marca
+
+        qs = base_qs.filter(**filtros) if filtros else base_qs
+        qs = qs.filter(
+            Q(descripcion__icontains=query)
+            | Q(likewize_modelo__icontains=query)
+            | Q(pantalla__icontains=query)
+            | Q(procesador__icontains=query)
+        )
+
+        if filtros and not qs.exists():
+            qs = base_qs.filter(
+                Q(descripcion__icontains=query)
+                | Q(likewize_modelo__icontains=query)
+                | Q(pantalla__icontains=query)
+                | Q(procesador__icontains=query)
+            )
+
+        limit = request.query_params.get("limit")
+        try:
+            limit_val = max(1, min(int(limit or 25), 100))
+        except (TypeError, ValueError):
+            limit_val = 25
+
+        resultados = qs.order_by("marca", "descripcion")[:limit_val]
+        data = ModeloMiniSerializer(resultados, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class AsociarLikewizeModeloView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk: int):
+        modelo = get_object_or_404(Modelo, pk=pk)
+        nombre = (request.data.get("nombre") or "").strip()
+        if not nombre:
+            return Response({"detail": "El nombre es obligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if getattr(modelo, "likewize_modelo", "") != nombre:
+            modelo.likewize_modelo = nombre
+            modelo.save(update_fields=["likewize_modelo"])
+
+        data = ModeloMiniSerializer(modelo).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class ModeloCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = ModeloCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        modelo = serializer.save()
+        data = ModeloMiniSerializer(modelo).data
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class ModelosSinCapacidadesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Modelo.objects.filter(capacidades__isnull=True)
+
+        tipo = (request.query_params.get("tipo") or "").strip()
+        marca = (request.query_params.get("marca") or "").strip()
+        q = (request.query_params.get("q") or "").strip()
+
+        if tipo:
+            qs = qs.filter(tipo__iexact=tipo)
+        if marca:
+            qs = qs.filter(marca__iexact=marca)
+        if q:
+            qs = qs.filter(
+                Q(descripcion__icontains=q)
+                | Q(likewize_modelo__icontains=q)
+                | Q(pantalla__icontains=q)
+                | Q(procesador__icontains=q)
+            )
+
+        qs = qs.order_by("marca", "tipo", "descripcion")
+        data = ModeloMiniSerializer(qs, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class AdminPageNumberPagination(PageNumberPagination):

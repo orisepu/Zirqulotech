@@ -1,186 +1,125 @@
-'use client'
-
-import {
-  Box,
-  Grid,
-  Paper,
-  Typography,
-  useTheme,
-} from '@mui/material'
+"use client"
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Box, Grid, Stack, TextField, MenuItem, Button } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import dayjs, { Dayjs } from 'dayjs'
+import { fetchDashboardAdmin, DashboardManagerResponse } from '@/services/api'
+import KpiCard from '@/components/dashboards/manager/KpiCard'
+import EvolucionChart from '@/components/dashboards/manager/EvolucionChart'
+import PipelineChart from '@/components/dashboards/manager/PipelineChart'
+import PieRanking from '@/components/dashboards/manager/PieRankinga'
+import PieRankingComerciales from '@/components/dashboards/manager/PieRankingComerciales'
 
-export default function DashboardInterno() {
-  const theme = useTheme()
-  const tareasPendientes = [
-    {
-      tipo: 'auditoria',
-      cliente: 'MediaMarkt Barcelona',
-      fecha: '2025-07-24',
-      dispositivos: 8,
-    },
-    {
-      tipo: 'oportunidad',
-      nombre: 'Lote iPhones verano',
-      estado: 'pendiente',
-      fecha: '2025-07-23',
-    },
-    {
-      tipo: 'chat',
-      cliente: 'PCComponentes',
-      ultimaRespuesta: 'hace 3 min',
-      sinLeer: 2,
-    },
-  ]
-  const tecnicos = [
-    {
-      nombre: 'Juan López',
-      auditados: 128,
-      tiempoMedio: '4m 30s',
-      valorMedio: 82.5,
-      chats: 5,
-    },
-    {
-      nombre: 'Clara Pérez',
-      auditados: 96,
-      tiempoMedio: '3m 45s',
-      valorMedio: 78.2,
-      chats: 2,
-    },
-    {
-      nombre: 'Mario Ruiz',
-      auditados: 185,
-      tiempoMedio: '4m 10s',
-      valorMedio: 89.0,
-      chats: 0,
-    },
-  ]
-  // Datos ficticios para resumen
-  const [datos, _setDatos] = useState({
-    valorGenerado: 125430,
-    dispositivosAuditados: 482,
-    oportunidadesPendientes: 37,
-    chatsActivos: 5,
+// Dashboard interno con la misma estética del Manager
+export default function DashboardInternoPage() {
+  const [fechaInicio, setFechaInicio] = useState<Dayjs>(dayjs().startOf('month'))
+  const [fechaFin, setFechaFin] = useState<Dayjs>(dayjs().endOf('month'))
+  const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes')
+  const [tiendaId, setTiendaId] = useState<string | number | undefined>(undefined)
+  const [usuarioId, setUsuarioId] = useState<string | number | undefined>(undefined)
+  const [partnerSchema, setPartnerSchema] = useState<string | undefined>(undefined)
+
+  // Reutilizamos el endpoint/shape del manager hasta tener uno específico de admin
+  const { data: partners = [] } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: async () => (await fetch('/api/tenants/')).json().catch(() => []),
+    staleTime: 5 * 60 * 1000,
   })
 
-  const formatoEuros = (valor: number) =>
-    new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(valor)
+  const { data, isLoading: _isLoading, refetch } = useQuery<DashboardManagerResponse>({
+    queryKey: ['dashboard-interno', { fechaInicio: fechaInicio.format('YYYY-MM-DD'), fechaFin: fechaFin.format('YYYY-MM-DD'), tiendaId, usuarioId, partnerSchema }],
+    queryFn: () => fetchDashboardAdmin({
+      fecha_inicio: fechaInicio.format('YYYY-MM-DD'),
+      fecha_fin: fechaFin.format('YYYY-MM-DD'),
+      granularidad,
+      tienda_id: tiendaId,
+      usuario_id: usuarioId,
+      tenant: partnerSchema,
+      comparar: false,
+    }),
+    staleTime: 60_000,
+  })
+
+  const resumen = data?.resumen
+  const pipeline = data?.pipeline
+  const rankings = data?.rankings
+
+  const tiendasOps = (rankings?.tiendas_por_operaciones || []).map((r) => ({ usuario: r.tienda ?? '—', ops: Number(r.ops || 0) }))
+  const tiendasValor = (rankings?.tiendas_por_valor || []).map((r) => ({ usuario: r.tienda ?? '—', valor: Number(r.valor || 0) }))
+  const rowsOps = (rankings?.usuarios_por_operaciones || []).map((r) => ({ usuario: r.usuario ?? '—', ops: Number(r.ops || 0) }))
+  const rowsValor = (rankings?.usuarios_por_valor || []).map((r) => ({ usuario: r.usuario ?? '—', valor: Number(r.valor || 0) }))
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom fontWeight="bold">
-        Dashboard interno
-      </Typography>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box sx={{ p: { xs: 1, md: 2 } }}>
+      {/* Filtros */}
+      <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
+        <DatePicker
+          label="Desde"
+          value={fechaInicio}
+          onChange={(newValue) => setFechaInicio(newValue || dayjs().startOf('month'))}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+        <DatePicker
+          label="Hasta"
+          value={fechaFin}
+          onChange={(newValue) => setFechaFin(newValue || dayjs().endOf('month'))}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+        <TextField label="Tienda" size="small" value={tiendaId ?? ''} onChange={(e) => setTiendaId(e.target.value || undefined)} placeholder="Todas" sx={{ minWidth: 170 }} />
+        <TextField label="Usuario" size="small" value={usuarioId ?? ''} onChange={(e) => setUsuarioId(e.target.value || undefined)} placeholder="Todos" sx={{ minWidth: 120 }} />
+        <TextField select label="Partner" size="small" value={partnerSchema ?? ''} onChange={(e) => setPartnerSchema((e.target.value as string) || undefined)} sx={{ minWidth: 150 }} placeholder="Todos">
+          <MenuItem value="">Todos</MenuItem>
+          {(Array.isArray(partners) ? partners : []).map((p: any) => (
+            <MenuItem key={p.schema ?? p.id} value={p.schema}>{p.nombre ?? p.schema}</MenuItem>
+          ))}
+        </TextField>
+        <Button variant="contained" onClick={() => refetch()}>Aplicar</Button>
+      </Stack>
 
-      <Grid container spacing={3}>
-
-        <Grid size={{xs:12,sm:6, md:3}} >
-          <Paper elevation={4} sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-            <Typography variant="subtitle2" color="text.secondary">Valor generado</Typography>
-            <Typography variant="h5" fontWeight="bold" color="success.main">
-              {formatoEuros(datos.valorGenerado)}
-            </Typography>
-          </Paper>
-        </Grid>
-
-        <Grid size={{xs:12,sm:6, md:3}}>
-          <Paper elevation={4} sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-            <Typography variant="subtitle2" color="text.secondary">Dispositivos auditados</Typography>
-            <Typography variant="h5" fontWeight="bold">
-              {datos.dispositivosAuditados}
-            </Typography>
-          </Paper>
-        </Grid>
-
-        <Grid size={{xs:12,sm:6, md:3}}>
-          <Paper elevation={4} sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-            <Typography variant="subtitle2" color="text.secondary">Oportunidades pendientes</Typography>
-            <Typography variant="h5" fontWeight="bold">
-              {datos.oportunidadesPendientes}
-            </Typography>
-          </Paper>
-        </Grid>
-
-        <Grid size={{xs:12,sm:6, md:3}}>
-          <Paper elevation={4} sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-            <Typography variant="subtitle2" color="text.secondary">Chats activos</Typography>
-            <Typography variant="h5" fontWeight="bold" color="info.main">
-              {datos.chatsActivos}
-            </Typography>
-          </Paper>
-        </Grid>
-<Box sx={{ mt: 5 }}>
-  <Typography variant="h6" fontWeight="bold" gutterBottom>
-    Tareas pendientes
-  </Typography>
-
-  <Grid container spacing={2}>
-    {tareasPendientes.map((tarea, idx) => (
-      <Grid size={{xs:12,md:6,lg:4}} key={idx}>
-        <Paper sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-          {tarea.tipo === 'auditoria' && (
-            <>
-              <Typography variant="subtitle2" color="text.secondary">🔍 Auditoría pendiente</Typography>
-              <Typography variant="body1">{tarea.cliente}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {tarea.dispositivos} dispositivos · {tarea.fecha}
-              </Typography>
-            </>
-          )}
-          {tarea.tipo === 'oportunidad' && (
-            <>
-              <Typography variant="subtitle2" color="text.secondary">📦 Oportunidad sin revisar</Typography>
-              <Typography variant="body1">{tarea.nombre}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Estado: {tarea.estado} · {tarea.fecha}
-              </Typography>
-            </>
-          )}
-          {tarea.tipo === 'chat' && (
-            <>
-              <Typography variant="subtitle2" color="text.secondary">💬 Chat sin respuesta</Typography>
-              <Typography variant="body1">{tarea.cliente}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Última actividad: {tarea.ultimaRespuesta} · {tarea.sinLeer} mensajes sin leer
-              </Typography>
-            </>
-          )}
-        </Paper>
+      {/* KPIs */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 6, md: 3 }}><KpiCard title="Valor total (€)" value={resumen?.valor_total} /></Grid>
+        <Grid size={{ xs: 6, md: 3 }}><KpiCard title="Ticket medio (€)" value={resumen?.ticket_medio} /></Grid>
+        <Grid size={{ xs: 6, md: 3 }}><KpiCard title="Margen medio (€)" value={resumen?.margen_medio ?? '—'} /></Grid>
+        <Grid size={{ xs: 6, md: 3 }}><KpiCard title="Comisión total (€)" value={resumen?.comision_total} /></Grid>
       </Grid>
-    ))}
-  </Grid>
-</Box>
-<Box sx={{ mt: 5 }}>
-  <Typography variant="h6" fontWeight="bold" gutterBottom>
-    Rendimiento por técnico
-  </Typography>
 
-  <Paper sx={{ overflowX: 'auto', backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead>
-        <tr>
-          <th style={{ textAlign: 'left', padding: 12, color: '#888' }}>👤 Técnico</th>
-          <th style={{ textAlign: 'center', padding: 12, color: '#888' }}>🔧 Auditados</th>
-          <th style={{ textAlign: 'center', padding: 12, color: '#888' }}>⏱️ Tiempo medio</th>
-          <th style={{ textAlign: 'center', padding: 12, color: '#888' }}>💰 Valor medio</th>
-          <th style={{ textAlign: 'center', padding: 12, color: '#888' }}>💬 Chats</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tecnicos.map((t, idx) => (
-          <tr key={idx} style={{ borderTop: '1px solid #333' }}>
-            <td style={{ padding: 12 }}>{t.nombre}</td>
-            <td style={{ textAlign: 'center' }}>{t.auditados}</td>
-            <td style={{ textAlign: 'center' }}>{t.tiempoMedio}</td>
-            <td style={{ textAlign: 'center' }}>{t.valorMedio.toFixed(2)} €</td>
-            <td style={{ textAlign: 'center' }}>{t.chats}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </Paper>
-</Box>
+      {/* Evolución + Top productos */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 7 }}>
+          <EvolucionChart
+            data={data?.evolucion || []}
+            granularidad={granularidad}
+            onGranularidadChange={setGranularidad}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <PieRanking title="Top productos por valor" rows={rankings?.productos || []} legendMode="floating" legendCompact />
+        </Grid>
       </Grid>
-    </Box>
+
+      {/* Rankings por Usuarios/Tiendas */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <PieRankingComerciales title="Usuarios: operaciones y €" rowsOps={rowsOps} rowsValor={rowsValor} mode="toggle" />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <PieRankingComerciales title="Tiendas: operaciones y €" rowsOps={tiendasOps} rowsValor={tiendasValor} mode="toggle" />
+        </Grid>
+      </Grid>
+
+      {/* Pipeline */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12 }}>
+          <PipelineChart data={pipeline?.por_estado || []} />
+        </Grid>
+      </Grid>
+      </Box>
+    </LocalizationProvider>
   )
 }

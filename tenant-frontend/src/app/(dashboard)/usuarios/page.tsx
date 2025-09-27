@@ -1,18 +1,11 @@
 // app/usuarios/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Select,
   MenuItem,
   TextField,
@@ -26,9 +19,16 @@ import {
   Snackbar,
   Alert,
   Switch,
+  InputAdornment,
+  IconButton,
+  Chip,
 } from "@mui/material";
+import { Search, Clear } from "@mui/icons-material";
+import { ColumnDef } from "@tanstack/react-table";
 import api from "@/services/api";
 import ValidatingTextField from "@/components/inputs/ValidatingTextField";
+import TablaReactiva from "@/components/TablaReactiva2";
+
 type UsuarioAPI = {
   id: number;
   name: string;
@@ -43,6 +43,9 @@ type Tienda = { id: number; nombre: string };
 export default function GestionarUsuariosPage() {
   const queryClient = useQueryClient();
   const [contrasenas, setContrasenas] = useState<{ [key: number]: string }>({});
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [crearOpen, setCrearOpen] = useState(false);
   const [nuevo, setNuevo] = useState<{
@@ -101,7 +104,10 @@ export default function GestionarUsuariosPage() {
         user_id: userId,
         new_password: nueva,
       }),
-    onSuccess: () => alert("Contraseña actualizada"),
+    onSuccess: () => {
+      setSnackbar({ open: true, message: "Contraseña actualizada", severity: "success" });
+      setContrasenas({});
+    },
   });
 
   const cambiarRol = useMutation({
@@ -115,7 +121,7 @@ export default function GestionarUsuariosPage() {
     },
   });
 
-    // Crear usuario
+  // Crear usuario
   const crearUsuario = useMutation({
     mutationFn: async () => {
       const payload: any = {
@@ -143,6 +149,7 @@ export default function GestionarUsuariosPage() {
       setSnackbar({ open: true, message: msg, severity: "error" });
     },
   });
+
   // Activar / desactivar usuario
   const toggleActivo = useMutation({
     mutationFn: ({ userId, is_active }: { userId: number; is_active: boolean }) =>
@@ -180,97 +187,211 @@ export default function GestionarUsuariosPage() {
     cambiarRol.mutate({ userId, rol: nuevoRol });
   };
 
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm("");
+  };
+
+  // Filter users based on search term
+  const filteredUsuarios = usuarios.filter(usuario =>
+    usuario.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    usuario.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Define columns for TanStack Table
+  const columns = useMemo<ColumnDef<UsuarioAPI>[]>(() => [
+    {
+      id: 'name',
+      accessorKey: 'name',
+      header: 'Nombre',
+      meta: {
+        label: 'Nombre',
+        minWidth: 150,
+      },
+    },
+    {
+      id: 'email',
+      accessorKey: 'email',
+      header: 'Email',
+      meta: {
+        label: 'Email',
+        minWidth: 200,
+        ellipsis: true,
+        ellipsisMaxWidth: 250,
+      },
+    },
+    {
+      id: 'tienda',
+      accessorFn: (row) => {
+        const tienda = tiendas.find(t => t.id === row.tienda_id_lectura);
+        return tienda?.nombre || 'Sin asignar';
+      },
+      header: 'Tienda',
+      cell: ({ row }) => (
+        <Select
+          value={row.original.tienda_id_lectura || ""}
+          onChange={(e) =>
+            handleTiendaChange(row.original.id, e.target.value as number)
+          }
+          size="small"
+          displayEmpty
+          sx={{ minWidth: 120 }}
+        >
+          <MenuItem value="">
+            <em>Sin asignar</em>
+          </MenuItem>
+          {tiendas.map((t) => (
+            <MenuItem key={t.id} value={t.id}>
+              {t.nombre}
+            </MenuItem>
+          ))}
+        </Select>
+      ),
+      meta: {
+        label: 'Tienda',
+        minWidth: 140,
+      },
+    },
+    {
+      id: 'rol',
+      accessorKey: 'rol_lectura',
+      header: 'Rol',
+      cell: ({ row }) => (
+        <Select
+          value={row.original.rol_lectura || "empleado"}
+          onChange={(e) =>
+            handleRolChange(row.original.id, e.target.value as string)
+          }
+          size="small"
+          sx={{ minWidth: 120 }}
+        >
+          <MenuItem value="empleado">Empleado</MenuItem>
+          <MenuItem value="manager">Manager</MenuItem>
+        </Select>
+      ),
+      meta: {
+        label: 'Rol',
+        minWidth: 120,
+      },
+    },
+    {
+      id: 'estado',
+      accessorKey: 'is_active',
+      header: 'Estado',
+      cell: ({ row }) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Switch
+            checked={!!row.original.is_active}
+            onChange={(e) => {
+              const next = e.target.checked;
+              toggleActivo.mutate({ userId: row.original.id, is_active: next });
+            }}
+            color="primary"
+            size="small"
+            slotProps={{ input: { "aria-label": "Activar/Desactivar usuario" } }}
+          />
+          <Chip
+            label={row.original.is_active ? 'Activo' : 'Inactivo'}
+            color={row.original.is_active ? 'success' : 'default'}
+            size="small"
+          />
+        </Box>
+      ),
+      meta: {
+        label: 'Estado',
+        minWidth: 140,
+        align: 'center' as const,
+      },
+    },
+    {
+      id: 'password',
+      header: 'Nueva contraseña',
+      cell: ({ row }) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <TextField
+            size="small"
+            type="password"
+            placeholder="Nueva contraseña"
+            value={contrasenas[row.original.id] || ""}
+            onChange={(e) =>
+              setContrasenas({
+                ...contrasenas,
+                [row.original.id]: e.target.value,
+              })
+            }
+            sx={{ minWidth: 140 }}
+          />
+          <Button
+            onClick={() => handlePasswordChange(row.original.id)}
+            variant="contained"
+            size="small"
+            disabled={!contrasenas[row.original.id]}
+          >
+            Cambiar
+          </Button>
+        </Box>
+      ),
+      meta: {
+        label: 'Nueva contraseña',
+        minWidth: 280,
+      },
+    },
+  ], [tiendas, contrasenas, handlePasswordChange, handleRolChange, handleTiendaChange, toggleActivo.mutate]);
+
   return (
-    <Box>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Typography variant="h4">Gestión de Usuarios</Typography>
         <Button variant="contained" onClick={() => setCrearOpen(true)}>
           Crear usuario
         </Button>
       </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Nombre</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Tienda</TableCell>
-              <TableCell>Rol</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell>Nueva contraseña</TableCell>
-              <TableCell>Acción</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {usuarios.map((usuario) => (
-              <TableRow key={usuario.id}>
-                <TableCell>{usuario.name}</TableCell>
-                <TableCell>{usuario.email}</TableCell>
-                <TableCell>
-                  <Select
-                    value={usuario.tienda_id_lectura || ""}
-                    onChange={(e) =>
-                      handleTiendaChange(usuario.id, e.target.value as number)
-                    }
+
+      {/* Search bar */}
+      <Box mb={2}>
+        <TextField
+          size="small"
+          placeholder="Buscar por nombre o email..."
+          value={searchTerm}
+          onChange={handleSearchChange}
+          sx={{ minWidth: 300 }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+              endAdornment: searchTerm && (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear search"
+                    onClick={clearSearch}
+                    edge="end"
                     size="small"
                   >
-                    {tiendas.map((t) => (
-                      <MenuItem key={t.id} value={t.id}>
-                        {t.nombre}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={usuario.rol_lectura || ""}
-                    onChange={(e) =>
-                      handleRolChange(usuario.id, e.target.value as string)
-                    }
-                    size="small"
-                  >
-                    <MenuItem value="empleado">Empleado</MenuItem>
-                    <MenuItem value="manager">Manager</MenuItem>
-                  </Select>
-                </TableCell>
-                  <TableCell>
-                  <Switch
-                    checked={!!usuario.is_active}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      toggleActivo.mutate({ userId: usuario.id, is_active: next });
-                    }}
-                    color="primary"
-                    inputProps={{ "aria-label": "Activar/Desactivar usuario" }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    size="small"
-                    type="password"
-                    value={contrasenas[usuario.id] || ""}
-                    onChange={(e) =>
-                      setContrasenas({
-                        ...contrasenas,
-                        [usuario.id]: e.target.value,
-                      })
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    onClick={() => handlePasswordChange(usuario.id)}
-                    variant="contained"
-                    size="small"
-                  >
-                    Cambiar
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    <Clear />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }
+          }}
+        />
+      </Box>
+
+      {/* Tabla con TablaReactiva2 */}
+      <TablaReactiva
+        oportunidades={filteredUsuarios}
+        columnas={columns}
+        loading={false}
+        usuarioId="usuarios"
+        hideColumnSelector={true}
+        hideExport={true}
+      />
+
       {/* Diálogo Crear Usuario */}
       <Dialog open={crearOpen} onClose={() => setCrearOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Crear usuario</DialogTitle>
@@ -279,6 +400,7 @@ export default function GestionarUsuariosPage() {
             label="Nombre"
             value={nuevo.name}
             onChange={(e) => setNuevo({ ...nuevo, name: e.target.value })}
+            size="small"
             fullWidth
           />
           <ValidatingTextField
@@ -288,25 +410,27 @@ export default function GestionarUsuariosPage() {
             kind="email"
             type="email"
             required
+            size="small"
             fullWidth
             validateOnChange
             onValidChange={(isValid) => setEmailValido(isValid)}
           />
 
-          <FormControl fullWidth size="small">
+          <FormControl fullWidth>
             <InputLabel id="nuevo-rol">Rol</InputLabel>
             <Select
               labelId="nuevo-rol"
               label="Rol"
               value={nuevo.rol}
               onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value as string })}
+              size="small"
             >
               <MenuItem value="empleado">Empleado</MenuItem>
               <MenuItem value="manager">Manager</MenuItem>
             </Select>
           </FormControl>
 
-          <FormControl fullWidth size="small" variant="outlined">
+          <FormControl fullWidth variant="outlined">
             <InputLabel id="nuevo-tienda" shrink>
               Tienda
             </InputLabel>
@@ -317,6 +441,7 @@ export default function GestionarUsuariosPage() {
               onChange={(e) =>
                 setNuevo({ ...nuevo, tienda_id: (e.target.value as number) ?? "" })
               }
+              size="small"
               displayEmpty
               renderValue={(val) => {
                 const v = val as number | "";
@@ -342,6 +467,7 @@ export default function GestionarUsuariosPage() {
             type="password"
             value={nuevo.password}
             onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })}
+            size="small"
             fullWidth
           />
         </DialogContent>
@@ -356,7 +482,8 @@ export default function GestionarUsuariosPage() {
           </Button>
         </DialogActions>
       </Dialog>
-          <Snackbar
+
+      <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}

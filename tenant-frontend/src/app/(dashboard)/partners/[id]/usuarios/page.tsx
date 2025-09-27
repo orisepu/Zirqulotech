@@ -4,24 +4,40 @@ import api from "@/services/api"
 import {
   Box,
   Typography,
-  Paper,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
   TextField,
   IconButton,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Grid,
+  Avatar,
+  Stack,
+  Alert,
+  CircularProgress
+} from "@mui/material"
+import SaveIcon from "@mui/icons-material/Save"
+import PersonIcon from "@mui/icons-material/Person"
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"
+import StoreIcon from "@mui/icons-material/Store"
+import AddIcon from "@mui/icons-material/Add"
+import ArrowBackIcon from "@mui/icons-material/ArrowBack"
+import { useParams, useSearchParams, useRouter } from "next/navigation"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from 'react-toastify'
+import {
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button
-} from "@mui/material"
-import SaveIcon from "@mui/icons-material/Save"
-import { useParams, useSearchParams } from "next/navigation"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+  Paper
+} from '@mui/material'
 
 type Usuario = {
   id: number
@@ -38,6 +54,7 @@ type Tienda = { id: number; nombre: string }
 export default function UsuariosTenantPage() {
   const params = useParams<{ id: string }>()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const rawSchema = searchParams?.get("schema") || ""
   const schema = useMemo(() => {
     const trimmed = rawSchema?.trim()
@@ -147,7 +164,7 @@ export default function UsuariosTenantPage() {
     if (!nueva) return
     cambiarPassword.mutate({ userId, newPassword: nueva }, {
       onSuccess: () => {
-        alert("Contraseña actualizada")
+        toast.success("Contraseña actualizada")
         setContrasenas(prev => ({ ...prev, [userId]: "" }))
       }
     })
@@ -156,121 +173,86 @@ export default function UsuariosTenantPage() {
   const handleCrearUsuario = () => {
     if (!schema) return
     crearUsuario.mutate(undefined, {
-      onError: () => alert("Error al crear el usuario")
+      onError: () => toast.error("Error al crear el usuario")
     })
   }
 
+
+  if (!schema) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Falta el schema en la URL: /partners/&lt;schema&gt;/usuarios
+      </Alert>
+    )
+  }
+
+  if (loadingUsuarios || loadingTiendas) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom>Usuarios del partner</Typography>
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Box display="flex" alignItems="center" gap={2}>
+          <IconButton onClick={() => router.back()}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              Usuarios del Partner
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Schema: {schema}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
 
-      {!schema ? (
-        <Typography variant="body2" color="text.secondary">Falta el schema en la URL: /partners/&lt;schema&gt;/usuarios</Typography>
-      ) : (
-        <>
-          {(loadingUsuarios || loadingTiendas) ? (
-            <Typography variant="body2" color="text.secondary">Cargando…</Typography>
-          ) : (
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Nombre</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Rol</TableCell>
-                    <TableCell>Tienda</TableCell>
-                    <TableCell>Contraseña nueva</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {usuarios.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-
-                      {/* Rol */}
-                      <TableCell>
-                        <FormControl size="small" fullWidth>
-                          <Select
-                            value={user.rol_lectura ?? user.rol ?? ""}
-                            onChange={(e) => handleRolChange(user.id, String(e.target.value))}
-                          >
-                            <MenuItem value="manager">Manager</MenuItem>
-                            <MenuItem value="empleado">Empleado</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </TableCell>
-
-                      {/* Tienda */}
-                      <TableCell>
-                        <FormControl size="small" fullWidth>
-                          <Select
-                            value={user.tienda_id_lectura ?? user.tienda_id ?? ""}
-                            onChange={(e) => handleTiendaChange(user.id, Number(e.target.value))}
-                          >
-                            {tiendas.map((t) => (
-                              <MenuItem key={t.id} value={t.id}>
-                                {t.nombre}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </TableCell>
-
-                      {/* Contraseña nueva */}
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="password"
-                          value={contrasenas[user.id] || ""}
-                          onChange={(e) =>
-                            setContrasenas((prev) => ({ ...prev, [user.id]: e.target.value }))
-                          }
-                        />
-                      </TableCell>
-
-                      {/* Guardar contraseña */}
-                      <TableCell>
-                        <IconButton
-                          size="small"
-                          onClick={() => handlePasswordChange(user.id)}
-                          disabled={cambiarPassword.isPending}
-                        >
-                          <SaveIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-
-          {/* Crear nuevo usuario */}
-          <Box component={Paper} sx={{ p: 2, mb: 3, mt: 2 }}>
-            <Typography variant="h6" gutterBottom>Crear nuevo usuario</Typography>
-            <Box display="flex" flexWrap="wrap" gap={2}>
+      {/* Crear nuevo usuario */}
+      <Card sx={{ mb: 3 }}>
+        <CardHeader
+          title="Crear Nuevo Usuario"
+          avatar={
+            <Avatar sx={{ bgcolor: 'primary.main' }}>
+              <AddIcon />
+            </Avatar>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField
                 label="Nombre"
-                size="small"
+                fullWidth
                 value={nuevoUsuario.name}
                 onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, name: e.target.value })}
               />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField
                 label="Email"
-                size="small"
+                fullWidth
+                type="email"
                 value={nuevoUsuario.email}
                 onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, email: e.target.value })}
               />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <TextField
                 label="Contraseña"
-                size="small"
+                fullWidth
                 type="password"
                 value={nuevoUsuario.password}
                 onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, password: e.target.value })}
               />
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+              <FormControl fullWidth>
                 <InputLabel>Rol</InputLabel>
                 <Select
                   value={nuevoUsuario.rol}
@@ -281,7 +263,9 @@ export default function UsuariosTenantPage() {
                   <MenuItem value="empleado">Empleado</MenuItem>
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+              <FormControl fullWidth>
                 <InputLabel>Tienda</InputLabel>
                 <Select
                   value={nuevoUsuario.tienda_id}
@@ -297,17 +281,118 @@ export default function UsuariosTenantPage() {
                   ))}
                 </Select>
               </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, md: 12 }}>
               <Button
                 variant="contained"
+                startIcon={<AddIcon />}
                 onClick={handleCrearUsuario}
                 disabled={crearUsuario.isPending || !nuevoUsuario.name || !nuevoUsuario.email || !nuevoUsuario.password}
+                size="large"
               >
-                {crearUsuario.isPending ? "Creando…" : "Crear"}
+                {crearUsuario.isPending ? "Creando…" : "Crear Usuario"}
               </Button>
-            </Box>
-          </Box>
-        </>
-      )}
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Tabla de usuarios */}
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Usuario</TableCell>
+              <TableCell>Rol</TableCell>
+              <TableCell>Tienda</TableCell>
+              <TableCell>Cambiar Contraseña</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {usuarios.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      <PersonIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        {user.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {user.email}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </TableCell>
+                <TableCell>
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <Select
+                      value={user.rol_lectura ?? user.rol ?? ""}
+                      onChange={(e) => handleRolChange(user.id, String(e.target.value))}
+                      displayEmpty
+                    >
+                      <MenuItem value="manager">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <AdminPanelSettingsIcon fontSize="small" />
+                          <span>Manager</span>
+                        </Stack>
+                      </MenuItem>
+                      <MenuItem value="empleado">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <PersonIcon fontSize="small" />
+                          <span>Empleado</span>
+                        </Stack>
+                      </MenuItem>
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <Select
+                      value={user.tienda_id_lectura ?? user.tienda_id ?? ""}
+                      onChange={(e) => handleTiendaChange(user.id, Number(e.target.value))}
+                      displayEmpty
+                    >
+                      {tiendas.map((t) => (
+                        <MenuItem key={t.id} value={t.id}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <StoreIcon fontSize="small" />
+                            <span>{t.nombre}</span>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField
+                      size="small"
+                      type="password"
+                      placeholder="Nueva contraseña"
+                      value={contrasenas[user.id] || ""}
+                      onChange={(e) =>
+                        setContrasenas((prev) => ({ ...prev, [user.id]: e.target.value }))
+                      }
+                      sx={{ minWidth: 150 }}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handlePasswordChange(user.id)}
+                      disabled={cambiarPassword.isPending || !contrasenas[user.id]}
+                      color="primary"
+                    >
+                      <SaveIcon />
+                    </IconButton>
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   )
 }

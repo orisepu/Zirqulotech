@@ -36,7 +36,7 @@ export default function HomePage() {
       {/* NAVBAR */}
       <AppBar position="sticky" color="transparent" elevation={0}>
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight={700}>Zirqulo</Typography>
+          <Typography variant="h6" fontWeight={700}>Zirqulotech</Typography>
           <Box>
             <Button component={Link} href="/login" color="primary">Login</Button>
             <Button variant="contained" color="primary" onClick={() => setOpen(true)}>

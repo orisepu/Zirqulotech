@@ -1,15 +1,26 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useSearchParams, useRouter } from "next/navigation"
 import {
-  Box, Card, CardContent, Typography, Button,Grid,
+  Box, Card, CardContent, Typography, Button, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, TextField, Select, MenuItem, Paper, Chip, IconButton
+  FormControl, TextField, Select, MenuItem, Chip, IconButton,
+  Avatar, Stack, Alert, CircularProgress, CardHeader, CardActions
 } from "@mui/material"
+import StoreIcon from "@mui/icons-material/Store"
+import PersonIcon from "@mui/icons-material/Person"
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"
+import LocationOnIcon from "@mui/icons-material/LocationOn"
+import AddIcon from "@mui/icons-material/Add"
+import EditIcon from "@mui/icons-material/Edit"
+import ArrowBackIcon from "@mui/icons-material/ArrowBack"
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"
+import CancelIcon from "@mui/icons-material/Cancel"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import api from "@/services/api"
+import { toast } from 'react-toastify'
 
 type Tienda = {
   id: number;
@@ -36,6 +47,7 @@ type UsuarioTenant = {
 export default function TiendasPage() {
   const params = useParams<{ id: string }>()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const rawSchema = searchParams?.get("schema") || ""
   const schema = useMemo(() => {
     const trimmed = rawSchema?.trim()
@@ -101,6 +113,10 @@ export default function TiendasPage() {
         nombre: "", direccion_calle: "", direccion_cp: "", direccion_poblacion: "",
         direccion_provincia: "", direccion_pais: "", responsable: ""
       })
+      toast.success('Tienda creada correctamente')
+    },
+    onError: () => {
+      toast.error('Error al crear la tienda')
     },
   })
 
@@ -159,44 +175,148 @@ export default function TiendasPage() {
       })
       setUsuarioEditando(null)
       setContrasenaEditando("")
+      toast.success('Usuario actualizado correctamente')
     } catch (e) {
       console.error(e)
+      toast.error('Error al actualizar el usuario')
     }
   }
 
+  if (!schema) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Falta el schema en la URL: /partners/&lt;schema&gt;/tiendas
+      </Alert>
+    )
+  }
+
+  if (loadingTiendas) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5">Tiendas del partner</Typography>
-        <Button variant="contained" onClick={() => setModalOpen(true)} disabled={!schema}>+ Nueva tienda</Button>
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Box display="flex" alignItems="center" gap={2}>
+          <IconButton onClick={() => router.back()}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              Tiendas del Partner
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Schema: {schema} • {tiendas.length} tiendas
+            </Typography>
+          </Box>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setModalOpen(true)}
+          size="large"
+        >
+          Nueva Tienda
+        </Button>
       </Box>
 
-      {loadingTiendas ? (
-        <Typography variant="body2" color="text.secondary">Cargando tiendas…</Typography>
+      {tiendas.length === 0 ? (
+        <Card sx={{ textAlign: 'center', py: 6 }}>
+          <CardContent>
+            <Avatar sx={{ bgcolor: 'grey.100', width: 80, height: 80, mx: 'auto', mb: 2 }}>
+              <StoreIcon sx={{ fontSize: 40, color: 'grey.400' }} />
+            </Avatar>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No hay tiendas registradas
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Crea la primera tienda para este partner
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setModalOpen(true)}
+            >
+              Crear Primera Tienda
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <Grid container spacing={2}>
-          {tiendas.map(tienda => (
-            <Grid key={tienda.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card onClick={() => handleSeleccionarTienda(tienda)} sx={{ cursor: "pointer", height: "100%" }}>
-                <CardContent>
-                  <Typography variant="h6">{tienda.nombre}</Typography>
-                  <Typography variant="body2" color="text.secondary" mt={1}>
-                    {tienda.direccion_calle}<br />
-                    {tienda.direccion_cp} {tienda.direccion_poblacion}<br />
-                    {tienda.direccion_provincia}, {tienda.direccion_pais}
-                  </Typography>
-                  {tienda.responsable_nombre && (
-                    <Box mt={2}>
-                      <Typography variant="subtitle2">Responsable</Typography>
-                      <Typography variant="body2">
-                        {tienda.responsable_nombre} ({tienda.responsable_email})
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+        <Grid container spacing={3}>
+          {tiendas.map(tienda => {
+            const usuariosEnTienda = usuarios.filter(u => u.tienda_id_lectura === tienda.id)
+            return (
+              <Grid key={tienda.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+                <Card
+                  onClick={() => handleSeleccionarTienda(tienda)}
+                  sx={{
+                    cursor: "pointer",
+                    height: "100%",
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <CardHeader
+                    avatar={
+                      <Avatar sx={{ bgcolor: 'primary.main' }}>
+                        <StoreIcon />
+                      </Avatar>
+                    }
+                    title={tienda.nombre}
+                    subheader={`${usuariosEnTienda.length} usuarios asignados`}
+                  />
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Box>
+                        <Stack direction="row" spacing={1} alignItems="flex-start">
+                          <LocationOnIcon fontSize="small" color="action" sx={{ mt: 0.5 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            {tienda.direccion_calle && `${tienda.direccion_calle}, `}
+                            {tienda.direccion_cp && `${tienda.direccion_cp} `}
+                            {tienda.direccion_poblacion}
+                            {tienda.direccion_provincia && `, ${tienda.direccion_provincia}`}
+                            {tienda.direccion_pais && `, ${tienda.direccion_pais}`}
+                          </Typography>
+                        </Stack>
+                      </Box>
+
+                      {tienda.responsable_nombre && (
+                        <Box>
+                          <Typography variant="subtitle2" color="primary" gutterBottom>
+                            Responsable
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <PersonIcon fontSize="small" color="action" />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {tienda.responsable_nombre}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {tienda.responsable_email}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      )}
+                    </Stack>
+                  </CardContent>
+                  <CardActions>
+                    <Button size="small" fullWidth>
+                      Ver Usuarios ({usuariosEnTienda.length})
+                    </Button>
+                  </CardActions>
+                </Card>
+              </Grid>
+            )
+          })}
         </Grid>
       )}
 
@@ -277,44 +397,54 @@ export default function TiendasPage() {
           )}
 
           {usuariosVisibles.map((u) => (
-            <Paper
+            <Card
               key={u.id}
               variant="outlined"
-              elevation={1}
               sx={{
-                p: 2,
-                borderRadius: 2,
-                transition: "box-shadow 0.2s",
-                "&:hover": { boxShadow: 3 },
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 1.5
+                mb: 2,
+                transition: "all 0.2s",
+                "&:hover": { boxShadow: 2 }
               }}
             >
-              <Box display="flex" flexDirection="column">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Typography variant="body1" fontWeight="bold">{u.name}</Typography>
-                  <Chip
-                    size="small"
-                    label={u.rol_lectura}
-                    color={u.rol_lectura === "manager" ? "primary" : "default"}
-                  />
-                </Box>
-                <Typography variant="body2" color="text.secondary">{u.email}</Typography>
-              </Box>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: u.rol_lectura === 'manager' ? 'primary.main' : 'grey.400' }}>
+                      {u.rol_lectura === 'manager' ? <AdminPanelSettingsIcon /> : <PersonIcon />}
+                    </Avatar>
+                    <Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="body1" fontWeight={500}>{u.name}</Typography>
+                        <Chip
+                          size="small"
+                          label={u.rol_lectura}
+                          color={u.rol_lectura === "manager" ? "primary" : "default"}
+                          variant="outlined"
+                        />
+                        <Chip
+                          size="small"
+                          icon={u.is_active ? <CheckCircleIcon /> : <CancelIcon />}
+                          label={u.is_active ? "Activo" : "Inactivo"}
+                          color={u.is_active ? "success" : "error"}
+                          variant="outlined"
+                        />
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">{u.email}</Typography>
+                    </Box>
+                  </Stack>
 
-              <IconButton
-                onClick={() => {
-                  setUsuarioEditando(u)
-                  setContrasenaEditando("")
-                }}
-                size="small"
-                aria-label={`Editar usuario ${u.name}`}
-              >
-                ✏️
-              </IconButton>
-            </Paper>
+                  <IconButton
+                    onClick={() => {
+                      setUsuarioEditando(u)
+                      setContrasenaEditando("")
+                    }}
+                    color="primary"
+                  >
+                    <EditIcon />
+                  </IconButton>
+                </Stack>
+              </CardContent>
+            </Card>
           ))}
 
         </DialogContent>

@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Box, Grid, Stack, TextField, MenuItem, Button } from '@mui/material'
-import dayjs from 'dayjs'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import { fetchDashboardAdmin, DashboardManagerResponse } from '@/services/api'
 import KpiCard from '@/components/dashboards/manager/KpiCard'
 import EvolucionChart from '@/components/dashboards/manager/EvolucionChart'
@@ -13,8 +16,8 @@ import PieRankingComerciales from '@/components/dashboards/manager/PieRankingCom
 
 // Admin dashboard con la misma estética del Manager
 export default function DashboardAdminPage() {
-  const [fechaInicio, setFechaInicio] = useState(dayjs().startOf('month').format('YYYY-MM-DD'))
-  const [fechaFin, setFechaFin] = useState(dayjs().endOf('month').format('YYYY-MM-DD'))
+  const [fechaInicio, setFechaInicio] = useState<Dayjs>(dayjs().startOf('month'))
+  const [fechaFin, setFechaFin] = useState<Dayjs>(dayjs().endOf('month'))
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes')
   const [tiendaId, setTiendaId] = useState<string | number | undefined>(undefined)
   const [usuarioId, setUsuarioId] = useState<string | number | undefined>(undefined)
@@ -28,10 +31,10 @@ export default function DashboardAdminPage() {
   })
 
   const { data, isLoading: _isLoading, refetch } = useQuery<DashboardManagerResponse>({
-    queryKey: ['dashboard-admin', { fechaInicio, fechaFin, granularidad, tiendaId, usuarioId, partnerSchema }],
+    queryKey: ['dashboard-admin', { fechaInicio: fechaInicio.format('YYYY-MM-DD'), fechaFin: fechaFin.format('YYYY-MM-DD'), tiendaId, usuarioId, partnerSchema }],
     queryFn: () => fetchDashboardAdmin({
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
+      fecha_inicio: fechaInicio.format('YYYY-MM-DD'),
+      fecha_fin: fechaFin.format('YYYY-MM-DD'),
       granularidad,
       tienda_id: tiendaId,
       usuario_id: usuarioId,
@@ -51,19 +54,25 @@ export default function DashboardAdminPage() {
   const rowsValor = (rankings?.usuarios_por_valor || []).map((r) => ({ usuario: r.usuario ?? '—', valor: Number(r.valor || 0) }))
 
   return (
-    <Box sx={{ p: { xs: 1, md: 2 } }}>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box sx={{ p: { xs: 1, md: 2 } }}>
       {/* Filtros */}
       <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
-        <TextField label="Desde" type="date" size="small" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField label="Hasta" type="date" size="small" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField select label="Granularidad" size="small" value={granularidad} onChange={(e) => setGranularidad(e.target.value as 'dia' | 'semana' | 'mes')} sx={{ minWidth: 150 }}>
-          <MenuItem value="dia">Día</MenuItem>
-          <MenuItem value="semana">Semana</MenuItem>
-          <MenuItem value="mes">Mes</MenuItem>
-        </TextField>
-        <TextField label="Tienda" size="small" value={tiendaId ?? ''} onChange={(e) => setTiendaId(e.target.value || undefined)} placeholder="Todas" />
-        <TextField label="Usuario" size="small" value={usuarioId ?? ''} onChange={(e) => setUsuarioId(e.target.value || undefined)} placeholder="Todos" />
-        <TextField select label="Partner" size="small" value={partnerSchema ?? ''} onChange={(e) => setPartnerSchema((e.target.value as string) || undefined)} sx={{ minWidth: 200 }} placeholder="Todos">
+        <DatePicker
+          label="Desde"
+          value={fechaInicio}
+          onChange={(newValue) => setFechaInicio(newValue || dayjs().startOf('month'))}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+        <DatePicker
+          label="Hasta"
+          value={fechaFin}
+          onChange={(newValue) => setFechaFin(newValue || dayjs().endOf('month'))}
+          slotProps={{ textField: { size: 'small' } }}
+        />
+        <TextField label="Tienda" size="small" value={tiendaId ?? ''} onChange={(e) => setTiendaId(e.target.value || undefined)} placeholder="Todas" sx={{ minWidth: 170 }} />
+        <TextField label="Usuario" size="small" value={usuarioId ?? ''} onChange={(e) => setUsuarioId(e.target.value || undefined)} placeholder="Todos" sx={{ minWidth: 120 }} />
+        <TextField select label="Partner" size="small" value={partnerSchema ?? ''} onChange={(e) => setPartnerSchema((e.target.value as string) || undefined)} sx={{ minWidth: 150 }} placeholder="Todos">
           <MenuItem value="">Todos</MenuItem>
           {(Array.isArray(partners) ? partners : []).map((p: any) => (
             <MenuItem key={p.schema ?? p.id} value={p.schema}>{p.nombre ?? p.schema}</MenuItem>
@@ -83,7 +92,11 @@ export default function DashboardAdminPage() {
       {/* Evolución + Top productos */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, md: 7 }}>
-          <EvolucionChart data={data?.evolucion || []} />
+          <EvolucionChart
+            data={data?.evolucion || []}
+            granularidad={granularidad}
+            onGranularidadChange={setGranularidad}
+          />
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
           <PieRanking title="Top productos por valor" rows={rankings?.productos || []} legendMode="floating" legendCompact />
@@ -106,6 +119,7 @@ export default function DashboardAdminPage() {
           <PipelineChart data={pipeline?.por_estado || []} />
         </Grid>
       </Grid>
-    </Box>
+      </Box>
+    </LocalizationProvider>
   )
 }

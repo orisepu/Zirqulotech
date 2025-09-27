@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const BASE_URL = "https://progeek.es";
+export const BASE_URL = "https://zirqulotech.com";
 
 // Crea instancia base
 const api = axios.create({

@@ -285,9 +285,20 @@ class DiffLikewizeView(APIView):
         }
 
         # 1) STAGING (solo los mapeados a capacidad_id)
-        S_qs = (LikewizeItemStaging.objects
-                .filter(tarea=t, capacidad_id__isnull=False)
-                .values("capacidad_id", "precio_b2b", "tipo", "modelo_norm", "almacenamiento_gb", "marca", "likewize_model_code"))
+        S_qs = (
+            LikewizeItemStaging.objects
+            .filter(tarea=t, capacidad_id__isnull=False)
+            .values(
+                "capacidad_id",
+                "precio_b2b",
+                "tipo",
+                "modelo_norm",
+                "modelo_raw",
+                "almacenamiento_gb",
+                "marca",
+                "likewize_model_code",
+            )
+        )
         S = {}
         for s in S_qs:
             code = (s.get("likewize_model_code") or "").strip().upper()
@@ -295,6 +306,64 @@ class DiffLikewizeView(APIView):
                 continue
             k = _key_cap(s["capacidad_id"])
             S[k] = s  # si hubiese duplicados, se pisa; normalmente 1:1
+
+        cap_info_map: dict[int, dict[str, object]] = {}
+        CapacidadModel = None
+        rel_field = getattr(settings, "CAPACIDAD_REL_MODEL_FIELD", "modelo")
+        rel_name = getattr(settings, "REL_MODELO_NAME_FIELD", "descripcion")
+        gb_field = getattr(settings, "CAPACIDAD_GB_FIELD", "tamaño")
+
+        try:
+            CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        except Exception:
+            CapacidadModel = None
+
+        def _gb_from_text(txt: str) -> int | None:
+            if not txt:
+                return None
+            m = re.search(r"(\d+(?:[.,]\d+)?)\s*(TB|GB)\b", txt, flags=re.I)
+            if not m:
+                return None
+            try:
+                val = float(m.group(1).replace(",", "."))
+            except Exception:
+                return None
+            unit = m.group(2).upper()
+            return int(round(val * 1024)) if unit == "TB" else int(round(val))
+
+        def ensure_cap_info(ids):
+            if not CapacidadModel or not ids:
+                return
+            missing = [int(cid) for cid in ids if cid and cid not in cap_info_map]
+            if not missing:
+                return
+            qs_cap = (
+                CapacidadModel.objects
+                .filter(id__in=missing)
+                .select_related(rel_field)
+                .only(
+                    "id",
+                    gb_field,
+                    f"{rel_field}__{rel_name}",
+                    f"{rel_field}__tipo",
+                    f"{rel_field}__marca",
+                    f"{rel_field}__likewize_modelo",
+                )
+            )
+            if allowed_brands:
+                qs_cap = qs_cap.filter(**{f"{rel_field}__marca__in": list(allowed_brands)})
+            for cap in qs_cap:
+                modelo = getattr(cap, rel_field, None)
+                modelo_desc = (getattr(modelo, rel_name, "") if modelo else "") or ""
+                cap_info_map[cap.id] = {
+                    "tipo": (getattr(modelo, "tipo", "-") or "-") if modelo else "-",
+                    "marca": (getattr(modelo, "marca", "-") or "-") if modelo else "-",
+                    "modelo_norm": modelo_desc or "-",
+                    "modelo_descripcion": modelo_desc,
+                    "almacenamiento_gb": _gb_from_text(getattr(cap, gb_field, "") or ""),
+                    "cap_text": getattr(cap, gb_field, "") or "",
+                    "likewize_modelo": (getattr(modelo, "likewize_modelo", "") or "") if modelo else "",
+                }
 
         # 2) OFICIAL (PrecioB2B/PrecioRecompra según settings)
         PrecioB2B = _resolve_model_from_setting(getattr(settings, "PRECIOS_B2B_MODEL", None), "PRECIOS_B2B_MODEL")
@@ -322,6 +391,8 @@ class DiffLikewizeView(APIView):
         for k, s in S.items():
             cap_id = int(k)
             precio_nuevo = Decimal(str(s["precio_b2b"]))
+            ensure_cap_info({cap_id})
+            info = cap_info_map.get(cap_id) or {}
             if k not in E:
                 inserts.append({
                     "id": f"I|{k}|{precio_nuevo}",
@@ -333,7 +404,9 @@ class DiffLikewizeView(APIView):
                     "tipo": s["tipo"],
                     "modelo_norm": s["modelo_norm"],
                     "almacenamiento_gb": s["almacenamiento_gb"],
-                    "marca": s.get("marca"),
+                    "marca": info.get("marca") or s.get("marca"),
+                    "nombre_likewize_original": (s.get("modelo_raw") or "").strip() or s.get("modelo_norm") or "",
+                    "nombre_normalizado": (info.get("modelo_descripcion") or s.get("modelo_norm") or ""),
                 })
             else:
                 precio_viejo = Decimal(str(E[k]["precio_neto"]))
@@ -348,47 +421,14 @@ class DiffLikewizeView(APIView):
                         "tipo": s["tipo"],
                         "modelo_norm": s["modelo_norm"],
                         "almacenamiento_gb": s["almacenamiento_gb"],
-                        "marca": s.get("marca"),
+                        "marca": info.get("marca") or s.get("marca"),
+                        "nombre_likewize_original": (s.get("modelo_raw") or "").strip() or s.get("modelo_norm") or "",
+                        "nombre_normalizado": (info.get("modelo_descripcion") or s.get("modelo_norm") or ""),
                     })
 
         # Bajas (enriquece con info de capacidad/modelo si está disponible)
         delete_ids = [int(k) for k in E.keys() if k not in S]
-        cap_info_map = {}
-        if delete_ids:
-            CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
-            rel_field = getattr(settings, "CAPACIDAD_REL_MODEL_FIELD", "modelo")
-            rel_name = getattr(settings, "REL_MODELO_NAME_FIELD", "descripcion")
-            gb_field = getattr(settings, "CAPACIDAD_GB_FIELD", "tamaño")
-            qs_cap = (CapacidadModel.objects
-                      .filter(id__in=delete_ids)
-                      .select_related(rel_field)
-                      .only("id", gb_field, f"{rel_field}__{rel_name}", f"{rel_field}__tipo", f"{rel_field}__marca", f"{rel_field}__likewize_modelo"))
-            if allowed_brands:
-                qs_cap = qs_cap.filter(**{f"{rel_field}__marca__in": list(allowed_brands)})
-
-            def _gb_from_text(txt: str) -> int | None:
-                if not txt:
-                    return None
-                m = re.search(r"(\d+(?:[.,]\d+)?)\s*(TB|GB)\b", txt, flags=re.I)
-                if not m:
-                    return None
-                try:
-                    val = float(m.group(1).replace(",", "."))
-                except Exception:
-                    return None
-                unit = m.group(2).upper()
-                return int(round(val * 1024)) if unit == "TB" else int(round(val))
-
-            for cap in qs_cap:
-                modelo = getattr(cap, rel_field)
-                cap_info_map[cap.id] = {
-                    "tipo": getattr(modelo, "tipo", "-") or "-",
-                    "marca": getattr(modelo, "marca", "-") or "-",
-                    "modelo_norm": getattr(modelo, rel_name, "-") or "-",
-                    "almacenamiento_gb": _gb_from_text(getattr(cap, gb_field, "") or ""),
-                    "cap_text": getattr(cap, gb_field, "") or "",
-                    "likewize_modelo": getattr(modelo, "likewize_modelo", "") or "",
-                }
+        ensure_cap_info(delete_ids)
 
         for k, e in E.items():
             if k not in S:
@@ -418,6 +458,8 @@ class DiffLikewizeView(APIView):
                     "marca": marca_info or "-",
                     "modelo_norm": (info or {}).get("modelo_norm", "-"),
                     "almacenamiento_gb": (info or {}).get("almacenamiento_gb"),
+                    "nombre_likewize_original": (info or {}).get("likewize_modelo", "") or (info or {}).get("modelo_norm", "-"),
+                    "nombre_normalizado": (info or {}).get("modelo_descripcion") or (info or {}).get("modelo_norm", "-"),
                 })
 
         # No mapeados (para que los veas en UI)

@@ -581,7 +581,7 @@ export default function OportunidadDetallePageGlobal() {
               <ComentariosPanel
                 comentarios={comentarios}
                 onEnviar={enviarComentario}
-                enviando={mAgregarComentario.isPending}
+                _enviando={mAgregarComentario.isPending}
               />
             </Grid>
           )}
@@ -605,7 +605,17 @@ export default function OportunidadDetallePageGlobal() {
       >
         <FormularioValoracionOportunidad
           oportunidadId={Number(id)}
-          item={itemAEditar}
+          item={itemAEditar ? {
+            id: itemAEditar.id,
+            modelo: itemAEditar.modelo ? {
+              id: itemAEditar.id,
+              descripcion: itemAEditar.modelo.descripcion
+            } : undefined,
+            capacidad: itemAEditar.capacidad ? {
+              id: itemAEditar.capacidad.tamaño || ''
+            } : undefined,
+            cantidad: itemAEditar.cantidad
+          } : undefined}
           onClose={() => {
             setAbrirModal(false)
             setItemAEditar(null)

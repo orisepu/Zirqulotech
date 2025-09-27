@@ -82,8 +82,6 @@ export default function LayoutInternoShell({ children }: { children: React.React
 
   const navItems = [
     { label: 'Dashboard',               icon: <SpaceDashboardRounded />, to: '/dashboard' },
-    // Solo superadmin
-    ...(usuario?.es_superadmin ? [{ label: 'Admin', icon: <AdminPanelSettingsRounded />, to: '/admin' }] : []),
     { label: 'Partners',                icon: <HandshakeRounded />,      to: '/partners' },
     { label: 'Oportunidades / Pipeline',icon: <ViewKanbanRounded />,     to: '/pipeline-global' },
     { label: 'Operaciones',             icon: <SettingsSuggestRounded />,to: '/oportunidades-global' },
@@ -120,7 +118,14 @@ export default function LayoutInternoShell({ children }: { children: React.React
       )}
       <List sx={{ flexGrow: 1 }}>
         {navItems.map((item) => {
-          const selected = pathname === item.to || pathname.startsWith(item.to + "/");
+          // Lógica mejorada para evitar selecciones múltiples con rutas anidadas
+          const selected = pathname === item.to ||
+            (pathname.startsWith(item.to + "/") &&
+             !navItems.some(otherItem =>
+               otherItem !== item &&
+               otherItem.to.startsWith(item.to + "/") &&
+               pathname.startsWith(otherItem.to)
+             ));
 
           const Item = (
             <ListItemButton

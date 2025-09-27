@@ -1,6 +1,7 @@
+minimumReleaseAge: 2880
+
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
+  - msw
   - sharp
   - unrs-resolver
-
-minimumReleaseAge: 2880

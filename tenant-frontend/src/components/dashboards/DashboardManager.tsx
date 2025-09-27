@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback,useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Box, Grid, Stack, TextField, MenuItem, Autocomplete } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import dayjs from 'dayjs'
 import {
   fetchDashboardManager,
@@ -343,21 +344,35 @@ export default function ManagerDashboardPage() {
     <Box sx={{ p: { xs: 1, md: 2 } }}>
       {/* Filtros */}
       <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
-        <TextField
+        <DatePicker
           label="Desde"
-          type="date"
-          size="small"
-          value={filters.fechaInicio}
-          onChange={(e) => actions.setFechaInicio(e.target.value)}
-          InputLabelProps={{ shrink: true }}
+          value={dayjs(filters.fechaInicio)}
+          onChange={(newValue) => {
+            if (newValue) {
+              actions.setFechaInicio(newValue.format('YYYY-MM-DD'));
+            }
+          }}
+          slotProps={{
+            textField: {
+              size: "small",
+              sx: { minWidth: 140 }
+            },
+          }}
         />
-        <TextField
+        <DatePicker
           label="Hasta"
-          type="date"
-          size="small"
-          value={filters.fechaFin}
-          onChange={(e) => actions.setFechaFin(e.target.value)}
-          InputLabelProps={{ shrink: true }}
+          value={dayjs(filters.fechaFin)}
+          onChange={(newValue) => {
+            if (newValue) {
+              actions.setFechaFin(newValue.format('YYYY-MM-DD'));
+            }
+          }}
+          slotProps={{
+            textField: {
+              size: "small",
+              sx: { minWidth: 140 }
+            },
+          }}
         />
         <TextField
           select
@@ -365,7 +380,7 @@ export default function ManagerDashboardPage() {
           size="small"
           value={filters.periodPreset}
           onChange={(e) => actions.applyPreset(e.target.value as PeriodPreset)}
-          sx={{ minWidth: 170 }}
+          sx={{ minWidth: 170, '& .MuiInputBase-root': { height: '40px' } }}
         >
           <MenuItem value="custom">Personalizado</MenuItem>
           <MenuItem value="ultimo_mes">Último mes</MenuItem>
@@ -385,7 +400,7 @@ export default function ManagerDashboardPage() {
           isOptionEqualToValue={(option, value) => option.value === value?.value}
           noOptionsText="Sin tiendas"
           sx={{ minWidth: 220 }}
-          renderInput={(params) => <TextField {...params} label="Tienda" placeholder="Todas" />}
+          renderInput={(params) => <TextField {...params} label="Tienda" placeholder="Todas" size="small" />}
           clearOnEscape
         />
         <Autocomplete<Option, false, false, false>
@@ -397,7 +412,7 @@ export default function ManagerDashboardPage() {
           isOptionEqualToValue={(option, value) => option.value === value?.value}
           noOptionsText="Sin comerciales"
           sx={{ minWidth: 220 }}
-          renderInput={(params) => <TextField {...params} label="Comercial" placeholder="Todos" />}
+          renderInput={(params) => <TextField {...params} label="Comercial" placeholder="Todos" size="small" />}
           clearOnEscape
         />
 

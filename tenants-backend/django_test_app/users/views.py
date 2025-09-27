@@ -18,8 +18,8 @@ class TenantLoginView(APIView):
         if not email or not password:
             return Response({"detail": "Faltan datos."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Login como usuario interno si empresa == 'progeek'
-        if empresa and empresa.lower() == "progeek":
+        # ✅ Login como usuario interno si empresa == 'zirqulotech''
+        if empresa and empresa.lower() == "zirqulotech":
             with schema_context("public"):
                 return self.login_user_in_schema(email, password)
 

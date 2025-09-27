@@ -5,6 +5,10 @@ from django.urls import path, include
 from .views.admincapacidades import (
     CapacidadAdminListView,
     CapacidadAdminDetailView,
+    ModeloCreateView,
+    ModelosSinCapacidadesView,
+    ModeloSearchView,
+    AsociarLikewizeModeloView,
     SetPrecioRecompraAdminView,
 )
 from .views.tiposreparacion import PiezaTipoViewSet, ManoObraTipoViewSet
@@ -32,6 +36,10 @@ urlpatterns = [
     # path("", include(router.urls)),  # sin uso
     path('tipos-modelo/', tipos_modelo, name='tipos-modelo'),
     path('marcas-modelo/', marcas_modelo, name='marcas-modelo'),
+    path("admin/modelos/", ModeloCreateView.as_view(), name="admin-modelos-create"),
+    path("admin/modelos/search/", ModeloSearchView.as_view(), name="admin-modelos-search"),
+    path("admin/modelos/<int:pk>/asociar-likewize/", AsociarLikewizeModeloView.as_view(), name="admin-modelos-asociar-likewize"),
+    path("admin/modelos/sin-capacidades/", ModelosSinCapacidadesView.as_view(), name="admin-modelos-sin-capacidades"),
     path("admin/capacidades/", CapacidadAdminListView.as_view(), name="admin-capacidades-list"),
     path("admin/capacidades/<int:pk>/", CapacidadAdminDetailView.as_view(), name="admin-capacidades-detail"),
     path("admin/precios/set/", SetPrecioRecompraAdminView.as_view(), name="admin-precio-set"),

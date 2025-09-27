@@ -1,125 +1,66 @@
 'use client'
 
-import {
-  Box, Typography, Paper, Chip, CircularProgress, Autocomplete, Divider,InputAdornment,
-  Popover, TextField, Button, Grid, Dialog, DialogTitle, DialogActions, DialogContent
-} from '@mui/material'
-import { useState, useMemo } from 'react'
-import { useQuery,useMutation} from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { ESTADOS_B2B, ESTADOS_OPERACIONESADMIN, ESTADO_LABEL_OVERRIDES,ESTADOS_OPERACIONEPARTNER } from '@/context/estados'
-import TuneIcon from '@mui/icons-material/Tune'
-import TablaReactiva from '@/components/TablaReactiva2'
-import OportunidadForm from '@/components/OportunidadForm'
-import { columnasTenant } from '@/components/TablaColumnas2'
-import api from '@/services/api'
-import FormularioClientes from "@/components/formularios/Clientes/FormularioClientes";
-import useUsuarioActual from "@/hooks/useUsuarioActual";
-import { useQueryClient } from '@tanstack/react-query'
-import { getIdlink } from '@/utils/id'
-import { useDebounceValue } from 'usehooks-ts'
-interface Cliente {
-  id?: number;
-  tipo_cliente?: 'empresa' | 'autonomo' | 'particular';
-  canal?: 'b2b' | 'b2c';
-  razon_social?: string;
-  cif?: string;
-  contacto?: string;
-  posicion?: string;
-  nombre?: string;
-  apellidos?: string;
-  dni_nie?: string;
-  nif?: string;
-  nombre_comercial?: string;
-  telefono?: string;
-  correo?: string;
-  tienda_nombre?: string;
-  display_name?: string;
-  identificador_fiscal?: string;
-}
+import {
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+} from '@mui/material'
 
-type ClienteOption = {
-  id: number;
-  display_name?: string;
-  razon_social?: string;
-  nombre?: string;
-  apellidos?: string;
-  nif?: string;
-  dni_nie?: string;
-  nombre_comercial?: string;
-  identificador_fiscal?: string;
-  tipo_cliente?: 'empresa' | 'autonomo' | 'particular';
-};
+import TablaReactiva from '@/components/TablaReactiva2'
+import { columnasTenant } from '@/components/TablaColumnas2'
+import useUsuarioActual from '@/hooks/useUsuarioActual'
+import { getIdlink } from '@/utils/id'
+import api from '@/services/api'
+
+// Refactored components
+import { OportunidadFilters } from '@/components/oportunidades/OportunidadFilters'
+import { CreateOportunidadDialog } from '@/components/oportunidades/CreateOportunidadDialog'
+import { useOportunidadFilters } from '@/hooks/useOportunidadFilters'
+import { useClienteSearch } from '@/hooks/useClienteSearch'
+import { ESTADOS_FINALIZADOS, ESTADOS_OPERACIONES_SET } from '@/constants/oportunidades'
 export default function OportunidadesTenantPage() {
-  const ESTADOS_OPERACIONES_SET = useMemo(
-    () => new Set(ESTADOS_OPERACIONESADMIN.map((estado) => estado.toLowerCase())),
-    []
-  )
-  const ESTADOS_OPERACIONES_DEFAULT = ESTADOS_OPERACIONEPARTNER;
-  const queryClient = useQueryClient()
   const router = useRouter()
   const usuario = useUsuarioActual()
   const soloEmpresas = usuario?.tenant?.solo_empresas ?? false
   const columnas = columnasTenant
-  const [modalOpen, setModalOpen] = useState(false); // modal de nuevo cliente
-  const ESTADOS_FINALIZADOS = ['Oferta confirmada']
-  const [cliente, setCliente] = useState('')
-  const [fechaInicio, setFechaInicio] = useState('')
-  const [fechaFin, setFechaFin] = useState('')
-  const [estado, setEstado] = useState<string[]>([])
-  const [finalizadas, setFinalizadas] = useState<'todas' | 'finalizadas' | 'no_finalizadas'>('todas')
 
-  const [estadoAnchorEl, setEstadoAnchorEl] = useState<null | HTMLElement>(null)
-  const estadoPopoverOpen = Boolean(estadoAnchorEl)
-  const handleOpenPopover = (event: React.MouseEvent<HTMLElement>) => {
-    setEstadoAnchorEl(event.currentTarget)
-  }
-  const handleClosePopover = () => setEstadoAnchorEl(null)
-  const [inputCliente, setInputCliente] = useState('')
-  const [clienteBusqueda, setClienteBusqueda] = useState('')
-  const [openBusca, setOpenBusca] = useState(false)
-  const [debouncedCliente] = useDebounceValue<string>(clienteBusqueda, 300)
-  const queryKey = ['oportunidades-tenant', { cliente, fechaInicio, fechaFin, estado, finalizadas }]
-  const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteOption | null>(null);
-  const [crearOportunidadOpen, setCrearOportunidadOpen] = useState(false)
-  
-  const { data: opcionesClientes = [], isFetching: buscandoClientes } = useQuery<ClienteOption[]>({
-    queryKey: ['clientes', debouncedCliente],
-    enabled: openBusca && debouncedCliente.trim().length >= 2, // evita spam
-    queryFn: async ({ signal }) => {
-      const q = debouncedCliente.trim()
-      if (!q) return []
-      const params = new URLSearchParams()
-      params.set('search', q)         // DRF SearchFilter
-      params.set('page_size', '20')   // si tienes paginación activada
-      const res = await api.get(`/api/clientes/?${params.toString()}`, { signal })
-      return res.data.results ?? res.data
-    },
-    staleTime: 30_000,
-    placeholderData: (prev) => prev ?? [],
-  })
-  const opcionesClientesFiltradas = useMemo(
-    () => (soloEmpresas ? opcionesClientes.filter((opt) => opt.tipo_cliente !== 'particular') : opcionesClientes),
-    [opcionesClientes, soloEmpresas]
-  )
-  const { data: oportunidades = [], isLoading, refetch } = useQuery<any[]>({
+  const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false)
+
+  const {
+    filters,
+    setFilters,
+    handleBuscar,
+    handleReset
+  } = useOportunidadFilters()
+
+  const {
+    clienteSeleccionado,
+    setClienteSeleccionado,
+    crearCliente
+  } = useClienteSearch()
+  const queryKey = ['oportunidades-tenant', filters]
+
+  const { data: oportunidades = [], isLoading } = useQuery<any[]>({
     queryKey,
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (cliente) params.append('cliente', cliente)
-      if (fechaInicio) params.append('fecha_inicio', fechaInicio)
-      if (fechaFin) params.append('fecha_fin', fechaFin)
-      estado.forEach((e) => params.append('estado', e))
+      if (filters.cliente) params.append('cliente', filters.cliente)
+      if (filters.fechaInicio) params.append('fecha_inicio', filters.fechaInicio)
+      if (filters.fechaFin) params.append('fecha_fin', filters.fechaFin)
+      filters.estado.forEach((e) => params.append('estado', e))
 
       const res = await api.get(`/api/oportunidades/?${params.toString()}`)
       let oportunidades = Array.isArray(res.data) ? res.data : []
 
       oportunidades = oportunidades.filter((o) => !ESTADOS_OPERACIONES_SET.has(String(o.estado || '').toLowerCase()))
 
-      if (finalizadas === 'finalizadas') {
+      if (filters.finalizadas === 'finalizadas') {
         oportunidades = oportunidades.filter((o) => ESTADOS_FINALIZADOS.includes(o.estado))
-      } else if (finalizadas === 'no_finalizadas') {
+      } else if (filters.finalizadas === 'no_finalizadas') {
         oportunidades = oportunidades.filter((o) => !ESTADOS_FINALIZADOS.includes(o.estado))
       }
 
@@ -129,166 +70,25 @@ export default function OportunidadesTenantPage() {
     placeholderData: (prev) => prev ?? [],
   })
 
-  const handleBuscar = () => refetch()
-  const handleReset = () => {
-    setEstado([])
-    setCliente('')
-    setFechaInicio('')
-    setFechaFin('')
-    refetch()
-  }
-  // Crear cliente con React Query Mutation
-  const crearCliente = useMutation({
-    mutationFn: async (nuevoCliente: Partial<Cliente>) => {
-      const res = await api.post("/api/clientes/", nuevoCliente);
-      return res.data;
-    },
-    onSuccess: (clienteCreado) => {
-      setModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["clientes"] });
-      // Selecciona el cliente recién creado en el diálogo y abre crear oportunidad
-      setClienteSeleccionado({
-        id: clienteCreado.id,
-        display_name: clienteCreado.display_name,
-        razon_social: clienteCreado.razon_social,
-        nombre: clienteCreado.nombre,
-        apellidos: clienteCreado.apellidos,
-        nif: clienteCreado.nif,
-        dni_nie: clienteCreado.dni_nie,
-        nombre_comercial: clienteCreado.nombre_comercial,
-        identificador_fiscal: clienteCreado.identificador_fiscal,
-        tipo_cliente: clienteCreado.tipo_cliente,
-      })
-      setCrearOportunidadOpen(true)
-    },
-    onError: () => {
-      alert("❌ Error al crear cliente");
-    },
-    
-  });
-    const CONTROL_H = (theme: any) => theme.spacing(6.2);
 
   return (
-    <Box >
-      <Typography variant="h5" gutterBottom>Oportunidades</Typography>
-      <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-        <Grid size={{xs: 12, sm:3}} >
-          <TextField
-            label="Cliente"
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            fullWidth
-            size="medium"
-            sx={{ '& .MuiInputBase-root': { height: CONTROL_H } }}
-          />
-        </Grid>
+    <Box>
+      <Typography variant="h5" gutterBottom>
+        Oportunidades
+      </Typography>
 
-        <Grid size={{ xs: 12, sm: 3 }}>
-          <TextField
-            label="Estados"
-            value={estado.length ? `${estado.length} estado(s)` : ''}
-            placeholder="Estados"
-            onClick={handleOpenPopover}
-            fullWidth
-            InputProps={{
-              readOnly: true,
-              endAdornment: (
-                <InputAdornment position="end">
-                  <TuneIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              cursor: 'pointer',
-              '& .MuiInputBase-root': { height: CONTROL_H },
-              '& .MuiInputBase-input': { cursor: 'pointer' },
-            }}
-            // accesibilidad: abre con Enter/Espacio
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') handleOpenPopover(e as any)
-            }}
-          />
-          <Popover
-            open={estadoPopoverOpen}
-            anchorEl={estadoAnchorEl}
-            onClose={handleClosePopover}
-            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            PaperProps={{ sx: { p: 2, maxWidth: 420, width: "100%" } }}
-          >
-            <Typography variant="subtitle2" gutterBottom>
-              Filtrar por estado
-            </Typography>
-            <Box display="flex" flexWrap="wrap" gap={1}>
-              {ESTADOS_OPERACIONES_DEFAULT.map((estadoKey) => {
-                const meta = ESTADOS_B2B[estadoKey] || { color: "default" };
-                const Icono = meta.icon;
-                const selected = estado.includes(estadoKey);
-                return (
-                  <Chip
-                    key={estadoKey}
-                    label={estadoKey}
-                    size="small"
-                    variant={selected ? 'filled' : 'outlined'}
-                    color={meta.color}
-                    icon={Icono ? <Icono fontSize="small" /> : undefined}
-                    onClick={() => {
-                      setEstado((prev) =>
-                        selected
-                          ? prev.filter((e) => e !== estadoKey)
-                          : [...prev, estadoKey]
-                      );
-                    }}
-                    sx={{
-                      cursor: "pointer",}}
-                  />
-                );
-              })}
-            </Box>
-            {estado.length !== ESTADOS_OPERACIONES_DEFAULT.length && (
-              <Box mt={2} display="flex" justifyContent="flex-end">
-                <Button size="small" onClick={() => setEstado([...ESTADOS_OPERACIONES_DEFAULT])}>
-                  Mostrar todos
-                </Button>
-              </Box>
-            )}
-          </Popover>
-        </Grid>
-
-        <Grid size={{xs: 12, sm:2}}>
-          <TextField
-            label="Desde"
-            type="date"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-        </Grid>
-        <Grid size={{xs: 12, sm:2}}>
-          <TextField
-            label="Hasta"
-            type="date"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-        </Grid>
-
-        <Grid size={{xs: 12, sm:2}}>
-          <Button variant="contained" onClick={handleBuscar} sx={{ mr: 1 }}>
-            Buscar
-          </Button>
-          <Button onClick={handleReset}>Reset</Button>
-        </Grid>
-        <Button variant="contained" onClick={() => setModalNuevoAbierto(true)}>
-          Nueva oportunidad
-        </Button>
-
-      </Grid>
+      <OportunidadFilters
+        filters={filters}
+        onFiltersChange={setFilters}
+        onSearch={handleBuscar}
+        onReset={handleReset}
+        onCreateNew={() => setModalNuevoAbierto(true)}
+      />
 
       {isLoading ? (
-        <CircularProgress />
+        <Box display="flex" justifyContent="center" my={4}>
+          <CircularProgress />
+        </Box>
       ) : (
         <Paper>
           <TablaReactiva
@@ -300,129 +100,15 @@ export default function OportunidadesTenantPage() {
           />
         </Paper>
       )}
-      <Dialog
+      <CreateOportunidadDialog
         open={modalNuevoAbierto}
-        disableEscapeKeyDown
-        onClose={(_, reason) => {
-          if (reason === 'backdropClick') return;
-          setModalNuevoAbierto(false);
-        }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Crear nueva oportunidad</DialogTitle>
-        <DialogContent>
-          <Box sx={{ my: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>Selecciona un cliente</Typography>
-            <Autocomplete<ClienteOption, false, false, false>
-              open={openBusca}
-              onOpen={() => setOpenBusca(true)}
-              onClose={() => setOpenBusca(false)}
-              options={opcionesClientesFiltradas}
-              value={clienteSeleccionado}
-              filterOptions={(x) => x} // no refiltrar en el cliente
-              loading={buscandoClientes}
-              isOptionEqualToValue={(a, b) => a.id === b.id}
-              getOptionLabel={(o) => {
-                const nombre =
-                  o.display_name ||
-                  o.razon_social ||
-                  [o.nombre, o.apellidos].filter(Boolean).join(' ').trim() ||
-                  o.nombre_comercial || ''
-                const fiscal = o.identificador_fiscal || o.nif || o.dni_nie || ''
-                return (nombre || fiscal || '-')
-              }}
-              renderOption={(props, option) => {
-                const label =
-                  option.display_name ||
-                  option.razon_social ||
-                  [option.nombre, option.apellidos].filter(Boolean).join(' ').trim() ||
-                  option.nombre_comercial ||
-                  option.identificador_fiscal || option.nif || option.dni_nie ||
-                  '(sin nombre)'
-                return (
-                  <li {...props} key={String(option.id)}>
-                    {label}
-                  </li>
-                )
-              }}
-              onInputChange={(_, value) => setClienteBusqueda(value)}
-              onChange={(_, nuevo) => setClienteSeleccionado(nuevo)}
-              noOptionsText={
-                debouncedCliente.trim().length < 2
-                  ? 'Escribe al menos 2 caracteres'
-                  : 'Sin resultados'
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Buscar cliente"
-                  placeholder="Nombre, apellidos, DNI/NIE, NIF, Razón social…"
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {buscandoClientes ? <CircularProgress size={18} /> : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  }}
-                  fullWidth
-                />
-              )}
-            />
-
-          </Box>
-          <Divider sx={{ my: 2 }} />
-          <Box>
-            <Button variant="outlined" onClick={() => setModalOpen(true)}>
-              Crear cliente nuevo
-            </Button>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setModalNuevoAbierto(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            disabled={!clienteSeleccionado}
-            onClick={() => setCrearOportunidadOpen(true)}
-          >
-            Crear oportunidad
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Formulario unificado de clientes */}
-      <FormularioClientes
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreate={(payload) => crearCliente.mutate(payload as Partial<Cliente>)}
+        onClose={() => setModalNuevoAbierto(false)}
         soloEmpresas={soloEmpresas}
+        clienteSeleccionado={clienteSeleccionado}
+        onClienteChange={setClienteSeleccionado}
+        onCreateCliente={crearCliente.mutate}
+        isCreatingCliente={crearCliente.isPending}
       />
-
-      {/* Modal para crear oportunidad tras seleccionar/crear cliente */}
-      <Dialog
-        open={crearOportunidadOpen}
-        disableEscapeKeyDown
-        onClose={(_, reason) => {
-          if (reason === 'backdropClick') return;
-          setCrearOportunidadOpen(false);
-        }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Crear nueva oportunidad</DialogTitle>
-        <DialogContent dividers>
-          {clienteSeleccionado ? (
-            <OportunidadForm
-              clienteId={clienteSeleccionado.id}
-              onClose={() => setCrearOportunidadOpen(false)}
-            />
-          ) : (
-            <Typography variant="body2">Selecciona un cliente para continuar.</Typography>
-          )}
-        </DialogContent>
-      </Dialog>
     </Box>
   )
 }

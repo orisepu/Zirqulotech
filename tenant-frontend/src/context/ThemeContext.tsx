@@ -96,7 +96,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
     try {
       localStorage.setItem('theme_mode', toPersist);
       document.cookie = `theme_mode=${toPersist}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    } catch (_) {}
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -107,7 +107,7 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
         setMode(prev => {
           const next = prev === 'light' ? 'dark' : 'light';
           localStorage.setItem('theme_mode', next);
-          try { document.cookie = `theme_mode=${next}; Path=/; Max-Age=31536000; SameSite=Lax`; } catch (_) {}
+          try { document.cookie = `theme_mode=${next}; Path=/; Max-Age=31536000; SameSite=Lax`; } catch {}
           return next;
         });
       },

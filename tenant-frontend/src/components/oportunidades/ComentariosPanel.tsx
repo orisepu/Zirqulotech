@@ -9,11 +9,11 @@ type Comentario = { id: string | number; texto: string; autor_nombre?: string; f
 export default function ComentariosPanel({
   comentarios = [],
   onEnviar,
-  enviando = false,
+  _enviando = false,
 }: {
   comentarios: Comentario[]
   onEnviar: (texto: string) => void
-  enviando?: boolean
+  _enviando?: boolean
 }) {
   const finRef = useRef<HTMLDivElement | null>(null)
   const [texto, setTexto] = useState('')

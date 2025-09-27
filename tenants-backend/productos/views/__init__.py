@@ -1,4 +1,12 @@
-from .admincapacidades import CapacidadAdminListView, CapacidadAdminDetailView, tipos_modelo
+from .admincapacidades import (
+    CapacidadAdminListView,
+    CapacidadAdminDetailView,
+    ModeloCreateView,
+    ModelosSinCapacidadesView,
+    ModeloSearchView,
+    AsociarLikewizeModeloView,
+    tipos_modelo,
+)
 from .costespiezas import ReparacionOpcionesView,CostosPiezaListView,CostosPiezaSetView,CostosPiezaDeleteView,CostosPiezaCoverageView
 from .tiposreparacion import PiezaTipoViewSet,ManoObraTipoViewSet
 from .actualizador import (
@@ -26,6 +34,10 @@ __all__ = [
    "CapacidadAdminListView",
    "tipos_modelo",
    "CapacidadAdminDetailView",
+   "ModeloCreateView",
+   "ModelosSinCapacidadesView",
+   "ModeloSearchView",
+   "AsociarLikewizeModeloView",
    "ReparacionOpcionesView",
    "CostosPiezaListView",
    "CostosPiezaSetView",

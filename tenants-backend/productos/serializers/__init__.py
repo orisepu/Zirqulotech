@@ -1,5 +1,6 @@
 from .admincapacidades import (
     ModeloMiniSerializer,
+    ModeloCreateSerializer,
     CapacidadAdminListSerializer,
     SetPrecioRecompraSerializer,
     CapacidadAdminUpsertSerializer,
@@ -10,6 +11,7 @@ from .actualizador import TareaLikewizeSerializer,LikewizeCazadorResultadoSerial
 from .valoraciones import ComercialIphoneInputSerializer
 __all__ = [
    "ModeloMiniSerializer",
+   "ModeloCreateSerializer",
    "CapacidadAdminListSerializer",
    "SetPrecioRecompraSerializer",
    "CapacidadAdminUpsertSerializer",

@@ -189,12 +189,12 @@ export default function TabsOportunidad({
                   <SimpleBar style={{ maxHeight: 445 }}>
                     <List>
                       {oportunidad.dispositivos?.map((d, idx) => {
-                        const precios = (getField(d, 'precios_por_estado') ?? getField(d, 'precio_por_estado')) as Record<string, unknown> | undefined
+                        const _precios = (getField(d, 'precios_por_estado') ?? getField(d, 'precio_por_estado')) as Record<string, unknown> | undefined
                         const modeloDesc = String(getField(getField(d, 'modelo'), 'descripcion') ?? '')
                         const capacidadTam = String(getField(getField(d, 'capacidad'), 'tamaño') ?? '')
                         const cantidadStr = String(getField(d, 'cantidad') ?? '')
-                        const estadoFisico = String(getField(d, 'estado_fisico') ?? '')
-                        const estadoFuncional = String(getField(d, 'estado_funcional') ?? '')
+                        const _estadoFisico = String(getField(d, 'estado_fisico') ?? '')
+                        const _estadoFuncional = String(getField(d, 'estado_funcional') ?? '')
                         const precioOrientativo = getField(d, 'precio_orientativo')
                         const keyVal = (typeof (d as any).id === 'string' || typeof (d as any).id === 'number') ? (d as any).id : idx
                         return (

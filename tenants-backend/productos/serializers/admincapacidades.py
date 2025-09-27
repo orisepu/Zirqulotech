@@ -43,6 +43,19 @@ class ModeloMiniSerializer(serializers.ModelSerializer):
         model = Modelo
         fields = ("id", "descripcion", "tipo", "marca", "pantalla", "año", "procesador", "likewize_modelo")
 
+
+class ModeloCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Modelo
+        fields = ("id", "descripcion", "tipo", "marca", "pantalla", "año", "procesador", "likewize_modelo")
+        read_only_fields = ("id",)
+
+    def validate_descripcion(self, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise serializers.ValidationError("La descripción es obligatoria.")
+        return cleaned
+
 class CapacidadAdminListSerializer(serializers.ModelSerializer):
     modelo = ModeloMiniSerializer(read_only=True)
     # Campos anotados desde la vista (Subquery)

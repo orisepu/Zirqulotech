@@ -32,7 +32,7 @@ SECRET_KEY = "uv5(me+wl&bx5ag39_vimy2ie7mxdm&42a6$0t-+jfb+@6m(u2"  # noqa: S105
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['progeek.es', 'localhost','192.168.1.177']
+ALLOWED_HOSTS = ['progeek.es', 'localhost','192.168.1.177', 'zirqulotech.com',"www.zirqulotech.com"]
 
 
 # Application definition
@@ -158,12 +158,11 @@ AUTH_PASSWORD_VALIDATORS = []
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.progeek\.es$",
+    r"^https://.*\.zirqulotech\.com$",
 ]
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "Authorization",
-]
+CORS_ALLOW_HEADERS = list(default_headers) + ["Authorization"]
 CORS_ALLOWED_ORIGINS = [
-    "https://progeek.es",
+    "https://progeek.es","https://zirqulotech.com","https://www.zirqulotech.com",
     "http://localhost:3000",  # si usas frontend local
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -205,23 +204,23 @@ PRIVATE_MEDIA_ROOT = MEDIA_ROOT / "media_private"
 OTP_TTL_MINUTES = 10 
 OTP_COOLDOWN_SECONDS = 60
 
-FRONTEND_BASE_URL= "https://progeek.es"
+FRONTEND_BASE_URL= "https://zirqulotech.com"
 LEGAL_DEFAULT_OVERRIDES = {
     "operador": {
-        "nombre": "Progeek Solutions S.L.",
+        "nombre": "Zirqulotech S.L.",
         "cif": "B00X00000",
         "direccion": "C/ Ejemplo 123, 08000 Barcelona, España",
-        "email": "legal@progeek.es",
+        "email": "legal@zirqulotech.es",
         "telefono": "+34 600 000 000",
-        "web": "https://progeek.es",
+        "web": "https://zirqulotech.es",
     }
 }
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+#SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [
-    "https://progeek.es",  # 👈 Añade tu dominio aquí
+    "https://progeek.es" "https://zirqulotech.com",  # 👈 Añade tu dominio aquí
 ]
 
 # Default primary key field type
