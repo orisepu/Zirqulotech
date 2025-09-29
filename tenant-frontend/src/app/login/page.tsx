@@ -1,6 +1,6 @@
 "use client";
 
-import LoginForm from "@/components/LoginForm";
+import LoginForm from "@/features/auth/components/LoginForm";
 import { Box } from "@mui/material";
 
 export default function LoginPage() {

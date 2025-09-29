@@ -1,4 +1,4 @@
-  import {getId} from '@/utils/id'
+  import {getId} from '@/shared/utils/id'
   import { ESTADOS_META,ESTADOS_B2B, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
   import { Chip,Box } from '@mui/material'
   import type { ChipProps } from '@mui/material/Chip'

@@ -16,11 +16,11 @@ import TuneIcon from "@mui/icons-material/Tune";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import TablaReactiva from "@/components/TablaReactiva2";
-import { columnasOperaciones } from "@/components/TablaColumnas2";
+import TablaReactiva from "@/shared/components/TablaReactiva2";
+import { columnasOperaciones } from "@/shared/components/TablaColumnas2";
 import { ESTADOS_B2B, ESTADOS_OPERACIONEPARTNER } from "@/context/estados";
 import api from "@/services/api";
-import { getIdlink } from "@/utils/id";
+import { getIdlink } from "@/shared/utils/id";
 
 const ESTADOS_OPERACIONES_DEFAULT = ESTADOS_OPERACIONEPARTNER;
 

@@ -5,10 +5,10 @@ import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/services/api";
-import FichaCliente from "@/components/clientes/FichaCliente";
-import OportunidadesCard from "@/components/clientes/OportunidadesCard";
-import ComentariosCard from "@/components/clientes/ComentariosCard";
-import EditarClienteDialog from "@/components/clientes/EditarClienteDialog";
+import FichaCliente from "@/features/clients/components/FichaCliente";
+import OportunidadesCard from "@/features/clients/components/OportunidadesCard";
+import ComentariosCard from "@/features/clients/components/ComentariosCard";
+import EditarClienteDialog from "@/features/clients/components/EditarClienteDialog";
 
 interface Cliente {
   id: number;

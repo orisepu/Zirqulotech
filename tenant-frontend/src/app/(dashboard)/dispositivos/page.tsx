@@ -40,9 +40,9 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Dayjs } from 'dayjs'
 import { useRouter } from 'next/navigation'
 import api, { getAccessToken } from '@/services/api'
-import TablaReactiva from '@/components/TablaReactiva2'
-import type { CapacidadRow, ModeloMini } from '@/components/TablaColumnas2'
-import { columnasCapacidadesAdmin } from '@/components/TablaColumnas2'
+import TablaReactiva from '@/shared/components/TablaReactiva2'
+import type { CapacidadRow, ModeloMini } from '@/shared/components/TablaColumnas2'
+import { columnasCapacidadesAdmin } from '@/shared/components/TablaColumnas2'
 
 // ===== TYPES =====
 export type CapacidadesParams = {
@@ -597,7 +597,7 @@ export default function AdminCapacidadesTablaReactiva() {
                               <TableCell>{modelo.pantalla || '—'}</TableCell>
                               <TableCell>{modelo['año'] ?? '—'}</TableCell>
                               <TableCell>{modelo.procesador || '—'}</TableCell>
-                              <TableCell>{modelo.likewize_modelo || '—'}</TableCell>
+                              <TableCell>{modelo.likewize_modelo_id || '—'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

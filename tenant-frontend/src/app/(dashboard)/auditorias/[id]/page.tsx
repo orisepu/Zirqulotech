@@ -6,12 +6,12 @@ import {
   Box, Typography, CircularProgress, Snackbar, Alert, Button, Grid
 } from '@mui/material';
 import api from '@/services/api';
-import TablaReactiva from '@/components/TablaReactiva2';
-import { getColumnasAuditoria } from '@/components/TablaColumnas2';
+import TablaReactiva from '@/shared/components/TablaReactiva2';
+import { getColumnasAuditoria } from '@/shared/components/TablaColumnas2';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import FormularioAuditoriaDispositivo, { ValoresAuditoria } from '@/components/formularios/dispositivos/FormularioAuditoriaDispositivo';
-import { calcularEstadoDetallado } from '@/components/formularios/dispositivos/valoracion';
+import FormularioAuditoriaDispositivo, { ValoresAuditoria } from '@/features/opportunities/components/forms/FormularioAuditoriaDispositivo';
+import { calcularEstadoDetallado } from '@/features/opportunities/components/forms/valoracion';
 
 type DispositivoEditable = ValoresAuditoria & {
   auditado?: boolean;

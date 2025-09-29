@@ -7,17 +7,17 @@ import {
 } from '@mui/material'
 import { pdf } from '@react-pdf/renderer'
 
-import { useOportunidadData, toastApiError } from '@/hooks/useOportunidadData'
-import useUsuarioActual from '@/hooks/useUsuarioActual'
+import { useOportunidadData, toastApiError } from '@/shared/hooks/useOportunidadData'
+import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
 
-import CabeceraOportunidad from '@/components/oportunidades/CabeceraOportunidad'
-import ComentariosPanel from '@/components/oportunidades/ComentariosPanel'
-import HistorialPanel from '@/components/oportunidades/HistorialPanel'
-import TabsOportunidad from '@/components/oportunidades/TabsOportunidad'
+import CabeceraOportunidad from '@/features/opportunities/components/CabeceraOportunidad'
+import ComentariosPanel from '@/features/opportunities/components/ComentariosPanel'
+import HistorialPanel from '@/features/opportunities/components/HistorialPanel'
+import TabsOportunidad from '@/features/opportunities/components/TabsOportunidad'
 
-import FormularioValoracionOportunidad from '@/components/formularios/dispositivos/FormularioValoracionOportunidad'
-import DatosRecogidaForm from '@/components/DatosRecogida'
-import OfertaPDFDocument from '@/components/pdf/OfertaPDFDocument'
+import FormularioValoracionOportunidad from '@/features/opportunities/components/forms/FormularioValoracionOportunidad'
+import DatosRecogidaForm from '@/shared/components/DatosRecogida'
+import OfertaPDFDocument from '@/features/contracts/components/pdf/OfertaPDFDocument'
 import { toast } from 'react-toastify'
 
 type Oportunidad = any

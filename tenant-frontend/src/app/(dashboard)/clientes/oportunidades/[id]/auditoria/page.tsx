@@ -19,8 +19,8 @@ import {
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import TablaReactiva from '@/components/TablaReactiva2';
-import { columnasDispositivosReales } from '@/components/TablaColumnas2';
+import TablaReactiva from '@/shared/components/TablaReactiva2';
+import { columnasDispositivosReales } from '@/shared/components/TablaColumnas2';
 import { formatoBonito } from '@/context/precios';
 
 type Modelo = { id: number; descripcion: string ; modelo: string };

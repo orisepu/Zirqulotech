@@ -33,6 +33,11 @@ pnpm test:critical     # Run only Tier 1 critical API tests (pre-commit)
 pnpm test:business     # Run only Tier 2 business API tests (CI/CD)
 pnpm test:health       # Run API health check across all 200+ endpoints
 pnpm test:all          # Run all test tiers sequentially
+
+# Frontend Unit Testing Commands
+pnpm test:unit         # Run frontend unit tests (utilities, hooks, business logic)
+pnpm test:frontend     # Alias for test:unit
+pnpm test:full         # Run all tests (API + Frontend) for complete coverage
 ```
 
 ### Backend (tenants-backend)
@@ -241,29 +246,63 @@ pytest                         # Run pytest tests (configured in pytest.ini)
 
 ## Testing
 
-### Frontend Testing Architecture
-- **Framework**: Jest + React Testing Library + axios-mock-adapter
-- **Configuration**: Next.js optimized Jest setup with TypeScript support
-- **Test Organization**: Tiered by criticality for efficient CI/CD workflows
-- **Coverage**: 99 tests covering 200+ backend API endpoints
-- **Mock Strategy**: axios-mock-adapter for API mocking (more stable than MSW)
+### Comprehensive Testing Architecture
 
-#### Test Tiers:
+#### Frontend Testing Framework
+- **Testing Stack**: Jest + React Testing Library + axios-mock-adapter
+- **Configuration**: Next.js 15 optimized Jest setup with TypeScript support
+- **Test Organization**: Multi-layer architecture for complete coverage
+- **Total Coverage**: 170+ tests across API integration and frontend logic
+- **Mock Strategy**: Intelligent mocking for APIs, navigation, UI components
+
+#### Test Layer Architecture
+
+##### API Integration Tests (99 tests)
 - **Tier 1 - Critical (30 tests)**: Core functionality (authentication, tenants, basic CRM, dashboards)
 - **Tier 2 - Business (42 tests)**: Business features (global ops, devices, B2C contracts, chat)
-- **Health Check (27 tests)**: Complete endpoint verification across all backend modules
+- **Health Check (27 tests)**: Complete endpoint verification across all 200+ backend endpoints
 
-#### Testing Workflow:
-1. **Pre-commit**: `pnpm test:critical` - Fast verification of essential APIs
-2. **CI/CD**: `pnpm test:all` - Complete test suite for regression detection
-3. **Development**: `pnpm test:watch` - Continuous feedback during development
-4. **Debugging**: Individual tier tests for focused investigation
+##### Frontend Unit Tests (70+ tests)
+- **Business Logic Testing (25+ tests)**:
+  - `gradingCalcs.test.ts`: Device grading system (A+/A/B/C/D grades)
+  - Valuation calculations with deductions and floor prices
+  - Commercial vs audit grading gates and thresholds
 
-#### Mock Data & Helpers:
-- Realistic mock data matching backend models
-- Consistent API mocking helpers for DRY test setup
-- Authentication state simulation for tenant-aware testing
-- Error scenario testing for robust error handling
+- **Spanish Market Validators (35+ tests)**:
+  - `validators.test.ts`: DNI/NIE/CIF validation with check digits
+  - IMEI validation using Luhn algorithm
+  - Spanish postal codes and phone number validation
+  - Email validation with comprehensive edge cases
+
+- **Custom Hooks Testing (10+ tests)**:
+  - `useUsuarioActual.test.ts`: User/tenant context management
+  - `useOportunidadFilters.test.ts`: Opportunity filtering logic
+  - Mock providers for TanStack Query integration
+
+- **Utility Functions (10+ tests)**:
+  - `formato.test.ts`: Euro formatting with Spanish locale
+  - `id.test.ts`: ID priority handling (hashid > uuid > id)
+  - `navigation.test.ts`: Navigation utilities for JSDOM compatibility
+
+- **UI Components (5+ tests)**:
+  - `KpiCard.test.tsx`: Dashboard component testing
+  - Component rendering with MUI theme providers
+  - Value formatting and display logic
+
+#### Testing Workflow & CI/CD Integration
+1. **Pre-commit**: `pnpm test:critical` - Essential API verification (2 min)
+2. **Pre-push**: `pnpm test:frontend` - Frontend logic validation (1 min)
+3. **CI/CD**: `pnpm test:full` - Complete regression testing (5 min)
+4. **Development**: `pnpm test:watch` - Continuous feedback loop
+5. **Debugging**: Individual test files for focused investigation
+
+#### Mock Infrastructure & Helpers
+- **API Mocking**: axios-mock-adapter for stable API simulation
+- **Component Mocking**: MUI components, date pickers, charts (recharts)
+- **Navigation Mocking**: JSDOM-compatible navigation utilities
+- **Test Utilities**: Custom render helpers with all providers
+- **Realistic Data**: Mock data matching production API models
+- **Error Scenarios**: Comprehensive error state testing
 
 ### Backend
 - pytest configured with Django test settings
@@ -335,6 +374,27 @@ Multi-step forms with validation:
 - **Device Forms**: PasoEstadoDispositivo → PasoEstetica → PasoValoracion
 - Dynamic form steps based on client type (B2B/B2C) and tenant configuration
 
+### Testing File Structure
+Frontend testing files organized by functionality:
+```
+src/
+├── test-utils.tsx                    # React Testing Library providers and utilities
+├── setupTests.ts                     # Jest global setup with mocks
+├── test-examples.test.ts             # Practical testing examples and patterns
+├── utils/
+│   ├── formato.test.ts               # Euro formatting with Spanish locale
+│   ├── id.test.ts                    # ID priority handling (hashid > uuid > id)
+│   ├── gradingCalcs.test.ts          # Device grading business logic (25+ tests)
+│   └── navigation.test.ts            # Navigation utilities (JSDOM compatible)
+├── lib/
+│   └── validators.test.ts            # Spanish market validators (35+ tests)
+├── hooks/
+│   ├── useUsuarioActual.test.ts      # User/tenant context management
+│   └── useOportunidadFilters.test.ts # Opportunity filtering logic
+└── components/dashboards/manager/
+    └── KpiCard.test.tsx              # Dashboard component testing
+```
+
 ### State Management Patterns
 - **TanStack Query** for server state with optimistic updates
 - **React Hook Form** for form state management
@@ -378,24 +438,36 @@ Device condition assessment with:
 - **Component Standardization**: Applied consistent date picker patterns across DashboardAdmin and DashboardInterno components
 - **LocalizationProvider**: Proper date localization setup for Spanish market requirements
 
-### Comprehensive API Testing Suite (2024)
-- **Test Infrastructure**: Complete Jest + React Testing Library setup optimized for Next.js and TypeScript
-- **Tiered Testing Strategy**:
-  - 99 tests organized by business criticality
-  - Covers all 200+ backend API endpoints
-  - Enables targeted testing for different deployment phases
-- **Mock Architecture**:
-  - axios-mock-adapter for reliable API mocking
-  - Realistic test data matching production models
-  - Authentication and tenant context simulation
-- **CI/CD Integration**:
-  - Pre-commit hooks for critical path verification
-  - Full regression testing for deployment pipeline
-  - Performance monitoring for API response times
-- **Developer Experience**:
-  - Watch mode for continuous testing during development
-  - Coverage reporting for test quality assurance
-  - Health check monitoring for rapid issue detection
+### Complete Frontend Testing Suite (2024)
+- **Comprehensive Test Infrastructure**: Jest + React Testing Library + axios-mock-adapter optimized for Next.js 15 and TypeScript
+- **Multi-Layer Testing Strategy**:
+  - **API Layer**: 99 tests organized by business criticality covering 200+ backend endpoints
+  - **Logic Layer**: 70+ tests for business logic, validators, hooks, and utilities
+  - **UI Layer**: Component testing with MUI integration and provider mocking
+  - **Integration Layer**: End-to-end testing workflows for critical user journeys
+- **Advanced Mock Architecture**:
+  - axios-mock-adapter for stable API simulation
+  - Intelligent component mocking (MUI, charts, date pickers)
+  - Navigation and browser API mocking for JSDOM compatibility
+  - Realistic test data matching production models with Spanish market specifics
+- **Spanish Market Validation Testing**:
+  - Complete DNI/NIE/CIF validation with mathematical check digits
+  - IMEI validation using Luhn algorithm implementation
+  - Spanish postal codes, phone numbers, and locale-specific formatting
+- **Business Logic Coverage**:
+  - Device grading system (A+ to D grades) with comprehensive edge cases
+  - Price calculation algorithms with deductions and floor pricing
+  - Commercial vs audit valuation workflows
+- **CI/CD Integration & Performance**:
+  - Tiered testing for optimized CI/CD pipelines (critical → frontend → full)
+  - Pre-commit hooks for rapid feedback (under 3 minutes total)
+  - Performance monitoring and test execution optimization
+  - Coverage reporting with quality gates
+- **Developer Experience Excellence**:
+  - Watch mode for continuous development feedback
+  - Focused test execution for debugging specific layers
+  - Test utilities and helpers for DRY test development
+  - Comprehensive mock infrastructure for isolated testing
 
 ### Authentication & Security Enhancements
 - **Hardcoded Schema Resolution**: Identified and documented authentication flow issue where "progeek" company logins are forced to "public" schema instead of proper tenant resolution (src/services/api.ts:69)

@@ -1,0 +1,322 @@
+import {
+  isEmail,
+  isDNI,
+  isNIE,
+  isIMEI,
+  isTelefonoES,
+  isCPEsp,
+  isCIF,
+  validate
+} from './validators'
+
+describe('validators', () => {
+  describe('isEmail', () => {
+    it('should validate correct email addresses', () => {
+      const validEmails = [
+        'test@example.com',
+        'user+label@domain.co.uk',
+        'simple@test.es',
+        'number123@test.com',
+        'user.name@domain.com'
+      ]
+
+      validEmails.forEach(email => {
+        expect(isEmail(email)).toBe(true)
+      })
+    })
+
+    it('should reject invalid email addresses', () => {
+      const invalidEmails = [
+        '',
+        'notanemail',
+        '@domain.com',
+        'user@',
+        'user@domain'
+      ]
+
+      invalidEmails.forEach(email => {
+        expect(isEmail(email)).toBe(false)
+      })
+    })
+  })
+
+  describe('isDNI', () => {
+    it('should validate correct DNI numbers', () => {
+      const validDNIs = [
+        '12345678Z',  // Calculated valid DNI
+        '87654321X',  // Another valid DNI
+        '11111111H',  // Valid DNI
+        '22222222J',  // Valid DNI
+        '12345678-Z', // With dash
+        '12345678 Z'  // With space
+      ]
+
+      validDNIs.forEach(dni => {
+        expect(isDNI(dni)).toBe(true)
+      })
+    })
+
+    it('should reject invalid DNI numbers', () => {
+      const invalidDNIs = [
+        '',
+        '1234567Z',   // Too short
+        '123456789Z', // Too long
+        '12345678A',  // Wrong letter
+        'ABCDEFGHZ',  // Not numbers
+        '12345678',   // Missing letter
+        'Z12345678'   // Letter at start
+      ]
+
+      invalidDNIs.forEach(dni => {
+        expect(isDNI(dni)).toBe(false)
+      })
+    })
+  })
+
+  describe('isNIE', () => {
+    it('should validate correct NIE numbers', () => {
+      const validNIEs = [
+        'X0000000T',  // Valid X NIE (calculated)
+        'Y0000000X',  // Valid Y NIE (calculated)
+        'Z0000000R'   // Valid Z NIE (calculated)
+      ]
+
+      validNIEs.forEach(nie => {
+        expect(isNIE(nie)).toBe(true)
+      })
+    })
+
+    it('should reject invalid NIE numbers', () => {
+      const invalidNIEs = [
+        '',
+        'A1234567L',  // Wrong first letter
+        'X123456L',   // Too short
+        'X12345678L', // Too long
+        'X1234567Z',  // Wrong control letter
+        '1234567L',   // Missing first letter
+        'X1234567'    // Missing control letter
+      ]
+
+      invalidNIEs.forEach(nie => {
+        expect(isNIE(nie)).toBe(false)
+      })
+    })
+  })
+
+  describe('isIMEI', () => {
+    it('should validate correct IMEI numbers', () => {
+      const validIMEIs = [
+        '490154203237518', // Known valid IMEI
+        '123456789012344'  // Valid calculated IMEI
+      ]
+
+      validIMEIs.forEach(imei => {
+        expect(isIMEI(imei)).toBe(true)
+      })
+    })
+
+    it('should reject invalid IMEI numbers', () => {
+      const invalidIMEIs = [
+        '',
+        '12345678901234',   // Too short
+        '1234567890123456', // Too long
+        '490154203237519',  // Invalid Luhn check
+        'ABCDEFGHIJKLMNO',  // Not numbers
+        '490154203237518A'  // Contains letter
+      ]
+
+      invalidIMEIs.forEach(imei => {
+        expect(isIMEI(imei)).toBe(false)
+      })
+    })
+  })
+
+  describe('isTelefonoES', () => {
+    it('should validate correct Spanish phone numbers', () => {
+      const validPhones = [
+        '612345678',  // Mobile
+        '722345678',  // Mobile
+        '812345678',  // Fixed
+        '912345678',  // Fixed Madrid
+        '6-1234-5678', // With dashes (cleaned)
+        '6 1234 5678'  // With spaces (cleaned)
+      ]
+
+      validPhones.forEach(phone => {
+        expect(isTelefonoES(phone)).toBe(true)
+      })
+    })
+
+    it('should reject invalid Spanish phone numbers', () => {
+      const invalidPhones = [
+        '',
+        '12345678',    // Too short
+        '1234567890',  // Too long
+        '512345678',   // Wrong first digit
+        '012345678',   // Wrong first digit
+        '6123456789'   // Too long
+      ]
+
+      invalidPhones.forEach(phone => {
+        expect(isTelefonoES(phone)).toBe(false)
+      })
+    })
+  })
+
+  describe('isCPEsp', () => {
+    it('should validate correct Spanish postal codes', () => {
+      const validCPs = [
+        '28001', // Madrid
+        '08001', // Barcelona
+        '41001', // Sevilla
+        '01001', // Vitoria
+        '52001'  // Melilla (max)
+      ]
+
+      validCPs.forEach(cp => {
+        expect(isCPEsp(cp)).toBe(true)
+      })
+    })
+
+    it('should reject invalid Spanish postal codes', () => {
+      const invalidCPs = [
+        '',
+        '00001', // Invalid province
+        '53001', // Invalid province (>52)
+        '2800',  // Too short
+        '280001', // Too long
+        'ABCDE'  // Not numbers
+      ]
+
+      invalidCPs.forEach(cp => {
+        expect(isCPEsp(cp)).toBe(false)
+      })
+    })
+  })
+
+  describe('isCIF', () => {
+    it('should validate correct CIF numbers', () => {
+      const validCIFs = [
+        'A12345674', // Valid CIF type A
+        'B87654321', // Valid CIF type B
+        'P1234567I', // Valid CIF type P (must be letter)
+        'Q2345678J'  // Valid CIF type Q (must be letter)
+      ]
+
+      validCIFs.forEach(cif => {
+        expect(isCIF(cif)).toBe(true)
+      })
+    })
+
+    it('should reject invalid CIF numbers', () => {
+      const invalidCIFs = [
+        '',
+        '12345674',  // Missing type letter
+        'A1234567',  // Missing control
+        'A123456789', // Too long
+        'Z12345674', // Invalid type letter
+        'A1234567X'  // Wrong control
+      ]
+
+      invalidCIFs.forEach(cif => {
+        expect(isCIF(cif)).toBe(false)
+      })
+    })
+
+    it('should handle CIF types that require letter control', () => {
+      // CIF types P, Q, R, S, N, W must have letter control
+      const result = isCIF('P1234567I')
+      expect(result).toBe(true)
+    })
+
+    it('should handle CIF types that require number control', () => {
+      // CIF types A, B, E, H must have number control
+      const result = isCIF('A12345674')
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('validate function', () => {
+    it('should return validation result for email', () => {
+      const validResult = validate('email', 'test@example.com')
+      expect(validResult.valid).toBe(true)
+      expect(validResult.message).toBeUndefined()
+
+      const invalidResult = validate('email', 'invalid-email')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('Correo inválido')
+    })
+
+    it('should return validation result for DNI', () => {
+      const validResult = validate('dni', '12345678Z')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('dni', '12345678A')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('DNI inválido')
+    })
+
+    it('should return validation result for NIE', () => {
+      const validResult = validate('nie', 'X1234567L')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('nie', 'A1234567L')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('NIE inválido')
+    })
+
+    it('should return validation result for DNI or NIE', () => {
+      const validDNI = validate('dni_or_nie', '12345678Z')
+      expect(validDNI.valid).toBe(true)
+
+      const validNIE = validate('dni_or_nie', 'X1234567L')
+      expect(validNIE.valid).toBe(true)
+
+      const invalid = validate('dni_or_nie', 'invalid')
+      expect(invalid.valid).toBe(false)
+      expect(invalid.message).toBe('DNI/NIE inválido')
+    })
+
+    it('should return validation result for IMEI', () => {
+      const validResult = validate('imei', '490154203237518')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('imei', '123456789012345')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('IMEI inválido. Debe tener 15 dígitos y checksum válido.')
+    })
+
+    it('should return validation result for telefono', () => {
+      const validResult = validate('telefono', '612345678')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('telefono', '12345678')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('Teléfono inválido. Debe tener 9 dígitos.')
+    })
+
+    it('should return validation result for CIF', () => {
+      const validResult = validate('cif', 'A12345674')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('cif', 'Z12345674')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('CIF inválido')
+    })
+
+    it('should return validation result for Spanish postal code', () => {
+      const validResult = validate('cp_es', '28001')
+      expect(validResult.valid).toBe(true)
+
+      const invalidResult = validate('cp_es', '99999')
+      expect(invalidResult.valid).toBe(false)
+      expect(invalidResult.message).toBe('Código postal inválido (España)')
+    })
+
+    it('should return valid for unknown validator types', () => {
+      const result = validate('unknown' as any, 'any-value')
+      expect(result.valid).toBe(true)
+      expect(result.message).toBeUndefined()
+    })
+  })
+})

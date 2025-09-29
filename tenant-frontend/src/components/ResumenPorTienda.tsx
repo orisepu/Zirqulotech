@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, Typography, Grid } from "@mui/material";
 import api from "@/services/api";
-import { formatoEuros } from "@/utils/formato";
+import { formatoEuros } from "@/shared/utils/formato";
 
 
 type Props = { filtros: Record<string, unknown> }

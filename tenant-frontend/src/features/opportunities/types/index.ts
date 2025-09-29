@@ -1,0 +1,2 @@
+// Opportunities types
+export {}

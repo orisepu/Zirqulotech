@@ -3,12 +3,12 @@
 import { Box, Typography, CircularProgress } from '@mui/material'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '@/services/api'
-import TablaReactiva from '@/components/TablaReactiva2'
-import { getIdlink } from '@/utils/id'
+import TablaReactiva from '@/shared/components/TablaReactiva2'
+import { getIdlink } from '@/shared/utils/id'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESTADOS_PIPELINEADMIN } from '@/context/estados'
-import { columnasAdmin } from '@/components/TablaColumnas2'
+import { columnasAdmin } from '@/shared/components/TablaColumnas2'
 
 type PipelineItem = any
 type PipelineResponse = {

@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import Link from "next/link";
-import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
+import { useBreadcrumbs } from "@/shared/hooks/useBreadcrumbs";
 
 export default function BreadcrumbsExplorador() {
   const { breadcrumbs, isReady } = useBreadcrumbs();

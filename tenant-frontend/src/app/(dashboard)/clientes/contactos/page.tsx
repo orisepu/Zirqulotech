@@ -5,7 +5,7 @@ import { Alert, Box, Paper, Snackbar, TextField, Typography } from "@mui/materia
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import TablaReactiva from "@/components/TablaReactiva2";
+import TablaReactiva from "@/shared/components/TablaReactiva2";
 import api from "@/services/api";
 
 type ClienteTipo = "empresa" | "autonomo" | "particular";

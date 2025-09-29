@@ -10,7 +10,7 @@ import { Delete as DeleteIcon } from '@mui/icons-material';
 import api from '@/services/api';
 import { Snackbar, Alert } from '@mui/material';
 import type { AlertColor } from '@mui/material';
-import { EtiquetaTerminalPDFDoc } from '@/components/etiquetas/etiqueta-terminal'
+import { EtiquetaTerminalPDFDoc } from '@/shared/components/ui/tags/etiqueta-terminal'
 import {  pdf } from '@react-pdf/renderer';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 

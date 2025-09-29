@@ -14,7 +14,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import SaveIcon from '@mui/icons-material/Save'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import api, { getAccessToken } from '@/services/api'
-import TablaReactiva from '@/components/TablaReactiva2'
+import TablaReactiva from '@/shared/components/TablaReactiva2'
 import type { ColumnDef } from '@tanstack/react-table'
 
 /* ==========================

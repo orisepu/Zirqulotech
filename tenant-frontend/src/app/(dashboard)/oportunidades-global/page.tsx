@@ -7,12 +7,12 @@ import {
 import { useEffect, useState, useMemo } from 'react'
 import api from '@/services/api'
 import { useRouter } from 'next/navigation'
-import { getIdlink } from '@/utils/id'
+import { getIdlink } from '@/shared/utils/id'
 import TuneIcon from '@mui/icons-material/Tune'
 import { useQuery,useQueryClient } from '@tanstack/react-query'
 import { ESTADOS_B2B, ESTADOS_META, ESTADOS_OPERACIONESADMIN } from '@/context/estados'
-import TablaReactiva from '@/components/TablaReactiva2'
-import { columnasAdmin } from '@/components/TablaColumnas2'
+import TablaReactiva from '@/shared/components/TablaReactiva2'
+import { columnasAdmin } from '@/shared/components/TablaColumnas2'
 import { useUsuario } from '@/context/UsuarioContext'
 
 export default function OportunidadesGlobalPage() {

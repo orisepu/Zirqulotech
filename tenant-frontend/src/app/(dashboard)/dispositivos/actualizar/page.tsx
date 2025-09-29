@@ -428,6 +428,7 @@ export default function LikewizeB2BPage() {
   const [formMarca, setFormMarca] = useState('Apple')
   const [formLikewizeCode, setFormLikewizeCode] = useState('')
   const [toggleMessage, setToggleMessage] = useState<{ msg: string; sev: 'success' | 'error' } | null>(null)
+  const [mappingSystem, setMappingSystem] = useState<'v1' | 'v2'>('v1')
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [capStatus, setCapStatus] = useState<Record<number, boolean>>({})
   const [capMarcaLookup, setCapMarcaLookup] = useState<Record<number, string>>({})
@@ -493,7 +494,10 @@ export default function LikewizeB2BPage() {
     isPending: lanzarActualizacionPending,
   } = useMutation({
     mutationFn: async ({ mode, brands }: { mode: 'apple' | 'others'; brands?: string[] }) => {
-      const payload: Record<string, unknown> = { mode }
+      const payload: Record<string, unknown> = { 
+        mode,
+        mapping_system: mappingSystem
+      }
       if (brands && brands.length) {
         payload.brands = brands
       }
@@ -1210,7 +1214,37 @@ export default function LikewizeB2BPage() {
             <CardContent>
               <Stack spacing={3}>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid size={{ xs: 12, md: 4 }}>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Sistema de Mapeo</InputLabel>
+                        <Select
+                          value={mappingSystem}
+                          label="Sistema de Mapeo"
+                          onChange={(e) => setMappingSystem(e.target.value as 'v1' | 'v2')}
+                          disabled={lanzarActualizacionPending}
+                        >
+                          <MenuItem value="v1">V1 - Heurística Básica</MenuItem>
+                          <MenuItem value="v2">V2 - Inteligencia Avanzada</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Tooltip title={
+                        <div>
+                          <Typography variant="caption" component="div" gutterBottom>
+                            <strong>V1 - Heurística Básica:</strong> Mapeo basado en reglas simples y coincidencias de texto
+                          </Typography>
+                          <Typography variant="caption" component="div">
+                            <strong>V2 - Inteligencia Avanzada:</strong> Mapeo con A-numbers para Mac, enriquecimiento de base de conocimiento para iPhone/iPad
+                          </Typography>
+                        </div>
+                      }>
+                        <IconButton size="small" sx={{ mt: 1.5 }}>
+                          <InfoIcon fontSize="small" color="action" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Autocomplete
                       multiple
                       disableCloseOnSelect
@@ -1228,7 +1262,7 @@ export default function LikewizeB2BPage() {
                       disabled={lanzarActualizacionPending}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 8 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       <Button
                         variant="contained"

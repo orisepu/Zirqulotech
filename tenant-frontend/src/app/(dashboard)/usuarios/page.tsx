@@ -26,8 +26,8 @@ import {
 import { Search, Clear } from "@mui/icons-material";
 import { ColumnDef } from "@tanstack/react-table";
 import api from "@/services/api";
-import ValidatingTextField from "@/components/inputs/ValidatingTextField";
-import TablaReactiva from "@/components/TablaReactiva2";
+import ValidatingTextField from "@/shared/components/forms/inputs/ValidatingTextField";
+import TablaReactiva from "@/shared/components/TablaReactiva2";
 
 type UsuarioAPI = {
   id: number;

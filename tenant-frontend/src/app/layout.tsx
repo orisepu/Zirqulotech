@@ -4,8 +4,7 @@ import "./globals.css";
 import { ThemeWrapper } from "@/context/ThemeContext";
 import ThemeRegistry from "./ThemeRegistry";
 import { cookies } from "next/headers";
-import { ReactQueryProvider } from "@/components/ReactQueryProvider"; // 👈 nuevo import
-
+import { ReactQueryProvider } from "@/features/auth/components/providers/ReactQueryProvider";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

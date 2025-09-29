@@ -1,7 +1,7 @@
 'use client'
 
-import DashboardLayoutCliente from "@/components/layout/DashboardLayoutCliente"
-import ReactQueryDevtoolsClient from "@/components/ReactQueryDevtoolsClient"
+import DashboardLayoutCliente from "@/shared/components/layout/DashboardLayoutCliente"
+import ReactQueryDevtoolsClient from "@/shared/components/providers/ReactQueryDevtoolsClient"
 import { UsuarioProvider } from "@/context/UsuarioContext"
 import { LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
@@ -9,7 +9,7 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { useEffect } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from '@/lib/reactQuery'
+import { queryClient } from '@/shared/lib/reactQuery'
 import dynamic from 'next/dynamic'
 const ToastContainer = dynamic(
   () => import('react-toastify').then(m => m.ToastContainer),

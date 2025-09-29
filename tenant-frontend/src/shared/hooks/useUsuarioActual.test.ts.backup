@@ -1,0 +1,206 @@
+import { renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import axios from 'axios'
+import MockAdapter from 'axios-mock-adapter'
+import useUsuarioActual from './useUsuarioActual'
+
+// Mock the api module
+jest.mock('@/services/api', () => axios.create())
+
+describe('useUsuarioActual', () => {
+  let mockAxios: MockAdapter
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    mockAxios = new MockAdapter(axios)
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: 0,
+          gcTime: 0,
+        },
+      },
+    })
+  })
+
+  afterEach(() => {
+    mockAxios.restore()
+    queryClient.clear()
+  })
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => {
+    const React = require('react')
+    const { QueryClientProvider } = require('@tanstack/react-query')
+    return React.createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+
+  it('should return null initially', () => {
+    mockAxios.onGet('/api/yo/').reply(200, {
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      global: {
+        rol_actual: 'admin',
+        es_superadmin: true,
+        es_empleado_interno: false
+      },
+      tenant: {
+        schema: 'test-tenant',
+        name: 'Test Tenant',
+        solo_empresas: true,
+        management_mode: 'standard'
+      }
+    })
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+    expect(result.current).toBeNull()
+  })
+
+  it('should return user data when API call succeeds', async () => {
+    const mockUserData = {
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      global: {
+        rol_actual: 'admin',
+        es_superadmin: true,
+        es_empleado_interno: false
+      },
+      tenant: {
+        schema: 'test-tenant',
+        name: 'Test Tenant',
+        solo_empresas: true,
+        management_mode: 'standard'
+      }
+    }
+
+    mockAxios.onGet('/api/yo/').reply(200, mockUserData)
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).not.toBeNull()
+    })
+
+    expect(result.current).toEqual({
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      rol_actual: 'admin',
+      es_superadmin: true,
+      es_empleado_interno: false,
+      tenant: {
+        schema: 'test-tenant',
+        name: 'Test Tenant',
+        solo_empresas: true,
+        management_mode: 'standard'
+      }
+    })
+  })
+
+  it('should handle missing global data', async () => {
+    const mockUserData = {
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      tenant: {
+        schema: 'test-tenant',
+        name: 'Test Tenant'
+      }
+    }
+
+    mockAxios.onGet('/api/yo/').reply(200, mockUserData)
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).not.toBeNull()
+    })
+
+    expect(result.current).toEqual({
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      rol_actual: null,
+      es_superadmin: false,
+      es_empleado_interno: false,
+      tenant: {
+        schema: 'test-tenant',
+        name: 'Test Tenant',
+        solo_empresas: false,
+        management_mode: null
+      }
+    })
+  })
+
+  it('should handle missing tenant data', async () => {
+    const mockUserData = {
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      global: {
+        rol_actual: 'user',
+        es_superadmin: false,
+        es_empleado_interno: true
+      }
+    }
+
+    mockAxios.onGet('/api/yo/').reply(200, mockUserData)
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).not.toBeNull()
+    })
+
+    expect(result.current).toEqual({
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      rol_actual: 'user',
+      es_superadmin: false,
+      es_empleado_interno: true,
+      tenant: null
+    })
+  })
+
+  it('should return null when API call fails', async () => {
+    mockAxios.onGet('/api/yo/').reply(500)
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+
+    // Should remain null even after the query fails
+    await waitFor(() => {
+      expect(result.current).toBeNull()
+    })
+  })
+
+  it('should handle partial tenant data', async () => {
+    const mockUserData = {
+      id: 1,
+      name: 'Test User',
+      email: 'test@example.com',
+      global: {},
+      tenant: {
+        schema: 'partial-tenant'
+        // Missing name, solo_empresas, management_mode
+      }
+    }
+
+    mockAxios.onGet('/api/yo/').reply(200, mockUserData)
+
+    const { result } = renderHook(() => useUsuarioActual(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).not.toBeNull()
+    })
+
+    expect(result.current?.tenant).toEqual({
+      schema: 'partial-tenant',
+      name: null,
+      solo_empresas: false,
+      management_mode: null
+    })
+  })
+})

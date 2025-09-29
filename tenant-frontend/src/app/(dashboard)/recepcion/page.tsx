@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import api from '@/services/api';
 import debounce from 'lodash.debounce';
 import React, { useEffect, useState, useCallback } from 'react';
-import { getId,getIdlink } from '@/utils/id';
+import { getId,getIdlink } from '@/shared/utils/id';
 type Order = 'asc' | 'desc';
 
 export default function ListaOportunidadesEnTransito() {

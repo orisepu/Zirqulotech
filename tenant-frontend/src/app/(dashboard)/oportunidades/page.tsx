@@ -10,18 +10,18 @@ import {
   CircularProgress,
 } from '@mui/material'
 
-import TablaReactiva from '@/components/TablaReactiva2'
-import { columnasTenant } from '@/components/TablaColumnas2'
-import useUsuarioActual from '@/hooks/useUsuarioActual'
-import { getIdlink } from '@/utils/id'
+import TablaReactiva from '@/shared/components/TablaReactiva2'
+import { columnasTenant } from '@/shared/components/TablaColumnas2'
+import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
+import { getIdlink } from '@/shared/utils/id'
 import api from '@/services/api'
 
 // Refactored components
-import { OportunidadFilters } from '@/components/oportunidades/OportunidadFilters'
-import { CreateOportunidadDialog } from '@/components/oportunidades/CreateOportunidadDialog'
-import { useOportunidadFilters } from '@/hooks/useOportunidadFilters'
-import { useClienteSearch } from '@/hooks/useClienteSearch'
-import { ESTADOS_FINALIZADOS, ESTADOS_OPERACIONES_SET } from '@/constants/oportunidades'
+import { OportunidadFilters } from '@/features/opportunities/components/OportunidadFilters'
+import { CreateOportunidadDialog } from '@/features/opportunities/components/CreateOportunidadDialog'
+import { useOportunidadFilters } from '@/shared/hooks/useOportunidadFilters'
+import { useClienteSearch } from '@/shared/hooks/useClienteSearch'
+import { ESTADOS_FINALIZADOS, ESTADOS_OPERACIONES_SET } from '@/shared/constants/oportunidades'
 export default function OportunidadesTenantPage() {
   const router = useRouter()
   const usuario = useUsuarioActual()

@@ -20,7 +20,7 @@ import {
   MenuItem,
   TextField,
 } from "@mui/material";
-import { getId } from "@/utils/id";
+import { getId } from "@/shared/utils/id";
 
 type Lote = {
   id: number | string;

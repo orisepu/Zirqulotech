@@ -81,7 +81,7 @@ export default function KycPage() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState<number>(0);
   const [hasAccepted, setHasAccepted] = useState(false);
-  const CameraDNI = dynamic(() => import('@/components/contratos/cameraDNI'), { ssr: false })
+  const CameraDNI = dynamic(() => import('@/features/contracts/components/cameraDNI'), { ssr: false })
   
   // Paso 0: Contrato
   const storageKey = `kyc-acepto-${tokenStr}`

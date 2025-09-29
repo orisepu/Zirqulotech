@@ -1,9 +1,9 @@
 'use client'
 
 
-import DashboardInterno from '@/components/dashboards/DashboardInterno'
-import DashboardManager from '@/components/dashboards/DashboardManager'
-import DashboardEmpleado from '@/components/dashboards/DashboardEmpleado'
+import DashboardInterno from '@/features/dashboards/components/DashboardInterno'
+import DashboardManager from '@/features/dashboards/components/DashboardManager'
+import DashboardEmpleado from '@/features/dashboards/components/DashboardEmpleado'
 import { useUsuario } from '@/context/UsuarioContext'
 export default function DashboardPage() {
   const usuario = useUsuario();

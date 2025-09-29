@@ -7,7 +7,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Paper from '@mui/material/Paper';
 import { AlertColor, SxProps } from '@mui/material';
 import type { SystemStyleObject } from '@mui/system';
-import { getFilledAlertStyles } from '@/utils/alertStyles';
+import { getFilledAlertStyles } from '@/shared/utils/alertStyles';
 
 
 type SemanticColorKey =

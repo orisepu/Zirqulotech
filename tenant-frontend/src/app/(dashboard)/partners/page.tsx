@@ -29,7 +29,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn'
 import PercentIcon from '@mui/icons-material/Percent'
 import ViewModuleIcon from '@mui/icons-material/ViewModule'
 import TableRowsIcon from '@mui/icons-material/TableRows'
-import TablaReactiva2 from '@/components/TablaReactiva2'
+import TablaReactiva2 from '@/shared/components/TablaReactiva2'
 import { createColumnHelper } from '@tanstack/react-table'
 import { toast } from 'react-toastify'
 
@@ -175,13 +175,13 @@ export default function PartnerListPage() {
         const estado = row.original.estado?.toLowerCase()
         const color = estado === 'activo' ? 'success' : estado === 'inactivo' ? 'error' : 'default'
         const icon = estado === 'activo' ? <CheckCircleOutlineIcon /> :
-                     estado === 'inactivo' ? <DoNotDisturbOnOutlinedIcon /> : null
+                     estado === 'inactivo' ? <DoNotDisturbOnOutlinedIcon /> : undefined
         return (
           <Chip
             label={row.original.estado || 'Pendiente'}
             color={color}
             size="small"
-            icon={icon}
+            {...(icon && { icon })}
             variant="outlined"
           />
         )
@@ -773,7 +773,7 @@ export default function PartnerListPage() {
                       page={page + 1}
                       onChange={handlePageChange}
                       color="primary"
-                      size={{ xs: 'medium', sm: 'large' }}
+                      size="medium"
                       showFirstButton
                       showLastButton
                     />

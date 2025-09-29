@@ -1,5 +1,5 @@
 'use client';
-import AdminB2CPanel from "@/components/contratos/AdminB2CPanel";
+import AdminB2CPanel from "@/features/contracts/components/AdminB2CPanel";
 import { useParams } from "next/navigation";
 
 export default function Page() {

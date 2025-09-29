@@ -17,9 +17,9 @@ import api, {
   type ObjetivoScope,
 } from "@/services/api";
 
-import { PeriodSelector, getDefaultQuarter } from "@/components/objetivos/PeriodSelector";
-import { ObjetivosTable } from "@/components/objetivos/ObjetivosTable";
-import { ObjetivosModal } from "@/components/objetivos/ObjetivosModal";
+import { PeriodSelector, getDefaultQuarter } from "@/features/objectives/components/PeriodSelector";
+import { ObjetivosTable } from "@/features/objectives/components/ObjetivosTable";
+import { ObjetivosModal } from "@/features/objectives/components/ObjetivosModal";
 
 export default function ObjetivosPage() {
   // Estado de filtros

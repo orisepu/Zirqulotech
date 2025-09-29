@@ -17,21 +17,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { useParams } from 'next/navigation'
 import api from '@/services/api'
-import FormularioValoracionOportunidad from '@/components/formularios/dispositivos/FormularioValoracionOportunidad'
-import DatosRecogidaForm from '@/components/DatosRecogida'
+import FormularioValoracionOportunidad from '@/features/opportunities/components/forms/FormularioValoracionOportunidad'
+import DatosRecogidaForm from '@/shared/components/DatosRecogida'
 import { toast } from "react-toastify";
-import { getId, getIdlink } from '@/utils/id'
+import { getId, getIdlink } from '@/shared/utils/id'
 import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight'
-import useUsuarioActual from "@/hooks/useUsuarioActual";
-import EstadoChipSelector from '@/components/cambiosestadochipselector'
+import useUsuarioActual from "@/shared/hooks/useUsuarioActual";
+import EstadoChipSelector from '@/shared/components/cambiosestadochipselector'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { pdf } from '@react-pdf/renderer'                // // quitar en producción si solo usas PDF backend
-import OfertaPDFDocument from '@/components/pdf/OfertaPDFDocument'
+import OfertaPDFDocument from '@/features/contracts/components/pdf/OfertaPDFDocument'
 import { ColoredPaper } from '@/context/ThemeContext'
 import { ESTADOS_META } from '@/context/estados'
-import TabsOportunidad from '@/components/oportunidades/TabsOportunidad'
-import ComentariosPanel from '@/components/oportunidades/ComentariosPanel'
-import HistorialPanel from '@/components/oportunidades/HistorialPanel'
+import TabsOportunidad from '@/features/opportunities/components/TabsOportunidad'
+import ComentariosPanel from '@/features/opportunities/components/ComentariosPanel'
+import HistorialPanel from '@/features/opportunities/components/HistorialPanel'
 
 type TabsOportunidadProps = ComponentProps<typeof TabsOportunidad>
 type OportunidadResumen = TabsOportunidadProps['oportunidad']

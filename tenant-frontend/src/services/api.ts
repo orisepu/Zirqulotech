@@ -1,4 +1,5 @@
 import axios from "axios";
+import { navigateToLogin } from "@/shared/utils/navigation";
 
 export const BASE_URL = "https://zirqulotech.com";
 
@@ -66,7 +67,7 @@ api.interceptors.response.use(
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         localStorage.removeItem('chat_id');
-        window.location.href = "/login";
+        navigateToLogin();
         return Promise.reject(refreshError);
       }
     }
