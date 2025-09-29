@@ -19,7 +19,6 @@ import { useMemo } from 'react'
 import { useDeviceMappingEnhanced } from '@/shared/hooks/useDeviceMappingEnhanced'
 
 interface MappingMetricsProps {
-  tareaId?: string
   compact?: boolean
 }
 
@@ -34,7 +33,7 @@ const getStatusColor = (status: 'healthy' | 'warning' | 'critical' | 'error') =>
   }
 }
 
-export default function MappingMetrics({ tareaId, compact = false }: MappingMetricsProps) {
+export default function MappingMetrics({ compact = false }: MappingMetricsProps) {
   const { useMappingStatistics, useAlgorithmComparison } = useDeviceMappingEnhanced()
 
   const { data: statistics, isLoading, refetch } = useMappingStatistics()
@@ -139,7 +138,7 @@ export default function MappingMetrics({ tareaId, compact = false }: MappingMetr
       />
       <CardContent>
         <Grid container spacing={3}>
-          <Grid xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <Box>
               <Typography variant="h6" gutterBottom>Estado General</Typography>
               <Stack spacing={2}>
@@ -184,7 +183,7 @@ export default function MappingMetrics({ tareaId, compact = false }: MappingMetr
             </Box>
           </Grid>
 
-          <Grid xs={12} md={6}>
+          <Grid size={{xs:12, md:6}}>
             <Box>
               <Typography variant="h6" gutterBottom>Revisión y Calidad</Typography>
               <Stack spacing={1.5}>
@@ -215,13 +214,13 @@ export default function MappingMetrics({ tareaId, compact = false }: MappingMetr
             </Box>
           </Grid>
 
-          <Grid xs={12}>
+          <Grid size={{xs:12}}>
             <Box>
               <Typography variant="h6" gutterBottom>Rendimiento por Algoritmo</Typography>
               {algorithms.length ? (
                 <Grid container spacing={2}>
                   {algorithms.map((algorithm) => (
-                    <Grid key={algorithm.name} xs={12} md={6} lg={4}>
+                    <Grid key={algorithm.name} size={{xs:12,md:6, lg:4}}>
                       <Card variant="outlined" sx={{ height: '100%' }}>
                         <CardHeader
                           title={algorithm.name}

@@ -170,7 +170,7 @@ export default function EnhancedLikewizePage({
 
               <TabPanel value={tabValue} index={1}>
                 <Stack spacing={3}>
-                  <MappingMetrics tareaId={tareaId} />
+                  <MappingMetrics />
 
                   {/* Additional metrics components */}
                   {statistics && (

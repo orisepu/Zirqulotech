@@ -31,7 +31,7 @@ export default function IncrementalUpdateControls({
 }: IncrementalUpdateControlsProps) {
   const [incrementalMode, setIncrementalMode] = useState(true)
   const [forceFullUpdate, setForceFullUpdate] = useState(false)
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([])
+  const [selectedBrands] = useState<string[]>([])
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   const {
@@ -151,7 +151,7 @@ export default function IncrementalUpdateControls({
 
           {/* Main Update Controls */}
           <Grid container spacing={2}>
-            <Grid xs={12} md={6}>
+            <Grid size={{xs:12, md:6}}>
               <Box>
                 <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                   Modo de Procesamiento
@@ -205,7 +205,7 @@ export default function IncrementalUpdateControls({
               </Box>
             </Grid>
 
-            <Grid xs={12} md={6}>
+            <Grid size={{xs:12, md:6}}>
               <Box>
                 <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                   Beneficios del Sistema Mejorado
@@ -350,7 +350,7 @@ export default function IncrementalUpdateControls({
                       Estadísticas del Sistema:
                     </Typography>
                     <Grid container spacing={2}>
-                      <Grid xs={6}>
+                      <Grid size={{xs:6}}>
                         <Typography variant="caption" color="text.secondary">
                           Mapeos totales (últimos días)
                         </Typography>
@@ -358,7 +358,7 @@ export default function IncrementalUpdateControls({
                           {totalMappings.toLocaleString()}
                         </Typography>
                       </Grid>
-                      <Grid xs={6}>
+                      <Grid size={{xs:6}}>
                         <Typography variant="caption" color="text.secondary">
                           Confianza promedio
                         </Typography>
@@ -366,7 +366,7 @@ export default function IncrementalUpdateControls({
                           {avgConfidence.toFixed(1)}/100
                         </Typography>
                       </Grid>
-                      <Grid xs={6}>
+                      <Grid size={{xs:6}}>
                         <Typography variant="caption" color="text.secondary">
                           Mapeos en revisión
                         </Typography>
@@ -374,7 +374,7 @@ export default function IncrementalUpdateControls({
                           {needsReview.toLocaleString()}
                         </Typography>
                       </Grid>
-                      <Grid xs={6}>
+                      <Grid size={{xs:6}}>
                         <Typography variant="caption" color="text.secondary">
                           Validados por usuario
                         </Typography>

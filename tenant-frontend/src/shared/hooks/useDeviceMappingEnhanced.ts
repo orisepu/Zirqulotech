@@ -237,9 +237,8 @@ export function useDeviceMappingEnhanced() {
       score: item.confidence_score,
       algorithm: normalizeAlgorithm(item.mapping_algorithm ?? undefined),
       needs_review: Boolean(item.needs_review),
-      times_confirmed: item.times_confirmed ?? 1,
-      metadata: {}
-    }
+      times_confirmed: item.times_confirmed || 0
+    } as unknown as MappingConfidence
   }
 
   // Heuristic analyzer reused for both legacy and v2 payloads
