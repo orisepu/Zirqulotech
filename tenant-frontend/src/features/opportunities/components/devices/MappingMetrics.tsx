@@ -216,37 +216,184 @@ export default function MappingMetrics({ compact = false }: MappingMetricsProps)
 
           <Grid size={{xs:12}}>
             <Box>
-              <Typography variant="h6" gutterBottom>Rendimiento por Algoritmo</Typography>
+              <Typography variant="h6" gutterBottom>Rendimiento por Algoritmo V2</Typography>
               {algorithms.length ? (
-                <Grid container spacing={2}>
-                  {algorithms.map((algorithm) => (
-                    <Grid key={algorithm.name} size={{xs:12,md:6, lg:4}}>
-                      <Card variant="outlined" sx={{ height: '100%' }}>
-                        <CardHeader
-                          title={algorithm.name}
-                          subheader={`${algorithm.total_mappings} mappings`}
-                          sx={{ pb: 0 }}
-                        />
-                        <CardContent sx={{ pt: 1.5 }}>
-                          <Stack spacing={1}>
-                            <Typography variant="caption" color="text.secondary">
-                              Confianza media: {algorithm.avg_confidence.toFixed(1)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Alta confianza: {algorithm.high_confidence_count}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              En revisión: {algorithm.needs_review_count}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Tiempo medio: {Math.round(algorithm.avg_processing_time)} ms
-                            </Typography>
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                <Stack spacing={3}>
+                  {/* Resumen de estrategias */}
+                  <Alert severity="info">
+                    <Typography variant="body2">
+                      <strong>Sistema V2:</strong> Utiliza estrategias híbridas optimizadas por tipo de dispositivo.
+                      Mac (A-number First 95%+), iPhone/iPad (Name-Based + Enrichment 80%+).
+                    </Typography>
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    {algorithms.map((algorithm) => {
+                      // Determinar icono y descripción por algoritmo
+                      const getAlgorithmIcon = (name: string) => {
+                        const lowerName = name.toLowerCase()
+                        if (lowerName.includes('cache')) return '🚀'
+                        if (lowerName.includes('exact') || lowerName.includes('a_number')) return '🎯'
+                        if (lowerName.includes('fuzzy') || lowerName.includes('similar')) return '🔍'
+                        if (lowerName.includes('heur') || lowerName.includes('rule')) return '🧠'
+                        return '⚙️'
+                      }
+
+                      const getAlgorithmDescription = (name: string) => {
+                        const lowerName = name.toLowerCase()
+                        if (lowerName.includes('cache')) return 'Reutilización de mappings validados'
+                        if (lowerName.includes('exact')) return 'Coincidencia exacta por códigos'
+                        if (lowerName.includes('fuzzy')) return 'Mapeo por similitud ponderada'
+                        if (lowerName.includes('heur')) return 'Reglas específicas por marca'
+                        return 'Algoritmo personalizado'
+                      }
+
+                      const getPerformanceLevel = (confidence: number, reviewCount: number, totalMappings: number) => {
+                        const reviewRate = totalMappings ? (reviewCount / totalMappings) * 100 : 0
+                        if (confidence >= 90 && reviewRate < 10) return { level: 'Excelente', color: 'success' as const }
+                        if (confidence >= 80 && reviewRate < 20) return { level: 'Bueno', color: 'success' as const }
+                        if (confidence >= 70 && reviewRate < 30) return { level: 'Regular', color: 'warning' as const }
+                        return { level: 'Necesita mejora', color: 'error' as const }
+                      }
+
+                      const performance = getPerformanceLevel(
+                        algorithm.avg_confidence,
+                        algorithm.needs_review_count,
+                        algorithm.total_mappings
+                      )
+
+                      return (
+                        <Grid key={algorithm.name} size={{xs:12, md:6, lg:4}}>
+                          <Card variant="outlined" sx={{ height: '100%', position: 'relative' }}>
+                            <CardHeader
+                              title={
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <span>{getAlgorithmIcon(algorithm.name)}</span>
+                                  <Typography variant="subtitle2" fontWeight={600}>
+                                    {algorithm.name.charAt(0).toUpperCase() + algorithm.name.slice(1)}
+                                  </Typography>
+                                </Stack>
+                              }
+                              subheader={getAlgorithmDescription(algorithm.name)}
+                              sx={{ pb: 1 }}
+                              action={
+                                <Chip
+                                  size="small"
+                                  label={performance.level}
+                                  color={performance.color}
+                                  variant="outlined"
+                                />
+                              }
+                            />
+                            <CardContent>
+                              <Stack spacing={2}>
+                                {/* Métricas principales */}
+                                <Box>
+                                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                      Confianza Promedio
+                                    </Typography>
+                                    <Typography variant="body2" fontWeight={600}>
+                                      {algorithm.avg_confidence.toFixed(1)}%
+                                    </Typography>
+                                  </Stack>
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={algorithm.avg_confidence}
+                                    color={algorithm.avg_confidence >= 85 ? 'success' : algorithm.avg_confidence >= 70 ? 'warning' : 'error'}
+                                    sx={{ height: 4, borderRadius: 2 }}
+                                  />
+                                </Box>
+
+                                {/* Estadísticas detalladas */}
+                                <Stack spacing={1}>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">
+                                      Total procesados
+                                    </Typography>
+                                    <Typography variant="caption" fontWeight={600}>
+                                      {algorithm.total_mappings.toLocaleString()}
+                                    </Typography>
+                                  </Stack>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">
+                                      Alta confianza
+                                    </Typography>
+                                    <Typography variant="caption" fontWeight={600} color="success.main">
+                                      {algorithm.high_confidence_count.toLocaleString()}
+                                    </Typography>
+                                  </Stack>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">
+                                      En revisión
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight={600}
+                                      color={algorithm.needs_review_count > 0 ? 'warning.main' : 'text.secondary'}
+                                    >
+                                      {algorithm.needs_review_count.toLocaleString()}
+                                    </Typography>
+                                  </Stack>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">
+                                      Tiempo procesamiento
+                                    </Typography>
+                                    <Typography variant="caption" fontWeight={600}>
+                                      {Math.round(algorithm.avg_processing_time)}ms
+                                    </Typography>
+                                  </Stack>
+                                </Stack>
+
+                                {/* Indicador de eficiencia */}
+                                <Box sx={{ mt: 1 }}>
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography variant="caption" color="text.secondary">
+                                      Eficiencia:
+                                    </Typography>
+                                    <LinearProgress
+                                      variant="determinate"
+                                      value={algorithm.total_mappings > 0 ? ((algorithm.total_mappings - algorithm.needs_review_count) / algorithm.total_mappings) * 100 : 0}
+                                      color="primary"
+                                      sx={{ flex: 1, height: 3, borderRadius: 1.5 }}
+                                    />
+                                    <Typography variant="caption" color="primary.main" fontWeight={600}>
+                                      {algorithm.total_mappings > 0 ? (((algorithm.total_mappings - algorithm.needs_review_count) / algorithm.total_mappings) * 100).toFixed(0) : 0}%
+                                    </Typography>
+                                  </Stack>
+                                </Box>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      )
+                    })}
+                  </Grid>
+
+                  {/* Recomendaciones basadas en métricas */}
+                  <Card variant="outlined" sx={{ backgroundColor: 'action.hover' }}>
+                    <CardHeader title="🎯 Recomendaciones del Sistema V2" />
+                    <CardContent>
+                      <Stack spacing={1}>
+                        {algorithms.some(a => a.needs_review_count > a.total_mappings * 0.2) && (
+                          <Alert severity="warning" variant="outlined">
+                            Algunos algoritmos tienen alta tasa de revisión. Considera ajustar umbral de confianza.
+                          </Alert>
+                        )}
+                        {algorithms.some(a => a.avg_confidence < 75) && (
+                          <Alert severity="info" variant="outlined">
+                            Oportunidad: Enriquecer base de conocimiento para mejorar precisión de algoritmos difusos.
+                          </Alert>
+                        )}
+                        {algorithms.every(a => a.avg_confidence >= 80) && (
+                          <Alert severity="success" variant="outlined">
+                            ¡Excelente! Todos los algoritmos mantienen alta precisión. Sistema funcionando óptimamente.
+                          </Alert>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Stack>
               ) : (
                 <Alert severity="info" variant="outlined">
                   Aún no hay comparativa de algoritmos para el periodo seleccionado.

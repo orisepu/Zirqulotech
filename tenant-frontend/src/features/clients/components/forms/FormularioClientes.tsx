@@ -158,6 +158,8 @@ export default function FormularioClientes({ open, onClose, onCreate, initial, s
         <Box>{pasoNode}</Box>
       </DialogContent>
       <DialogActions>
+        <Button onClick={onClose} color="inherit">Cancelar</Button>
+        <Box sx={{ flex: 1 }} />
         {step > 0 && <Button onClick={onBack}>Anterior</Button>}
         {step < steps.length - 1
           ? <Button variant="contained" onClick={onNext}>Siguiente</Button>

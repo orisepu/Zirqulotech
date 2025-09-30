@@ -1,184 +1,204 @@
 # Checkouters Partners - Frontend
 
-Multi-tenant device trade-in platform frontend built with Next.js 15, React 19, and TypeScript. Part of the Checkouters Partners ecosystem for managing device valuations, client relationships, and business analytics across multiple partner tenants.
+Plataforma frontend multi-tenant para compra de dispositivos construida con Next.js 15, React 19 y TypeScript. Parte del ecosistema Checkouters Partners para gestionar valoraciones de dispositivos, relaciones con clientes y analíticas de negocio a través de múltiples tenants de partners.
 
-## 🏗️ Architecture
+## 🏗️ Arquitectura
 
-- **Framework**: Next.js 15 with App Router and Turbopack
-- **UI Library**: Material-UI 7 with custom theme system
-- **State Management**: TanStack Query (React Query 5)
-- **Multi-tenancy**: Tenant-aware routing and API calls
-- **Real-time**: WebSocket chat integration
-- **Testing**: Comprehensive API test suite (99 tests, 200+ endpoints)
+- **Framework**: Next.js 15 con App Router y Turbopack
+- **Librería UI**: Material-UI 7 con sistema de temas personalizado
+- **Gestión de Estado**: TanStack Query (React Query 5)
+- **Multi-tenancy**: Enrutado y llamadas API conscientes del tenant
+- **Tiempo Real**: Integración de chat WebSocket
+- **Testing**: Suite completa de tests API + Frontend (170+ tests totales)
 
-## 🚀 Quick Start
+## 🚀 Inicio Rápido
 
 ```bash
-# Install dependencies
+# Instalar dependencias
 pnpm install
 
-# Start development server
+# Iniciar servidor de desarrollo
 pnpm dev
 
-# Open http://localhost:3000
+# Abrir http://localhost:3000
 ```
 
-## 📋 Available Scripts
+## 📋 Scripts Disponibles
 
-### Development
+### Desarrollo
 ```bash
-pnpm dev               # Start development server (Turbopack enabled)
-pnpm build             # Production build
-pnpm start             # Serve production build
-pnpm typecheck         # TypeScript type checking
-pnpm eslint            # Run ESLint on all source files
-pnpm eslint:fix        # Auto-fix ESLint issues
+pnpm dev               # Iniciar servidor de desarrollo (Turbopack habilitado)
+pnpm build             # Build de producción
+pnpm start             # Servir build de producción
+pnpm typecheck         # Verificación de tipos TypeScript
+pnpm eslint            # Ejecutar ESLint en todos los archivos fuente
+pnpm eslint:fix        # Auto-reparar problemas de ESLint
 ```
 
 ### Testing
 ```bash
-pnpm test              # Run all tests
-pnpm test:watch        # Run tests in watch mode
-pnpm test:coverage     # Run tests with coverage report
-pnpm test:critical     # Run Tier 1 critical API tests (pre-commit)
-pnpm test:business     # Run Tier 2 business API tests (CI/CD)
-pnpm test:health       # Run API health check (200+ endpoints)
-pnpm test:all          # Run all test tiers sequentially
+# Tests Generales
+pnpm test              # Ejecutar todos los tests
+pnpm test:watch        # Ejecutar tests en modo watch
+pnpm test:coverage     # Ejecutar tests con reporte de cobertura
+
+# Tests de API (Backend Integration)
+pnpm test:critical     # Ejecutar tests críticos Tier 1 (pre-commit)
+pnpm test:business     # Ejecutar tests de negocio Tier 2 (CI/CD)
+pnpm test:health       # Verificar salud de API (200+ endpoints)
+pnpm test:all          # Ejecutar todos los tiers de API secuencialmente
+
+# Tests Frontend (Lógica de Negocio + Componentes)
+pnpm test:unit         # Tests unitarios frontend (utilidades, hooks, lógica)
+pnpm test:frontend     # Alias para test:unit
+pnpm test:full         # Ejecutar todos los tests (API + Frontend)
 ```
 
-## 🧪 Testing Strategy
+## 🧪 Estrategia de Testing
 
-### Tiered Test Architecture
-- **Tier 1 - Critical (30 tests)**: Authentication, tenants, basic CRM, dashboards
-- **Tier 2 - Business (42 tests)**: Global operations, devices, B2C contracts, chat
-- **Health Check (27 tests)**: Complete endpoint verification
+### Arquitectura de Tests Multicapa
 
-### Workflow Integration
-- **Pre-commit**: `pnpm test:critical` - Fast verification (essential APIs)
-- **CI/CD**: `pnpm test:all` - Complete regression testing
-- **Development**: `pnpm test:watch` - Continuous feedback
+#### Tests de API (Backend Integration) - 99 tests
+- **Tier 1 - Crítico (30 tests)**: Autenticación, tenants, CRM básico, dashboards
+- **Tier 2 - Negocio (42 tests)**: Operaciones globales, dispositivos, contratos B2C, chat
+- **Health Check (27 tests)**: Verificación completa de endpoints (200+)
 
-## 🏢 Multi-Tenant Features
+#### Tests Frontend (Lógica de Negocio) - 70+ tests
+- **Lógica de Grading (25+ tests)**: Sistema de valoración de dispositivos (A+ a D)
+- **Validadores Españoles (35+ tests)**: DNI/NIE/CIF, IMEI, códigos postales, teléfonos
+- **Custom Hooks (10+ tests)**: `useUsuarioActual`, `useOportunidadFilters`
+- **Utilidades (10+ tests)**: Formateo de euros, gestión de IDs, navegación
+- **Componentes UI (5+ tests)**: `KpiCard`, dashboards críticos
 
-- **Tenant Isolation**: Complete data separation per partner
-- **Dynamic Theming**: Tenant-specific branding and colors
-- **Context-Aware API**: Automatic tenant header injection
-- **Role-Based Access**: Manager, admin, and employee permissions
-- **Global Operations**: Cross-tenant opportunity management
+### Integración en Workflow
+- **Pre-commit**: `pnpm test:critical` - APIs esenciales (2 min)
+- **Pre-push**: `pnpm test:frontend` - Lógica frontend (1 min)
+- **CI/CD**: `pnpm test:full` - Suite completa (5 min)
+- **Desarrollo**: `pnpm test:watch` - Feedback continuo
 
-## 🔧 Key Components
+## 🏢 Características Multi-Tenant
 
-### CRM & Opportunities
-- Multi-step client onboarding (empresa/autónomo/particular)
-- Device valuation wizard with grading system
-- Opportunity pipeline management
-- Real-time status updates
+- **Aislamiento de Tenant**: Separación completa de datos por partner
+- **Temas Dinámicos**: Branding y colores específicos del tenant
+- **API Contextual**: Inyección automática de headers de tenant
+- **Acceso Basado en Roles**: Permisos de manager, admin y empleado
+- **Operaciones Globales**: Gestión de oportunidades cross-tenant
 
-### Analytics & Dashboards
-- Manager and admin analytics dashboards
-- KPI tracking and conversion metrics
-- Revenue and performance analytics
-- Customizable date ranges with MUI DatePicker
+## 🔧 Componentes Principales
 
-### Device Management
-- iPhone valuation with commercial/audit pricing
-- Device grading system (A+ to D)
-- Batch processing for multiple devices
-- Integration with external pricing APIs
+### CRM y Oportunidades
+- Onboarding multi-paso de clientes (empresa/autónomo/particular)
+- Wizard de valoración de dispositivos con sistema de grading
+- Gestión del pipeline de oportunidades
+- Actualizaciones de estado en tiempo real
 
-### Communication
-- Real-time chat support system
-- Contextual messaging with opportunities
-- Notification management
-- WebSocket integration
+### Analytics y Dashboards
+- Dashboards de analytics para manager y admin
+- Seguimiento de KPIs y métricas de conversión
+- Analytics de ingresos y rendimiento
+- Rangos de fecha personalizables con MUI DatePicker
 
-## 🎨 UI/UX Features
+### Gestión de Dispositivos
+- Valoración de iPhone con precios comerciales/auditoría
+- Sistema de grading de dispositivos (A+ a D)
+- Procesamiento por lotes para múltiples dispositivos
+- Integración con APIs de precios externos
 
-- **Material-UI 7**: Modern component library
-- **Responsive Design**: Mobile-first approach
-- **Dark/Light Themes**: Tenant-configurable themes
-- **Spanish Localization**: Full support for Spanish market
-- **Accessibility**: WCAG compliant components
+### Comunicación
+- Sistema de chat de soporte en tiempo real
+- Mensajería contextual con oportunidades
+- Gestión de notificaciones
+- Integración WebSocket
 
-## 🔐 Security & Authentication
+## 🎨 Características UI/UX
 
-- **JWT Authentication**: Secure token-based auth
-- **Automatic Token Refresh**: Seamless session management
-- **Role-Based Permissions**: Granular access control
-- **Tenant Context Security**: Isolated data access
+- **Material-UI 7**: Librería de componentes moderna
+- **Diseño Responsive**: Enfoque mobile-first
+- **Temas Oscuro/Claro**: Temas configurables por tenant
+- **Localización Española**: Soporte completo para el mercado español
+- **Accesibilidad**: Componentes compatibles con WCAG
 
-## 📊 Performance
+## 🔐 Seguridad y Autenticación
 
-- **Turbopack**: Fast development builds
-- **TanStack Query**: Optimized server state management
-- **Code Splitting**: Automatic route-based splitting
-- **Bundle Optimization**: Production-ready builds
+- **Autenticación JWT**: Auth basado en tokens seguros
+- **Refresh Automático de Token**: Gestión de sesiones transparente
+- **Permisos Basados en Roles**: Control de acceso granular
+- **Seguridad de Contexto de Tenant**: Acceso aislado a datos
 
-## 🛠️ Development
+## 📊 Rendimiento
 
-### Tech Stack
+- **Turbopack**: Builds de desarrollo rápidos
+- **TanStack Query**: Gestión optimizada del estado del servidor
+- **Code Splitting**: División automática por rutas
+- **Optimización de Bundle**: Builds listos para producción
+
+## 🛠️ Desarrollo
+
+### Stack Tecnológico
 - Next.js 15 + React 19 + TypeScript
 - Material-UI 7 + Emotion
 - TanStack Query + Axios
 - Jest + React Testing Library
 - ESLint + Prettier
 
-### Project Structure
+### Estructura del Proyecto
 ```
 src/
-├── components/        # Reusable UI components
-├── pages/            # Next.js pages and routing
-├── hooks/            # Custom React hooks
-├── services/         # API and external services
-├── types/            # TypeScript type definitions
-├── utils/            # Utility functions
-├── __tests__/        # Test files and setup
-└── constants/        # App constants and configs
+├── components/        # Componentes UI reutilizables
+├── pages/            # Páginas y enrutado de Next.js
+├── hooks/            # Hooks personalizados de React
+├── services/         # API y servicios externos
+├── types/            # Definiciones de tipos TypeScript
+├── utils/            # Funciones de utilidad
+├── __tests__/        # Archivos de test y configuración
+└── constants/        # Constantes y configuraciones de la app
 ```
 
-## 🌐 Backend Integration
+## 🌐 Integración Backend
 
-Connects to Django 5 + DRF backend with:
-- **API Base**: https://progeek.es
-- **Multi-tenant**: django-tenants schema separation
-- **Real-time**: Django Channels WebSocket support
-- **200+ Endpoints**: Complete business API coverage
+Se conecta a backend Django 5 + DRF con:
+- **Base API**: https://progeek.es
+- **Multi-tenant**: Separación por esquemas django-tenants
+- **Tiempo Real**: Soporte WebSocket con Django Channels
+- **200+ Endpoints**: Cobertura completa de API de negocio
 
-## 📈 Recent Updates
+## 📈 Actualizaciones Recientes
 
-### Dashboard Optimizations
-- MUI DatePicker integration for better UX
-- Removed redundant UI controls
-- Improved date range selection
+### Optimizaciones de Dashboard
+- Integración MUI DatePicker para mejor UX
+- Eliminación de controles UI redundantes
+- Mejora en selección de rangos de fecha
 
-### Testing Infrastructure
-- Complete API test coverage (99 tests)
-- Tiered testing strategy for CI/CD
-- Mock data and helper utilities
-- Performance monitoring
+### Infraestructura de Testing Completa
+- **API Testing**: 99 tests cubriendo 200+ endpoints backend
+- **Frontend Testing**: 70+ tests de lógica de negocio crítica
+- **Mocking Inteligente**: axios-mock-adapter, React components, navegación
+- **Test Utilities**: Helpers para providers, datos mock realistas
+- **Estrategia por Niveles**: Testing optimizado para CI/CD y desarrollo
+- **Cobertura Integral**: Desde validadores hasta componentes UI
 
-### Performance Improvements
-- Turbopack development builds
-- Enhanced type safety
-- Code quality improvements
+### Mejoras de Rendimiento
+- Builds de desarrollo Turbopack
+- Seguridad de tipos mejorada
+- Mejoras en calidad de código
 
-## 📚 Documentation
+## 📚 Documentación
 
-For detailed documentation, see [CLAUDE.md](../../../CLAUDE.md) which includes:
-- Complete API reference (200+ endpoints)
-- Architecture deep dive
-- Component documentation
-- Development guidelines
-- Testing strategies
+Para documentación detallada, ver [CLAUDE.md](../../../CLAUDE.md) que incluye:
+- Referencia completa de API (200+ endpoints)
+- Análisis profundo de arquitectura
+- Documentación de componentes
+- Guías de desarrollo
+- Estrategias de testing
 
-## 🚢 Deployment
+## 🚢 Despliegue
 
 ```bash
-# Build for production
+# Build para producción
 pnpm build
 
-# Start production server
+# Iniciar servidor de producción
 pnpm start
 ```
 
-Built for deployment on Vercel, Netlify, or any Node.js hosting platform.
+Construido para despliegue en Vercel, Netlify, o cualquier plataforma de hosting Node.js.

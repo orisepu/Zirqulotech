@@ -215,6 +215,13 @@ LEGAL_DEFAULT_OVERRIDES = {
         "web": "https://zirqulotech.es",
     }
 }
+
+# Device Mapping V2 Configuration
+# Sistema de mapeo inteligente con estrategias híbridas por tipo de dispositivo
+MAPPING_V2_ENABLED = True
+MAPPING_V2_PERCENTAGE = 100  # Activado al 100% - base de conocimiento poblada
+MAPPING_V2_DEVICE_TYPES = ['mac', 'iphone', 'ipad']  # Todos los tipos de dispositivos Apple
+COMPARE_MAPPING_VERSIONS = True  # Ejecutar ambos sistemas para comparar rendimiento
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False

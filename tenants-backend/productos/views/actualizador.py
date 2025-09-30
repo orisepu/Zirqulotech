@@ -146,6 +146,14 @@ class LanzarActualizacionLikewizeView(APIView):
 
     def post(self, request):
         mode = (request.data.get("mode") or request.query_params.get("mode") or "apple").lower()
+        
+        # Check if mapping system is specified
+        mapping_system = (request.data.get("mapping_system") or request.query_params.get("mapping_system") or "v1").lower()
+        if mapping_system not in ["v1", "v2"]:
+            return Response({
+                "detail": "El sistema de mapeo debe ser 'v1' o 'v2'.",
+                "disponibles": ["v1", "v2"],
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         body_brands = request.data.get("brands")
         query_brands = request.query_params.getlist("brands") if hasattr(request.query_params, "getlist") else []
@@ -207,12 +215,13 @@ class LanzarActualizacionLikewizeView(APIView):
             meta={
                 "mode": mode,
                 "brands": canonical_brands,
+                "mapping_system": mapping_system,
             }
         )
 
         def _runner():
             # ejecuta el management command en este mismo proceso/venv
-            call_command('actualizar_likewize', tarea=str(tarea.id), mode=mode, brands=canonical_brands)
+            call_command('actualizar_likewize', tarea=str(tarea.id), mode=mode, brands=canonical_brands, mapping_system=mapping_system)
 
         Thread(target=_runner, daemon=True).start()
         return Response({"tarea_id": str(tarea.id)}, status=status.HTTP_202_ACCEPTED)
@@ -447,20 +456,56 @@ class DiffLikewizeView(APIView):
                     (likewize_code_suffix and likewize_code_suffix in excluded_codes)
                 ):
                     continue
-                deletes.append({
-                    "id": f"D|{k}|{e['precio_neto']}",
-                    "capacidad_id": cap_id,
-                    "antes": str(e["precio_neto"]),
-                    "despues": None,
-                    "delta": None,
-                    "kind": "DELETE",
-                    "tipo": (info or {}).get("tipo", "-"),
-                    "marca": marca_info or "-",
-                    "modelo_norm": (info or {}).get("modelo_norm", "-"),
-                    "almacenamiento_gb": (info or {}).get("almacenamiento_gb"),
-                    "nombre_likewize_original": (info or {}).get("likewize_modelo", "") or (info or {}).get("modelo_norm", "-"),
-                    "nombre_normalizado": (info or {}).get("modelo_descripcion") or (info or {}).get("modelo_norm", "-"),
-                })
+
+                # Buscar si existe en staging sin mapear (capacidad_id es null)
+                staging_query = LikewizeItemStaging.objects.filter(
+                    tarea=t,
+                    capacidad_id__isnull=True,
+                    tipo=info.get("tipo", "").strip(),
+                    modelo_norm=info.get("modelo_norm", "").strip()
+                )
+
+                # Filtrar por almacenamiento si está disponible
+                almacenamiento = info.get("almacenamiento_gb")
+                if almacenamiento:
+                    staging_query = staging_query.filter(almacenamiento_gb=almacenamiento)
+
+                staging_item = staging_query.first()
+
+                if staging_item:
+                    # Es un UPDATE, no un DELETE - existe en staging pero sin mapear
+                    precio_nuevo = Decimal(str(staging_item.precio_b2b))
+                    precio_viejo = Decimal(str(e["precio_neto"]))
+                    updates.append({
+                        "id": f"U|{k}|{precio_viejo}|{precio_nuevo}",
+                        "capacidad_id": cap_id,
+                        "antes": str(precio_viejo),
+                        "despues": str(precio_nuevo),
+                        "delta": float(precio_nuevo - precio_viejo),
+                        "kind": "UPDATE",
+                        "tipo": (info or {}).get("tipo", "-"),
+                        "modelo_norm": (info or {}).get("modelo_norm", "-"),
+                        "almacenamiento_gb": (info or {}).get("almacenamiento_gb"),
+                        "marca": marca_info or "-",
+                        "nombre_likewize_original": (staging_item.modelo_raw or "").strip() or staging_item.modelo_norm or "",
+                        "nombre_normalizado": (info or {}).get("modelo_descripcion") or (info or {}).get("modelo_norm", "-"),
+                    })
+                else:
+                    # Es realmente un DELETE - no existe en staging
+                    deletes.append({
+                        "id": f"D|{k}|{e['precio_neto']}",
+                        "capacidad_id": cap_id,
+                        "antes": str(e["precio_neto"]),
+                        "despues": None,
+                        "delta": None,
+                        "kind": "DELETE",
+                        "tipo": (info or {}).get("tipo", "-"),
+                        "marca": marca_info or "-",
+                        "modelo_norm": (info or {}).get("modelo_norm", "-"),
+                        "almacenamiento_gb": (info or {}).get("almacenamiento_gb"),
+                        "nombre_likewize_original": (info or {}).get("likewize_modelo", "") or (info or {}).get("modelo_norm", "-"),
+                        "nombre_normalizado": (info or {}).get("modelo_descripcion") or (info or {}).get("modelo_norm", "-"),
+                    })
 
         # No mapeados (para que los veas en UI)
         no_mapeados = list(

@@ -217,10 +217,7 @@ export default function DatosRecogidaForm({
                     !datos.calle ||
                     !datos.codigo_postal ||
                     !datos.poblacion ||
-                    !datos.provincia ||
-                    !datos.persona_contacto ||
-                    !datos.telefono_contacto ||
-                    !datos.correo_recogida
+                    !datos.provincia
                   }
                 >
                   Generar orden de recogida

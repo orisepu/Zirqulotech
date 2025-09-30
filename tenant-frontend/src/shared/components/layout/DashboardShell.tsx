@@ -95,14 +95,15 @@ export default function DashboardShell({
         ]
       : []),
     // Perfil de usuario
-    { label: "Mi Perfil", icon: <PersonIcon />, to: "/perfil" },
+    
     // Administración
     ...(usuario?.rol_actual?.rol === "manager"
       ? [
-          { label: "Gestionar Usuarios", icon: <GroupsIcon />, to: "/usuarios" },
+          //{ label: "Gestionar Usuarios", icon: <GroupsIcon />, to: "/usuarios" },
           { label: "Objetivos", icon: <FlagIcon />, to: "/objetivos" },
         ]
       : []),
+      { label: "Mi Perfil", icon: <PersonIcon />, to: "/perfil" },
   ];
 
   const handleDrawerToggle = () => {
@@ -192,9 +193,9 @@ export default function DashboardShell({
         position="fixed"
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: "primary" }}
       >
-        <Toolbar sx={{display: "grid",gridTemplateColumns: "1fr auto 1fr",
-          alignItems: "center",gap: 1,}}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Toolbar sx={{display: "flex",
+          alignItems: "center",gap: 2, justifyContent: "space-between"}}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
       {isMobile && (
         <IconButton
           color="inherit"
@@ -215,15 +216,15 @@ export default function DashboardShell({
     {usuario ? `Bienvenid@, ${usuario.name}` : <Skeleton width={160} />}
   </Typography></Box>
 {/* 🧭 Breadcrumbs tipo explorador */}
-    <Box sx={{ justifySelf: "center", overflow: "hidden" }}>
+    <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center", minWidth: 0 }}>
                 {/* Si los breadcrumbs son largos, que recorten con elipsis */}
-                <Box sx={{ maxWidth: { xs: 220, sm: 420, md: 560}, overflow: "hidden" }}>
+                <Box sx={{ maxWidth: { xs: 220, sm: 420, md: 800, lg: 1000}, overflow: "hidden" }}>
                   <BreadcrumbsExplorador />
                 </Box>
               </Box>
   {/* 🏬 Tienda actual */}
-  <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1 }}>
-  <Typography sx={{ mr: 2 }}>
+  <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, flexShrink: 0 }}>
+  <Typography sx={{ mr: 2, whiteSpace: "nowrap" }}>
     {usuario
       ? cargandoTienda
         ? "Tienda: Cargando..."
@@ -270,6 +271,8 @@ export default function DashboardShell({
           flexGrow: 1,
           p: 3,
           width: { md: `calc(100% - ${drawerWidth}px)` },
+          maxWidth: "100%",
+          overflow: "auto",
         }}
       >
         <Toolbar />

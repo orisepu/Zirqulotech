@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import { MappingConfidence, MappingFeedbackData } from '@/components/dispositivos/MappingConfidenceEnhanced'
+import { MappingConfidence, MappingFeedbackData } from '@/features/opportunities/components/devices/MappingConfidenceEnhanced'
 
 type DeviceMappingReviewItem = {
   id: string
@@ -197,9 +197,10 @@ export function useDeviceMappingEnhanced() {
         incremental?: boolean
         force_full?: boolean
       }) => {
-        const { data } = await api.post('/api/precios/likewize/actualizar-optimizado/', {
+        const { data } = await api.post('/api/precios/likewize/actualizar/', {
           mode: options.mode,
           brands: options.brands,
+          mapping_system: 'v2',
           incremental: options.incremental ?? false,
           force_full: options.force_full ?? false
         })

@@ -219,12 +219,10 @@ const getMappingConfidence = (cambio: Cambio): 'alta' | 'media' | 'baja' => {
   return confidence
 }
 
-const NameMappingCell = ({ cambio, marca, getMappingAnalysis, exactMatchCache, populateExactMatchCache }: {
+const NameMappingCell = ({ cambio, marca, getMappingAnalysis }: {
   cambio: Cambio;
   marca?: string;
   getMappingAnalysis: (cambio: Cambio) => { issues: string[]; warnings: string[]; originalYear: number | null; normalizedYear: number | null; originalProcessor: string | null; normalizedProcessor: string | null; }
-  exactMatchCache: Record<string, boolean>;
-  populateExactMatchCache: (cambio: Cambio) => Promise<void>;
 }) => {
   const nombreSistema = sanitizeNombre(cambio.nombre_normalizado) || sanitizeNombre(cambio.modelo_norm)
   const nombreLikewize = sanitizeNombre(cambio.nombre_likewize_original) || nombreSistema
@@ -238,37 +236,28 @@ const NameMappingCell = ({ cambio, marca, getMappingAnalysis, exactMatchCache, p
                     hasIssues ? 'error.main' :
                     hasWarnings ? 'warning.main' : 'info.main'
 
-  // Check if there might be exact matches in database using the centralized cache
-  const likewizeName = sanitizeNombre(cambio.nombre_likewize_original)
-  const hasExactMatch = likewizeName ? exactMatchCache[likewizeName] : false
-
-  // Trigger cache population if not already present
-  useEffect(() => {
-    if (likewizeName && exactMatchCache[likewizeName] === undefined) {
-      populateExactMatchCache(cambio)
-    }
-  }, [likewizeName, exactMatchCache, cambio, populateExactMatchCache])
+  // Backend provides all necessary mapping information
 
   return (
     <Stack spacing={0.75}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
         {marca && <Chip size="small" variant="outlined" label={marca} />}
-        {hasExactMatch === true && (
-          <Chip
-            size="small"
-            color="success"
-            variant="outlined"
-            icon={<CheckCircleIcon fontSize="small" />}
-            label="Match exacto en BD"
-          />
-        )}
-        {hasExactMatch === false && hasIssues && (
+        {hasIssues && (
           <Chip
             size="small"
             color="warning"
             variant="outlined"
             icon={<WarningIcon fontSize="small" />}
             label="Requiere revisión"
+          />
+        )}
+        {hasWarnings && !hasIssues && (
+          <Chip
+            size="small"
+            color="info"
+            variant="outlined"
+            icon={<InfoIcon fontSize="small" />}
+            label="Diferencias menores"
           />
         )}
       </Stack>
@@ -298,7 +287,6 @@ const NameMappingCell = ({ cambio, marca, getMappingAnalysis, exactMatchCache, p
         </Box>
         <Tooltip
           title={
-            hasExactMatch ? 'Hay coincidencias exactas en la base de datos - usa "Asociar modelo"' :
             sonIguales ? 'El nombre coincide con el registrado en Likewize' :
             hasIssues ? 'Problemas detectados en el mapeo - requiere revisión' :
             hasWarnings ? 'Advertencias en el mapeo - revisa las diferencias' :
@@ -416,6 +404,42 @@ function LiveLog({ tareaId, enabled }: { tareaId: string; enabled: boolean }) {
     </Paper>
   )
 }
+// Helper function to get appropriate message for missing prices
+function getPriceStatusMessage(cambio: Cambio): { message: string; tooltip: string; severity: 'warning' | 'error' | 'info' } {
+  if (cambio.kind === 'DELETE' && cambio.antes) {
+    const hasLikewizeOriginal = Boolean(cambio.nombre_likewize_original?.trim())
+    const hasNormalizedName = Boolean(cambio.nombre_normalizado?.trim())
+
+    if (!hasLikewizeOriginal && !hasNormalizedName) {
+      return {
+        message: "⚠️ Dispositivo sin identificación",
+        tooltip: "Este dispositivo no tiene nombre identificable y no puede ser procesado.",
+        severity: 'error'
+      }
+    }
+
+    if (hasLikewizeOriginal) {
+      return {
+        message: "⚠️ No encontrado en Likewize",
+        tooltip: `Este dispositivo (${cambio.nombre_likewize_original}) está en su BD local con precio €${cambio.antes}, pero no aparece en la actualización de Likewize. Puede estar descontinuado o tener un nombre diferente en Likewize.`,
+        severity: 'warning'
+      }
+    }
+
+    return {
+      message: "⚠️ Sin mapeo a Likewize",
+      tooltip: `Este dispositivo no tiene asociación con un código de Likewize. Necesita mapeo manual para sincronizar precios.`,
+      severity: 'info'
+    }
+  }
+
+  return {
+    message: "-",
+    tooltip: "Sin información de precio",
+    severity: 'info'
+  }
+}
+
 export default function LikewizeB2BPage() {
   const queryClient = useQueryClient()
   const [tareaId, setTareaId] = useState<string | null>(null)
@@ -453,34 +477,10 @@ export default function LikewizeB2BPage() {
   const [filterMarca, setFilterMarca] = useState<string>('all')
   const [filterConfidence, setFilterConfidence] = useState<'all' | 'alta' | 'media' | 'baja'>('all')
   const [showOnlyProblematic, setShowOnlyProblematic] = useState(false)
-  const [showOnlyExactMatches, setShowOnlyExactMatches] = useState(false)
+  // Removed showOnlyExactMatches - not needed without exact match cache
   const [showFilters, setShowFilters] = useState(false)
 
-  // Cache for exact match checks to avoid excessive API calls
-  const [exactMatchCache, setExactMatchCache] = useState<Record<string, boolean>>({})
-
-  // Function to populate cache for exact matches
-  const populateExactMatchCache = useCallback(async (cambio: Cambio) => {
-    const likewizeName = sanitizeNombre(cambio.nombre_likewize_original)
-    if (!likewizeName || exactMatchCache[likewizeName] !== undefined) return
-
-    try {
-      const { data } = await api.get('/api/admin/modelos/', {
-        params: {
-          likewize_modelo: likewizeName,
-          limit: 1
-        }
-      })
-      const models = Array.isArray(data) ? data : data.results || []
-      const hasMatch = models.length > 0
-
-      // Update cache
-      setExactMatchCache(prev => ({ ...prev, [likewizeName]: hasMatch }))
-    } catch {
-      // Update cache with false
-      setExactMatchCache(prev => ({ ...prev, [likewizeName]: false }))
-    }
-  }, [exactMatchCache])
+  // Removed exactMatchCache system - backend should provide all necessary information
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(50)
 
@@ -494,14 +494,30 @@ export default function LikewizeB2BPage() {
     isPending: lanzarActualizacionPending,
   } = useMutation({
     mutationFn: async ({ mode, brands }: { mode: 'apple' | 'others'; brands?: string[] }) => {
-      const payload: Record<string, unknown> = { 
+      const payload: Record<string, unknown> = {
         mode,
         mapping_system: mappingSystem
       }
       if (brands && brands.length) {
         payload.brands = brands
       }
+
+      // Validación y logging del payload
+      console.log('🚀 Enviando actualización a Likewize:', {
+        endpoint: '/api/precios/likewize/actualizar/',
+        payload,
+        mappingSystemSelected: mappingSystem,
+        isV2: mappingSystem === 'v2'
+      })
+
+      if (mappingSystem === 'v2') {
+        console.log('✅ Usando sistema V2 - mapeo inteligente con A-numbers para Mac y enriquecimiento para iPhone/iPad')
+      } else {
+        console.log('⚙️ Usando sistema V1 - mapeo heurístico básico')
+      }
+
       const { data } = await api.post('/api/precios/likewize/actualizar/', payload)
+      console.log('📋 Respuesta de actualización:', data)
       return data as { tarea_id: string }
     },
     onSuccess: (data) => setTareaId(data.tarea_id),
@@ -569,14 +585,26 @@ export default function LikewizeB2BPage() {
 
       // Try exact match first
       try {
-        const { data } = await api.get('/api/admin/modelos/', {
+        console.log('✅ Búsqueda exacta en:', '/api/admin/modelos/search/', {
+          params: { q: likewizeName, limit: 10 }
+        })
+        const { data } = await api.get('/api/admin/modelos/search/', {
           params: {
-            likewize_modelo: likewizeName,
+            q: likewizeName,
             limit: 10
           }
         })
+        console.log('📊 Búsqueda exacta resultados:', data)
         return (Array.isArray(data) ? data : data.results || []) as ModeloMini[]
       } catch (error) {
+        console.error('❌ Error en búsqueda exacta:', error)
+        console.error('❌ Detalles del error:', {
+          message: error instanceof Error ? error.message : 'Error desconocido',
+          response: (error as any)?.response?.data,
+          status: (error as any)?.response?.status,
+          config: (error as any)?.config
+        })
+
         // Fallback: search without capacity/specs
         const cleanLikewizeName = likewizeName
           .replace(/\b\d+\s*(GB|TB)\b/gi, '') // Remove capacity
@@ -585,13 +613,26 @@ export default function LikewizeB2BPage() {
           .trim()
 
         if (cleanLikewizeName && cleanLikewizeName !== likewizeName) {
-          const { data } = await api.get('/api/admin/modelos/', {
-            params: {
-              likewize_modelo: cleanLikewizeName,
-              limit: 10
-            }
-          })
-          return (Array.isArray(data) ? data : data.results || []) as ModeloMini[]
+          try {
+            console.log('🔄 Búsqueda fallback en:', '/api/admin/modelos/search/', {
+              params: { q: cleanLikewizeName, limit: 10 }
+            })
+            const { data } = await api.get('/api/admin/modelos/search/', {
+              params: {
+                q: cleanLikewizeName,
+                limit: 10
+              }
+            })
+            console.log('📊 Búsqueda fallback resultados:', data)
+            return (Array.isArray(data) ? data : data.results || []) as ModeloMini[]
+          } catch (fallbackError) {
+            console.error('❌ Error en búsqueda fallback:', fallbackError)
+            console.error('❌ Detalles del error fallback:', {
+              message: fallbackError instanceof Error ? fallbackError.message : 'Error desconocido',
+              response: (fallbackError as any)?.response?.data,
+              status: (fallbackError as any)?.response?.status
+            })
+          }
         }
         return []
       }
@@ -607,8 +648,22 @@ export default function LikewizeB2BPage() {
       if (mapTarget?.tipo) params.tipo = mapTarget.tipo
       const marcaPreferida = mapTarget?.marca || (mapTarget?.capacidad_id ? capMarcaLookup[mapTarget.capacidad_id] : undefined)
       if (marcaPreferida) params.marca = marcaPreferida
-      const { data } = await api.get('/api/admin/modelos/search/', { params })
-      return data as ModeloMini[]
+
+      try {
+        console.log('🔍 Buscando modelos con search en:', '/api/admin/modelos/search/', { params })
+        const { data } = await api.get('/api/admin/modelos/search/', { params })
+        console.log('🔍 Resultados de search:', data)
+        return data as ModeloMini[]
+      } catch (error) {
+        console.error('❌ Error en búsqueda con search:', error)
+        console.error('❌ Detalles del error search:', {
+          message: error instanceof Error ? error.message : 'Error desconocido',
+          response: (error as any)?.response?.data,
+          status: (error as any)?.response?.status,
+          params
+        })
+        return []
+      }
     },
     enabled: Boolean(mapTarget && modeloSearchTerm.trim().length >= 2),
     staleTime: 30_000,
@@ -709,6 +764,7 @@ export default function LikewizeB2BPage() {
         cambioKind?: Cambio['kind']
       }
     ) => {
+      console.log('🔗 Asociando Likewize en:', `/api/admin/modelos/${modeloId}/asociar-likewize/`, { nombre })
       const { data } = await api.post(`/api/admin/modelos/${modeloId}/asociar-likewize/`, { nombre })
 
       if (
@@ -785,7 +841,9 @@ export default function LikewizeB2BPage() {
       }
       const procLimpio = nuevoModeloProcesador.trim()
       if (procLimpio) payload.procesador = procLimpio
+      console.log('🆕 Creando modelo manual en:', '/api/admin/modelos/', payload)
       const { data } = await api.post('/api/admin/modelos/', payload)
+      console.log('🆕 Modelo creado:', data)
       return data as ModeloMini
     },
     onSuccess: (modelo) => {
@@ -1024,16 +1082,11 @@ export default function LikewizeB2BPage() {
         if (!hasProblems) return false
       }
 
-      // Show only items with exact matches
-      if (showOnlyExactMatches) {
-        const likewizeName = sanitizeNombre(c.nombre_likewize_original)
-        const hasExactMatch = likewizeName ? exactMatchCache[likewizeName] : false
-        if (!hasExactMatch) return false
-      }
+      // Removed exact match filtering - not needed without cache system
 
       return true
     })
-  }, [diff.data?.changes, showDeactivated, searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, showOnlyExactMatches, exactMatchCache, capStatus, capMarcaLookup, getMappingConfidence, getMappingAnalysis])
+  }, [diff.data?.changes, showDeactivated, searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, capStatus, capMarcaLookup, getMappingConfidence, getMappingAnalysis])
 
   // Paginated changes
   const paginatedChanges = useMemo(() => {
@@ -1244,6 +1297,15 @@ export default function LikewizeB2BPage() {
                       </Tooltip>
                     </Stack>
                   </Grid>
+                  {mappingSystem === 'v1' && (
+                    <Grid size={{ xs: 12 }}>
+                      <Alert severity="warning" variant="outlined" sx={{ mt: 1 }}>
+                        <Typography variant="caption">
+                          <strong>Recomendación:</strong> Para MacBook Pro y dispositivos Apple recientes, se recomienda usar V2 para mejor precisión en el mapeo (95%+ vs 70-80%).
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  )}
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Autocomplete
                       multiple
@@ -1427,9 +1489,32 @@ export default function LikewizeB2BPage() {
                       />
                       <CardContent>
                         <Stack direction="row" spacing={2} flexWrap="wrap">
-                          <Chip label={`Altas: ${diff.data.summary.inserts}`} color="success" variant="outlined" />
-                          <Chip label={`Cambios: ${diff.data.summary.updates}`} color="warning" variant="outlined" />
-                          <Chip label={`Bajas: ${diff.data.summary.deletes}`} color="default" variant="outlined" />
+                          <Chip
+                            label={`Nuevos: ${diff.data.summary.inserts}`}
+                            color="success"
+                            variant="outlined"
+                            title="Dispositivos encontrados en Likewize que no están en BD local"
+                          />
+                          <Chip
+                            label={`Actualizados: ${diff.data.summary.updates}`}
+                            color="info"
+                            variant="outlined"
+                            title="Dispositivos con cambios de precio desde Likewize"
+                          />
+                          <Chip
+                            label={`Sin precio nuevo: ${diff.data.summary.deletes}`}
+                            color="warning"
+                            variant="outlined"
+                            title="Dispositivos locales que no se encontraron en la actualización de Likewize"
+                          />
+                          {diff.data.no_mapeados && diff.data.no_mapeados.length > 0 && (
+                            <Chip
+                              label={`Sin mapeo: ${diff.data.no_mapeados.length}`}
+                              color="error"
+                              variant="outlined"
+                              title="Dispositivos de Likewize que no pudieron mapearse a la BD local"
+                            />
+                          )}
                         </Stack>
                       </CardContent>
                     </Card>
@@ -1517,16 +1602,7 @@ export default function LikewizeB2BPage() {
                                   }
                                   label="Solo mapeos problemáticos"
                                 />
-                                <FormControlLabel
-                                  control={
-                                    <Switch
-                                      checked={showOnlyExactMatches}
-                                      onChange={(e) => setShowOnlyExactMatches(e.target.checked)}
-                                      color="success"
-                                    />
-                                  }
-                                  label="Solo con matches exactos en BD"
-                                />
+                                {/* Removed "Solo con matches exactos en BD" - not needed without cache system */}
                                 <FormControlLabel
                                   control={
                                     <Switch
@@ -1614,8 +1690,6 @@ export default function LikewizeB2BPage() {
                               cambio={c}
                               marca={c.capacidad_id ? capMarcaLookup[c.capacidad_id] : undefined}
                               getMappingAnalysis={getMappingAnalysis}
-                              exactMatchCache={exactMatchCache}
-                              populateExactMatchCache={populateExactMatchCache}
                             />
                           </TableCell>
                             <TableCell align="right">{c.almacenamiento_gb || '-'}</TableCell>
@@ -1671,7 +1745,31 @@ export default function LikewizeB2BPage() {
                             </TableCell>
                             <TableCell>{badge(c.kind)}</TableCell>
                             <TableCell align="right">{c.antes ?? '-'}</TableCell>
-                            <TableCell align="right">{c.despues ?? '-'}</TableCell>
+                            <TableCell align="right">
+                              {c.despues ?? (() => {
+                                const statusInfo = getPriceStatusMessage(c)
+                                if (statusInfo.message === '-') {
+                                  return '-'
+                                }
+                                return (
+                                  <Tooltip
+                                    title={statusInfo.tooltip}
+                                    arrow
+                                  >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'help' }}>
+                                      <span style={{
+                                        color: statusInfo.severity === 'error' ? '#d32f2f' :
+                                               statusInfo.severity === 'warning' ? '#f57c00' : '#1976d2',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.875rem'
+                                      }}>
+                                        {statusInfo.message}
+                                      </span>
+                                    </Box>
+                                  </Tooltip>
+                                )
+                              })()}
+                            </TableCell>
                             <TableCell align="right">
                               {typeof c.delta === 'number' ? c.delta.toFixed(2) : '-'}
                             </TableCell>

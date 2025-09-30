@@ -37,9 +37,18 @@ function TabPanel(props: TabPanelProps) {
 export default function EnhancedLikewizePageWrapper() {
   const [useEnhancedInterface, setUseEnhancedInterface] = useState(true)
   const [tabValue, setTabValue] = useState(0)
+  const [tareaId, setTareaId] = useState<string | null>(null)
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue)
+  }
+
+  const handleUpdateComplete = (result: { tarea_id: string }) => {
+    if (result?.tarea_id) {
+      setTareaId(result.tarea_id)
+      // Automatically switch to the price changes tab to show results
+      setTabValue(0) // This will show the EnhancedLikewizePage with the new data
+    }
   }
 
   if (!useEnhancedInterface) {
@@ -130,7 +139,10 @@ export default function EnhancedLikewizePageWrapper() {
 
           <TabPanel value={tabValue} index={0}>
             <Box sx={{ p: 2 }}>
-              <EnhancedLikewizePage />
+              <EnhancedLikewizePage
+                tareaId={tareaId || undefined}
+                onUpdateComplete={handleUpdateComplete}
+              />
             </Box>
           </TabPanel>
 

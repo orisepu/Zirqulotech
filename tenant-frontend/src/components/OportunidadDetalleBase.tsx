@@ -1,7 +1,7 @@
 import {
   Box, Typography, Paper, List, ListItem, Tabs, Tab, Button,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField
+  TextField, Container, Grid
 } from '@mui/material';
 import { useState } from 'react';
 import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot } from '@mui/lab';
@@ -94,7 +94,8 @@ export default function OportunidadDetalleBase({
   };
 
   return (
-    <Box p={3}>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Box>
       <Typography variant="h5" gutterBottom>
         Oportunidad: {oportunidad.nombre || `#${oportunidad.id}`}
       </Typography>
@@ -117,19 +118,19 @@ export default function OportunidadDetalleBase({
           {oportunidad.dispositivos.length === 0 ? (
             <Typography>No hay dispositivos</Typography>
           ) : (
-            <List>
+            <Grid container spacing={2}>
               {oportunidad.dispositivos.map((d) => (
-                <ListItem key={d.id}>
-                  <Paper sx={{ p: 2, width: '100%' }}>
+                <Grid item xs={12} sm={6} md={4} lg={3} key={d.id}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
                     <Typography><strong>Modelo:</strong> {d.modelo.descripcion}</Typography>
                     <Typography><strong>Cantidad:</strong> {d.cantidad}</Typography>
                     <Typography><strong>Estado estético:</strong> {d.estado_fisico}</Typography>
                     <Typography><strong>Estado funcional:</strong> {d.estado_funcional}</Typography>
                     <Typography><strong>Precio:</strong> {d.precio_orientativo} €</Typography>
                   </Paper>
-                </ListItem>
+                </Grid>
               ))}
-            </List>
+            </Grid>
           )}
         </Box>
       )}
@@ -165,18 +166,18 @@ export default function OportunidadDetalleBase({
           {oportunidad.comentarios.length === 0 ? (
             <Typography>No hay comentarios</Typography>
           ) : (
-            <List>
+            <Grid container spacing={2}>
               {oportunidad.comentarios.map((c) => (
-                <ListItem key={c.id}>
-                  <Paper sx={{ p: 2, width: '100%' }}>
+                <Grid item xs={12} md={6} key={c.id}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
                     <Typography>{c.texto}</Typography>
                     <Typography variant="caption">
                       — {c.autor_nombre}, {new Date(c.fecha).toLocaleString()}
                     </Typography>
                   </Paper>
-                </ListItem>
+                </Grid>
               ))}
-            </List>
+            </Grid>
           )}
         </Box>
       )}
@@ -251,5 +252,6 @@ export default function OportunidadDetalleBase({
         </DialogActions>
       </Dialog>
     </Box>
+    </Container>
   );
 }
