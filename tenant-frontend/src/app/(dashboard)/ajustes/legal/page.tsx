@@ -13,6 +13,7 @@ import { useTheme } from '@mui/material/styles'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import HistoryIcon from '@mui/icons-material/History'
 import api from '@/services/api'
+import { PUBLIC_BASE_URL } from '@/shared/config/env'
 import { useQuery, useMutation } from '@tanstack/react-query'
 
 // estilos del editor markdown
@@ -374,7 +375,7 @@ export default function AjustesLegalesPage() {
                               direccion: prev?.operador?.direccion || 'C/ Ejemplo 123, 08000 Barcelona, España',
                               email: prev?.operador?.email || 'legal@progeek.es',
                               telefono: prev?.operador?.telefono || '+34 600 000 000',
-                              web: prev?.operador?.web || 'https://progeek.es'
+                              web: prev?.operador?.web || PUBLIC_BASE_URL
                             }
                           }))
                         }}>

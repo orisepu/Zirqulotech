@@ -30,7 +30,7 @@ export default function DashboardPage() {
       return;
     }
 
-    fetch("https://progeek.es/api/mi-dashboard/", {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://zirqulotech.com'}/api/mi-dashboard/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())

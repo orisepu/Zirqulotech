@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import api, { getAccessToken } from '@/services/api'
+import { getWebSocketUrl } from '@/shared/config/env'
 import {
   Box, IconButton, Badge, Paper, Typography, TextField, Button, useTheme
 } from '@mui/material'
@@ -118,8 +119,8 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
       if (!token) token = await refreshAccessToken()
       if (!token) return
 
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const socket = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chatId}/?token=${token}`)
+      const wsUrl = getWebSocketUrl(`/ws/chat/${chatId}/?token=${token}`)
+      const socket = new WebSocket(wsUrl)
       socketRef.current = socket
 
       socket.onmessage = (e) => {

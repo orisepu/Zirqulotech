@@ -21,7 +21,7 @@ from .views.costespiezas import (
 from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewizeView,
   DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
   IphoneAuditoriaValoracionView,
-  LikewizeCazadorResultadoView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView
+  LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView
 )
 from .views.autoaprendizaje_v3 import (
     LanzarActualizacionV3View,
@@ -33,7 +33,8 @@ from .views.autoaprendizaje_v3 import (
     DiffV3View,
     AplicarCambiosV3View,
     cleanup_knowledge_base,
-    export_learning_data
+    export_learning_data,
+    get_unmapped_items
 )
 from .views.device_mapping_v2_views import (
     validate_mapping,
@@ -44,7 +45,8 @@ from .views.device_mapping_v2_views import (
     get_mapping_details,
     add_knowledge_base_entry,
     search_knowledge_base,
-    get_algorithm_comparison
+    get_algorithm_comparison,
+    apply_manual_correction
 )
 
 # El router y el ViewSet de modelos no se utilizan actualmente
@@ -73,12 +75,14 @@ urlpatterns = [
     path("admin/costos-pieza/coverage/", CostosPiezaCoverageView.as_view(), name="admin-costos-pieza-coverage"),
     path("precios/likewize/actualizar/", LanzarActualizacionLikewizeView.as_view()),
     path("precios/likewize/presets/", LikewizePresetsView.as_view()),
+    path("precios/likewize/tareas/", ListarTareasLikewizeView.as_view()),
     path("precios/likewize/ultima/", UltimaTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/", EstadoTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/diff/", DiffLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/crear-capacidad/", CrearDesdeNoMapeadoLikewizeView.as_view()),
+    path("precios/likewize/tareas/<uuid:tarea_id>/remapear/", RemapearTareaLikewizeView.as_view()),
     # B2C (Swappie) staging/diff
     path("precios/b2c/actualizar/", LanzarActualizacionB2CView.as_view()),
     path("precios/b2c/ultima/", UltimaTareaB2CView.as_view()),
@@ -109,6 +113,7 @@ urlpatterns = [
     path("device-mapping/v2/knowledge-base/", add_knowledge_base_entry, name="device-mapping-v2-knowledge-base-add"),
     path("device-mapping/v2/knowledge-base/search/", search_knowledge_base, name="device-mapping-v2-knowledge-base-search"),
     path("device-mapping/v2/algorithm-comparison/", get_algorithm_comparison, name="device-mapping-v2-algorithm-comparison"),
+    path("device-mapping/v2/manual-correction/", apply_manual_correction, name="device-mapping-v2-manual-correction"),
 
     # Auto-learning V3 APIs
     path("likewize/v3/actualizar/", LanzarActualizacionV3View.as_view(), name="likewize-v3-actualizar"),
@@ -127,6 +132,7 @@ urlpatterns = [
     # V3 Diff and Apply endpoints
     path("likewize/v3/tareas/<uuid:tarea_id>/diff/", DiffV3View.as_view(), name="likewize-v3-diff"),
     path("likewize/v3/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosV3View.as_view(), name="likewize-v3-aplicar"),
+    path("likewize/v3/tareas/<uuid:tarea_id>/no-mapeados/", get_unmapped_items, name="likewize-v3-unmapped"),
 
     path("", include(router.urls)),
     ]

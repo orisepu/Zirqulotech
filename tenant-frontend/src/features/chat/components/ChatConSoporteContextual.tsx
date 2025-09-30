@@ -15,6 +15,7 @@ import { usePathname } from "next/navigation";
 import ChatIcon from "@mui/icons-material/Chat";
 import LinkIcon from "@mui/icons-material/Link";
 import api, { getAccessToken } from "@/services/api";
+import { getWebSocketUrl } from "@/shared/config/env";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useUsuario } from "@/context/UsuarioContext";
@@ -100,10 +101,9 @@ export default function ChatConSoporteContextual() {
     const token = getAccessToken();
     const tenant =
       (typeof window !== "undefined" && (localStorage.getItem("schema") || localStorage.getItem("currentTenant"))) || "";
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${proto}://${window.location.host}/ws/chat/${encodeURIComponent(
+    const url = getWebSocketUrl(`/ws/chat/${encodeURIComponent(
       String(chatId)
-    )}/?token=${encodeURIComponent(token || "")}&tenant=${encodeURIComponent(tenant)}`;
+    )}/?token=${encodeURIComponent(token || "")}&tenant=${encodeURIComponent(tenant)}`);
     const ws = new WebSocket(url);
 
     ws.onopen = () => {

@@ -960,13 +960,15 @@ class DiffV3View(APIView):
                 LikewizeItemStaging.objects
                 .filter(tarea=tarea, capacidad_id__isnull=False)
                 .values(
+                    'id',
                     'capacidad_id',
                     'precio_b2b',
                     'tipo',
                     'modelo_norm',
                     'modelo_raw',
                     'marca',
-                    'likewize_model_code'
+                    'likewize_model_code',
+                    'almacenamiento_gb'
                 )
             )
 
@@ -992,6 +994,30 @@ class DiffV3View(APIView):
                 ).values('capacidad_id', 'precio_neto'):
                     precios_actuales[precio['capacidad_id']] = precio
 
+            # Obtener información real de capacidades y modelos desde la BD
+            capacidades_info = {}
+            if staging_items:
+                from django.apps import apps
+                from django.conf import settings
+
+                CapacidadModel = apps.get_model(getattr(settings, 'CAPACIDAD_MODEL', 'checkouters.Capacidad'))
+                rel_field = getattr(settings, 'CAPACIDAD_REL_MODEL_FIELD', 'modelo')
+
+                try:
+                    # Obtener capacidades con sus modelos relacionados
+                    for cap in CapacidadModel.objects.filter(
+                        id__in=[item['capacidad_id'] for item in staging_items]
+                    ).select_related(rel_field):
+                        modelo = getattr(cap, rel_field, None)
+                        capacidades_info[cap.id] = {
+                            'descripcion': getattr(modelo, 'descripcion', None) if modelo else None,
+                            'marca': getattr(modelo, 'marca', None) if modelo else None,
+                            'capacidad': getattr(cap, getattr(settings, 'CAPACIDAD_GB_FIELD', 'tamaño'), None)
+                        }
+                except Exception as e:
+                    # Si falla, seguir con diccionario vacío
+                    pass
+
             # Procesar cada item de staging
             for item in staging_items:
                 cap_id = item['capacidad_id']
@@ -1001,6 +1027,7 @@ class DiffV3View(APIView):
                 # Crear datos de comparación básicos
                 comparison_data = {
                     'id': cap_id,  # Añadir ID que espera el frontend
+                    'staging_item_id': item.get('id'),  # ID del LikewizeItemStaging para correcciones manuales
                     'capacidad_id': cap_id,
                     'capacidad_descripcion': f"Capacidad ID {cap_id}",
 
@@ -1008,13 +1035,14 @@ class DiffV3View(APIView):
                         'modelo_raw': item.get('modelo_raw', 'N/A'),
                         'modelo_norm': item.get('modelo_norm', 'N/A'),
                         'marca': item.get('marca', 'N/A'),
-                        'tipo': item.get('tipo', 'N/A')
+                        'tipo': item.get('tipo', 'N/A'),
+                        'almacenamiento_gb': item.get('almacenamiento_gb')
                     },
 
                     'bd_info': {
-                        'modelo_descripcion': 'Información no disponible',
-                        'marca': item.get('marca', 'N/A'),
-                        'capacidad': f"ID {cap_id}"
+                        'modelo_descripcion': capacidades_info.get(cap_id, {}).get('descripcion') or 'Información no disponible',
+                        'marca': capacidades_info.get(cap_id, {}).get('marca') or item.get('marca', 'N/A'),
+                        'capacidad': capacidades_info.get(cap_id, {}).get('capacidad') or f"ID {cap_id}"
                     },
 
                     'precio_info': {
@@ -1136,6 +1164,7 @@ class AplicarCambiosV3View(APIView):
         aplicar_inserciones = request.data.get('aplicar_inserciones', True)
         aplicar_actualizaciones = request.data.get('aplicar_actualizaciones', True)
         aplicar_eliminaciones = request.data.get('aplicar_eliminaciones', False)  # Por defecto False para seguridad
+        staging_item_ids = request.data.get('staging_item_ids', None)  # IDs específicos a aplicar (None = todos)
 
         # Filtros de confianza
         confidence_threshold = float(request.data.get('confidence_threshold', 0.7))
@@ -1158,10 +1187,16 @@ class AplicarCambiosV3View(APIView):
 
             with transaction.atomic():
                 # Obtener datos de staging (sin filtro de confianza ya que no existe el campo)
-                staging_items = LikewizeItemStaging.objects.filter(
+                staging_query = LikewizeItemStaging.objects.filter(
                     tarea=tarea,
                     capacidad_id__isnull=False
-                ).values(
+                )
+
+                # Si se especifican IDs específicos, filtrar solo esos
+                if staging_item_ids is not None:
+                    staging_query = staging_query.filter(id__in=staging_item_ids)
+
+                staging_items = staging_query.values(
                     'capacidad_id',
                     'precio_b2b'
                 )
@@ -1176,70 +1211,70 @@ class AplicarCambiosV3View(APIView):
                     ).values('id', 'capacidad_id', 'precio_neto')
                 }
 
-            for item in staging_items:
-                    cap_id = item['capacidad_id']
-                    precio_nuevo = item['precio_b2b']
-                    confidence = 0.85  # Valor fijo ya que no existe el campo confidence_score
+                for item in staging_items:
+                        cap_id = item['capacidad_id']
+                        precio_nuevo = item['precio_b2b']
+                        confidence = 0.85  # Valor fijo ya que no existe el campo confidence_score
 
-                    if not precio_nuevo:
-                        continue
+                        if not precio_nuevo:
+                            continue
 
-                    try:
-                        precio_existente = precios_existentes.get(cap_id)
+                        try:
+                            precio_existente = precios_existentes.get(cap_id)
 
-                        if not precio_existente and aplicar_inserciones:
-                            # Inserción
-                            PrecioRecompra.objects.create(
-                                capacidad_id=cap_id,
-                                canal='B2B',
-                                fuente='likewize',
-                                precio_neto=precio_nuevo,
-                                valid_from=timezone.now()
-                            )
-                            stats['inserciones_aplicadas'] += 1
-
-                        elif precio_existente and aplicar_actualizaciones:
-                            # Actualización
-                            if precio_existente['precio_neto'] != precio_nuevo:
-                                PrecioRecompra.objects.filter(id=precio_existente['id']).update(
+                            if not precio_existente and aplicar_inserciones:
+                                # Inserción
+                                PrecioRecompra.objects.create(
+                                    capacidad_id=cap_id,
+                                    canal='B2B',
+                                    fuente='likewize',
                                     precio_neto=precio_nuevo,
-                                    updated_at=timezone.now()
+                                    valid_from=timezone.now()
                                 )
-                                stats['actualizaciones_aplicadas'] += 1
+                                stats['inserciones_aplicadas'] += 1
 
-                    except Exception as e:
-                        stats['errores'].append({
-                            'capacidad_id': cap_id,
-                            'error': str(e),
-                            'confidence': confidence
-                        })
+                            elif precio_existente and aplicar_actualizaciones:
+                                # Actualización
+                                if precio_existente['precio_neto'] != precio_nuevo:
+                                    PrecioRecompra.objects.filter(id=precio_existente['id']).update(
+                                        precio_neto=precio_nuevo,
+                                        updated_at=timezone.now()
+                                    )
+                                    stats['actualizaciones_aplicadas'] += 1
 
-            # Aplicar eliminaciones si se solicitó
-            if aplicar_eliminaciones:
-                # Obtener capacidades que ya no están en staging
-                capacidades_staging = {item['capacidad_id'] for item in staging_items}
+                        except Exception as e:
+                            stats['errores'].append({
+                                'capacidad_id': cap_id,
+                                'error': str(e),
+                                'confidence': confidence
+                            })
 
-                # Eliminar precios de capacidades que ya no están en Likewize
-                # (Solo para las marcas procesadas en esta tarea)
-                marcas_procesadas = LikewizeItemStaging.objects.filter(tarea=tarea).values_list('marca', flat=True).distinct()
+                # Aplicar eliminaciones si se solicitó
+                if aplicar_eliminaciones:
+                    # Obtener capacidades que ya no están en staging
+                    capacidades_staging = {item['capacidad_id'] for item in staging_items}
 
-                eliminaciones = PrecioRecompra.objects.filter(
-                    capacidad__modelo__marca__in=marcas_procesadas,
-                    canal='B2B',
-                    fuente='likewize',
-                    valid_to__isnull=True  # Solo vigentes
-                ).exclude(
-                    capacidad_id__in=capacidades_staging
-                )
+                    # Eliminar precios de capacidades que ya no están en Likewize
+                    # (Solo para las marcas procesadas en esta tarea)
+                    marcas_procesadas = LikewizeItemStaging.objects.filter(tarea=tarea).values_list('marca', flat=True).distinct()
 
-                count_eliminaciones = eliminaciones.count()
-                eliminaciones.delete()
-                stats['eliminaciones_aplicadas'] = count_eliminaciones
+                    eliminaciones = PrecioRecompra.objects.filter(
+                        capacidad__modelo__marca__in=marcas_procesadas,
+                        canal='B2B',
+                        fuente='likewize',
+                        valid_to__isnull=True  # Solo vigentes
+                    ).exclude(
+                        capacidad_id__in=capacidades_staging
+                    )
 
-            # Marcar tarea como aplicada
-            tarea.estado = 'APPLIED'
-            tarea.finalizado_en = timezone.now()
-            tarea.save()
+                    count_eliminaciones = eliminaciones.count()
+                    eliminaciones.delete()
+                    stats['eliminaciones_aplicadas'] = count_eliminaciones
+
+                # Marcar tarea como aplicada
+                tarea.estado = 'APPLIED'
+                tarea.finalizado_en = timezone.now()
+                tarea.save()
 
             return Response({
                 'success': True,
@@ -1261,3 +1296,47 @@ class AplicarCambiosV3View(APIView):
                 'error': f'Error aplicando cambios V3: {str(e)}',
                 'tarea_id': str(tarea_id)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAdminUser])
+def get_unmapped_items(request, tarea_id):
+    """
+    GET /api/likewize/v3/tareas/<uuid:tarea_id>/no-mapeados/
+
+    Retorna items de staging que no tienen capacidad_id (no se pudieron mapear)
+    """
+    try:
+        from django.shortcuts import get_object_or_404
+
+        tarea = get_object_or_404(TareaActualizacionLikewize, id=tarea_id)
+
+        # Obtener items sin mapear
+        unmapped = LikewizeItemStaging.objects.filter(
+            tarea=tarea,
+            capacidad_id__isnull=True
+        ).values(
+            'id',
+            'modelo_raw',
+            'modelo_norm',
+            'marca',
+            'tipo',
+            'almacenamiento_gb',
+            'precio_b2b',
+            'likewize_model_code'
+        ).order_by('modelo_norm', 'almacenamiento_gb')
+
+        items_list = list(unmapped)
+
+        return Response({
+            'success': True,
+            'tarea_id': str(tarea_id),
+            'total_unmapped': len(items_list),
+            'items': items_list
+        })
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

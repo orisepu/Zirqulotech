@@ -31,7 +31,7 @@ def validar_dni_nie(valor: str) -> bool:
         return False
 
 def validar_cif(valor: str) -> bool:
-    """
+    r"""
     Valida CIF español:
     - Formato: [ABCDEFGHJKLMNPQRSUVW]\d{7}[0-9A-J]
     - Control: según tipo, puede ser dígito o letra.

@@ -704,6 +704,7 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
   meta: {
     label: 'Valoración orientativa',
     minWidth: 120,
+    maxWidth: 220,
     align: 'center',
     alignHeader: 'center',
     headerMaxWidth: 140,

@@ -1,7 +1,8 @@
 import axios from "axios";
 import { navigateToLogin } from "@/shared/utils/navigation";
+import { API_BASE_URL } from "@/shared/config/env";
 
-export const BASE_URL = "https://zirqulotech.com";
+export const BASE_URL = API_BASE_URL;
 
 // Crea instancia base
 const api = axios.create({

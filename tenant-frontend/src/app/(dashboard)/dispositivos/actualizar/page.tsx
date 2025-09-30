@@ -397,7 +397,17 @@ function LiveLog({ tareaId, enabled }: { tareaId: string; enabled: boolean }) {
 
   if (!enabled) return null
   return (
-    <Paper variant="outlined" sx={{ p: 1, bgcolor: 'background.default', maxHeight: 240, overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>
+    <Paper variant="outlined" sx={{
+      p: 1,
+      bgcolor: 'background.paper',
+      color: 'text.primary',
+      maxHeight: 240,
+      overflow: 'auto',
+      border: '1px solid',
+      borderColor: 'divider',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      fontSize: 12
+    }}>
       {(log.data?.lines || []).map((ln, i) => (
         <div key={i}>{ln}</div>
       ))}
@@ -570,10 +580,18 @@ export default function LikewizeB2BPage() {
     queryKey: ['likewize_diff', tareaId],
     queryFn: async () => {
       if (!tareaId) return null
+      console.log('🔍 Fetching diff for tarea:', tareaId)
       const { data } = await api.get(`/api/precios/likewize/tareas/${tareaId}/diff/`)
+      console.log('📊 Diff data received:', {
+        summary: data.summary,
+        changesLength: data.changes?.length,
+        noMapeadosLength: data.no_mapeados?.length
+      })
       return data as { summary: { inserts:number, updates:number, deletes:number, total:number }, changes: Cambio[], no_mapeados?: NoMap[] }
     },
     enabled: !!tareaId && estado.data?.estado === 'SUCCESS',
+    retry: 2,
+    retryDelay: 1000,
   })
 
   // Exact match query by likewize_modelo

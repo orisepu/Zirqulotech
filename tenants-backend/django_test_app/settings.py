@@ -12,27 +12,29 @@ import os
 from pathlib import Path
 from corsheaders.defaults import default_headers
 import sys
+from decouple import config, Csv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent
-PYTHON_EXE = sys.executable  # así “views.py” tendrá el path correcto de la venv
-PRECIOS_B2B_MODEL = "productos.PrecioRecompra"  # app_label.ModelClass
-CAPACIDAD_MODEL   = "productos.Capacidad"           # app_label.ModelClass
-CAPACIDAD_GB_FIELD = "tamaño"
-CAPACIDAD_REL_MODEL_FIELD = "modelo"
-REL_MODELO_NAME_FIELD = "descripcion"
-# Opcional: CSV con equivalencias para resolver modelo_norm -> capacidad_id
-EQUIVALENCIAS_CSV = "/srv/checkouters/Partners/tenants-backend/equivalencias_modelos.csv"
+PYTHON_EXE = sys.executable  # así "views.py" tendrá el path correcto de la venv
+
+# Product Configuration
+PRECIOS_B2B_MODEL = config("PRECIOS_B2B_MODEL", default="productos.PrecioRecompra")
+CAPACIDAD_MODEL = config("CAPACIDAD_MODEL", default="productos.Capacidad")
+CAPACIDAD_GB_FIELD = config("CAPACIDAD_GB_FIELD", default="tamaño")
+CAPACIDAD_REL_MODEL_FIELD = config("CAPACIDAD_REL_MODEL_FIELD", default="modelo")
+REL_MODELO_NAME_FIELD = config("REL_MODELO_NAME_FIELD", default="descripcion")
+EQUIVALENCIAS_CSV = config("EQUIVALENCIAS_CSV", default="/srv/checkouters/Partners/tenants-backend/equivalencias_modelos.csv")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "uv5(me+wl&bx5ag39_vimy2ie7mxdm&42a6$0t-+jfb+@6m(u2"  # noqa: S105
+SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = ['progeek.es', 'localhost','192.168.1.177', 'zirqulotech.com',"www.zirqulotech.com"]
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv())
 
 
 # Application definition
@@ -76,7 +78,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 
 # django-tenant-users settings
-TENANT_USERS_DOMAIN = "progeek.es"
+TENANT_USERS_DOMAIN = config("TENANT_USERS_DOMAIN", default="progeek.es")
 AUTHENTICATION_BACKENDS = ("tenant_users.permissions.backend.UserBackend",)
 AUTH_USER_MODEL = "users.TenantUser"
 
@@ -128,7 +130,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+            "hosts": [(config("REDIS_HOST", default="127.0.0.1"), config("REDIS_PORT", default=6379, cast=int))],
         },
     },
 }
@@ -137,12 +139,12 @@ CHANNEL_LAYERS = {
 
 DATABASES = {
     "default": {
-        "ENGINE": "django_tenants.postgresql_backend",
-        "NAME": "tenantdb",
-        "USER": "tenantuser",
-        "PASSWORD": "tenantpass",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "ENGINE": config("DB_ENGINE", default="django_tenants.postgresql_backend"),
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST", default="localhost"),
+        "PORT": config("DB_PORT", default="5432"),
     },
 }
 
@@ -155,16 +157,13 @@ DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = []
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.progeek\.es$",
     r"^https://.*\.zirqulotech\.com$",
 ]
-CORS_ALLOW_HEADERS = list(default_headers) + ["Authorization"]
-CORS_ALLOWED_ORIGINS = [
-    "https://progeek.es","https://zirqulotech.com","https://www.zirqulotech.com",
-    "http://localhost:3000",  # si usas frontend local
-]
+CORS_ALLOW_HEADERS = list(default_headers) + ["Authorization", "X-Tenant"]
+CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
@@ -179,56 +178,55 @@ USE_L10N = True
 
 USE_TZ = True
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 
-EMAIL_HOST_USER = 'orisepu@gmail.com'
-EMAIL_HOST_PASSWORD = 'gtrt chye lmis dvmw'  # 🔐 NO tu contraseña normal
-DEFAULT_FROM_EMAIL = 'orisepu@gmail.com'
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
 ROOT_URLCONF = "django_test_app.urls"
-os.getenv("DB_NAME", "tenantdb_saas"),
+
 # Media Urls
 MEDIA_URL = "/media/"
-MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", "/srv/checkouters/Partners/media"))  # valor por defecto si no hay env
+MEDIA_ROOT = Path(config("MEDIA_ROOT", default="/srv/checkouters/Partners/media"))
 
 # carpeta privada dentro de MEDIA_ROOT
 PRIVATE_MEDIA_ROOT = MEDIA_ROOT / "media_private"
 
-OTP_TTL_MINUTES = 10 
-OTP_COOLDOWN_SECONDS = 60
+OTP_TTL_MINUTES = config("OTP_TTL_MINUTES", default=10, cast=int)
+OTP_COOLDOWN_SECONDS = config("OTP_COOLDOWN_SECONDS", default=60, cast=int)
 
-FRONTEND_BASE_URL= "https://zirqulotech.com"
+FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="https://zirqulotech.com")
 LEGAL_DEFAULT_OVERRIDES = {
     "operador": {
-        "nombre": "Zirqulotech S.L.",
-        "cif": "B00X00000",
-        "direccion": "C/ Ejemplo 123, 08000 Barcelona, España",
-        "email": "legal@zirqulotech.es",
-        "telefono": "+34 600 000 000",
-        "web": "https://zirqulotech.es",
+        "nombre": config("LEGAL_OPERATOR_NAME", default="Zirqulotech S.L."),
+        "cif": config("LEGAL_OPERATOR_CIF", default="B00X00000"),
+        "direccion": config("LEGAL_OPERATOR_ADDRESS", default="C/ Ejemplo 123, 08000 Barcelona, España"),
+        "email": config("LEGAL_OPERATOR_EMAIL", default="legal@zirqulotech.es"),
+        "telefono": config("LEGAL_OPERATOR_PHONE", default="+34 600 000 000"),
+        "web": config("LEGAL_OPERATOR_WEB", default="https://zirqulotech.es"),
     }
 }
 
 # Device Mapping V2 Configuration
 # Sistema de mapeo inteligente con estrategias híbridas por tipo de dispositivo
-MAPPING_V2_ENABLED = True
-MAPPING_V2_PERCENTAGE = 100  # Activado al 100% - base de conocimiento poblada
-MAPPING_V2_DEVICE_TYPES = ['mac', 'iphone', 'ipad']  # Todos los tipos de dispositivos Apple
-COMPARE_MAPPING_VERSIONS = True  # Ejecutar ambos sistemas para comparar rendimiento
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-#SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_TRUSTED_ORIGINS = [
-    "https://progeek.es" "https://zirqulotech.com",  # 👈 Añade tu dominio aquí
-]
+MAPPING_V2_ENABLED = config("MAPPING_V2_ENABLED", default=True, cast=bool)
+MAPPING_V2_PERCENTAGE = config("MAPPING_V2_PERCENTAGE", default=100, cast=int)
+MAPPING_V2_DEVICE_TYPES = config("MAPPING_V2_DEVICE_TYPES", default="mac,iphone,ipad", cast=Csv())
+COMPARE_MAPPING_VERSIONS = config("COMPARE_MAPPING_VERSIONS", default=True, cast=bool)
+
+# Security Configuration
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
+CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", cast=Csv())
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

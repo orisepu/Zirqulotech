@@ -643,6 +643,47 @@ class LikewizeCazadorResultadoView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+class ListarTareasLikewizeView(APIView):
+    """
+    GET /api/precios/likewize/tareas/
+    Lista las últimas tareas de actualización Likewize (completadas exitosamente)
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 20))
+
+        # Solo tareas SUCCESS
+        tareas = (
+            TareaActualizacionLikewize.objects
+            .filter(estado="SUCCESS")
+            .order_by("-finalizado_en", "-iniciado_en", "-creado_en")
+            .distinct()[:limit]
+        )
+
+        result = []
+        for t in tareas:
+            # Contar items en staging
+            staging_count = LikewizeItemStaging.objects.filter(tarea=t).count()
+            mapped_count = LikewizeItemStaging.objects.filter(tarea=t, capacidad_id__isnull=False).count()
+
+            result.append({
+                'tarea_id': str(t.id),
+                'creado_en': t.creado_en.isoformat() if t.creado_en else None,
+                'iniciado_en': t.iniciado_en.isoformat() if t.iniciado_en else None,
+                'finalizado_en': t.finalizado_en.isoformat() if t.finalizado_en else None,
+                'estado': t.estado,
+                'meta': t.meta or {},
+                'staging_count': staging_count,
+                'mapped_count': mapped_count,
+            })
+
+        return Response({
+            'tareas': result,
+            'total': len(result)
+        })
+
+
 class UltimaTareaLikewizeView(APIView):
     """
     GET /api/precios/likewize/ultima/
@@ -825,6 +866,89 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
             "tipo": tipo_val,
             "marca": marca_val,
         }, status=201)
+
+
+class RemapearTareaLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/remapear/
+    Remapea automáticamente todos los dispositivos sin mapear de una tarea,
+    creando modelos y capacidades según sea necesario.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, tarea_id):
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        unmapped_items = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=True)
+        total_unmapped = unmapped_items.count()
+
+        if total_unmapped == 0:
+            return Response({
+                "success": True,
+                "message": "Tarea ya completamente mapeada",
+                "stats": {
+                    "total": LikewizeItemStaging.objects.filter(tarea=tarea).count(),
+                    "mapped": LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=False).count(),
+                    "unmapped": 0,
+                    "processed": 0,
+                    "failed": 0
+                }
+            })
+
+        # Obtener modelos configurables
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        rel_field = getattr(settings, 'CAPACIDAD_REL_MODEL_FIELD', 'modelo')
+        rel_name = getattr(settings, 'REL_MODELO_NAME_FIELD', 'descripcion')
+        gb_field = getattr(settings, 'CAPACIDAD_GB_FIELD', 'tamaño')
+        ModeloModel = CapacidadModel._meta.get_field(rel_field).related_model
+
+        created_count = 0
+        failed_count = 0
+
+        for item in unmapped_items:
+            try:
+                modelo_nombre = (item.modelo_norm or "").strip()
+                if not modelo_nombre or not item.almacenamiento_gb:
+                    failed_count += 1
+                    continue
+
+                # Crear/obtener modelo
+                modelo, _ = ModeloModel.objects.get_or_create(
+                    **{rel_name: modelo_nombre},
+                    defaults={"tipo": item.tipo or "iPhone", "marca": "Apple"}
+                )
+
+                # Formatear capacidad
+                gb = item.almacenamiento_gb
+                tamaño_txt = f"{gb // 1024} TB" if gb >= 1024 else f"{gb} GB"
+
+                # Crear/obtener capacidad
+                cap, _ = CapacidadModel.objects.get_or_create(
+                    **{rel_field: modelo, gb_field: tamaño_txt}
+                )
+
+                # Actualizar staging
+                item.capacidad_id = cap.id
+                item.save(update_fields=['capacidad_id'])
+                created_count += 1
+
+            except Exception:
+                failed_count += 1
+
+        final_mapped = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=False).count()
+        final_unmapped = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=True).count()
+
+        return Response({
+            "success": final_unmapped == 0,
+            "message": f"Remapeo completado: {created_count} dispositivos procesados",
+            "stats": {
+                "total": LikewizeItemStaging.objects.filter(tarea=tarea).count(),
+                "mapped": final_mapped,
+                "unmapped": final_unmapped,
+                "processed": created_count,
+                "failed": failed_count
+            }
+        }, status=200)
 
 
 class LanzarActualizacionB2CView(APIView):

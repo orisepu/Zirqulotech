@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { getWebSocketUrl } from '@/shared/config/env'
 
 type Mensaje = {
   autor: string
@@ -17,9 +18,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!chat_id) return
 
-    const protocolo = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const socketUrl = `${protocolo}://${window.location.host}/ws/chat/${chat_id}/`
-
+    const socketUrl = getWebSocketUrl(`/ws/chat/${chat_id}/`)
     const socket = new WebSocket(socketUrl)
     socketRef.current = socket
 

@@ -16,8 +16,10 @@ from .actualizador import (
     AplicarCambiosLikewizeView,
     LogTailLikewizeView,
     LikewizeCazadorResultadoView,
+    ListarTareasLikewizeView,
     UltimaTareaLikewizeView,
     CrearDesdeNoMapeadoLikewizeView,
+    RemapearTareaLikewizeView,
     LikewizePresetsView,
     LanzarActualizacionB2CView,
     DiffB2CView,
@@ -27,7 +29,7 @@ from .actualizador import (
     DiffBackmarketView,
     AplicarCambiosBackmarketView,
     UltimaTareaBackmarketView,
-    
+
 )
 from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoracionView
 __all__ = [
@@ -51,8 +53,10 @@ __all__ = [
    "DiffLikewizeView",
    "AplicarCambiosLikewizeView",
    "LogTailLikewizeView",
+   "ListarTareasLikewizeView",
    "UltimaTareaLikewizeView",
    "CrearDesdeNoMapeadoLikewizeView",
+   "RemapearTareaLikewizeView",
    "LanzarActualizacionB2CView",
    "UltimaTareaB2CView",
    "LanzarActualizacionBackmarketView",

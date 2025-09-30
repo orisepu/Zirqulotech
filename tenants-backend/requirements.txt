@@ -34,7 +34,7 @@ packaging==25.0
 pandas==2.3.0
 pillow==11.3.0
 pluggy==1.6.0
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
@@ -63,3 +63,6 @@ Markdown
 django-ipware
 weasyprint
 bleach
+python-decouple
+playwright
+requests

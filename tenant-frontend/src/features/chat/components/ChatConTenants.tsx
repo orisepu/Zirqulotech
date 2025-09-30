@@ -2,6 +2,7 @@
 import { useTheme } from '@mui/material/styles'
 import { useEffect, useRef, useState } from 'react'
 import api, { getAccessToken } from '@/services/api'
+import { getWebSocketUrl } from '@/shared/config/env'
 import {
   Box, Paper, Typography, Button, TextField, Tabs, Tab,
   Badge, IconButton, ListItemText, ListItemButton
@@ -109,11 +110,10 @@ export default function ChatConTenants() {
   });
   useEffect(() => {
     const token = getAccessToken();
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
 
     chats.forEach((chat: ChatInfo) => {
       if (!wsConexiones.current[chat.id]) {
-        const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`);
+        const ws = new WebSocket(getWebSocketUrl(`/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`));
 
         ws.onmessage = (e) => {
           const data: Mensaje = JSON.parse(e.data);

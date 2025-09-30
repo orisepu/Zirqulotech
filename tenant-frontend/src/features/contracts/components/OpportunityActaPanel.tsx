@@ -27,6 +27,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 // import CheckIcon from '@mui/icons-material/Check'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import api from '@/services/api' // ⚠️ usa tu axios interno autenticado
+import { PUBLIC_BASE_URL } from '@/shared/config/env'
 
 /**
  * Panel para generar un ACTA de recepción desde la vista de Oportunidad.
@@ -123,7 +124,7 @@ export default function OpportunityActaPanel({ contratoMarcoId, publicBaseUrl }:
   })
 
   const kycUrl = useMemo(() => {
-    const base = publicBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://progeek.es')
+    const base = publicBaseUrl || PUBLIC_BASE_URL
     const token = lastActa?.kyc_token
     return token ? `${base}/b2c/kyc/${token}` : '' // ajusta si usas otra ruta pública
   }, [lastActa?.kyc_token, publicBaseUrl])

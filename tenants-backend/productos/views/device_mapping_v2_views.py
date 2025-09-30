@@ -487,5 +487,90 @@ def get_algorithm_comparison(request):
     except Exception as e:
         logger.error(f"Error en get_algorithm_comparison: {str(e)}")
         return Response({
-            'error': 'Error obteniendo comparación de algoritmos'
+            'error': 'Error comparando algoritmos'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_manual_correction(request):
+    """
+    Aplica una corrección manual a un mapeo sospechoso.
+
+    POST /api/device-mapping/v2/manual-correction/
+    {
+        "tarea_id": "uuid",
+        "staging_item_id": "uuid|int",
+        "new_capacidad_id": 123,
+        "reason": "Corrección manual: modelo incorrecto"
+    }
+    """
+    try:
+        from ..models import LikewizeItemStaging, TareaActualizacionLikewize
+        from django.db import transaction
+
+        data = request.data
+        tarea_id = data.get('tarea_id')
+        staging_item_id = data.get('staging_item_id')
+        new_capacidad_id = data.get('new_capacidad_id')
+        reason = data.get('reason', 'Corrección manual')
+
+        if not all([tarea_id, staging_item_id, new_capacidad_id]):
+            return Response({
+                'error': 'tarea_id, staging_item_id y new_capacidad_id son requeridos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Buscar staging item
+            try:
+                staging_item = LikewizeItemStaging.objects.get(
+                    id=staging_item_id,
+                    tarea_id=tarea_id
+                )
+            except LikewizeItemStaging.DoesNotExist:
+                return Response({
+                    'error': 'Staging item no encontrado'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            old_capacidad_id = staging_item.capacidad_id
+
+            # Actualizar capacidad
+            staging_item.capacidad_id = new_capacidad_id
+            staging_item.save(update_fields=['capacidad_id'])
+
+            # Registrar en audit log si existe DeviceMappingV2 relacionado
+            try:
+                mapping = DeviceMappingV2.objects.filter(
+                    external_model_name=staging_item.modelo_norm,
+                    external_storage_gb=staging_item.almacenamiento_gb
+                ).first()
+
+                if mapping:
+                    MappingAuditLog.objects.create(
+                        mapping=mapping,
+                        action='manual_correction',
+                        performed_by=str(request.user.id),
+                        changes={
+                            'old_capacidad_id': old_capacidad_id,
+                            'new_capacidad_id': new_capacidad_id,
+                            'reason': reason,
+                            'tarea_id': str(tarea_id),
+                            'staging_item_id': str(staging_item_id)
+                        },
+                        notes=reason
+                    )
+            except Exception as e:
+                logger.warning(f"No se pudo registrar en audit log: {str(e)}")
+
+            return Response({
+                'success': True,
+                'message': 'Corrección aplicada exitosamente',
+                'old_capacidad_id': old_capacidad_id,
+                'new_capacidad_id': new_capacidad_id
+            })
+
+    except Exception as e:
+        logger.error(f"Error en apply_manual_correction: {str(e)}")
+        return Response({
+            'error': 'Error aplicando corrección manual'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

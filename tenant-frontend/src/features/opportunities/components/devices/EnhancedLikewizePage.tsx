@@ -1,9 +1,9 @@
 'use client'
 
-import { Box, Stack, Card, CardHeader, Tabs, Tab, Alert, Button, Chip, Typography, LinearProgress, Grid, Paper } from '@mui/material'
+import { Box, Stack, Card, CardHeader, Tabs, Tab, Alert, Button, Chip, Typography, LinearProgress, Grid, Paper, Collapse, Divider, CircularProgress, CardContent, Checkbox, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemButton, ListItemText } from '@mui/material'
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AutoAwesome, Psychology, Speed, TrendingUp } from '@mui/icons-material'
+import { AutoAwesome, Psychology, Speed, TrendingUp, Warning, Close, Search } from '@mui/icons-material'
 import api from '@/services/api'
 
 // Types from the original page
@@ -27,6 +27,27 @@ type Cambio = {
 type DiffData = {
   summary: { inserts: number, updates: number, deletes: number, total: number }
   changes: Cambio[]
+  // V3 specific fields
+  is_v3?: boolean
+  resumen?: {
+    inserciones?: number
+    actualizaciones?: number
+    eliminaciones?: number
+    sin_cambios?: number
+    total_comparaciones?: number
+  }
+  v3_stats?: {
+    confidence_stats?: {
+      promedio?: number
+      alta_confianza?: number
+      media_confianza?: number
+      baja_confianza?: number
+    }
+  }
+  comparaciones?: Array<{
+    change_type?: string
+    [key: string]: unknown
+  }>
 }
 
 // Import existing components (assuming they exist)
@@ -77,6 +98,70 @@ export function EnhancedLikewizePage({
   const [isV3UpdateRunning, setIsV3UpdateRunning] = useState(false)
   const [currentV3TaskId, setCurrentV3TaskId] = useState<string | null>(null)
 
+  // Estados para corrección manual de mapeos
+  const [searchModalOpen, setSearchModalOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedItemForCorrection, setSelectedItemForCorrection] = useState<any>(null)
+
+  // Estados para creación de dispositivos no encontrados
+  const [createDeviceModalOpen, setCreateDeviceModalOpen] = useState(false)
+  const [selectedUnmappedItem, setSelectedUnmappedItem] = useState<any>(null)
+  const [editableDevice, setEditableDevice] = useState({
+    modelo: '',
+    marca: '',
+    tipo: '',
+    almacenamiento_gb: '',
+    likewize_model_code: ''
+  })
+
+  // Función para limpiar el nombre del modelo y hacerlo user-friendly
+  const cleanModelName = (rawName: string): string => {
+    if (!rawName) return ''
+
+    let cleaned = rawName
+
+    // Remover capacidad de almacenamiento
+    cleaned = cleaned.replace(/\s*\d+\s*(GB|TB)\s*(SSD|HDD)?/gi, '')
+
+    // Remover información de cores
+    cleaned = cleaned.replace(/\s*\d+\s*Core\s+(CPU|GPU)/gi, '')
+
+    // Remover códigos de modelo (A####)
+    cleaned = cleaned.replace(/\s*A\d{4}/g, '')
+
+    // Remover versiones técnicas de modelo (ej: iMac15 4 → iMac)
+    cleaned = cleaned.replace(/iMac\d+\s*\d+/gi, 'iMac')
+    cleaned = cleaned.replace(/MacBook\s*Pro\d+,\d+/gi, 'MacBook Pro')
+    cleaned = cleaned.replace(/iPhone\d+,\d+/gi, (match) => {
+      // Mantener número de iPhone si es relevante
+      const num = match.match(/\d+/)
+      return num ? `iPhone ${num[0]}` : 'iPhone'
+    })
+
+    // Convertir pulgadas: "24 inch" → "24\""
+    cleaned = cleaned.replace(/(\d+)\s*inch/gi, '$1"')
+
+    // Extraer y formatear año: "10/2023" o "2023" → "(2023)"
+    const yearMatch = cleaned.match(/\b(\d{1,2}\/)?(\d{4})\b/)
+    let year = ''
+    if (yearMatch) {
+      year = ` (${yearMatch[2]})`
+      cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/, '')
+    }
+
+    // Limpiar espacios múltiples
+    cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
+    // Añadir año al final si existe
+    if (year) {
+      cleaned += year
+    }
+
+    return cleaned
+  }
+
   const {
     useMappingStatistics,
     useMappingsForReview,
@@ -107,11 +192,21 @@ export function EnhancedLikewizePage({
         ? `/api/likewize/v3/tareas/${activeTaskId}/diff/`
         : `/api/precios/likewize/tareas/${activeTaskId}/diff/`
 
+      console.log('🔍 [EnhancedLikewize] Fetching diff:', { activeTaskId, isV3Task, endpoint })
       const { data } = await api.get(endpoint)
+      console.log('📊 [EnhancedLikewize] Diff data received:', {
+        summary: data.summary,
+        resumen: data.resumen,
+        changesLength: data.changes?.length,
+        comparacionesLength: data.comparaciones?.length,
+        isV3: data.is_v3
+      })
       return data as DiffData
     },
     enabled: !!activeTaskId,
-    staleTime: 30_000
+    staleTime: 30_000,
+    retry: 2,
+    retryDelay: 1000,
   })
 
   // Task status query - use active task
@@ -148,6 +243,58 @@ export function EnhancedLikewizePage({
   const { data: reviewMappings } = useMappingsForReview({ limit: 100 })
   const { data: algorithmComparison } = useAlgorithmComparison()
 
+  // State for selecting individual changes to apply
+  const [selectedChanges, setSelectedChanges] = React.useState<Set<string>>(new Set())
+
+  // Query para items no mapeados
+  const unmappedItems = useQuery({
+    queryKey: ['unmapped_items', activeTaskId],
+    queryFn: async () => {
+      if (!activeTaskId) return null
+      const { data } = await api.get(`/api/likewize/v3/tareas/${activeTaskId}/no-mapeados/`)
+      return data
+    },
+    enabled: !!activeTaskId && estado.data?.estado === 'SUCCESS',
+    staleTime: 30_000
+  })
+
+  // Query historical tasks for reusing previous staging data
+  const [mostrarHistorial, setMostrarHistorial] = React.useState(false)
+  const tareasHistoricas = useQuery({
+    queryKey: ['likewize_tareas_historicas'],
+    queryFn: async () => {
+      const { data } = await api.get('/api/precios/likewize/tareas/', { params: { limit: 20 } })
+      return data as {
+        tareas: Array<{
+          tarea_id: string
+          finalizado_en: string
+          meta: Record<string, unknown>
+          staging_count: number
+          mapped_count: number
+        }>
+        total: number
+      }
+    },
+    staleTime: 60_000, // Cache for 1 minute
+  })
+
+  // Mutation for remapping historical tasks
+  const remapearTarea = useMutation({
+    mutationFn: async (tareaId: string) => {
+      const { data } = await api.post(`/api/precios/likewize/tareas/${tareaId}/remapear/`)
+      return data
+    },
+    onSuccess: (data, tareaId) => {
+      // Refetch historical tasks to update counts
+      tareasHistoricas.refetch()
+      // If this is the active task, refetch diff and estado
+      if (tareaId === activeTaskId) {
+        diff.refetch()
+        estado.refetch()
+      }
+    }
+  })
+
   // Mutation for applying V3 changes
   const queryClient = useQueryClient()
   const aplicarCambiosV3 = useMutation({
@@ -157,12 +304,14 @@ export function EnhancedLikewizePage({
       aplicar_actualizaciones?: boolean
       aplicar_eliminaciones?: boolean
       confidence_threshold?: number
+      staging_item_ids?: string[]
     }) => {
       const { data } = await api.post(`/api/likewize/v3/tareas/${params.tarea_id}/aplicar/`, {
         aplicar_inserciones: params.aplicar_inserciones ?? true,
         aplicar_actualizaciones: params.aplicar_actualizaciones ?? true,
         aplicar_eliminaciones: params.aplicar_eliminaciones ?? false,
-        confidence_threshold: params.confidence_threshold ?? 0.7
+        confidence_threshold: params.confidence_threshold ?? 0.7,
+        staging_item_ids: params.staging_item_ids
       })
       return data
     },
@@ -171,8 +320,127 @@ export function EnhancedLikewizePage({
       queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
       queryClient.invalidateQueries({ queryKey: ['likewize_tarea'] })
       refetchStatistics()
+      // Reset selections after applying changes
+      setSelectedChanges(new Set())
     }
   })
+
+  // Mutation para aplicar corrección manual
+  const applyManualCorrectionMutation = useMutation({
+    mutationFn: async (params: {
+      tarea_id: string
+      staging_item_id: string
+      new_capacidad_id: number
+      reason: string
+    }) => {
+      const { data } = await api.post('/api/device-mapping/v2/manual-correction/', params)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+      setSearchModalOpen(false)
+      setSearchQuery('')
+      setSearchResults([])
+      setSelectedItemForCorrection(null)
+    }
+  })
+
+  // Función para buscar capacidades
+  const handleSearchCapacidades = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setSearchLoading(true)
+    try {
+      const { data } = await api.get('/api/admin/capacidades/', {
+        params: { q: query, limit: 10 }
+      })
+      setSearchResults(data.results || [])
+    } catch (error) {
+      console.error('Error buscando capacidades:', error)
+      setSearchResults([])
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // Abrir modal de búsqueda
+  const handleOpenSearchModal = (item: any) => {
+    setSelectedItemForCorrection(item)
+    setSearchQuery(item.likewize_info?.modelo_norm || '')
+    setSearchModalOpen(true)
+    handleSearchCapacidades(item.likewize_info?.modelo_norm || '')
+  }
+
+  // Aplicar corrección manual
+  const handleApplyCorrection = (capacidad: any) => {
+    if (!selectedItemForCorrection || !activeTaskId) return
+
+    if (!selectedItemForCorrection.staging_item_id) {
+      console.error('staging_item_id no disponible en el item:', selectedItemForCorrection)
+      return
+    }
+
+    applyManualCorrectionMutation.mutate({
+      tarea_id: activeTaskId,
+      staging_item_id: selectedItemForCorrection.staging_item_id,
+      new_capacidad_id: capacidad.id,
+      reason: `Corrección manual: ${selectedItemForCorrection.likewize_info?.modelo_norm} → ${capacidad.modelo?.descripcion}`
+    })
+  }
+
+  // Mutation para crear modelo+capacidad desde item no mapeado
+  const createFromUnmappedMutation = useMutation({
+    mutationFn: async (params: {
+      staging_id: number
+      tipo?: string
+      marca?: string
+      modelo?: string
+      almacenamiento_gb?: number
+      likewize_model_code?: string
+    }) => {
+      const { data } = await api.post(`/api/precios/likewize/tareas/${activeTaskId}/crear-capacidad/`, params)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unmapped_items'] })
+      queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+      setCreateDeviceModalOpen(false)
+      setSelectedUnmappedItem(null)
+    }
+  })
+
+  // Abrir modal de creación
+  const handleOpenCreateModal = (item: any) => {
+    setSelectedUnmappedItem(item)
+
+    // Inicializar campos editables con valores limpios
+    setEditableDevice({
+      modelo: cleanModelName(item.modelo_norm || item.modelo_raw || ''),
+      marca: item.marca || 'Apple',
+      tipo: item.tipo || 'Mac',
+      almacenamiento_gb: String(item.almacenamiento_gb || ''),
+      likewize_model_code: item.modelo_raw || item.likewize_model_code || '' // Usar modelo_raw como código real
+    })
+
+    setCreateDeviceModalOpen(true)
+  }
+
+  // Crear dispositivo desde no mapeado
+  const handleCreateDevice = () => {
+    if (!selectedUnmappedItem) return
+
+    createFromUnmappedMutation.mutate({
+      staging_id: selectedUnmappedItem.id,
+      tipo: editableDevice.tipo,
+      marca: editableDevice.marca,
+      modelo: editableDevice.modelo,
+      almacenamiento_gb: parseInt(editableDevice.almacenamiento_gb) || selectedUnmappedItem.almacenamiento_gb,
+      likewize_model_code: editableDevice.likewize_model_code
+    })
+  }
 
   const systemNeedsAttention = useMemo(() => {
     if (!statistics) return false
@@ -379,6 +647,121 @@ export function EnhancedLikewizePage({
           )}
         </Card>
 
+        {/* Historical Tasks Selector */}
+        <Card variant="outlined">
+          <CardHeader
+            title="📚 Historial de Tareas"
+            subheader="Reutiliza staging de actualizaciones anteriores sin consultar la API externa"
+            action={
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setMostrarHistorial(!mostrarHistorial)}
+                disabled={tareasHistoricas.isLoading}
+              >
+                {mostrarHistorial ? 'Ocultar' : 'Ver historial'}
+              </Button>
+            }
+          />
+          <Collapse in={mostrarHistorial}>
+            <CardContent>
+              {tareasHistoricas.isLoading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+              {tareasHistoricas.data && tareasHistoricas.data.tareas.length > 0 && (
+                <Stack spacing={1} sx={{ maxHeight: 400, overflow: 'auto' }}>
+                  {tareasHistoricas.data.tareas.map((tarea) => {
+                    const fecha = new Date(tarea.finalizado_en)
+                    const isSelected = activeTaskId === tarea.tarea_id
+
+                    return (
+                      <Paper
+                        key={tarea.tarea_id}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          bgcolor: isSelected ? 'action.selected' : 'background.paper',
+                          borderColor: isSelected ? 'primary.main' : 'divider',
+                          borderWidth: isSelected ? 2 : 1,
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                        onClick={() => {
+                          setCurrentV3TaskId(tarea.tarea_id)
+                          setMostrarHistorial(false)
+                          // Refetch diff and estado with new task
+                          diff.refetch()
+                          estado.refetch()
+                        }}
+                      >
+                        <Stack spacing={0.5}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Typography variant="body2" fontWeight={600}>
+                              {fecha.toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </Typography>
+                            {isSelected && (
+                              <Chip size="small" label="Actual" color="primary" variant="filled" />
+                            )}
+                          </Stack>
+                          <Stack direction="row" spacing={1} flexWrap="wrap">
+                            <Chip
+                              size="small"
+                              label={`${tarea.mapped_count} mapeados`}
+                              variant="outlined"
+                              color="success"
+                            />
+                            <Chip
+                              size="small"
+                              label={`${tarea.staging_count - tarea.mapped_count} sin mapear`}
+                              variant="outlined"
+                            />
+                            {(tarea.staging_count - tarea.mapped_count) > 0 && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation() // Prevenir selección de tarea
+                                  remapearTarea.mutate(tarea.tarea_id)
+                                }}
+                                disabled={remapearTarea.isPending}
+                                sx={{ minWidth: 'auto', px: 1 }}
+                              >
+                                {remapearTarea.isPending ? 'Remapeando...' : 'Remapear'}
+                              </Button>
+                            )}
+                            {tarea.meta?.mode && typeof tarea.meta.mode === 'string' ? (
+                              <Chip
+                                size="small"
+                                label={tarea.meta.mode === 'apple' ? '🍎 Apple' : '🔧 Otros'}
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">
+                            ID: {tarea.tarea_id.substring(0, 8)}...
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    )
+                  })}
+                </Stack>
+              )}
+              {tareasHistoricas.data && tareasHistoricas.data.tareas.length === 0 && (
+                <Alert severity="info">No hay tareas anteriores disponibles</Alert>
+              )}
+            </CardContent>
+          </Collapse>
+        </Card>
+
         {/* V3 Task Monitoring */}
         {(currentV3TaskId || isV3UpdateRunning) && (
           <Card variant="outlined">
@@ -482,7 +865,7 @@ export function EnhancedLikewizePage({
                         whiteSpace: 'pre-wrap'
                       }}
                     >
-                      {taskMonitoring.logs.data.log_lines.slice(-10).map((line, index) => (
+                      {taskMonitoring.logs.data.log_lines.slice(-10).map((line: string, index: number) => (
                         <div key={index} style={{ marginBottom: '2px' }}>
                           {line}
                         </div>
@@ -575,6 +958,7 @@ export function EnhancedLikewizePage({
               >
                 <Tab label="Actualización V3" />
                 <Tab label="Cambios de Precios" />
+                <Tab label="No Encontrados" />
                 <Tab label="Revisión Manual" />
                 <Tab label="Estrategias de Mapeo" />
                 <Tab label="Métricas y Monitoreo" />
@@ -766,6 +1150,54 @@ export function EnhancedLikewizePage({
                             </Grid>
                           )}
 
+                          {/* Message when no changes found */}
+                          {diff.data && (diff.data.summary?.total === 0 || diff.data.resumen?.total_comparaciones === 0) && (
+                            <Alert severity="info">
+                              <Typography variant="body2" fontWeight={600} gutterBottom>
+                                📊 No se encontraron cambios de precios
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Nuevos precios: {diff.data.summary?.inserts || diff.data.resumen?.inserciones || 0}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Actualizaciones: {diff.data.summary?.updates || diff.data.resumen?.actualizaciones || 0}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Eliminaciones: {diff.data.summary?.deletes || diff.data.resumen?.eliminaciones || 0}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                Esto puede ocurrir si: (1) Los precios son iguales a los actuales, (2) No hay dispositivos mapeados en staging, (3) El scraping no obtuvo datos de la API externa
+                              </Typography>
+                            </Alert>
+                          )}
+
+                          {/* Debug info in development */}
+                          {process.env.NODE_ENV === 'development' && diff.data && (
+                            <Alert severity="info">
+                              <Typography variant="caption" component="div" fontWeight={600}>
+                                🔧 Debug Info (solo en desarrollo):
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Tarea ID: {activeTaskId}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Es V3: {isV3Task ? 'Sí' : 'No'}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Total cambios (summary): {diff.data.summary?.total || 0}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Total comparaciones (resumen): {diff.data.resumen?.total_comparaciones || 0}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Changes array length: {diff.data.changes?.length || 0}
+                              </Typography>
+                              <Typography variant="caption" component="div">
+                                • Comparaciones array length: {diff.data.comparaciones?.length || 0}
+                              </Typography>
+                            </Alert>
+                          )}
+
                           {/* Apply Changes Controls */}
                           {estado.data?.estado === 'SUCCESS' && (
                             <Card variant="outlined" sx={{ bgcolor: 'primary.50' }}>
@@ -777,7 +1209,10 @@ export function EnhancedLikewizePage({
                                   <Typography variant="body2" color="text.secondary">
                                     Los precios han sido procesados por V3. Puedes aplicar los cambios con confianza alta.
                                   </Typography>
-                                  <Stack direction="row" spacing={2}>
+                                  <Stack direction="row" spacing={2} alignItems="center">
+                                    <Typography variant="caption" color="text.secondary">
+                                      {selectedChanges.size > 0 ? `${selectedChanges.size} seleccionados` : 'Selecciona cambios para aplicar'}
+                                    </Typography>
                                     <Button
                                       variant="contained"
                                       color="primary"
@@ -788,19 +1223,22 @@ export function EnhancedLikewizePage({
                                             aplicar_inserciones: true,
                                             aplicar_actualizaciones: true,
                                             aplicar_eliminaciones: false,
-                                            confidence_threshold: 0.7
+                                            confidence_threshold: 0.7,
+                                            staging_item_ids: selectedChanges.size > 0 ? Array.from(selectedChanges) : undefined
                                           })
                                         }
                                       }}
-                                      disabled={aplicarCambiosV3.isPending}
+                                      disabled={aplicarCambiosV3.isPending || selectedChanges.size === 0}
                                       startIcon={<AutoAwesome />}
                                     >
-                                      {aplicarCambiosV3.isPending ? 'Aplicando...' : 'Aplicar Cambios V3'}
+                                      {aplicarCambiosV3.isPending ? 'Aplicando...' : `Aplicar Seleccionados (${selectedChanges.size})`}
                                     </Button>
                                     <Button
                                       variant="outlined"
                                       onClick={() => {
-                                        if (activeTaskId) {
+                                        if (activeTaskId && diff.data) {
+                                          const allIds = new Set(diff.data.changes.map(c => c.id))
+                                          setSelectedChanges(allIds)
                                           aplicarCambiosV3.mutate({
                                             tarea_id: activeTaskId,
                                             aplicar_inserciones: true,
@@ -835,132 +1273,235 @@ export function EnhancedLikewizePage({
                             <Card variant="outlined">
                               <CardHeader
                                 title="Comparación Detallada de Modelos"
-                                subheader="Mapeo entre modelos externos (Proveedor) y base de datos interna"
+                                subheader={`${selectedChanges.size > 0 ? `${selectedChanges.size} seleccionados - ` : ''}Mapeo entre modelos externos y base de datos interna`}
                               />
                               <Box sx={{ p: 2 }}>
                                 <Stack spacing={2}>
-                                  {diff.data.comparaciones.slice(0, 20).map((comp: any, index: number) => (
-                                    <Paper
-                                      key={index}
-                                      variant="outlined"
-                                      sx={{
-                                        p: 2,
-                                        borderLeft: 4,
-                                        borderLeftColor:
-                                          comp.change_type === 'INSERT' ? 'success.main' :
-                                          comp.change_type === 'UPDATE' ? 'info.main' :
-                                          comp.change_type === 'DELETE' ? 'error.main' : 'grey.300'
-                                      }}
-                                    >
-                                      <Grid container spacing={2}>
-                                        {/* External Model Info */}
-                                        <Grid size={{ xs: 12, md: 5 }}>
-                                          <Stack spacing={1}>
-                                            <Typography variant="subtitle2" color="primary">
-                                              📦 Modelo Externo (Proveedor)
-                                            </Typography>
-                                            <Box>
-                                              <Typography variant="body2">
-                                                <strong>Raw:</strong> {comp.likewize_info?.modelo_raw || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Normalizado:</strong> {comp.likewize_info?.modelo_norm || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Código:</strong> {comp.likewize_info?.likewize_model_code || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Marca:</strong> {comp.likewize_info?.marca || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Almacenamiento:</strong> {comp.likewize_info?.almacenamiento_gb || 'N/A'} GB
-                                              </Typography>
-                                            </Box>
-                                          </Stack>
-                                        </Grid>
+                                  {diff.data.comparaciones.slice(0, 50).map((comp: any, index: number) => {
+                                    // Extract capacity from normalized name for display
+                                    const modeloNorm = comp.likewize_info?.modelo_norm || ''
+                                    const capacityMatch = modeloNorm.match(/(\d+)\s*(GB|TB)/i)
+                                    const extractedCapacity = capacityMatch ? `${capacityMatch[1]} ${capacityMatch[2].toUpperCase()}` : null
 
-                                        {/* Mapping Arrow & Confidence */}
-                                        <Grid size={{ xs: 12, md: 2 }}>
-                                          <Stack spacing={1} alignItems="center" sx={{ height: '100%', justifyContent: 'center' }}>
-                                            <Typography variant="h6">→</Typography>
-                                            {comp.v3_metrics?.confidence_score && (
+                                    // Detectar mapeo sospechoso (modelos diferentes)
+                                    const detectSuspiciousMapping = (externo: string, bd: string): boolean => {
+                                      if (!externo || !bd || bd === 'Información no disponible') return false
+
+                                      // Limpiar nombres: quitar capacidad, "Apple", espacios extras
+                                      const clean = (s: string) => s
+                                        .replace(/\s*\d+\s*(GB|TB)\s*/gi, '')  // Quitar capacidad
+                                        .replace(/\bapple\b/gi, '')            // Quitar "Apple"
+                                        .replace(/\s+/g, ' ')                  // Normalizar espacios
+                                        .trim()
+                                        .toLowerCase()
+
+                                      const cleanExterno = clean(externo)
+                                      const cleanBD = clean(bd)
+
+                                      // Comparar - si son diferentes, es sospechoso
+                                      return cleanExterno !== cleanBD && cleanBD.length > 0
+                                    }
+
+                                    const isSuspicious = detectSuspiciousMapping(
+                                      modeloNorm,
+                                      comp.bd_info?.modelo_descripcion || ''
+                                    )
+
+                                    // Generar ID único para selección (usa staging_item_id si existe, sino usa capacidad_id + index)
+                                    const itemId = comp.staging_item_id || `cap-${comp.capacidad_id}-${index}`
+                                    const isSelected = selectedChanges.has(itemId)
+
+                                    return (
+                                      <Paper
+                                        key={itemId}
+                                        variant="outlined"
+                                        sx={{
+                                          p: 2,
+                                          borderLeft: 4,
+                                          borderLeftColor: isSuspicious
+                                            ? 'warning.main'
+                                            : comp.change_type === 'INSERT' ? 'success.main'
+                                            : comp.change_type === 'UPDATE' ? 'info.main'
+                                            : comp.change_type === 'DELETE' ? 'error.main'
+                                            : 'grey.300',
+                                          bgcolor: isSelected
+                                            ? isSuspicious ? 'rgba(255, 152, 0, 0.08)' : 'action.selected'
+                                            : 'background.paper'
+                                        }}
+                                      >
+                                        <Grid container spacing={2}>
+                                          {/* Checkbox column */}
+                                          <Grid size={{ xs: 12, md: 0.5 }}>
+                                            <Stack spacing={1} alignItems="center">
+                                              <Checkbox
+                                                checked={isSelected}
+                                                size="small"
+                                                onChange={(e) => {
+                                                  const newSelected = new Set(selectedChanges)
+                                                  if (e.target.checked) {
+                                                    newSelected.add(itemId)
+                                                  } else {
+                                                    newSelected.delete(itemId)
+                                                  }
+                                                  setSelectedChanges(newSelected)
+                                                }}
+                                              />
+
+                                              {isSuspicious && (
+                                                <>
+                                                  <Tooltip title="Modelos diferentes - verificar mapeo">
+                                                    <Warning color="warning" fontSize="small" />
+                                                  </Tooltip>
+                                                  <Tooltip title="Rechazar este mapeo">
+                                                    <IconButton
+                                                      size="small"
+                                                      color="error"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        const newSelected = new Set(selectedChanges)
+                                                        newSelected.delete(itemId)
+                                                        setSelectedChanges(newSelected)
+                                                      }}
+                                                    >
+                                                      <Close fontSize="small" />
+                                                    </IconButton>
+                                                  </Tooltip>
+                                                  <Tooltip title="Buscar modelo correcto">
+                                                    <IconButton
+                                                      size="small"
+                                                      color="primary"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleOpenSearchModal(comp)
+                                                      }}
+                                                    >
+                                                      <Search fontSize="small" />
+                                                    </IconButton>
+                                                  </Tooltip>
+                                                </>
+                                              )}
+                                            </Stack>
+                                          </Grid>
+
+                                          {/* External Model Info */}
+                                          <Grid size={{ xs: 12, md: 4.5 }}>
+                                            <Stack spacing={1}>
+                                              <Typography variant="subtitle2" color="primary">
+                                                📦 Modelo Externo (Proveedor)
+                                              </Typography>
+                                              <Box>
+                                                <Typography variant="body2">
+                                                  <strong>Normalizado:</strong> {comp.likewize_info?.modelo_norm || 'N/A'}
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                  <strong>Marca:</strong> {comp.likewize_info?.marca || 'N/A'}
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                  <strong>Almacenamiento:</strong> {
+                                                    extractedCapacity ||
+                                                    (comp.likewize_info?.almacenamiento_gb ? `${comp.likewize_info.almacenamiento_gb} GB` : 'N/A')
+                                                  }
+                                                </Typography>
+                                              </Box>
+                                            </Stack>
+                                          </Grid>
+
+                                          {/* Mapping Arrow & Confidence */}
+                                          <Grid size={{ xs: 12, md: 2 }}>
+                                            <Stack spacing={1} alignItems="center" sx={{ height: '100%', justifyContent: 'center' }}>
+                                              <Typography variant="h6">→</Typography>
+                                              {comp.v3_metrics?.confidence_score && (
+                                                <Chip
+                                                  size="small"
+                                                  label={`${(comp.v3_metrics.confidence_score * 100).toFixed(0)}%`}
+                                                  color={
+                                                    comp.v3_metrics.confidence_score >= 0.9 ? 'success' :
+                                                    comp.v3_metrics.confidence_score >= 0.7 ? 'warning' : 'error'
+                                                  }
+                                                />
+                                              )}
                                               <Chip
                                                 size="small"
-                                                label={`${(comp.v3_metrics.confidence_score * 100).toFixed(0)}%`}
+                                                label={comp.change_type}
                                                 color={
-                                                  comp.v3_metrics.confidence_score >= 0.9 ? 'success' :
-                                                  comp.v3_metrics.confidence_score >= 0.7 ? 'warning' : 'error'
+                                                  comp.change_type === 'INSERT' ? 'success' :
+                                                  comp.change_type === 'UPDATE' ? 'info' :
+                                                  comp.change_type === 'DELETE' ? 'error' : 'default'
                                                 }
+                                                variant="outlined"
                                               />
-                                            )}
-                                            <Chip
-                                              size="small"
-                                              label={comp.change_type}
-                                              color={
-                                                comp.change_type === 'INSERT' ? 'success' :
-                                                comp.change_type === 'UPDATE' ? 'info' :
-                                                comp.change_type === 'DELETE' ? 'error' : 'default'
-                                              }
-                                              variant="outlined"
-                                            />
-                                          </Stack>
-                                        </Grid>
+                                            </Stack>
+                                          </Grid>
 
-                                        {/* Internal Model Info */}
-                                        <Grid size={{ xs: 12, md: 5 }}>
-                                          <Stack spacing={1}>
-                                            <Typography variant="subtitle2" color="secondary">
-                                              🗄️ Modelo BD Interna
-                                            </Typography>
-                                            <Box>
-                                              <Typography variant="body2">
-                                                <strong>Descripción:</strong> {comp.bd_info?.modelo_descripcion || 'N/A'}
+                                          {/* Internal Model Info */}
+                                          <Grid size={{ xs: 12, md: 5 }}>
+                                            <Stack spacing={1}>
+                                              <Typography variant="subtitle2" color="secondary">
+                                                🗄️ Modelo BD Interna
                                               </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Marca:</strong> {comp.bd_info?.marca || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Tipo:</strong> {comp.bd_info?.tipo || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>Capacidad:</strong> {comp.bd_info?.capacidad || 'N/A'}
-                                              </Typography>
-                                              <Typography variant="body2">
-                                                <strong>ID:</strong> {comp.capacidad_id || 'N/A'}
-                                              </Typography>
-                                            </Box>
-
-                                            {/* Price Info */}
-                                            {comp.precio_info && (
-                                              <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-                                                <Typography variant="caption" gutterBottom>Precios:</Typography>
-                                                <Stack direction="row" spacing={2}>
-                                                  <Typography variant="body2">
-                                                    Actual: {comp.precio_info.precio_actual ? `€${comp.precio_info.precio_actual}` : 'N/A'}
-                                                  </Typography>
-                                                  <Typography variant="body2">
-                                                    Nuevo: {comp.precio_info.precio_nuevo ? `€${comp.precio_info.precio_nuevo}` : 'N/A'}
-                                                  </Typography>
-                                                  {comp.precio_info.diferencia && (
-                                                    <Typography
-                                                      variant="body2"
-                                                      color={comp.precio_info.diferencia > 0 ? 'success.main' : 'error.main'}
-                                                    >
-                                                      {comp.precio_info.diferencia > 0 ? '+' : ''}€{comp.precio_info.diferencia.toFixed(2)}
-                                                    </Typography>
-                                                  )}
-                                                </Stack>
+                                              <Box>
+                                                <Typography variant="body2">
+                                                  <strong>Descripción:</strong> {comp.bd_info?.modelo_descripcion || 'Información no disponible'}
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                  <strong>Marca:</strong> {comp.bd_info?.marca || 'N/A'}
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                  <strong>Capacidad:</strong> {comp.bd_info?.capacidad || `ID ${comp.capacidad_id || 'N/A'}`}
+                                                </Typography>
                                               </Box>
-                                            )}
-                                          </Stack>
-                                        </Grid>
-                                      </Grid>
-                                    </Paper>
-                                  ))}
 
-                                  {diff.data.comparaciones.length > 20 && (
+                                              {/* Price Info */}
+                                              {comp.precio_info && (
+                                                <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                                                  <Typography variant="caption" fontWeight={600} gutterBottom>Precios:</Typography>
+                                                  <Stack direction="row" spacing={2} alignItems="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                      Actual: {comp.precio_info.precio_actual ? `€${comp.precio_info.precio_actual}` : 'N/A'}
+                                                    </Typography>
+                                                    {comp.precio_info.precio_nuevo ? (
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={700}
+                                                        sx={{
+                                                          color: 'primary.main',
+                                                          bgcolor: (theme) => theme.palette.mode === 'dark'
+                                                            ? 'rgba(144, 202, 249, 0.16)'
+                                                            : 'rgba(25, 118, 210, 0.08)',
+                                                          px: 1,
+                                                          py: 0.5,
+                                                          borderRadius: 1
+                                                        }}
+                                                      >
+                                                        Nuevo: €{comp.precio_info.precio_nuevo}
+                                                      </Typography>
+                                                    ) : (
+                                                      <Typography variant="body2" color="error.main">
+                                                        Sin precio nuevo
+                                                      </Typography>
+                                                    )}
+                                                    {comp.precio_info.diferencia !== undefined && comp.precio_info.diferencia !== null && (
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={600}
+                                                        color={comp.precio_info.diferencia > 0 ? 'success.main' : comp.precio_info.diferencia < 0 ? 'error.main' : 'text.secondary'}
+                                                      >
+                                                        ({comp.precio_info.diferencia > 0 ? '+' : ''}€{comp.precio_info.diferencia.toFixed(2)})
+                                                      </Typography>
+                                                    )}
+                                                  </Stack>
+                                                </Box>
+                                              )}
+                                            </Stack>
+                                          </Grid>
+                                        </Grid>
+                                      </Paper>
+                                    )
+                                  })}
+
+                                  {diff.data.comparaciones.length > 50 && (
                                     <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                                      Mostrando los primeros 20 de {diff.data.comparaciones.length} comparaciones
+                                      Mostrando los primeros 50 de {diff.data.comparaciones.length} comparaciones
                                     </Typography>
                                   )}
                                 </Stack>
@@ -1013,6 +1554,19 @@ export function EnhancedLikewizePage({
                           <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
                             <Box component="thead">
                               <Box component="tr">
+                                <Box component="th" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', width: 40 }}>
+                                  <Checkbox
+                                    size="small"
+                                    checked={diff.data?.changes ? diff.data.changes.every((c) => selectedChanges.has(c.id)) : false}
+                                    onChange={(e) => {
+                                      if (e.target.checked && diff.data?.changes) {
+                                        setSelectedChanges(new Set(diff.data.changes.map(c => c.id)))
+                                      } else {
+                                        setSelectedChanges(new Set())
+                                      }
+                                    }}
+                                  />
+                                </Box>
                                 <Box component="th" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>
                                   Tipo
                                 </Box>
@@ -1034,8 +1588,23 @@ export function EnhancedLikewizePage({
                               </Box>
                             </Box>
                             <Box component="tbody">
-                              {diff.data.changes.slice(0, 20).map((cambio) => (
-                                <Box component="tr" key={cambio.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                              {diff.data.changes.slice(0, 20).map((cambio, idx) => (
+                                <Box component="tr" key={`cambio-${cambio.id}-${idx}`} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                                  <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'center' }}>
+                                    <Checkbox
+                                      size="small"
+                                      checked={selectedChanges.has(cambio.id)}
+                                      onChange={(e) => {
+                                        const newSelected = new Set(selectedChanges)
+                                        if (e.target.checked) {
+                                          newSelected.add(cambio.id)
+                                        } else {
+                                          newSelected.delete(cambio.id)
+                                        }
+                                        setSelectedChanges(newSelected)
+                                      }}
+                                    />
+                                  </Box>
                                   <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
                                     <Chip
                                       size="small"
@@ -1060,27 +1629,47 @@ export function EnhancedLikewizePage({
                                     </Typography>
                                   </Box>
                                   <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'right' }}>
-                                    <Typography variant="body2" fontWeight={500}>
-                                      {cambio.antes || '—'}
+                                    <Typography
+                                      variant="body2"
+                                      fontWeight={500}
+                                      sx={{
+                                        color: 'text.primary',
+                                        opacity: 0.7
+                                      }}
+                                    >
+                                      {cambio.antes || 'N/A'}
                                     </Typography>
                                   </Box>
                                   <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'right' }}>
                                     <Typography
                                       variant="body2"
-                                      fontWeight={600}
-                                      color={cambio.despues ? 'text.primary' : 'error.main'}
+                                      fontWeight={700}
+                                      sx={{
+                                        color: cambio.despues ? 'primary.main' : 'error.main',
+                                        bgcolor: cambio.despues
+                                          ? (theme) => theme.palette.mode === 'dark'
+                                            ? 'rgba(144, 202, 249, 0.16)'
+                                            : 'rgba(25, 118, 210, 0.08)'
+                                          : (theme) => theme.palette.mode === 'dark'
+                                            ? 'rgba(244, 67, 54, 0.16)'
+                                            : 'rgba(211, 47, 47, 0.08)',
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1,
+                                        display: 'inline-block'
+                                      }}
                                     >
                                       {cambio.despues || 'Sin precio'}
                                     </Typography>
                                   </Box>
                                   <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'right' }}>
-                                    {cambio.delta !== null && (
+                                    {cambio.delta !== null && cambio.delta !== undefined && (
                                       <Typography
                                         variant="body2"
                                         fontWeight={500}
                                         color={cambio.delta > 0 ? 'success.main' : cambio.delta < 0 ? 'error.main' : 'text.secondary'}
                                       >
-                                        {cambio.delta > 0 ? '+' : ''}{cambio.delta.toFixed(2)}€
+                                        {cambio.delta > 0 ? '+' : ''}{Number(cambio.delta).toFixed(2)}€
                                       </Typography>
                                     )}
                                   </Box>
@@ -1106,7 +1695,77 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
+              {/* Pestaña No Encontrados */}
               <TabPanel value={tabValue} index={2}>
+                <Stack spacing={3}>
+                  <Alert severity="warning" icon={<Warning />}>
+                    <strong>Dispositivos sin mapear</strong>
+                    <Typography variant="body2">
+                      Estos dispositivos no pudieron ser mapeados automáticamente. Crea el modelo y capacidad manualmente para entrenar el sistema.
+                    </Typography>
+                  </Alert>
+
+                  {unmappedItems.isLoading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress />
+                    </Box>
+                  )}
+
+                  {unmappedItems.data && unmappedItems.data.total_unmapped === 0 && (
+                    <Alert severity="success">
+                      ✅ Todos los dispositivos fueron mapeados correctamente
+                    </Alert>
+                  )}
+
+                  {unmappedItems.data && unmappedItems.data.total_unmapped > 0 && (
+                    <>
+                      <Typography variant="h6">
+                        {unmappedItems.data.total_unmapped} dispositivos sin mapear
+                      </Typography>
+
+                      <Stack spacing={2}>
+                        {unmappedItems.data.items.map((item: any) => (
+                          <Paper key={item.id} variant="outlined" sx={{ p: 2 }}>
+                            <Grid container spacing={2} alignItems="center">
+                              <Grid size={{ xs: 12, md: 6 }}>
+                                <Typography variant="subtitle1" fontWeight="bold">
+                                  {item.modelo_norm || item.modelo_raw}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.marca} • {item.tipo} • {item.almacenamiento_gb} GB
+                                </Typography>
+                                {item.likewize_model_code && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    Código: {item.likewize_model_code}
+                                  </Typography>
+                                )}
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 3 }}>
+                                <Typography variant="body2">
+                                  <strong>Precio B2B:</strong> €{item.precio_b2b || 'N/A'}
+                                </Typography>
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 3 }}>
+                                <Button
+                                  variant="contained"
+                                  color="primary"
+                                  fullWidth
+                                  onClick={() => handleOpenCreateModal(item)}
+                                  disabled={createFromUnmappedMutation.isPending}
+                                >
+                                  Crear Modelo
+                                </Button>
+                              </Grid>
+                            </Grid>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    </>
+                  )}
+                </Stack>
+              </TabPanel>
+
+              <TabPanel value={tabValue} index={4}>
                 <Stack spacing={3}>
                   <Alert severity="info">
                     El sistema V2 utiliza estrategias específicas optimizadas según el tipo de dispositivo
@@ -1179,7 +1838,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={3}>
+              <TabPanel value={tabValue} index={5}>
                 <Stack spacing={3}>
                   <MappingMetrics />
 
@@ -1213,7 +1872,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={2}>
+              <TabPanel value={tabValue} index={3}>
                 <ReviewPanel
                   onReviewCompleted={() => {
                     refetchLearningMetrics()
@@ -1222,7 +1881,7 @@ export function EnhancedLikewizePage({
                 />
               </TabPanel>
 
-              <TabPanel value={tabValue} index={3}>
+              <TabPanel value={tabValue} index={6}>
                 <Stack spacing={3}>
                   <Alert severity="info">
                     El sistema V3 utiliza estrategias específicas optimizadas según el tipo de dispositivo
@@ -1450,6 +2109,186 @@ export function EnhancedLikewizePage({
           </>
         )}
       </Stack>
+
+      {/* Modal de búsqueda para corrección manual */}
+      <Dialog
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Buscar modelo correcto
+          {selectedItemForCorrection && (
+            <Typography variant="body2" color="text.secondary">
+              Buscando reemplazo para: {selectedItemForCorrection.likewize_info?.modelo_norm}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Buscar modelo"
+              placeholder="Ej: iPhone XR 256GB"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                handleSearchCapacidades(e.target.value)
+              }}
+              disabled={searchLoading}
+            />
+
+            {searchLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+
+            {!searchLoading && searchResults.length > 0 && (
+              <List>
+                {searchResults.map((capacidad) => (
+                  <ListItem key={capacidad.id} disablePadding>
+                    <ListItemButton onClick={() => handleApplyCorrection(capacidad)}>
+                      <ListItemText
+                        primary={`${capacidad.modelo?.descripcion} ${capacidad.tamaño}`}
+                        secondary={
+                          <>
+                            <Typography component="span" variant="body2" color="text.secondary">
+                              Marca: {capacidad.modelo?.marca} | Tipo: {capacidad.modelo?.tipo}
+                            </Typography>
+                            {capacidad._b2b && (
+                              <Typography component="span" variant="body2" sx={{ ml: 1, fontWeight: 'bold', color: 'success.main' }}>
+                                Precio B2B: €{capacidad._b2b}
+                              </Typography>
+                            )}
+                          </>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+
+            {!searchLoading && searchQuery.length >= 2 && searchResults.length === 0 && (
+              <Alert severity="info">
+                No se encontraron resultados para &quot;{searchQuery}&quot;
+              </Alert>
+            )}
+
+            {searchQuery.length < 2 && (
+              <Alert severity="info">
+                Escribe al menos 2 caracteres para buscar
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSearchModalOpen(false)}>
+            Cancelar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal de creación de dispositivo no mapeado */}
+      <Dialog
+        open={createDeviceModalOpen}
+        onClose={() => setCreateDeviceModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Crear Modelo y Capacidad
+          {editableDevice.modelo && (
+            <Typography variant="body2" color="text.secondary">
+              {editableDevice.modelo}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Alert severity="info">
+              Revisa y edita la información antes de crear. El nombre del modelo se ha limpiado automáticamente para ser más legible.
+              Esta acción ayudará a entrenar el sistema de mapeo para futuros dispositivos similares.
+            </Alert>
+
+            <Stack spacing={2}>
+              <TextField
+                label="Nombre del Modelo"
+                fullWidth
+                value={editableDevice.modelo}
+                onChange={(e) => setEditableDevice({ ...editableDevice, modelo: e.target.value })}
+                helperText="Nombre user-friendly (se limpió automáticamente)"
+                required
+              />
+
+              <TextField
+                label="Marca"
+                fullWidth
+                value={editableDevice.marca}
+                onChange={(e) => setEditableDevice({ ...editableDevice, marca: e.target.value })}
+                required
+              />
+
+              <TextField
+                label="Tipo"
+                fullWidth
+                value={editableDevice.tipo}
+                onChange={(e) => setEditableDevice({ ...editableDevice, tipo: e.target.value })}
+                helperText="Ej: Mac, iPhone, iPad"
+                required
+              />
+
+              <TextField
+                label="Capacidad (GB)"
+                fullWidth
+                type="number"
+                value={editableDevice.almacenamiento_gb}
+                onChange={(e) => setEditableDevice({ ...editableDevice, almacenamiento_gb: e.target.value })}
+                helperText="Solo el número en GB"
+                required
+              />
+
+              <TextField
+                label="Código Likewize"
+                fullWidth
+                value={editableDevice.likewize_model_code}
+                onChange={(e) => setEditableDevice({ ...editableDevice, likewize_model_code: e.target.value })}
+                helperText="Código del proveedor (se usa modelo_raw por defecto)"
+              />
+
+              {selectedUnmappedItem && (
+                <Alert severity="success" icon={false}>
+                  <Typography variant="body2">
+                    <strong>Precio B2B:</strong> €{selectedUnmappedItem.precio_b2b || 'N/A'}
+                  </Typography>
+                </Alert>
+              )}
+            </Stack>
+
+            {createFromUnmappedMutation.isPending && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress />
+              </Box>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateDeviceModalOpen(false)} disabled={createFromUnmappedMutation.isPending}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreateDevice}
+            variant="contained"
+            color="primary"
+            disabled={createFromUnmappedMutation.isPending}
+          >
+            Crear Dispositivo
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

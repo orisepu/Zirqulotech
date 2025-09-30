@@ -41,6 +41,7 @@ import BuscadorUniversal from '@/components/BuscadorUniversal'
 import NotificacionesBell from '@/features/notifications/components/NotificacionesBell'
 import React, { useState, useEffect } from 'react'
 import { getAccessToken } from '@/services/api'
+import { getWebSocketUrl } from '@/shared/config/env'
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import BreadcrumbsExplorador from "@/components/BreadcrumbsExplorador";
@@ -64,14 +65,15 @@ export default function LayoutInternoShell({ children }: { children: React.React
 
   useEffect(() => {
     if (!token) return
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/notificaciones/?token=${token}`)
+    const wsUrl = getWebSocketUrl(`/ws/notificaciones/?token=${token}`)
+    const ws = new WebSocket(wsUrl)
     setSocket(ws)
 
     ws.onclose = () => {
       console.warn('🔌 WebSocket cerrado. Intentando reconectar en 3s...')
       setTimeout(() => {
-        setSocket(new WebSocket(`${proto}://${window.location.host}/ws/notificaciones/?token=${token}`))
+        const reconnectUrl = getWebSocketUrl(`/ws/notificaciones/?token=${token}`)
+        setSocket(new WebSocket(reconnectUrl))
       }, 3000)
     }
 

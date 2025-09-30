@@ -14,6 +14,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { formatoBonito } from '@/context/precios'
 import api from '@/services/api'
+import { PUBLIC_BASE_URL } from '@/shared/config/env'
 
 // Tipo compartido: usado tanto dentro del componente como en utilidades abajo
 type ContratoExistente = {
@@ -47,7 +48,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
   const [created, setCreated] = useState<CreatedMinimal | null>(null)
 
   const [empresa] = useState({
-    nombre: 'PROGEEK S.L.', cif: '', direccion: '', email: '', telefono: '', web: 'https://progeek.es'
+    nombre: 'PROGEEK S.L.', cif: '', direccion: '', email: '', telefono: '', web: PUBLIC_BASE_URL
   })
 
   const [cliente, setCliente] = useState({ nombre: '', dni: '', email: '', telefono: '', direccion: '' })
@@ -213,7 +214,7 @@ export default function PartnerCreateMarcoPanel({ oportunidadUUID, publicBaseUrl
 
   const kycUrlExistente = useMemo(() => {
     if (!existente?.kyc_token) return ''
-    const base = publicBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://progeek.es')
+    const base = publicBaseUrl || PUBLIC_BASE_URL
     return `${base}/kyc-upload/${existente.kyc_token}`
   }, [existente?.kyc_token, publicBaseUrl])
 
