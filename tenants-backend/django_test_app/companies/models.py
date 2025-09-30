@@ -92,6 +92,11 @@ class Company(TenantBase):
         help_text="Si está activo, el partner solo opera con clientes empresa/autónomos."
     )
 
+    es_demo = models.BooleanField(
+        default=False,
+        help_text="Modo demo: permite usar cualquier correo, DNI, CIF, etc. sin validación estricta."
+    )
+
     # Logo opcional
     logo = models.ImageField(upload_to="logos/", blank=True, null=True)
 
