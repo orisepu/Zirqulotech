@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   AppBar, Toolbar, Typography, Button, Container, Box, Grid, Paper, Stack,
-  Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar
+  Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar, CircularProgress
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser'
@@ -17,9 +18,35 @@ import GppGoodIcon from '@mui/icons-material/GppGood'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 
 export default function HomePage() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [snack, setSnack] = useState(false)
   const [form, setForm] = useState({ nombre: '', email: '', mensaje: '' })
+
+  // Check if we should skip homepage before rendering anything
+  const skipHomepage = process.env.NEXT_PUBLIC_SKIP_HOMEPAGE === 'true'
+
+  // Redirect to login if env variable is set
+  useEffect(() => {
+    if (skipHomepage) {
+      router.replace('/login')
+    }
+  }, [skipHomepage, router])
+
+  // Show loading while redirecting to avoid flash of content
+  if (skipHomepage) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+        bgcolor="background.default"
+      >
+        <CircularProgress />
+      </Box>
+    )
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value })

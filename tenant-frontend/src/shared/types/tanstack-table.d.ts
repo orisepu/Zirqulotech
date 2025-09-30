@@ -5,7 +5,15 @@ declare module '@tanstack/react-table' {
   interface ColumnMeta<TData, TValue> {
     minWidth?: number
     headerMaxWidth?: number
-    maxWidth?: number
+    maxWidth?: number | {
+      xs?: number
+      sm?: number
+      md?: number
+      lg?: number
+      xl?: number
+      xxl?: number
+      xxxl?: number
+    }
     align?: 'left' | 'center' | 'right'
     alignHeader?: 'left' | 'center' | 'right'
     label?: string

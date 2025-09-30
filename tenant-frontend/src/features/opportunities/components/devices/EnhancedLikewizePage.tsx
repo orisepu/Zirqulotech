@@ -27,6 +27,34 @@ type Cambio = {
 type DiffData = {
   summary: { inserts: number, updates: number, deletes: number, total: number }
   changes: Cambio[]
+  // Propiedades V3
+  is_v3?: boolean
+  resumen?: {
+    total_comparaciones?: number
+    inserciones?: number
+    actualizaciones?: number
+    eliminaciones?: number
+    sin_cambios?: number
+  }
+  v3_stats?: {
+    confidence_stats?: {
+      promedio?: number
+      alta_confianza?: number
+      media_confianza?: number
+      baja_confianza?: number
+    }
+  }
+  comparaciones?: Array<{
+    change_type?: string
+    likewize_info?: {
+      modelo_raw?: string
+      modelo_norm?: string
+      likewize_model_code?: string
+      marca?: string
+      almacenamiento_gb?: string | number
+    }
+    [key: string]: any
+  }>
 }
 
 // Import existing components (assuming they exist)
@@ -482,7 +510,7 @@ export function EnhancedLikewizePage({
                         whiteSpace: 'pre-wrap'
                       }}
                     >
-                      {taskMonitoring.logs.data.log_lines.slice(-10).map((line, index) => (
+                      {taskMonitoring.logs.data.log_lines.slice(-10).map((line: string, index: number) => (
                         <div key={index} style={{ marginBottom: '2px' }}>
                           {line}
                         </div>

@@ -31,7 +31,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import React from 'react'
 import { toast } from 'react-toastify'
 import SecurityIcon from '@mui/icons-material/Security'
+import ScienceIcon from '@mui/icons-material/Science'
 import { useUsuario } from '@/context/UsuarioContext'
+import { Switch, FormControlLabel } from '@mui/material'
 
 function computeEffectiveNamespaces(p: any): string[] {
   const ns: string[] = []
@@ -604,6 +606,50 @@ export default function PartnerDetailPage() {
             </ModernSection>
           </Grid>
 
+          {/* Configuración */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ModernSection title="Configuración" icon={<SettingsIcon />} onEdit={() => openModal('configuracion')} editMode={editMode}>
+              <InfoItem
+                label="Porcentaje de comisión"
+                value={`${comisionPercent}%`}
+                icon={<PercentIcon fontSize="small" />}
+              />
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Modo Demo
+                </Typography>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <ScienceIcon fontSize="small" />
+                  <Chip
+                    label={partner.es_demo ? 'ACTIVADO' : 'Desactivado'}
+                    color={partner.es_demo ? 'warning' : 'default'}
+                    size="small"
+                    variant={partner.es_demo ? 'filled' : 'outlined'}
+                  />
+                </Box>
+                {partner.es_demo && (
+                  <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                    ⚠️ Las validaciones de DNI/CIF/Email están desactivadas
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Solo empresas
+                </Typography>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <BusinessIcon fontSize="small" />
+                  <Chip
+                    label={partner.solo_empresas ? 'Activado' : 'Desactivado'}
+                    color={partner.solo_empresas ? 'info' : 'default'}
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
+              </Box>
+            </ModernSection>
+          </Grid>
+
         </Grid>
 
         <EditModal
@@ -752,6 +798,14 @@ function EditModal({
         { name: 'legal_overrides', label: 'Overrides (JSON)', multiline: true }
       ]
     },
+    configuracion: {
+      label: 'Editar configuración',
+      fields: [
+        { name: 'comision_pct', label: 'Porcentaje de comisión (%)', type: 'number' },
+        { name: 'es_demo', label: 'Modo Demo (desactiva validaciones)', type: 'boolean' },
+        { name: 'solo_empresas', label: 'Solo empresas/autónomos', type: 'boolean' }
+      ]
+    },
     comision: {
       label: 'Editar comisión',
       fields: [
@@ -772,12 +826,12 @@ function EditModal({
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h6">{config.label}</Typography>
+        {config.label}
       </DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
           {config.fields.map((field: any) => (
-            <Grid size={{ xs: 12, md: field.multiline ? 12 : 6 }} key={field.name}>
+            <Grid size={{ xs: 12, md: field.multiline ? 12 : (field.type === 'boolean' ? 12 : 6) }} key={field.name}>
               {field.options ? (
                 <FormControl fullWidth>
                   <InputLabel>{field.label}</InputLabel>
@@ -791,6 +845,17 @@ function EditModal({
                     ))}
                   </Select>
                 </FormControl>
+              ) : field.type === 'boolean' ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(formData[field.name])}
+                      onChange={(e) => onChange(field.name, e.target.checked)}
+                      color={field.name === 'es_demo' ? 'warning' : 'primary'}
+                    />
+                  }
+                  label={field.label}
+                />
               ) : (
                 <TextField
                   label={field.label}

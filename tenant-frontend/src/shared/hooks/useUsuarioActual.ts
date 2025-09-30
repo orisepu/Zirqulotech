@@ -20,6 +20,7 @@ export default function useUsuarioActual() {
               schema: tenant.schema ?? null,
               name: tenant.name ?? null,
               solo_empresas: Boolean(tenant.solo_empresas),
+              es_demo: Boolean(tenant.es_demo),
               management_mode: tenant.management_mode ?? null,
             }
           : null,
