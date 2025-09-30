@@ -39,7 +39,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             'numero_empleados', 'vertical', 'vertical_secundaria',
             'web_corporativa', 'facturacion_anual', 'numero_tiendas_oficiales',
             'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'cif', 'management_mode', 'legal_namespace', 'legal_slug',
-            'legal_overrides', 'comision_pct', 'solo_empresas',
+            'legal_overrides', 'comision_pct', 'solo_empresas', 'es_demo',
         ]
         extra_kwargs = {f: {"required": False} for f in fields}
 

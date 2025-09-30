@@ -5,6 +5,7 @@ import { ESTADOS_META, ESTADOS_B2B, ESTADO_LABEL_OVERRIDES } from '@/context/est
 import { Chip, Box, Select, MenuItem, TextField, Typography, Stack } from '@mui/material'
 import { formatoBonito } from '@/context/precios'
 import { EllipsisTooltip } from '@/shared/components/ui/EllipsisTooltip'
+import { getResponsiveColumnMeta } from '@/shared/utils/tableResponsive'
 
 const formatoMoneda = (valor: number) =>
   valor.toLocaleString('es-ES', {
@@ -177,29 +178,24 @@ export interface ClienteLike {
 }
 
 export const columnasAdmin: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId ,meta: { minWidth: 90, maxWidth: 110, align: 'center', alignHeader: 'center'},},
-  { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: { minWidth: 110, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200 }, },
-  { id: 'tienda', header: 'Tienda', accessorFn: (r: { tienda?: { nombre?: string } }) => r.tienda?.nombre || '—',meta: { minWidth: 100, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200}, },
-  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: { minWidth: 130, maxWidth: 250, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 250},
+  { id: 'id', header: 'ID', accessorFn: getId ,meta: getResponsiveColumnMeta({ minWidth: 90, type: 'id' })},
+  { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: getResponsiveColumnMeta({ minWidth: 110, type: 'text', ellipsis: true, maxWidth: 220 }) },
+  { id: 'tienda', header: 'Tienda', accessorFn: (r: { tienda?: { nombre?: string } }) => r.tienda?.nombre || '—',meta: getResponsiveColumnMeta({ minWidth: 100, type: 'text', ellipsis: true, maxWidth: 220 })},
+  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: getResponsiveColumnMeta({ minWidth: 130, type: 'text', ellipsis: true, maxWidth: 280 })
 
 },
-  { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: { minWidth: 140, maxWidth: 200, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 200},},
+  { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: getResponsiveColumnMeta({ minWidth: 140, type: 'text', ellipsis: true, maxWidth: 220 })},
   {
     id: 'fecha_creacion',
     header: 'Fecha',
     accessorKey: 'fecha_creacion',
-    meta: { minWidth: 110, maxWidth: 130, align: 'center', alignHeader: 'center', nowrapHeader: true },
+    meta: { ...getResponsiveColumnMeta({ minWidth: 110, type: 'date' }), nowrapHeader: true },
     cell: ({ getValue }) => new Date(String(getValue())).toLocaleDateString()
   },
   {
     id: 'valoracion_partner',
     header: makeTwoLineHeader('Valoración', 'partner'),
-    meta: {
-      minWidth: 140,
-      maxWidth: 200,
-      align: 'center',
-      alignHeader: 'center',
-    },
+    meta: getResponsiveColumnMeta({ minWidth: 140, type: 'currency', maxWidth: 200 }),
     cell: ({ row }) => {
       const valor = Number((row.original as { valor_total?: unknown }).valor_total ?? 0)
       return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
@@ -208,22 +204,17 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
   {
     id: 'valoracion_final',
     header: makeTwoLineHeader('Valoración', 'final'),
-    meta: {
-      minWidth: 150,
-      maxWidth: 180,
-      align: 'center',
-      alignHeader: 'center',
-    },
+    meta: getResponsiveColumnMeta({ minWidth: 150, type: 'currency', maxWidth: 200 }),
     cell: ({ row }) => {
       const valor = Number((row.original as { valor_total_final?: unknown }).valor_total_final ?? 0)
       return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
     },
   },
-  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: { minWidth: 250, maxWidth: 260, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: 220}, },
+  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: getResponsiveColumnMeta({ minWidth: 200, type: 'text', ellipsis: true, maxWidth: 280 })},
   {
     id: 'estado',
     header: 'Estado',
-    
+    meta: getResponsiveColumnMeta({ minWidth: 140, type: 'status', maxWidth: 180 }),
     cell: ({ row }) => {
       const estado = String((row.original as { estado?: unknown }).estado ?? '')
       const metaInfo = ESTADOS_META[estado]
@@ -242,19 +233,13 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
 ]
 
 export const columnasTenant: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 150, align: 'center', alignHeader: 'center'}, },
-  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
-  
-  { 
+  { id: 'id', header: 'ID', accessorFn: getId,meta: getResponsiveColumnMeta({ minWidth: 90, type: 'id' })},
+  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: getResponsiveColumnMeta({ minWidth: 150, type: 'text', ellipsis: true, maxWidth: 250 })},
+
+  {
     id: 'cliente',
-    header: 'Cliente', 
-    meta: { 
-            minWidth: 200, 
-            align: 'center',
-            alignHeader: 'center',
-            ellipsis: true,
-            ellipsisMaxWidth: 280,
-          },
+    header: 'Cliente',
+    meta: getResponsiveColumnMeta({ minWidth: 180, type: 'text', ellipsis: true, maxWidth: 300 }),
     accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
   },
   {
@@ -268,15 +253,10 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
   sortingFn: (a, b, id) =>
     Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
   meta: {
+    ...getResponsiveColumnMeta({ minWidth: 120, type: 'currency', maxWidth: 160 }),
     label: 'Valoración orientativa',
-    minWidth: 120,
-    align: 'center',
-    alignHeader: 'center',
     headerMaxWidth: 140,
-    // CSV crudo (número):
     toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
-    // Si prefieres exportar formateado:
-    // toCSV: (v: number) => formatoMoneda(v ?? 0),
   },
   cell: ({ getValue }) => {
     const total = Number(getValue<number>() ?? 0);
@@ -290,10 +270,8 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     sortingFn: (a, b, id) =>
       Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
     meta: {
+      ...getResponsiveColumnMeta({ minWidth: 120, type: 'currency', maxWidth: 160 }),
       label: 'Valoración final',
-      minWidth: 120,
-      align: 'center',
-      alignHeader: 'center',
       headerMaxWidth: 140,
       toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     },
@@ -307,9 +285,7 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     header: 'Fecha',
     accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
     meta: {
-      minWidth: 100,
-      align: 'center',
-      alignHeader: 'center',
+      ...getResponsiveColumnMeta({ minWidth: 100, type: 'date' }),
       toCSV: (value: unknown /*, row */) => {
         const d = value instanceof Date ? value : value ? new Date(String(value)) : null
         return d ? d.toISOString() : ''
@@ -325,27 +301,17 @@ export const columnasTenant: ColumnDef<GenericRow>[] = [
     id: 'seguimiento',
     header: 'N de seguimiento',
     accessorKey: 'numero_seguimiento',
-    meta: {
-      align: 'right',
-      minWidth: 100,
-      maxWidth: 200,
-      alignHeader: 'center',
-      ellipsis: true,
-      ellipsisMaxWidth: 180,
-    },
+    meta: getResponsiveColumnMeta({ minWidth: 150, type: 'text', ellipsis: true, maxWidth: 240 }),
   },
   {
     id: 'estado',
     header: 'Estado',
-    accessorKey: 'estado',                 // <- clave para que row.getValue('estado') funcione
+    accessorKey: 'estado',
     meta: {
+      ...getResponsiveColumnMeta({ minWidth: 140, type: 'status', maxWidth: 180 }),
       label: 'Estado',
-      align: 'center',
-      alignHeader: 'center',
       toCSV: (value: unknown /*, row */) =>
         typeof value === 'string' ? value : value == null ? '' : String(value),
-      minWidth: 100,
-      maxWidth: 150,
     },
     cell: ({ getValue }) => {
       const estado = (getValue<string>() ?? '').trim();
@@ -670,7 +636,7 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
     meta: {
       align: 'center',
       minWidth: 100,
-      maxWidth: 220,
+      maxWidth: 320,
       alignHeader: 'center',
       ellipsis: true,
       ellipsisMaxWidth: 180,

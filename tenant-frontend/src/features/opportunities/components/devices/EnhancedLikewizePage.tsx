@@ -34,7 +34,10 @@ type DiffData = {
     actualizaciones?: number
     eliminaciones?: number
     sin_cambios?: number
+<<<<<<< HEAD
     total_comparaciones?: number
+=======
+>>>>>>> 82b852b462b1eb0a346c7559b041d0a2726eaa5d
   }
   v3_stats?: {
     confidence_stats?: {
@@ -46,7 +49,18 @@ type DiffData = {
   }
   comparaciones?: Array<{
     change_type?: string
+<<<<<<< HEAD
     [key: string]: unknown
+=======
+    likewize_info?: {
+      modelo_raw?: string
+      modelo_norm?: string
+      likewize_model_code?: string
+      marca?: string
+      almacenamiento_gb?: string | number
+    }
+    [key: string]: any
+>>>>>>> 82b852b462b1eb0a346c7559b041d0a2726eaa5d
   }>
 }
 

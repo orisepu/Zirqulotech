@@ -120,7 +120,7 @@ export default function OportunidadDetalleBase({
           ) : (
             <Grid container spacing={2}>
               {oportunidad.dispositivos.map((d) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={d.id}>
+                <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={d.id}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Typography><strong>Modelo:</strong> {d.modelo.descripcion}</Typography>
                     <Typography><strong>Cantidad:</strong> {d.cantidad}</Typography>
@@ -168,7 +168,7 @@ export default function OportunidadDetalleBase({
           ) : (
             <Grid container spacing={2}>
               {oportunidad.comentarios.map((c) => (
-                <Grid item xs={12} md={6} key={c.id}>
+                <Grid size={{ xs: 12, md: 6 }} key={c.id}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Typography>{c.texto}</Typography>
                     <Typography variant="caption">

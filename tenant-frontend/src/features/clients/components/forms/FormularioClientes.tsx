@@ -7,6 +7,7 @@ import FinancieroStep from "./FinancieroStepCliente";
 import DireccionStep from "./DireccionStep";
 import SectorStep from "./SectorStepCliente";
 import { validate } from "@/shared/lib/validators";
+import useUsuarioActual from "@/shared/hooks/useUsuarioActual";
 
 type Tipo = "empresa" | "autonomo" | "particular";
 type Canal = "b2b" | "b2c";
@@ -22,6 +23,7 @@ type FormularioClientesProps = {
 }
 
 export default function FormularioClientes({ open, onClose, onCreate, initial, soloEmpresas = false }: FormularioClientesProps) {
+  const usuarioActual = useUsuarioActual();
   const [nuevo, setNuevo] = useState<NuevoCliente>(initial ?? {});
   const [step, setStep] = useState(0);
   const [snack, setSnack] = useState({ open:false, message:"", type:"error" as "error"|"success" });
@@ -74,7 +76,8 @@ export default function FormularioClientes({ open, onClose, onCreate, initial, s
   }, [canal]);
 
   const isProd = typeof window !== 'undefined' && process.env.NODE_ENV === 'production'
-  const allowInvalidInDev = !isProd
+  const esDemo = usuarioActual?.tenant?.es_demo ?? false
+  const allowInvalidInDev = !isProd || esDemo
 
   const validarPaso = (): boolean => {
     const falta = (k: string) => !nuevo[k] || String(nuevo[k]).trim() === "";
@@ -92,7 +95,7 @@ export default function FormularioClientes({ open, onClose, onCreate, initial, s
       if (tipo === "autonomo" && (falta("nombre") || falta("apellidos") || falta("nif"))) return setErr("Nombre, apellidos y NIF son obligatorios");
       if (tipo === "particular" && (falta("nombre") || falta("apellidos") || falta("dni_nie"))) return setErr("Nombre, apellidos y DNI/NIE son obligatorios");
 
-      // Validaciones de formato: en dev avisa pero no bloquea; en prod bloquea
+      // Validaciones de formato: en dev o demo avisa pero no bloquea; en prod bloquea
       const msgs: string[] = []
       const email = String(nuevo.correo || '')
       if (email && !validate('email', email).valid) msgs.push('Correo inválido')

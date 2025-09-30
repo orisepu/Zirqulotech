@@ -33,6 +33,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import Papa from 'papaparse'
 import { EllipsisTooltip } from "@/shared/components/ui/EllipsisTooltip";
+import { getTableContainerSx, getTableWrapperSx, getResponsiveTableZoom } from '@/shared/utils/tableResponsive'
 
 export interface TablaReactivaProps<TData> {
   oportunidades: TData[];
@@ -221,15 +222,18 @@ export default function TablaReactiva<TData>({
 
   const visibleCols = table.getVisibleLeafColumns()
 
+  // Calcular zoom responsivo
+  // autoZoom ahora siempre es 1.0 (sin zoom), pero respetamos meta.zoom custom
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920
+  const autoZoom = getResponsiveTableZoom(viewportWidth)
+  const finalZoom = meta?.zoom ?? (autoZoom < 1 ? autoZoom : undefined)
+  // Solo aplica zoom si meta.zoom existe o autoZoom < 1 (caso custom como auditoría)
+
   return (
+    <Box sx={getTableWrapperSx()}>
     <TableContainer
       component={Paper}
-      sx={{
-        overflowX: 'auto',
-        transform: meta?.zoom ? `scale(${meta.zoom}) translateZ(0)` : 'none',
-        transformOrigin: 'top left',
-        width: meta?.zoom ? `${100 / meta.zoom}%` : '100%',
-      }}
+      sx={getTableContainerSx(finalZoom)}
     >
       <Table
         size="small"
@@ -564,5 +568,6 @@ export default function TablaReactiva<TData>({
         </Box>
       </Box>
     </TableContainer>
+    </Box>
   )
 }

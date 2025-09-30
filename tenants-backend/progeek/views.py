@@ -135,6 +135,7 @@ def _serialize_tenant_detail(tenant) -> dict:
         "legal_overrides": getattr(tenant, "legal_overrides", None),
         "comision_pct": getattr(tenant, "comision_pct", None),
         "solo_empresas": getattr(tenant, "solo_empresas", None),
+        "es_demo": getattr(tenant, "es_demo", False),
     }
 
 def canal_a_tipo_cliente(canal: str | None) -> str:
@@ -848,6 +849,7 @@ class YoAPIView(APIView):
                 'schema': tenant_slug,
                 'name': getattr(tenant_obj, 'name', ''),
                 'solo_empresas': getattr(tenant_obj, 'solo_empresas', False),
+                'es_demo': getattr(tenant_obj, 'es_demo', False),
                 'management_mode': getattr(tenant_obj, 'management_mode', None),
             }
 

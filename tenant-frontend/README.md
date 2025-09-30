@@ -17,10 +17,58 @@ Plataforma frontend multi-tenant para compra de dispositivos construida con Next
 # Instalar dependencias
 pnpm install
 
+# Configurar variables de entorno
+cp .env.local.example .env.local
+# Editar .env.local según tus necesidades
+
 # Iniciar servidor de desarrollo
 pnpm dev
 
 # Abrir http://localhost:3000
+```
+
+## ⚙️ Configuración
+
+### Variables de Entorno
+
+Crea un archivo `.env.local` basado en `.env.local.example`:
+
+```bash
+# Multi-tenant development
+NEXT_PUBLIC_DEFAULT_TENANT=progeek
+NEXT_PUBLIC_API_BASE_URL=https://zirqulartech.com
+
+# Homepage behavior
+# Set to 'true' to redirect homepage (/) directly to /login
+# Set to 'false' or omit to show the landing page
+NEXT_PUBLIC_SKIP_HOMEPAGE=false
+
+# Debug y performance
+NEXT_PUBLIC_DEBUG_MODE=true
+NEXT_PUBLIC_ENABLE_DEVTOOLS=true
+```
+
+#### Configuración de Homepage
+
+La variable `NEXT_PUBLIC_SKIP_HOMEPAGE` controla el comportamiento de la página de inicio:
+
+- **`true`**: La homepage (`/`) redirige automáticamente a `/login`
+  - Útil para entornos de producción donde no necesitas mostrar la landing page
+  - Optimiza el flujo para usuarios que solo necesitan acceder al dashboard
+  - Muestra un spinner de carga durante el redirect (sin flash de contenido)
+
+- **`false` o no definida**: Muestra la landing page completa con información del producto
+  - Ideal para entornos de demostración y marketing
+  - Permite a visitantes conocer el producto antes de hacer login
+
+**Ejemplo de uso:**
+
+```bash
+# Producción - Saltar directamente al login
+NEXT_PUBLIC_SKIP_HOMEPAGE=true
+
+# Demo/Marketing - Mostrar landing page
+NEXT_PUBLIC_SKIP_HOMEPAGE=false
 ```
 
 ## 📋 Scripts Disponibles
