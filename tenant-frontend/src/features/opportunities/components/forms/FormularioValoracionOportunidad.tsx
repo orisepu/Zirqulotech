@@ -13,7 +13,8 @@ import PasoEstadoDispositivo from './PasoEstadoDispositivo'
 import PasoEstetica from './PasoEstetica'
 import PasoValoracion from './PasoValoracion'
 import DemoViewer from './DemoViewer'
-import { postValoracionIphoneComercial, ValoracionComercialResponse } from '@/services/valoraciones'
+import { postValoracionIphoneComercial, postValoracionComercial, ValoracionComercialResponse } from '@/services/valoraciones'
+import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
 
 import { buildCatalogFor } from './catalogos'
 import { buildIPadCatalog } from './catalogos-ipad'
@@ -700,33 +701,62 @@ export default function FormularioValoracionOportunidad({
 
   const payloadIphone = useMemo(() => {
     if (!esComercial || !modelo || !capacidad) return null
-    return {
+
+    // Determinar capacidades del dispositivo
+    const capabilities = getDeviceCapabilities(tipo)
+
+    // Base payload (común para todos los dispositivos)
+    const basePayload: Record<string, unknown> = {
       tenant,
       canal: tipoCliente,                 // 'B2B' | 'B2C'
       modelo_id: Number(modelo),
       capacidad_id: Number(capacidad),
       enciende,                           // true/false/null
-      carga: cargaOk,                     // true/false/null
       funcional_basico_ok: funcBasica === '' ? null : (funcBasica === 'ok'),
-      battery_health_pct: saludBateria === '' ? null : Number(saludBateria),
-      display_image_status: toDisplayImageStatusApi(pantallaIssues),
-      glass_status: toGlassStatusApi(estadoPantalla),
       housing_status: worstHousingApi(estToHousingApi(estadoLados), estToHousingApi(estadoEspalda)),
     }
-  }, [esComercial, modelo, capacidad, tenant, tipoCliente, enciende, cargaOk, funcBasica, saludBateria, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
 
-  const readyForValoracion =
-    esComercial && !!payloadIphone &&
-    enciende !== null && cargaOk !== null &&
-    !!modelo && !!capacidad
+    // Agregar campos de batería solo si el dispositivo tiene batería
+    if (capabilities.hasBattery) {
+      basePayload.carga = cargaOk
+      basePayload.battery_health_pct = saludBateria === '' ? null : Number(saludBateria)
+    }
+
+    // Agregar campos de pantalla solo si el dispositivo tiene pantalla integrada
+    if (capabilities.hasDisplay) {
+      basePayload.display_image_status = toDisplayImageStatusApi(pantallaIssues)
+      basePayload.glass_status = toGlassStatusApi(estadoPantalla)
+    }
+
+    return basePayload
+  }, [esComercial, modelo, capacidad, tenant, tipoCliente, enciende, cargaOk, funcBasica, saludBateria, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda, tipo])
+
+  const readyForValoracion = useMemo(() => {
+    if (!esComercial || !payloadIphone || !modelo || !capacidad) return false
+
+    const capabilities = getDeviceCapabilities(tipo)
+
+    // Enciende es requerido para todos
+    if (enciende === null) return false
+
+    // Carga es requerido solo si tiene batería
+    if (capabilities.hasBattery && cargaOk === null) return false
+
+    return true
+  }, [esComercial, payloadIphone, modelo, capacidad, enciende, cargaOk, tipo])
 
   const {
     data: valoracionServer,
     isFetching: _fetchingValoracion,
     refetch: _refetchValoracion,
   } = useQuery<ValoracionComercialResponse>({
-    queryKey: ['comercial-valoracion', payloadIphone] as const,
-    queryFn: () => postValoracionIphoneComercial(payloadIphone!),
+    queryKey: ['comercial-valoracion', tipo, payloadIphone] as const,
+    queryFn: () => {
+      // Usar endpoint genérico para todos los dispositivos
+      // Fallback a iPhone para compatibilidad con tipos legacy
+      const tipoDispositivo = tipo || 'iPhone'
+      return postValoracionComercial(tipoDispositivo, payloadIphone!)
+    },
     enabled: !!readyForValoracion,
     placeholderData: keepPreviousData,   // ✅ reemplaza a keepPreviousData: true
     refetchOnWindowFocus: false,
@@ -782,12 +812,17 @@ export default function FormularioValoracionOportunidad({
     if (!oportunidadId || Number.isNaN(Number(oportunidadId))) { alert('Falta el ID numérico de la oportunidad.'); return }
     if (!modelo || !capacidad) { alert('Selecciona modelo y capacidad.'); return }
 
-    // Si es iPhone/iPad, recalculamos en backend para guardar oferta más reciente
+    // Recalculamos en backend para guardar oferta más reciente (todos los dispositivos)
     let ofertaToSave: number | null = precioCalculado
     if (esComercial) {
       try {
-        const latest = payloadIphone ? await postValoracionIphoneComercial(payloadIphone) : null
-        ofertaToSave = latest?.oferta ?? valoracionServer?.oferta ?? null
+        if (payloadIphone) {
+          const tipoDispositivo = tipo || 'iPhone'
+          const latest = await postValoracionComercial(tipoDispositivo, payloadIphone)
+          ofertaToSave = latest?.oferta ?? valoracionServer?.oferta ?? null
+        } else {
+          ofertaToSave = valoracionServer?.oferta ?? null
+        }
       } catch (e) {
         console.error(e)
         alert('No se pudo calcular la oferta del dispositivo (endpoint comercial).')

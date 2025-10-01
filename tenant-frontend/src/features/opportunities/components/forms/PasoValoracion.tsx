@@ -9,6 +9,7 @@ import PsychologyIcon from '@mui/icons-material/Psychology'
 import BrushIcon from '@mui/icons-material/Brush'
 import BoltIcon from '@mui/icons-material/Bolt'
 import { CatalogoValoracion, FuncPantallaValue } from './tipos'
+import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
 
 function Row({
   icon, label, value, clamp = false,
@@ -134,6 +135,9 @@ export default function PasoValoracion({
       maximumFractionDigits: 0,
     }).format(valor)
 
+  // Determinar capacidades del dispositivo
+  const capabilities = getDeviceCapabilities(tipo)
+
   const detailCards = mostrarDetalles
     ? [
         {
@@ -151,9 +155,10 @@ export default function PasoValoracion({
         {
           icon: <BrushIcon fontSize="small" />, label: 'Estética', value: esteticaTexto,
         },
-        {
+        // Solo mostrar batería si el dispositivo tiene batería
+        ...(capabilities.hasBattery ? [{
           icon: <BoltIcon fontSize="small" />, label: 'Batería', value: bateriaTexto,
-        },
+        }] : []),
       ]
     : []
 
