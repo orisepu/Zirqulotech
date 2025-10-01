@@ -21,7 +21,8 @@ from .views.costespiezas import (
 from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewizeView,
   DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
   IphoneAuditoriaValoracionView,
-  LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView
+  LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView,
+  ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView
 )
 from .views.autoaprendizaje_v3 import (
     LanzarActualizacionV3View,
@@ -101,6 +102,14 @@ urlpatterns = [
     path("precios/b2c/actualizar/", LanzarActualizacionB2CView.as_view()),
     path('valoraciones/iphone/comercial/', IphoneComercialValoracionView.as_view(), name='iphone-valoracion-comercial'),
     path('valoraciones/iphone/auditoria/', IphoneAuditoriaValoracionView.as_view(), name='iphone-valoracion-auditoria'),
+
+    # === Endpoints genéricos de valoración (todos los dispositivos) ===
+    path('valoraciones/<str:tipo>/comercial/', ValoracionComercialGenericaView.as_view(), name='valoracion-comercial-generica'),
+    path('valoraciones/<str:tipo>/auditoria/', ValoracionAuditoriaGenericaView.as_view(), name='valoracion-auditoria-generica'),
+    # También soportar endpoint sin tipo (se determina desde el payload)
+    path('valoraciones/comercial/', ValoracionComercialGenericaView.as_view(), name='valoracion-comercial'),
+    path('valoraciones/auditoria/', ValoracionAuditoriaGenericaView.as_view(), name='valoracion-auditoria'),
+
     path("likewize/tareas/<uuid:uuid>/resultado/", LikewizeCazadorResultadoView.as_view()),
 
     # Device Mapping V2 APIs

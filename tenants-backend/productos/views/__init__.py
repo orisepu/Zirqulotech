@@ -32,6 +32,7 @@ from .actualizador import (
 
 )
 from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoracionView
+from .valoraciones_genericas import ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView
 __all__ = [
    "CapacidadAdminListView",
    "tipos_modelo",
@@ -68,4 +69,6 @@ __all__ = [
    "LikewizeCazadorResultadoView",
    "DiffB2CView",
    "AplicarCambiosB2CView",
+   "ValoracionComercialGenericaView",
+   "ValoracionAuditoriaGenericaView",
 ]
