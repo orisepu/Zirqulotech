@@ -15,7 +15,9 @@ import PersonIcon from "@mui/icons-material/Person";
 import LogoutIcon from "@mui/icons-material/Logout";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import CalculateIcon from "@mui/icons-material/Calculate";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useColorMode } from "@/context/ThemeContext";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
@@ -28,6 +30,7 @@ import { useUsuario } from "@/context/UsuarioContext";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import BreadcrumbsExplorador from "@/components/BreadcrumbsExplorador";
+import ModalValoracionRapida from "@/features/valuation/components/ModalValoracionRapida";
 // import { useQueryClient } from "@tanstack/react-query";
 const drawerWidth = 220;
 const collapsedWidth = 64;
@@ -46,6 +49,7 @@ export default function DashboardShell({
   const usuario = useUsuario();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [tenantAccess, setTenantAccess] = useState<string[]>([]);
+  const [modalValoracionOpen, setModalValoracionOpen] = useState(false);
   
   
   // const queryClient = useQueryClient();
@@ -79,8 +83,10 @@ export default function DashboardShell({
   const navItems = [
     // Inicio / panel principal
     { label: "Dashboard", icon: <SpaceDashboardIcon />, to: "/dashboard" },
+    { label: "Valoración rápida", icon: <CalculateIcon />, action: "valoracion" },
     // Gestión de clientes
     { label: "Clientes", icon: <PeopleAltIcon />, to: "/clientes" },
+    
     { label: "Contactos", icon: <ContactPhoneIcon />, to: "/clientes/contactos" },
     // Embudo de oportunidades
     { label: "Oportunidades", icon: <LightbulbIcon />, to: "/oportunidades" },
@@ -136,9 +142,14 @@ export default function DashboardShell({
           arrow
         >
           <ListItem
-            component={Link}
-            href={item.to}
-            onClick={() => setMobileOpen(false)}
+            component={item.action ? "div" : Link}
+            href={item.action ? undefined : item.to}
+            onClick={() => {
+              if (item.action === "valoracion") {
+                setModalValoracionOpen(true);
+              }
+              setMobileOpen(false);
+            }}
             sx={{
               cursor: "pointer",
               justifyContent: collapsed ? "center" : "flex-start",
@@ -194,7 +205,7 @@ export default function DashboardShell({
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: "primary" }}
       >
         <Toolbar sx={{display: "flex",
-          alignItems: "center",gap: 2, justifyContent: "space-between"}}>
+          alignItems: "center",gap: 2, justifyContent: "space-between", pl: "5px"}}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
       {isMobile && (
         <IconButton
@@ -207,6 +218,14 @@ export default function DashboardShell({
           <MenuIcon />
         </IconButton>
       )}
+  {/* Logo */}
+  <Image
+    src={theme.palette.mode === "dark" ? "/imagenes/zirqulo-logo-dark.png" : "/imagenes/zirqulo-logo-light.png"}
+    alt="Zirqulo"
+    width={50}
+    height={50}
+    style={{ objectFit: "contain" }}
+  />
   {/* 🧑 Bienvenida */}
   <Typography
                 variant="h6"
@@ -279,6 +298,12 @@ export default function DashboardShell({
         <ToasterProvider />
         {children}
       </Box>
+
+      {/* Modal de valoración rápida */}
+      <ModalValoracionRapida
+        open={modalValoracionOpen}
+        onClose={() => setModalValoracionOpen(false)}
+      />
     </Box>
   );
 }

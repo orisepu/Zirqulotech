@@ -57,7 +57,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             log_ws_event(self.scope["user"], "✉️ Mensaje recibido", texto)
 
             # Guardar mensaje
-            await self.guardar_mensaje(self.user_id, texto, oportunidad_id, None)
+            mensaje = await self.guardar_mensaje(self.user_id, texto, oportunidad_id, None)
 
             # Enviar mensaje a todos los del grupo
             await self.channel_layer.group_send(
@@ -70,6 +70,31 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "tenant": self.tenant_schema,
                 }
             )
+
+            # Enviar notificación al cliente del chat (si no es el que envió el mensaje)
+            cliente_id = await self.get_cliente_id(self.chat_id)
+            if cliente_id and cliente_id != self.user_id:
+                # Crear notificación persistente
+                notificacion = await self.crear_notificacion(
+                    cliente_id,
+                    f"Nuevo mensaje de {self.user_nombre}: {texto[:50]}...",
+                    "chat",
+                    f"/chat"  # URL relacionada
+                )
+
+                # Enviar notificación en tiempo real si el usuario está conectado
+                await self.channel_layer.group_send(
+                    f"user_{cliente_id}",
+                    {
+                        "type": "nueva_notificacion",
+                        "mensaje": f"Nuevo mensaje de {self.user_nombre}",
+                        "tipo": "chat",
+                        "url": f"/chat",
+                        "id": notificacion.id if notificacion else None,
+                        "creada": mensaje.creada.isoformat() if mensaje else None,
+                    }
+                )
+
         except Exception as e:
             log_exception("receive", e)
             await self.send(text_data=json.dumps({"error": "Error al procesar el mensaje."}))
@@ -104,25 +129,53 @@ class ChatConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def guardar_mensaje(self, user_id, texto, oportunidad_id, dispositivo_id):
-        from .models import Mensaje  # ✅ Import local, multitenant-safe
+        from .models import Mensaje
         from django_tenants.utils import schema_context
         from django.db import connection
 
-        
         with schema_context(self.tenant_schema):
             print(f"📝 Guardando mensaje en schema: {connection.schema_name}")
-            return Mensaje.objects.create(
+            mensaje = Mensaje.objects.create(
                 chat_id=self.chat_id,
                 autor_id=user_id,
                 texto=texto,
                 oportunidad_id=oportunidad_id,
                 dispositivo_id=dispositivo_id,
             )
+            return mensaje
 
     @database_sync_to_async
-
     def get_cliente_id(self, chat_id):
-        return Chat.objects.only('cliente_id').get(id=chat_id).cliente_id
+        from .models import Chat
+        from django_tenants.utils import schema_context
+
+        with schema_context(self.tenant_schema):
+            try:
+                chat = Chat.objects.only('cliente_id').get(id=chat_id)
+                return chat.cliente_id
+            except Chat.DoesNotExist:
+                return None
+
+    @database_sync_to_async
+    def crear_notificacion(self, user_id, mensaje, tipo, url):
+        from notificaciones.models import Notificacion
+        from django_tenants.utils import schema_context
+
+        with schema_context(self.tenant_schema):
+            try:
+                notificacion = Notificacion.objects.create(
+                    usuario_id=user_id,
+                    schema=self.tenant_schema,
+                    mensaje=mensaje,
+                    tipo='chat',  # Agregar 'chat' a TIPO_CHOICES en el modelo
+                    url_relacionada=url,
+                    leida=False
+                )
+                print(f"✅ Notificación creada: ID={notificacion.id}, usuario={user_id}, schema={self.tenant_schema}")
+                return notificacion
+            except Exception as e:
+                print(f"❌ Error creando notificación: {e}")
+                return None
 
 
         

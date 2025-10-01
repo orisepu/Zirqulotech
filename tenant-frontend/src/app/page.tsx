@@ -1,20 +1,22 @@
-"use client";
+import type { Metadata } from 'next'
+import LoginPageClient from './LoginPageClient'
 
-import LoginForm from "@/features/auth/components/LoginForm";
-import { Box } from "@mui/material";
+export const metadata: Metadata = {
+  title: 'Zirqulo - Plataforma de Gestión de Trade-In',
+  description: 'Plataforma integral para la gestión de dispositivos móviles, valoraciones y operaciones de compraventa. Accede a tu cuenta de partner.',
+  keywords: ['trade-in', 'dispositivos móviles', 'valoración', 'compraventa', 'gestión', 'partners'],
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: 'Zirqulo - Plataforma de Gestión de Trade-In',
+    description: 'Plataforma integral para la gestión de dispositivos móviles y operaciones de compraventa.',
+    type: 'website',
+    locale: 'es_ES',
+  },
+}
 
 export default function LoginPage() {
-  return (
-    <Box
-      sx={{
-        minHeight: "100dvh",
-        display: "grid",
-        placeItems: "center",
-        px: 2,
-        bgcolor: "background.default", // ← usa el tema (dark/light)
-      }}
-    >
-      <LoginForm />
-    </Box>
-  );
+  return <LoginPageClient />
 }

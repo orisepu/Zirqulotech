@@ -6,6 +6,7 @@ class Notificacion(models.Model):
         ('estado_cambiado', 'Cambio de estado'),
         ('plazo_pago', 'Plazo de pago'),
         ('estado_prolongado', 'Estado prolongado'),
+        ('chat', 'Mensaje de chat'),
         ('otro', 'Otro'),
     ]
 

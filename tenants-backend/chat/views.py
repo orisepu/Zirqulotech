@@ -26,7 +26,8 @@ def obtener_o_crear_chat(request):
 
     # Si estamos en un tenant (no public), comportamiento normal
     if current_schema != "public":
-        chat = Chat.objects.filter(cliente_id=cliente_id).first()
+        # Buscar chat abierto (excluir cerrados)
+        chat = Chat.objects.filter(cliente_id=cliente_id, cerrado=False).first()
         if not chat:
             chat = Chat.objects.create(cliente_id=cliente_id)
         serializer = ChatSerializer(chat)
@@ -52,7 +53,8 @@ def obtener_o_crear_chat(request):
 
         # Crear/obtener chat en el tenant del usuario
         with schema_context(target_tenant_slug):
-            chat = Chat.objects.filter(cliente_id=cliente_id).first()
+            # Buscar chat abierto (excluir cerrados)
+            chat = Chat.objects.filter(cliente_id=cliente_id, cerrado=False).first()
             if not chat:
                 chat = Chat.objects.create(cliente_id=cliente_id)
                 print(f"✅ Chat creado en tenant {target_tenant_slug}: chat_id={chat.id}")

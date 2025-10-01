@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Box, Paper, Snackbar, TextField, Typography } from "@mui/material";
-import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import TablaReactiva from "@/shared/components/TablaReactiva2";
+import { getColumnasContactos } from "@/shared/components/TablaColumnas2";
 import api from "@/services/api";
 
 type ClienteTipo = "empresa" | "autonomo" | "particular";
@@ -41,92 +41,14 @@ type SnackbarState = {
   type: SnackbarKind;
 };
 
-const formatearTelefono = (valor?: string | null) => {
-  const numerico = (valor || "").replace(/\D/g, "");
-  if (!numerico) return "—";
-  if (numerico.length === 9) {
-    return `${numerico.slice(0, 3)} ${numerico.slice(3, 6)} ${numerico.slice(6)}`;
-  }
-  return valor || "—";
-};
-
-const nombreVisible = (cliente: ContactoCliente) => {
-  const nombreCompuesto = `${cliente.nombre || ""} ${cliente.apellidos || ""}`.trim();
-  return (
-    cliente.display_name ||
-    cliente.razon_social ||
-    (nombreCompuesto ? nombreCompuesto : "—")
-  );
-};
-
 export default function ContactosClientesPage() {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(10);
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: "", type: "error" });
-  const columnas = useMemo<ColumnDef<ContactoCliente>[]>(() => [
-    {
-      id: "cliente",
-      header: "Cliente",
-      accessorFn: (row) => nombreVisible(row),
-      meta: { minWidth: 220, ellipsis: true, ellipsisMaxWidth: 220,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "contacto_principal",
-      header: "Contacto principal",
-      accessorFn: (row) => (row.tipo_cliente === "empresa" ? (row.contacto || "—") : nombreVisible(row)),
-      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 220,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "posicion",
-      header: "Posición",
-      accessorFn: (row) => (row.tipo_cliente === "empresa" ? (row.posicion || "—") : "—"),
-      meta: { minWidth: 160, ellipsis: true, ellipsisMaxWidth: 180,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "telefono",
-      header: "Teléfono",
-      accessorFn: (row) => row.telefono,
-      cell: ({ getValue }) => formatearTelefono(getValue() as string | null | undefined),
-      meta: { minWidth: 130, ellipsis: true, ellipsisMaxWidth: 150, headerMaxWidth: 120,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "correo",
-      header: "Correo",
-      accessorFn: (row) => row.correo || "—",
-      meta: { minWidth: 220, ellipsis: true, ellipsisMaxWidth: 240,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "contacto_financiero",
-      header: "Contacto financiero",
-      accessorFn: (row) => row.contacto_financiero || "—",
-      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 220,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "telefono_financiero",
-      header: "Tel. financiero",
-      accessorFn: (row) => row.telefono_financiero,
-      cell: ({ getValue }) => formatearTelefono(getValue() as string | null | undefined),
-      meta: { minWidth: 170, ellipsis: true, ellipsisMaxWidth: 170, headerMaxWidth: 140,align: 'center',
-            alignHeader: 'center', } as any,
-    },
-    {
-      id: "correo_financiero",
-      header: "Correo financiero",
-      accessorFn: (row) => row.correo_financiero || "—",
-      meta: { minWidth: 200, ellipsis: true, ellipsisMaxWidth: 220,align: 'center',
-            alignHeader: 'center', } as any,
-    },
 
-    
-  ], []);
+  const { columnas } = getColumnasContactos<ContactoCliente>();
 
   const { data, isLoading, isError } = useQuery<ContactosResponse>({
     queryKey: ["clientes-contactos", { busqueda, pagina, porPagina }],
@@ -170,10 +92,10 @@ export default function ContactosClientesPage() {
 
       <Paper sx={{ overflowX: "auto" }}>
         <TablaReactiva
-          columnas={columnas}
-          oportunidades={data?.results || []}
+          columns={columnas}
+          data={data?.results || []}
           loading={isLoading}
-          serverPagination
+          paginationMode="server"
           totalCount={data?.count || 0}
           pageIndex={pagina - 1}
           pageSize={porPagina}

@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login as loginRequest } from "@/services/api";
+import { setSecureItem } from "@/shared/lib/secureStorage";
 import {
   Button,
   TextField,
@@ -52,7 +53,7 @@ export default function LoginForm() {
   const isValid = useMemo(() => {
     const okEmpresa = empresa.trim().length > 0;
     const okEmail = /\S+@\S+\.\S+/.test(email);
-    const okPass = password.length >= 4;
+    const okPass = password.length >= 4; // mínimo 8 caracteres
     return okEmpresa && okEmail && okPass;
   }, [empresa, email, password]);
 
@@ -69,11 +70,14 @@ export default function LoginForm() {
 
       const { access, refresh, user, schema, tenantAccess } = res.data;
 
-      localStorage.setItem("access", access);
-      localStorage.setItem("refresh", refresh);
-      localStorage.setItem("schema", schema);
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("tenantAccess", JSON.stringify(tenantAccess));
+      // ✅ Guardar tokens sensibles en secure storage (encriptado + memoria)
+      await setSecureItem("access", access);
+      await setSecureItem("refresh", refresh);
+      await setSecureItem("schema", schema);
+      await setSecureItem("user", JSON.stringify(user));
+      await setSecureItem("tenantAccess", JSON.stringify(tenantAccess));
+
+      // Empresa recordada puede quedarse en localStorage (no es sensible)
       if (rememberEmpresa) {
         localStorage.setItem("rememberedEmpresa", empresa.trim());
       } else {
@@ -206,7 +210,7 @@ export default function LoginForm() {
                 </InputAdornment>
               ),
             }}
-            helperText="Mínimo 6 caracteres"
+            helperText="Mínimo 8 caracteres"
           />
 
           <FormControlLabel

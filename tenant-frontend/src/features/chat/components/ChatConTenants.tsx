@@ -1,8 +1,15 @@
 'use client'
 import { useTheme } from '@mui/material/styles'
 import { useEffect, useRef, useState } from 'react'
-import api, { getAccessToken } from '@/services/api'
-import { getWebSocketUrl } from '@/shared/config/env'
+import api from '@/services/api'
+import { getSecureItem } from '@/shared/lib/secureStorage'
+
+// Exponential backoff helper (inspired by useWebSocketWithRetry)
+const calcularRetryDelay = (intentos: number, initialDelay = 1000, maxDelay = 30000): number => {
+  const delay = Math.min(initialDelay * Math.pow(2, intentos), maxDelay)
+  const jitter = delay * 0.25 * Math.random()
+  return delay + jitter
+}
 import {
   Box, Paper, Typography, Button, TextField, Tabs, Tab,
   Badge, IconButton, ListItemText, ListItemButton, Avatar,
@@ -74,9 +81,10 @@ export default function ChatConTenants() {
   const [input, setInput] = useState('')
   const [noLeidos, setNoLeidos] = useState<Record<number, number>>({})
   const [dialogCerrar, setDialogCerrar] = useState<number | null>(null)
-  const [estadosWs, setEstadosWs] = useState<Record<number, 'desconectado' | 'conectando' | 'conectado' | 'error'>>({})
+  const [estadosWs, setEstadosWs] = useState<Record<number, 'desconectado' | 'conectando' | 'conectado' | 'error' | 'reconectando'>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const wsConexiones = useRef<Record<number, WebSocket>>({})
+  const retryCounters = useRef<Record<number, number>>({}) // Track retry attempts per chat
   const queryClient = useQueryClient()
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
@@ -141,26 +149,24 @@ export default function ChatConTenants() {
     retry: false,
   });
   useEffect(() => {
-    const token = getAccessToken();
-<<<<<<< HEAD
-=======
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const chatIds = new Set(chats.map(c => c.id));
->>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
+    const conectarChats = async () => {
+      const token = await getSecureItem('access');
+      if (!token) return;
 
-    // Conectar WebSockets para chats nuevos
-    chats.forEach((chat: ChatInfo) => {
-      if (!wsConexiones.current[chat.id]) {
-<<<<<<< HEAD
-        const ws = new WebSocket(getWebSocketUrl(`/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`));
-=======
-        console.log(`🔌 Conectando WebSocket para chat ${chat.id} (${chat.schema})`);
-        setEstadosWs((prev) => ({ ...prev, [chat.id]: 'conectando' }));
-        const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`);
->>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const chatIds = new Set(chats.map(c => c.id));
+
+      // Conectar WebSockets para chats nuevos
+      chats.forEach((chat: ChatInfo) => {
+        if (!wsConexiones.current[chat.id]) {
+          console.log(`🔌 Conectando WebSocket para chat ${chat.id} (${chat.schema})`);
+          retryCounters.current[chat.id] = 0; // Initialize retry counter
+          setEstadosWs((prev) => ({ ...prev, [chat.id]: 'conectando' }));
+          const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`);
 
         ws.onopen = () => {
           console.log(`✅ WebSocket conectado para chat ${chat.id}`);
+          retryCounters.current[chat.id] = 0; // Reset on successful connection
           setEstadosWs((prev) => ({ ...prev, [chat.id]: 'conectado' }));
         };
 
@@ -200,15 +206,6 @@ export default function ChatConTenants() {
           const esDelOtroUsuario = mensaje.autor !== usuarioRef.current;
           const chatNoEstaActivo = chat.id !== chatActivoRef.current;
 
-          console.log(`📨 Mensaje recibido en chat ${chat.id}:`, {
-            autor: mensaje.autor,
-            usuarioActual: usuarioRef.current,
-            esDelOtroUsuario,
-            chatActivo: chatActivoRef.current,
-            chatNoEstaActivo,
-            debeNotificar: esDelOtroUsuario && chatNoEstaActivo
-          });
-
           if (esDelOtroUsuario && chatNoEstaActivo) {
             console.log(`🔔 Incrementando contador de no leídos para chat ${chat.id}`);
             lanzarNotificacion(`Nuevo mensaje de ${mensaje.autor}`, mensaje.texto);
@@ -220,7 +217,7 @@ export default function ChatConTenants() {
         };
 
         ws.onerror = () => {
-          console.error(`❌ Error en WebSocket del chat ${chat.id} (${chat.schema}) - Estado: ${ws.readyState}`);
+          console.error(`❌ Error en WebSocket del chat ${chat.id} (${chat.schema})`);
           setEstadosWs((prev) => ({ ...prev, [chat.id]: 'error' }));
         };
 
@@ -228,22 +225,39 @@ export default function ChatConTenants() {
           console.log(`🔌 WebSocket cerrado para chat ${chat.id}`);
           setEstadosWs((prev) => ({ ...prev, [chat.id]: 'desconectado' }));
           delete wsConexiones.current[chat.id];
+
+          // Auto-reconnect with exponential backoff
+          const currentRetries = retryCounters.current[chat.id] || 0;
+          const maxRetries = 5;
+
+          if (currentRetries < maxRetries) {
+            const delay = calcularRetryDelay(currentRetries);
+            console.log(`⏳ Reintentando conexión en ${Math.round(delay / 1000)}s para chat ${chat.id}...`);
+            retryCounters.current[chat.id] = currentRetries + 1;
+
+            setTimeout(() => {
+              reconectarChat(chat.id, false);
+            }, delay);
+          }
         };
         wsConexiones.current[chat.id] = ws;
       }
-    });
-
-    // Cleanup: SOLO cerrar WebSockets de chats que ya no están en la lista
-    return () => {
-      Object.entries(wsConexiones.current).forEach(([chatIdStr, ws]) => {
-        const chatId = parseInt(chatIdStr);
-        if (!chatIds.has(chatId)) {
-          console.log(`🗑️ Cerrando WebSocket de chat removido ${chatId}`);
-          ws.close();
-          delete wsConexiones.current[chatId];
-        }
       });
+
+      // Cleanup: SOLO cerrar WebSockets de chats que ya no están en la lista
+      return () => {
+        Object.entries(wsConexiones.current).forEach(([chatIdStr, ws]) => {
+          const chatId = parseInt(chatIdStr);
+          if (!chatIds.has(chatId)) {
+            console.log(`🗑️ Cerrando WebSocket de chat removido ${chatId}`);
+            ws.close();
+            delete wsConexiones.current[chatId];
+          }
+        });
+      };
     };
+
+    conectarChats();
   }, [chats]); // ✅ SOLO depender de 'chats', NO de 'chatActivo'
 
   useEffect(() => {
@@ -307,22 +321,60 @@ export default function ChatConTenants() {
     }
   }
 
-  const getIniciales = (nombre: string) => {
-    const partes = nombre.trim().split(' ')
-    if (partes.length >= 2) {
+  const getIniciales = (nombre: string | undefined | null) => {
+    if (!nombre) return '??'
+    const nombreTrim = nombre.trim()
+    if (!nombreTrim) return '??'
+    const partes = nombreTrim.split(' ')
+    if (partes.length >= 2 && partes[0] && partes[1]) {
       return (partes[0][0] + partes[1][0]).toUpperCase()
     }
-    return nombre.slice(0, 2).toUpperCase()
+    return nombreTrim.slice(0, 2).toUpperCase()
   }
 
-  const reconectarChat = (chatId: number) => {
-    const chat = chats.find(c => c.id === chatId)
+  const reconectarChat = async (chatId: number, manualRetry = true) => {
+    let chat = chats.find(c => c.id === chatId)
+
+    // Si no está en el array, intentar obtenerlo del backend
     if (!chat) {
-      console.error(`❌ No se encontró el chat ${chatId} para reconectar`)
+      console.warn(`⚠️ Chat ${chatId} no está en el array local, intentando obtener del backend...`)
+      try {
+        const res = await api.get(`/api/chat/${chatId}/`)
+        chat = {
+          id: res.data.id,
+          cliente_nombre: res.data.cliente_nombre || 'Usuario',
+          ultimo_mensaje: '',
+          schema: res.data.schema || 'public'
+        }
+        console.log(`✅ Chat ${chatId} obtenido del backend:`, chat)
+
+        // Agregarlo al estado
+        queryClient.setQueryData<ChatInfo[]>(['chats-abiertos'], (old = []) => {
+          if (old.some(c => c.id === chat!.id)) return old
+          return [...old, chat!]
+        })
+      } catch (error) {
+        console.error(`❌ No se encontró el chat ${chatId} en backend:`, error)
+        toast.error(`No se pudo encontrar el chat ${chatId}`)
+        return
+      }
+    }
+
+    const maxRetries = 5
+    const currentRetries = retryCounters.current[chatId] || 0
+
+    if (!manualRetry && currentRetries >= maxRetries) {
+      console.error(`❌ Se alcanzó el máximo de reintentos (${maxRetries}) para chat ${chatId}`)
+      setEstadosWs((prev) => ({ ...prev, [chatId]: 'error' }))
       return
     }
 
-    console.log(`🔄 Reconectando chat ${chatId} (${chat.schema})...`)
+    if (manualRetry) {
+      // Reset retry counter on manual reconnect
+      retryCounters.current[chatId] = 0
+    }
+
+    console.log(`🔄 Reconectando chat ${chatId} (${chat.schema})... Intento ${currentRetries + 1}/${maxRetries}`)
 
     // Cerrar WebSocket existente si lo hay
     if (wsConexiones.current[chatId]) {
@@ -331,15 +383,22 @@ export default function ChatConTenants() {
     }
 
     // Crear nueva conexión
-    const token = getAccessToken()
-    const proto = window.location.protocol === "https:" ? "wss" : "ws"
+    const token = await getSecureItem('access')
+    if (!token) {
+      console.error('❌ No se pudo obtener el token de acceso')
+      return
+    }
 
-    setEstadosWs((prev) => ({ ...prev, [chatId]: 'conectando' }))
+    const proto = window.location.protocol === "https:" ? "wss" : "ws"
+    const esReintento = currentRetries > 0
+
+    setEstadosWs((prev) => ({ ...prev, [chatId]: esReintento ? 'reconectando' : 'conectando' }))
 
     const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chatId}/?token=${token}&schema=${chat.schema}`)
 
     ws.onopen = () => {
       console.log(`✅ WebSocket reconectado para chat ${chatId}`)
+      retryCounters.current[chatId] = 0 // Reset counter on successful connection
       setEstadosWs((prev) => ({ ...prev, [chatId]: 'conectado' }))
     }
 
@@ -376,15 +435,6 @@ export default function ChatConTenants() {
       const esDelOtroUsuario = mensaje.autor !== usuarioRef.current
       const chatNoEstaActivo = chatId !== chatActivoRef.current
 
-      console.log(`📨 Mensaje recibido en chat ${chatId} (reconectado):`, {
-        autor: mensaje.autor,
-        usuarioActual: usuarioRef.current,
-        esDelOtroUsuario,
-        chatActivo: chatActivoRef.current,
-        chatNoEstaActivo,
-        debeNotificar: esDelOtroUsuario && chatNoEstaActivo
-      })
-
       if (esDelOtroUsuario && chatNoEstaActivo) {
         console.log(`🔔 Incrementando contador de no leídos para chat ${chatId}`)
         lanzarNotificacion(`Nuevo mensaje de ${mensaje.autor}`, mensaje.texto)
@@ -396,7 +446,7 @@ export default function ChatConTenants() {
     }
 
     ws.onerror = () => {
-      console.error(`❌ Error en WebSocket del chat ${chatId} (${chat.schema}) - Estado: ${ws.readyState}`)
+      console.error(`❌ Error en WebSocket del chat ${chatId} (${chat.schema})`)
       setEstadosWs((prev) => ({ ...prev, [chatId]: 'error' }))
     }
 
@@ -404,6 +454,17 @@ export default function ChatConTenants() {
       console.log(`🔌 WebSocket cerrado para chat ${chatId}`)
       setEstadosWs((prev) => ({ ...prev, [chatId]: 'desconectado' }))
       delete wsConexiones.current[chatId]
+
+      // Auto-reconnect with exponential backoff (unless manually closed or max retries reached)
+      if (!manualRetry && currentRetries < maxRetries) {
+        const delay = calcularRetryDelay(currentRetries)
+        console.log(`⏳ Reintentando reconexión automática en ${Math.round(delay / 1000)}s...`)
+        retryCounters.current[chatId] = currentRetries + 1
+
+        setTimeout(() => {
+          reconectarChat(chatId, false)
+        }, delay)
+      }
     }
 
     wsConexiones.current[chatId] = ws
@@ -414,16 +475,31 @@ export default function ChatConTenants() {
       const res = await api.post('/api/chat/soporte/', { cliente_id: user.id })
       console.log('✅ Chat creado/obtenido:', res.data)
 
-      // Refrescar lista de chats para incluir el nuevo chat
-      await queryClient.invalidateQueries({ queryKey: ['chats-abiertos'] })
+      const nuevoChat: ChatInfo = {
+        id: res.data.id,
+        cliente_nombre: user.name,
+        ultimo_mensaje: '',
+        schema: res.data.schema || 'public'
+      }
 
-      // Cambiar al tab de chats y seleccionar el chat
+      // Agregar chat al estado inmediatamente (optimistic update)
+      queryClient.setQueryData<ChatInfo[]>(['chats-abiertos'], (old = []) => {
+        // Evitar duplicados
+        if (old.some(c => c.id === nuevoChat.id)) {
+          return old
+        }
+        return [...old, nuevoChat]
+      })
+
+      // Refrescar lista de chats en segundo plano
+      queryClient.invalidateQueries({ queryKey: ['chats-abiertos'] })
+
+      // Cambiar al tab de chats
       setTab('chats')
 
-      // Esperar un momento para que se actualice la lista antes de seleccionar
-      setTimeout(() => {
-        setChatActivo(res.data.id)
-      }, 500)
+      // Activar el chat inmediatamente (el useEffect lo conectará)
+      setChatActivo(res.data.id)
+
     } catch (error: any) {
       console.error('❌ Error creando chat:', error)
       const errorMsg = error?.response?.data?.error || 'Error al crear el chat'
@@ -648,11 +724,13 @@ export default function ChatConTenants() {
                       label={
                         estadosWs[chatActivo] === 'conectado' ? 'Conectado' :
                         estadosWs[chatActivo] === 'conectando' ? 'Conectando...' :
+                        estadosWs[chatActivo] === 'reconectando' ? 'Reconectando...' :
                         estadosWs[chatActivo] === 'error' ? 'Error' : 'Desconectado'
                       }
                       color={
                         estadosWs[chatActivo] === 'conectado' ? 'success' :
                         estadosWs[chatActivo] === 'conectando' ? 'info' :
+                        estadosWs[chatActivo] === 'reconectando' ? 'warning' :
                         estadosWs[chatActivo] === 'error' ? 'error' : 'default'
                       }
                       sx={{ height: 20, fontSize: '0.7rem' }}

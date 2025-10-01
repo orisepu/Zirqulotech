@@ -9,6 +9,13 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
+# Rutas que no requieren tenant resolution en el middleware
+PUBLIC_ROUTES = [
+    "/api/login/",
+    "/api/token/",
+    "/api/token/refresh/",
+]
+
 class HeaderTenantMiddleware(TenantMainMiddleware):
     """
     Middleware que permite seleccionar el tenant mediante cabecera `X-Tenant`
@@ -17,6 +24,15 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
 
     def process_request(self, request):
         self.request = request
+
+        # Bypass para rutas públicas - establecer schema público directamente
+        if any(request.path.startswith(route) for route in PUBLIC_ROUTES):
+            logger.info("🌐 Ruta pública detectada: %s → usando esquema público", request.path)
+            connection.set_schema_to_public()
+            # No necesitamos establecer request.tenant para rutas públicas
+            # El view las manejará internamente
+            return None
+
         response = super().process_request(request)
 
         user = getattr(request, "user", None)

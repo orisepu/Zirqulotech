@@ -1,0 +1,215 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+interface UseWebSocketWithRetryOptions {
+  url: string;
+  enabled?: boolean;
+  maxRetries?: number;
+  initialRetryDelay?: number;
+  maxRetryDelay?: number;
+  onMessage?: (data: any) => void;
+  onOpen?: () => void;
+  onError?: (error: Event) => void;
+  onClose?: () => void;
+}
+
+type ConnectionState = 'desconectado' | 'conectando' | 'conectado' | 'error' | 'reconectando';
+
+export function useWebSocketWithRetry({
+  url,
+  enabled = true,
+  maxRetries = 5,
+  initialRetryDelay = 1000,
+  maxRetryDelay = 30000,
+  onMessage,
+  onOpen,
+  onError,
+  onClose,
+}: UseWebSocketWithRetryOptions) {
+  const [estado, setEstado] = useState<ConnectionState>('desconectado');
+  const socketRef = useRef<WebSocket | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnectRef = useRef(true);
+  const isConnectedSuccessfullyRef = useRef(false);
+
+  const calcularRetryDelay = useCallback((intentos: number): number => {
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+    const delay = Math.min(initialRetryDelay * Math.pow(2, intentos), maxRetryDelay);
+    // Añadir jitter aleatorio del 0-25% para evitar thundering herd
+    const jitter = delay * 0.25 * Math.random();
+    return delay + jitter;
+  }, [initialRetryDelay, maxRetryDelay]);
+
+  const limpiarRetryTimeout = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }, []);
+
+  const conectar = useCallback(() => {
+    // Validaciones previas antes de intentar conectar
+    if (!enabled) {
+      return;
+    }
+
+    if (!url || url.trim() === '') {
+      console.warn('⚠️ useWebSocketWithRetry: URL vacía, no se puede conectar');
+      return;
+    }
+
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    limpiarRetryTimeout();
+
+    const esReintento = retryCountRef.current > 0;
+    setEstado(esReintento ? 'reconectando' : 'conectando');
+
+    try {
+      console.log('🔌 Conectando WebSocket:', { url: url.substring(0, 50) + '...', intento: retryCountRef.current + 1 });
+      const ws = new WebSocket(url);
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('✅ WebSocket conectado exitosamente');
+        setEstado('conectado');
+        retryCountRef.current = 0; // Reset retry count on successful connection
+        isConnectedSuccessfullyRef.current = true; // Marcar como conectado exitosamente
+        onOpen?.();
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          onMessage?.(data);
+        } catch (error) {
+          console.error('❌ Error parseando mensaje WebSocket:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        // WebSocket errors don't have much useful info, log the URL instead
+        console.error('❌ Error en WebSocket:', {
+          url: url.substring(0, 50) + '...',
+          readyState: ws.readyState,
+          error: error.type || 'unknown'
+        });
+        setEstado('error');
+        onError?.(error);
+      };
+
+      ws.onclose = (event) => {
+        // Código 4401 = Token expirado (Django custom code)
+        // Código 1006 = Abnormal Closure (puede ser token expirado convertido por navegador)
+        const isTokenExpired = event.code === 4401 || (event.code === 1006 && event.reason === 'Token expired');
+        const isAbnormalClosure = event.code === 1006;
+        const logLevel = isAbnormalClosure ? 'warn' : 'log';
+
+        console[logLevel]('🔌 WebSocket cerrado:', {
+          code: event.code,
+          reason: event.reason || 'No reason provided',
+          wasClean: event.wasClean,
+          retryCount: retryCountRef.current,
+          maxRetries: maxRetries,
+          isTokenExpired,
+          ...(isAbnormalClosure && !isTokenExpired && {
+            hint: 'Código 1006: Servidor WebSocket no disponible o rechazó conexión. Verifica backend/Django Channels.'
+          })
+        });
+
+        setEstado('desconectado');
+
+        // Si el token expiró, llamar onClose inmediatamente para refrescar token
+        if (isTokenExpired) {
+          console.warn('🔐 Token WebSocket expirado, solicitando refresco...');
+          onClose?.(); // Esto disparará tokenRefreshTrigger en componente
+          return; // No hacer retry aquí, el cambio de URL lo hará
+        }
+
+        // Intentar reconexión si está habilitado y no hemos excedido max retries
+        if (shouldReconnectRef.current && retryCountRef.current < maxRetries) {
+          const delay = calcularRetryDelay(retryCountRef.current);
+
+          if (isAbnormalClosure && retryCountRef.current === 0) {
+            console.warn(`⚠️ Primera conexión falló con código 1006. Reintentando en ${Math.round(delay / 1000)}s...`);
+          } else {
+            console.log(`🔄 Reintentando conexión WebSocket en ${Math.round(delay / 1000)}s (intento ${retryCountRef.current + 1}/${maxRetries})`);
+          }
+
+          retryTimeoutRef.current = setTimeout(() => {
+            retryCountRef.current++;
+            conectar();
+          }, delay);
+        } else if (retryCountRef.current >= maxRetries) {
+          console.error('❌ Se alcanzó el máximo de reintentos WebSocket. El servidor no está disponible.');
+          setEstado('error');
+          // Solo llamar onClose cuando realmente abandonamos después de todos los reintentos
+          onClose?.();
+        } else {
+          // Cierre limpio sin reintentos (shouldReconnectRef.current === false)
+          onClose?.();
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error creando WebSocket:', { error, url: url.substring(0, 50) + '...' });
+      setEstado('error');
+    }
+  }, [url, enabled, maxRetries, calcularRetryDelay, limpiarRetryTimeout, onMessage, onOpen, onError, onClose]);
+
+  const desconectar = useCallback(() => {
+    shouldReconnectRef.current = false;
+    limpiarRetryTimeout();
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+    setEstado('desconectado');
+  }, [limpiarRetryTimeout]);
+
+  const enviar = useCallback((data: any) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(data));
+      return true;
+    }
+    console.warn('⚠️ WebSocket no está conectado, no se puede enviar mensaje');
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (enabled) {
+      shouldReconnectRef.current = true;
+
+      // Si ya hay una conexión abierta y exitosa, no hacer nada
+      if (socketRef.current?.readyState === WebSocket.OPEN && isConnectedSuccessfullyRef.current) {
+        console.log('⚠️ WebSocket ya está conectado exitosamente, ignorando cambio de URL para evitar loop');
+        return () => {}; // No ejecutar cleanup
+      }
+
+      // Reset retry counter cuando URL cambia (nuevo token)
+      retryCountRef.current = 0;
+      limpiarRetryTimeout();
+      isConnectedSuccessfullyRef.current = false;
+      conectar();
+    }
+
+    return () => {
+      // Solo desconectar si no está conectado exitosamente
+      if (!isConnectedSuccessfullyRef.current) {
+        console.log('🧹 Cleanup: desconectando WebSocket (no estaba conectado exitosamente)');
+        desconectar();
+      } else {
+        console.log('🧹 Cleanup: manteniendo WebSocket conectado');
+      }
+    };
+  }, [url, enabled, conectar, desconectar, limpiarRetryTimeout]);
+
+  return {
+    estado,
+    enviar,
+    reconectar: conectar,
+    desconectar,
+    socket: socketRef.current,
+  };
+}

@@ -15,13 +15,14 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import ChatIcon from "@mui/icons-material/Chat";
 import LinkIcon from "@mui/icons-material/Link";
-import api, { getAccessToken } from "@/services/api";
-import { getWebSocketUrl } from "@/shared/config/env";
+import api from "@/services/api";
+import { getSecureItem } from "@/shared/lib/secureStorage";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUsuario } from "@/context/UsuarioContext";
 import { toast } from 'react-toastify';
 import type { ReactNode } from 'react';
+import { useWebSocketWithRetry } from "@/hooks/useWebSocketWithRetry";
 interface Mensaje {
   autor: string;
   texto: string;
@@ -31,14 +32,18 @@ interface Mensaje {
 
 export default function ChatConSoporteContextual() {
   const usuario = useUsuario();
+  const queryClient = useQueryClient();
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [input, setInput] = useState("");
-  const [estadoWs, setEstadoWs] = useState<'desconectado' | 'conectando' | 'conectado' | 'error'>('desconectado');
+  const [noLeidos, setNoLeidos] = useState(0);
   type OportunidadMin = { cliente?: { razon_social?: string } } | null;
   const [oportunidad, setOportunidad] = useState<OportunidadMin>(null);
+  const [wsUrl, setWsUrl] = useState<string>('');
+  const [wsEnabled, setWsEnabled] = useState(true);
+  const tokenRefreshAttemptsRef = useRef(0);
+  const MAX_TOKEN_REFRESH_ATTEMPTS = 3;
 
-  const socketRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -95,35 +100,62 @@ export default function ChatConSoporteContextual() {
     }
   }, [oportunidadData]);
 
-  // Configurar websocket cuando haya chatId y usuario
+  // Construct WebSocket URL when chatId is available
+  const [tokenRefreshTrigger, setTokenRefreshTrigger] = useState(0);
+
   useEffect(() => {
-    if (!chatId || !usuario) return;
+    const buildWsUrl = async () => {
+      // IMPORTANTE: No construir URL si ya alcanzamos el límite
+      if (tokenRefreshAttemptsRef.current >= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.warn('⚠️ No se construye URL: límite de intentos alcanzado');
+        setWsUrl('');
+        setWsEnabled(false);
+        return;
+      }
 
-    const token = getAccessToken();
-    const tenant =
-      (typeof window !== "undefined" && (localStorage.getItem("schema") || localStorage.getItem("currentTenant"))) || "";
-    const url = getWebSocketUrl(`/ws/chat/${encodeURIComponent(
-      String(chatId)
-    )}/?token=${encodeURIComponent(token || "")}&tenant=${encodeURIComponent(tenant)}`);
-    const ws = new WebSocket(url);
-    setEstadoWs('conectando');
+      if (!chatId || !usuario) {
+        setWsUrl('');
+        return;
+      }
 
-    ws.onopen = () => {
-      setEstadoWs('conectado');
-      socketRef.current = ws;
+      const token = await getSecureItem('access');
+      if (!token) {
+        console.warn('⚠️ No se pudo obtener token para WebSocket');
+        return;
+      }
+
+      const schema = await getSecureItem("schema");
+      const currentTenant = await getSecureItem("currentTenant");
+      const tenant = schema || currentTenant || "";
+
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${window.location.host}/ws/chat/${encodeURIComponent(
+        String(chatId)
+      )}/?token=${encodeURIComponent(token)}&tenant=${encodeURIComponent(tenant)}`;
+
+      console.log('🔄 Construyendo URL de WebSocket con token actualizado');
+      setWsUrl(url);
     };
 
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+    buildWsUrl();
+  }, [chatId, usuario, tokenRefreshTrigger]);
 
+  // Use WebSocket hook with retry
+  const { estado: estadoWs, enviar: enviarWs } = useWebSocketWithRetry({
+    url: wsUrl,
+    enabled: !!wsUrl && wsEnabled,
+    maxRetries: 5,
+    initialRetryDelay: 1000,
+    maxRetryDelay: 30000,
+    onMessage: (data) => {
       // Manejar cierre de chat
       if (data.type === 'chat_closed') {
         console.log('🔒 Chat cerrado por soporte:', data.mensaje);
-        setEstadoWs('desconectado');
-        ws.close();
         setAbierto(false);
-        // Mostrar notificación
-        toast.info(data.mensaje || 'El chat ha sido cerrado por el equipo de soporte');
+        toast.info('El chat fue cerrado por soporte. Se creará uno nuevo cuando vuelvas a escribir.');
+
+        // Invalidar query para forzar creación de nuevo chat
+        queryClient.invalidateQueries({ queryKey: ['chat-soporte', usuario?.id] });
         return;
       }
 
@@ -132,7 +164,7 @@ export default function ChatConSoporteContextual() {
       const ahora = Date.now();
 
       setMensajes((prev) => {
-        // Verificar duplicados solo en los últimos 10 mensajes (ventana de tiempo)
+        // Verificar duplicados solo en los últimos 10 mensajes
         const recientes = prev.slice(-10);
         const yaExiste = recientes.some(
           (m) =>
@@ -145,30 +177,44 @@ export default function ChatConSoporteContextual() {
           return prev; // Ignorar duplicado
         }
 
-        // Añadir mensaje con timestamp local para futuras comparaciones
+        // Añadir mensaje con timestamp local
         return [...prev, { ...mensaje, _timestamp: ahora }];
       });
 
       if (!abierto && mensaje.autor !== usuario?.name) {
         setNoLeidos((prev) => prev + 1);
       }
-    };
+    },
+    onOpen: () => {
+      console.log('✅ Chat WebSocket conectado');
+      // Reset contador y reactivar en conexión exitosa
+      tokenRefreshAttemptsRef.current = 0;
+      setWsEnabled(true);
+    },
+    onClose: () => {
+      console.warn('🔌 Chat WebSocket cerrado');
 
-    ws.onerror = (error) => {
+      // Incrementar ANTES de verificar
+      const nuevoIntento = tokenRefreshAttemptsRef.current + 1;
+      console.log(`📊 Contador actual: ${tokenRefreshAttemptsRef.current}, nuevo: ${nuevoIntento}, máximo: ${MAX_TOKEN_REFRESH_ATTEMPTS}`);
+
+      // Verificar límite ANTES de hacer cambios
+      if (nuevoIntento <= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.log(`🔄 Solicitando URL con token actualizado (intento ${nuevoIntento}/${MAX_TOKEN_REFRESH_ATTEMPTS})...`);
+        tokenRefreshAttemptsRef.current = nuevoIntento;
+        setTokenRefreshTrigger(prev => prev + 1);
+      } else {
+        console.error(`❌ LÍMITE ALCANZADO: ${nuevoIntento} > ${MAX_TOKEN_REFRESH_ATTEMPTS}. WebSocket DESHABILITADO permanentemente.`);
+        tokenRefreshAttemptsRef.current = nuevoIntento;
+        setWsEnabled(false); // Deshabilitar completamente
+        setWsUrl(''); // Limpiar URL para asegurar que no se reconecte
+      }
+    },
+    onError: (error) => {
       console.error('❌ Error en WebSocket del chat:', error);
-      setEstadoWs('error');
-    };
-
-    ws.onclose = () => {
-      setEstadoWs('desconectado');
-      socketRef.current = null;
-    };
-
-    return () => {
-      ws.close();
-      setEstadoWs('desconectado');
-    };
-  }, [chatId, usuario]);
+      // No incrementar token refresh en error, solo en close después de reintentos
+    },
+  });
 
   // Scroll automático al final al cambiar mensajes
   useEffect(() => {
@@ -176,8 +222,6 @@ export default function ChatConSoporteContextual() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [mensajes]);
-
-  const [noLeidos, setNoLeidos] = useState(0);
 
   // Reset contador no leídos cuando se abre el chat
   useEffect(() => {
@@ -205,17 +249,13 @@ export default function ChatConSoporteContextual() {
 
   // Función para enviar mensaje via websocket
   const enviar = () => {
-    if (!input.trim() || !socketRef.current) return;
-    if (socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(
-        JSON.stringify({
-          texto: input,
-          oportunidad_id: oportunidadRef,
-        })
-      );
+    if (!input.trim()) return;
+    const success = enviarWs({
+      texto: input,
+      oportunidad_id: oportunidadRef,
+    });
+    if (success) {
       setInput("");
-    } else {
-      console.warn("⛔ WebSocket aún no está listo para enviar");
     }
   };
 

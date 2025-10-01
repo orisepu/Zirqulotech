@@ -31,7 +31,7 @@ export function EllipsisTooltip({
       ref={ref}
       component="span"
       noWrap
-      sx={{ maxWidth, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}
+      sx={{ maxWidth, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', verticalAlign: 'middle' }}
       {...typographyProps}
     >
       {text}

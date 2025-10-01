@@ -162,7 +162,15 @@ export default function TabsOportunidad({
   return (
     <>
       <ColoredPaper colorKey={colorKey} elevation={3} sx={{ p: 3, mb: 3, height: '100%', width: '100%' }}>
-      <Tabs value={tab} onChange={handleChange} sx={{ mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+        <Typography variant="h6">Dispositivos asociados</Typography>
+        {puedeEditar && (
+          <Button variant="contained" onClick={() => onEditarItem(null)}>
+            Añadir dispositivo
+          </Button>
+        )}
+      </Box>
+      <Tabs value={tab} onChange={handleChange} sx={{ mb: 2, '& .MuiTab-root': { fontSize: '1rem' } }}>
         <Tab label="Resumen" value={resumenIdx} />
         {recogidaIdx !== -1 && <Tab label="Datos de recogida" value={recogidaIdx} />}
         {realesIdx   !== -1 && <Tab label="Dispositivos recibidos" value={realesIdx} />}
@@ -172,7 +180,6 @@ export default function TabsOportunidad({
         {tab === resumenIdx && (
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6">Dispositivos asociados</Typography>
               {Boolean(oportunidad.dispositivos?.length) && !bloquearVistaCompacta && (
                 <FormControlLabel
                   control={<Switch size="small" checked={vistaCompacta} onChange={(e) => setVistaCompacta(e.target.checked)} />}
@@ -320,11 +327,7 @@ export default function TabsOportunidad({
               </Box>
             )}
 
-            {puedeEditar && (
-              <Button sx={{ mt: 2, alignSelf: 'flex-start' }} variant="contained" onClick={() => onEditarItem(null)}>
-                Añadir dispositivo
-              </Button>
-            )}
+            
           </Box>
         )}
 

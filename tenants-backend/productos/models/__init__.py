@@ -14,6 +14,7 @@ from .autoaprendizaje import (
     LearningSession,
     FeaturePattern
 )
+from .grading_config import GradingConfig
 
 __all__ = [
    "CanalChoices",
@@ -36,5 +37,6 @@ __all__ = [
    "LikewizeKnowledgeBase",
    "MappingCorrection",
    "LearningSession",
-   "FeaturePattern"
+   "FeaturePattern",
+   "GradingConfig"
 ]

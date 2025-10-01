@@ -14,6 +14,10 @@ class Params:
     pr_pantalla: int
     pr_chasis: int
     v_suelo_regla: Dict
+    # Configuración específica del tipo de dispositivo
+    has_battery: bool = True  # ¿Tiene batería?
+    has_display: bool = True  # ¿Tiene pantalla integrada?
+    tipo_dispositivo: str = 'iPhone'  # Para logging/debugging
 
 def v_suelo_desde_max(V_Aplus: int):
     bands = [
@@ -36,16 +40,27 @@ def topes(V_Aplus:int, ppA:float, ppB:float, ppC:float):
     return A,B,C
 
 def calcular(params: Params, i: dict):
-    # Gates
+    # Gates (configurables según tipo de dispositivo)
     gate = 'OK'
-    if i.get('enciende') is False or i.get('carga') is False:
+
+    # Gate básico: enciende y carga (solo si tiene batería para dispositivos portátiles)
+    if i.get('enciende') is False:
         gate = 'DEFECTUOSO'
-    if i['display_image_status'] != 'OK':
+    if params.has_battery and i.get('carga') is False:
         gate = 'DEFECTUOSO'
-    if i['glass_status'] in ['DEEP','CHIP','CRACK']:
+
+    # Gates de pantalla (solo si tiene pantalla integrada)
+    if params.has_display:
+        if i.get('display_image_status') and i['display_image_status'] != 'OK':
+            gate = 'DEFECTUOSO'
+        if i.get('glass_status') and i['glass_status'] in ['DEEP','CHIP','CRACK']:
+            gate = 'DEFECTUOSO'
+
+    # Gate de housing/chasis (todos los dispositivos)
+    if i.get('housing_status') == 'DOBLADO':
         gate = 'DEFECTUOSO'
-    if i['housing_status'] == 'DOBLADO':
-        gate = 'DEFECTUOSO'
+
+    # Gate funcional básico (todos los dispositivos)
     if i.get('funcional_basico_ok') is False:
         gate = 'DEFECTUOSO'
 
@@ -81,17 +96,25 @@ def calcular(params: Params, i: dict):
         def tope_for(grado_dim: str) -> int:
             return params.V_Aplus if grado_dim=='A+' else (A if grado_dim=='A' else (B if grado_dim=='B' else C))
 
-        pantalla_ok = (i['display_image_status']=='OK' and i['glass_status'] in ['NONE','MICRO','VISIBLE'])
-        chasis_doblado = (i['housing_status']=='DOBLADO' or i.get('backglass_status')=='AGRIETADO')
+        # Evaluar pantalla solo si el dispositivo tiene pantalla integrada
+        if params.has_display:
+            pantalla_ok = (i.get('display_image_status')=='OK' and i.get('glass_status') in ['NONE','MICRO','VISIBLE'])
+            gp = grado_pantalla(i.get('glass_status', 'NONE'))
+            tp = tope_for(gp)
+            d_pant = not pantalla_ok
+        else:
+            # Sin pantalla: siempre OK para esta dimensión
+            pantalla_ok = True
+            gp = 'A+'
+            tp = params.V_Aplus
+            d_pant = False
+
+        chasis_doblado = (i.get('housing_status')=='DOBLADO' or i.get('backglass_status')=='AGRIETADO')
         chasis_ok = not chasis_doblado
         fallo_func = (i.get('funcional_basico_ok') is False)
 
-        gp = grado_pantalla(i['glass_status'])
-        gh = grado_chasis(i['housing_status'])
-        tp = tope_for(gp)
+        gh = grado_chasis(i.get('housing_status', 'SIN_SIGNOS'))
         th = tope_for(gh)
-
-        d_pant = not pantalla_ok
         d_chas = not chasis_ok
 
         # ===== Reglas D (documento) =====
@@ -117,10 +140,23 @@ def calcular(params: Params, i: dict):
         g = 'D'
 
     # Deducciones (usamos tus costes DB ya calculados en la view)
-    pr_bat  = params.pr_bateria if (i.get('battery_health_pct') is not None and i['battery_health_pct']<85) else 0
-    pr_pant = params.pr_pantalla if (i['display_image_status']!='OK' or i['glass_status'] in ['DEEP','CHIP','CRACK']) else 0
-    pr_chas = params.pr_chasis   if (i['housing_status'] in ['DESGASTE_VISIBLE','DOBLADO']or
-    i.get('backglass_status') in ('AGRIETADO', 'ROTO')) else 0
+    # Batería: solo si el dispositivo tiene batería
+    pr_bat = 0
+    if params.has_battery and i.get('battery_health_pct') is not None and i['battery_health_pct'] < 85:
+        pr_bat = params.pr_bateria
+
+    # Pantalla: solo si el dispositivo tiene pantalla integrada
+    pr_pant = 0
+    if params.has_display:
+        if (i.get('display_image_status') and i['display_image_status'] != 'OK') or \
+           (i.get('glass_status') and i['glass_status'] in ['DEEP','CHIP','CRACK']):
+            pr_pant = params.pr_pantalla
+
+    # Chasis: todos los dispositivos
+    pr_chas = 0
+    if (i.get('housing_status') in ['DESGASTE_VISIBLE','DOBLADO']) or \
+       i.get('backglass_status') in ('AGRIETADO', 'ROTO'):
+        pr_chas = params.pr_chasis
 
     V1 = V_tope - (pr_bat+pr_pant+pr_chas)
     if not isfinite(V1): V1 = 0

@@ -3,8 +3,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import api, { getAccessToken } from '@/services/api'
-import { getWebSocketUrl } from '@/shared/config/env'
+import api from '@/services/api'
+import { getSecureItem } from '@/shared/lib/secureStorage'
 import {
   Box, IconButton, Badge, Paper, Typography, TextField, Button, useTheme, Chip
 } from '@mui/material'
@@ -13,9 +13,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import Link from 'next/link'
 import LinkIcon from '@mui/icons-material/Link'
 import Tooltip from '@mui/material/Tooltip'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 import type { ReactNode } from 'react';
+import { useWebSocketWithRetry } from '@/hooks/useWebSocketWithRetry';
 
 type Mensaje = {
   autor: string
@@ -47,12 +48,16 @@ function playBeep(frequency = 440, duration = 150) {
 
 export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAdaptadoProps) {
   const theme = useTheme()
+  const queryClient = useQueryClient()
   const [abierto, setAbierto] = useState(false)
   const [mensajes, setMensajes] = useState<Mensaje[]>([])
   const [input, setInput] = useState('')
   const [noLeidos, setNoLeidos] = useState(0)
-  const [estadoWs, setEstadoWs] = useState<'desconectado' | 'conectando' | 'conectado' | 'error'>('desconectado')
-  const socketRef = useRef<WebSocket | null>(null)
+  const [wsUrl, setWsUrl] = useState<string>('')
+  const [wsEnabled, setWsEnabled] = useState(true)
+  const [tokenRefreshTrigger, setTokenRefreshTrigger] = useState(0)
+  const tokenRefreshAttemptsRef = useRef(0)
+  const MAX_TOKEN_REFRESH_ATTEMPTS = 3
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Query para obtener usuario actual
@@ -66,18 +71,11 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
   })
 
   // Query para obtener o crear chat
-  const { data: chatId } = useQuery({
+  const { data: chatId, refetch: refetchChat } = useQuery({
     queryKey: ['chat-soporte', usuario?.id],
     queryFn: async () => {
-      const guardado = localStorage.getItem('chat_id')
-      if (guardado) {
-        return parseInt(guardado)
-      }
       const res = await api.post('/api/chat/soporte/', { cliente_id: usuario?.id })
       const id = res.data?.id
-      if (id) {
-        localStorage.setItem('chat_id', id.toString())
-      }
       return id
     },
     enabled: !!usuario,
@@ -103,21 +101,22 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
   
 
 
+  // Load chat history and construct WebSocket URL
   useEffect(() => {
-    if (!chatId || !usuario) return
-
-    const conectar = async () => {
-      setEstadoWs('conectando')
-      const token = getAccessToken()
-      if (!token) {
-        setEstadoWs('error')
+    const setupChat = async () => {
+      // IMPORTANTE: No construir URL si ya alcanzamos el límite
+      if (tokenRefreshAttemptsRef.current >= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.warn('⚠️ No se construye URL: límite de intentos alcanzado')
+        setWsUrl('')
+        setWsEnabled(false)
         return
       }
 
-<<<<<<< HEAD
-      const wsUrl = getWebSocketUrl(`/ws/chat/${chatId}/?token=${token}`)
-      const socket = new WebSocket(wsUrl)
-=======
+      if (!chatId || !usuario) {
+        setWsUrl('')
+        return
+      }
+
       // 1. Cargar historial PRIMERO
       try {
         const res = await api.get(`/api/chat/${chatId}/mensajes/`)
@@ -126,59 +125,79 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
         console.error('Error cargando historial:', error)
       }
 
-      // 2. LUEGO conectar WebSocket
-      const tenant = localStorage.getItem("schema") || localStorage.getItem("currentTenant") || ""
+      // 2. Construir WebSocket URL con token fresco
+      const token = await getSecureItem('access')
+      if (!token) {
+        console.warn('⚠️ No se pudo obtener token para WebSocket')
+        return
+      }
+
+      const schema = await getSecureItem("schema")
+      const currentTenant = await getSecureItem("currentTenant")
+      const tenant = schema || currentTenant || ""
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const socket = new WebSocket(
-        `${proto}://${window.location.host}/ws/chat/${chatId}/?token=${token}&tenant=${encodeURIComponent(tenant)}`
-      )
->>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
-      socketRef.current = socket
+      const url = `${proto}://${window.location.host}/ws/chat/${chatId}/?token=${token}&tenant=${encodeURIComponent(tenant)}`
 
-      socket.onopen = () => {
-        setEstadoWs('conectado')
-      }
-
-      socket.onmessage = (e) => {
-        const data = JSON.parse(e.data)
-
-        // Manejar cierre de chat
-        if (data.type === 'chat_closed') {
-          console.log('🔒 Chat cerrado por soporte:', data.mensaje)
-          setEstadoWs('desconectado')
-          socket.close()
-          setAbierto(false)
-          // Mostrar notificación
-          toast.info(data.mensaje || 'El chat ha sido cerrado por el equipo de soporte')
-          return
-        }
-
-        // Mensaje normal
-        const mensaje: Mensaje = data
-        setMensajes(prev => [...prev, mensaje])
-        if (mensaje.autor !== usuario?.name && !abierto) {
-          playBeep()
-          setNoLeidos(n => n + 1)
-        }
-      }
-
-      socket.onerror = (error) => {
-        console.error('❌ Error en WebSocket del chat:', error)
-        setEstadoWs('error')
-      }
-
-      socket.onclose = () => {
-        console.warn('🔌 WebSocket cerrado')
-        setEstadoWs('desconectado')
-      }
+      console.log('🔄 Construyendo URL de WebSocket con token actualizado')
+      setWsUrl(url)
     }
 
-    conectar()
-    return () => {
-      socketRef.current?.close()
-      setEstadoWs('desconectado')
-    }
-  }, [chatId, usuario])
+    setupChat()
+  }, [chatId, usuario, tokenRefreshTrigger])
+
+  // Use WebSocket hook with retry
+  const { estado: estadoWs, enviar: enviarWs } = useWebSocketWithRetry({
+    url: wsUrl,
+    enabled: !!wsUrl && wsEnabled,
+    maxRetries: 5,
+    initialRetryDelay: 1000,
+    maxRetryDelay: 30000,
+    onMessage: (data) => {
+      // Manejar cierre de chat
+      if (data.type === 'chat_closed') {
+        console.log('🔒 Chat cerrado por soporte:', data.mensaje)
+        setAbierto(false)
+        toast.info('El chat fue cerrado por soporte. Se creará uno nuevo cuando vuelvas a escribir.')
+
+        // Invalidar query para forzar creación de nuevo chat
+        queryClient.invalidateQueries({ queryKey: ['chat-soporte', usuario?.id] })
+        return
+      }
+
+      // Mensaje normal
+      const mensaje: Mensaje = data
+      setMensajes(prev => [...prev, mensaje])
+      if (mensaje.autor !== usuario?.name && !abierto) {
+        playBeep()
+        setNoLeidos(n => n + 1)
+      }
+    },
+    onOpen: () => {
+      console.log('✅ Chat WebSocket conectado')
+      tokenRefreshAttemptsRef.current = 0
+      setWsEnabled(true)
+    },
+    onClose: () => {
+      console.warn('🔌 Chat WebSocket cerrado')
+
+      const nuevoIntento = tokenRefreshAttemptsRef.current + 1
+      console.log(`📊 Contador actual: ${tokenRefreshAttemptsRef.current}, nuevo: ${nuevoIntento}, máximo: ${MAX_TOKEN_REFRESH_ATTEMPTS}`)
+
+      if (nuevoIntento <= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.log(`🔄 Solicitando URL con token actualizado (intento ${nuevoIntento}/${MAX_TOKEN_REFRESH_ATTEMPTS})...`)
+        tokenRefreshAttemptsRef.current = nuevoIntento
+        setTokenRefreshTrigger(prev => prev + 1)
+      } else {
+        console.error(`❌ LÍMITE ALCANZADO: ${nuevoIntento} > ${MAX_TOKEN_REFRESH_ATTEMPTS}. WebSocket DESHABILITADO permanentemente.`)
+        tokenRefreshAttemptsRef.current = nuevoIntento
+        setWsEnabled(false)
+        setWsUrl('')
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Error en WebSocket del chat:', error)
+    },
+  })
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -192,8 +211,10 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
 
   const enviar = () => {
     if (!input.trim()) return
-    socketRef.current?.send(JSON.stringify({ texto: input }))
-    setInput('')
+    const success = enviarWs({ texto: input })
+    if (success) {
+      setInput('')
+    }
   }
 
   return (

@@ -5,6 +5,8 @@ import { ThemeWrapper } from "@/context/ThemeContext";
 import ThemeRegistry from "./ThemeRegistry";
 import { cookies } from "next/headers";
 import { ReactQueryProvider } from "@/features/auth/components/providers/ReactQueryProvider";
+import { DpiDebugger } from "@/shared/components/dev/DpiDebugger";
+import { ResponsiveTypography } from "@/shared/components/layout/ResponsiveTypography";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -36,12 +38,14 @@ export default async function RootLayout({
   const themeCookie = cookieStore.get('theme_mode')?.value;
   const initialMode = themeCookie === 'dark' || themeCookie === 'light' ? themeCookie : undefined;
   return (
-    <html lang="en" data-theme-mode={initialMode ?? undefined}>
+    <html lang="es" data-theme-mode={initialMode ?? undefined}>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeRegistry>
           <ThemeWrapper initialMode={initialMode as 'dark' | 'light' | undefined}>
             <ReactQueryProvider>
+              <ResponsiveTypography />
               {children}
+              <DpiDebugger />
             </ReactQueryProvider>
           </ThemeWrapper>
         </ThemeRegistry>

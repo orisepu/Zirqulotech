@@ -204,7 +204,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
         {/* Cuerpo */}
         <Grid container spacing={1}  sx={{ justifyContent: "space-between", alignItems: "stretch" }}>
           {/* IZQ: Tabs */}
-          <Grid size={{xs:12, md: (realesIdx !== null && tabActivo === realesIdx) ? 12 : 6 }}  sx={{ display: 'flex', minWidth: { xs: 0, sm: '25rem' } }}>
+          <Grid size={{xs:12, md: (realesIdx !== null && tabActivo === realesIdx) ? 12 : 6 }}  sx={{ display: 'flex', minWidth: { xs: 0, sm: '22rem', md: '24rem', lg: '25rem' } }}>
             <TabsOportunidad
               oportunidad={opp}
               dispositivosReales={dispositivosReales}
@@ -221,7 +221,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
 
           {/* CENTRO-DERECHA: Comentarios */}
           {(realesIdx === null || tabActivo !== realesIdx) && (
-          <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: { xs: 0, sm: '20rem' } }}>
+          <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: { xs: 0, sm: '18rem', md: '19rem', lg: '20rem' } }}>
             <ComentariosPanel
               comentarios={opp?.comentarios || []}
               onEnviar={(t) => enviarComentario.mutate(t)}
@@ -231,7 +231,7 @@ dispositivos={dispositivosReales.map((d: any) => ({
 
           {/* DERECHA: Historial */}
           {(realesIdx === null || tabActivo !== realesIdx) && (
-          <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: { xs: 0, sm: '18rem' } }}>
+          <Grid size={{xs:12, md:3}} sx={{ display: 'flex', minWidth: { xs: 0, sm: '16rem', md: '17rem', lg: '18rem' } }}>
             <HistorialPanel historial={historial.data || []} />
           </Grid>)}
         </Grid>

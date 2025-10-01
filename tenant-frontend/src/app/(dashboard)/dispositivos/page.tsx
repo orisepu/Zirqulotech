@@ -39,7 +39,7 @@ import PersonIcon from '@mui/icons-material/Person'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Dayjs } from 'dayjs'
 import { useRouter } from 'next/navigation'
-import api, { getAccessToken } from '@/services/api'
+import api from '@/services/api'
 import TablaReactiva from '@/shared/components/TablaReactiva2'
 import type { CapacidadRow, ModeloMini } from '@/shared/components/TablaColumnas2'
 import { columnasCapacidadesAdmin } from '@/shared/components/TablaColumnas2'
@@ -174,13 +174,10 @@ export default function AdminCapacidadesTablaReactiva() {
   }), [q, tipo, marcaFilter])
 
   // ===== QUERIES =====
-  const canFetch = typeof window !== 'undefined' && !!getAccessToken()
-
   const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-capacidades', params],
     queryFn: () => fetchCapacidades(params),
     placeholderData: keepPreviousData,
-    enabled: canFetch,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   })
@@ -188,21 +185,19 @@ export default function AdminCapacidadesTablaReactiva() {
   const { data: tiposModelo = [], isLoading: isLoadingTipos, isError: tiposError, error: tiposFetchError } = useQuery({
     queryKey: ['tipos-modelo'],
     queryFn: fetchTiposModelo,
-    enabled: canFetch,
     staleTime: 60_000,
   })
 
   const { data: marcasModelo } = useQuery({
     queryKey: ['marcas-modelo'],
     queryFn: fetchMarcasModelo,
-    enabled: canFetch,
     staleTime: 60_000,
   })
 
   const modelosSinCapQuery = useQuery({
     queryKey: ['modelos-sin-capacidades', sinCapParams],
     queryFn: () => fetchModelosSinCapacidades(sinCapParams),
-    enabled: canFetch && showSinCapacidades,
+    enabled: showSinCapacidades,
     staleTime: 60_000,
   })
 
@@ -365,8 +360,8 @@ export default function AdminCapacidadesTablaReactiva() {
     setModelTarget(modelo)
     setModelName(modelo?.descripcion ?? '')
     setModelTipo(modelo?.tipo ?? '')
-    setModelMarca(modelo ? (modelo.marca ?? 'Apple') : 'Apple')
-    setCapacidadNombre(row.tamaño ?? '')
+    setModelMarca(modelo?.marca ?? 'Apple')
+    setCapacidadNombre(String(row.tamaño ?? ''))
     setOpenEditDatos(true)
   }, [])
 
@@ -433,18 +428,6 @@ export default function AdminCapacidadesTablaReactiva() {
   }, [onClickEditar, onClickSetPrice, onToggleActivo, toggleCapacidadPending])
 
   // ===== RENDER =====
-  if (!canFetch) {
-    return (
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Paper style={{ padding: 16 }}>
-            <Typography>Debes iniciar sesión para ver esta página.</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
-    )
-  }
-
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12 }}>

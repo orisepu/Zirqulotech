@@ -1,222 +1,334 @@
-import { ColumnDef } from '@tanstack/react-table'
-import { getId } from '@/shared/utils/id'
+/**
+ * Definiciones de columnas para tablas responsive
+ *
+ * @description Sistema modular y type-safe para definir columnas de tabla
+ * con soporte completo para responsive, DPI scaling, y personalización.
+ *
+ * @version 2.0
+ * @date 2025-10-01
+ */
+
 import React from 'react'
+import { ColumnDef } from '@tanstack/react-table'
+import { Chip, Box, Typography, Stack, TextField, Select, MenuItem } from '@mui/material'
+import { getId } from '@/shared/utils/id'
 import { ESTADOS_META, ESTADOS_B2B, ESTADO_LABEL_OVERRIDES } from '@/context/estados'
-import { Chip, Box, Select, MenuItem, TextField, Typography, Stack } from '@mui/material'
 import { formatoBonito } from '@/context/precios'
 import { EllipsisTooltip } from '@/shared/components/ui/EllipsisTooltip'
-import { getResponsiveColumnMeta } from '@/shared/utils/tableResponsive'
+import { pxToResponsiveRem } from '@/shared/utils/tableResponsive.v2'
+import type { ResponsiveColumnDef, ResponsiveColumnMeta } from '@/shared/types/table.types'
 
-const formatoMoneda = (valor: number) =>
-  valor.toLocaleString('es-ES', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-    useGrouping: true,
-  }) + ' €'
-// (eliminado) calcularTotalPrecioOrientativo: no se usaba
+// ============================================================================
+// TIPOS Y INTERFACES
+// ============================================================================
+
 export interface ModeloMini {
   id: number
   descripcion: string
-  tipo: string
-  marca: string
-  pantalla?: string | null
-  año?: number | null
-  procesador?: string | null
-  likewize_modelo_id?: string | null
+  tipo?: string
+  marca?: string
+  pantalla?: string
+  año?: number
+  procesador?: string
+  likewize_modelo_id?: string | number
 }
-
 
 export interface CapacidadRow {
   id: number
-  tamaño: string
   modelo: ModeloMini
+  modelo__descripcion?: string
+  tamaño?: string | number
   activo: boolean
-  precio_b2b: string | null
-  precio_b2c: string | null
-  b2b_valid_from: string | null
-  b2b_valid_to: string | null
-  b2b_fuente: string | null
-  b2c_valid_from: string | null
-  b2c_valid_to: string | null
-  b2c_fuente: string | null
-}
-const estadosFisicos = ['perfecto', 'bueno', 'regular', 'dañado']
-const estadosFuncionales = ['funciona', 'pantalla_rota', 'no_enciende', 'otros'] 
-const EUR = new Intl.NumberFormat('es-ES', {
-  style: 'currency',
-  currency: 'EUR',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-}); 
-export const fmtEUR = (v: string | number | null | undefined): string => {
-  if (v === null || v === undefined || v === '') return '—';
-
-  const raw = typeof v === 'string' ? v.trim() : v;
-  const normalized =
-    typeof raw === 'string'
-      ? Number(raw.replace(/\./g, '').replace(',', '.'))
-      : Number(raw);
-
-  if (!Number.isFinite(normalized)) return '—';
-
-  const formatted = EUR.format(normalized).replace(/[\u00A0\u202F]/g, ' ').trim();
-  return formatted.includes('€') ? formatted : `${formatted} €`;
-};
-
-const makeTwoLineHeader = (line1: string, line2: string) => {
-  const HeaderComponent = () => (
-    <Box
-      component="span"
-      sx={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.1, textAlign: 'center' }}
-    >
-      <span>{line1}</span>
-      <span>{line2}</span>
-    </Box>
-  )
-  HeaderComponent.displayName = `${line1}-${line2}-header`
-  return HeaderComponent
+  precio_b2b: string | number | null
+  precio_b2c: string | number | null
+  b2b_fuente?: string
+  b2c_fuente?: string
+  b2b_valid_from?: string | null
+  b2b_valid_to?: string | null
+  b2c_valid_from?: string | null
+  b2c_valid_to?: string | null
 }
 
-export const columnasCapacidadesAdmin: ColumnDef<CapacidadRow>[] = [
-  {
-    id: 'modelo__descripcion',
-    header: 'Modelo',
-    meta: { minWidth: 180, align: 'left', alignHeader: 'center', label: 'Modelo' },
-    accessorFn: (r) => r.modelo?.descripcion ?? '—',
-    cell: ({ row, getValue }) => (
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-        <Chip size="small" label={row.original.modelo?.marca ?? '—'} color="default" variant="outlined" />
-        <Chip size="small" label={row.original.modelo?.tipo ?? '—'} />
-        <Typography variant="body2">{getValue<string>()}</Typography>
-      </Stack>
-    ),
-  },
-  {
-    id: 'activo',
-    header: 'Estado',
-    accessorFn: (r) => r.activo,
-    meta: { minWidth: 100, align: 'center', alignHeader: 'center', label: 'Estado' },
-    cell: ({ row }) => (
-      <Chip
-        size="small"
-        color={row.original.activo ? 'success' : 'default'}
-        label={row.original.activo ? 'Activo' : 'Baja'}
-        variant={row.original.activo ? 'filled' : 'outlined'}
-      />
-    ),
-  },
-  {
-    id: 'tamaño',
-    header: 'Capacidad',
-    accessorKey: 'tamaño',
-    meta: { minWidth: 100, align: 'center', alignHeader: 'center', label: 'Capacidad' },
-  },
-  {
-    id: '_b2b',
-    header: 'B2B',
-    meta: { minWidth: 110, align: 'right', alignHeader: 'center', label: 'B2B' },
-    accessorFn: (r) => (r.precio_b2b != null ? Number(r.precio_b2b) : null),
-    cell: ({ getValue }) => fmtEUR(getValue<number | null>()),
-  },
-  {
-    id: '_b2c',
-    header: 'B2C',
-    meta: { minWidth: 110, align: 'right', alignHeader: 'center', label: 'B2C' },
-    accessorFn: (r) => (r.precio_b2c != null ? Number(r.precio_b2c) : null),
-    cell: ({ getValue }) => fmtEUR(getValue<number | null>()),
-  },
-  {
-    id: 'fuente',
-    header: 'Fuente',
-    meta: { minWidth: 140, align: 'left', alignHeader: 'center', label: 'Fuente' },
-    accessorFn: (r) => ({ b2b: r.b2b_fuente, b2c: r.b2c_fuente }),
-    cell: ({ row }) => (
-      <Stack spacing={0}>
-      <Typography variant="caption">B2B: {row.original.b2b_fuente || '—'}</Typography>
-      <Typography variant="caption">B2C: {row.original.b2c_fuente || '—'}</Typography>
-      </Stack>
-    ),
-  },
-  {
-    id: 'vigencia',
-    header: 'Vigencia',
-    meta: { minWidth: 180, align: 'left', alignHeader: 'center', label: 'Vigencia' },
-    accessorFn: (r) => r, // usamos el row completo en la celda
-    cell: ({ row }) => (
-      <Stack spacing={0}>
-      <Typography variant="caption">
-      B2B: {row.original.b2b_valid_from ? new Date(row.original.b2b_valid_from).toLocaleDateString('es-ES') : '—'} → {row.original.b2b_valid_to ? new Date(row.original.b2b_valid_to).toLocaleDateString('es-ES') : '∞'}
-      </Typography>
-      <Typography variant="caption">
-      B2C: {row.original.b2c_valid_from ? new Date(row.original.b2c_valid_from).toLocaleDateString('es-ES') : '—'} → {row.original.b2c_valid_to ? new Date(row.original.b2c_valid_to).toLocaleDateString('es-ES') : '∞'}
-      </Typography>
-      </Stack>
-    ),
-  },
-]
+export interface ClienteLike {
+  display_name?: string
+  razon_social?: string
+  nombre?: string
+  apellidos?: string
+  identificador_fiscal?: string
+  cif?: string
+  nif?: string
+  dni_nie?: string
+  tipo_cliente?: string
+  contacto?: string | null
+  posicion?: string | null
+  correo?: string | null
+  telefono?: string | null
+  tienda_nombre?: string | null
+  oportunidades_count?: number
+  valor_total_final?: number
+  contacto_financiero?: string | null
+  telefono_financiero?: string | null
+  correo_financiero?: string | null
+}
 
 type GenericRow = Record<string, unknown>
 
-// Minimal shape used by getColumnasClientes columns
-export interface ClienteLike {
-  display_name?: string;
-  razon_social?: string;
-  nombre?: string;
-  apellidos?: string;
-  identificador_fiscal?: string;
-  cif?: string;
-  nif?: string;
-  dni_nie?: string;
-  tipo_cliente?: string;
-  contacto?: string;
-  posicion?: string;
-  correo?: string;
-  telefono?: string;
-  tienda_nombre?: string;
-  oportunidades_count?: number;
-  valor_total_final?: number;
+// ============================================================================
+// UTILIDADES DE FORMATO
+// ============================================================================
+
+export const fmtEUR = (v: string | number | null | undefined): string => {
+  if (v === null || v === undefined || v === '') return '—'
+  const num = typeof v === 'string' ? parseFloat(v) : v
+  if (isNaN(num)) return '—'
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
 }
 
-export const columnasAdmin: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId ,meta: getResponsiveColumnMeta({ minWidth: 90, type: 'id' })},
-  { id: 'partner', header: 'Partner', accessorKey: 'partner',meta: getResponsiveColumnMeta({ minWidth: 110, type: 'text', ellipsis: true, maxWidth: 220 }) },
-  { id: 'tienda', header: 'Tienda', accessorFn: (r: { tienda?: { nombre?: string } }) => r.tienda?.nombre || '—',meta: getResponsiveColumnMeta({ minWidth: 100, type: 'text', ellipsis: true, maxWidth: 220 })},
-  { id: 'cliente', header: 'Cliente', accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social || '—' ,meta: getResponsiveColumnMeta({ minWidth: 130, type: 'text', ellipsis: true, maxWidth: 280 })
+const formatoMoneda = fmtEUR
 
-},
-  { id: 'oportunidad', header: 'Oportunidad', accessorKey: 'nombre' ,meta: getResponsiveColumnMeta({ minWidth: 140, type: 'text', ellipsis: true, maxWidth: 220 })},
-  {
-    id: 'fecha_creacion',
-    header: 'Fecha',
-    accessorKey: 'fecha_creacion',
-    meta: { ...getResponsiveColumnMeta({ minWidth: 110, type: 'date' }), nowrapHeader: true },
-    cell: ({ getValue }) => new Date(String(getValue())).toLocaleDateString()
-  },
-  {
-    id: 'valoracion_partner',
-    header: makeTwoLineHeader('Valoración', 'partner'),
-    meta: getResponsiveColumnMeta({ minWidth: 140, type: 'currency', maxWidth: 200 }),
-    cell: ({ row }) => {
-      const valor = Number((row.original as { valor_total?: unknown }).valor_total ?? 0)
-      return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
-    },
-  },
-  {
-    id: 'valoracion_final',
-    header: makeTwoLineHeader('Valoración', 'final'),
-    meta: getResponsiveColumnMeta({ minWidth: 150, type: 'currency', maxWidth: 200 }),
-    cell: ({ row }) => {
-      const valor = Number((row.original as { valor_total_final?: unknown }).valor_total_final ?? 0)
-      return <Box textAlign="right">{valor > 0 ? formatoMoneda(valor) : ''}</Box>
-    },
-  },
-  { id: 'seguimiento', header: 'Número de seguimiento', accessorKey: 'numero_seguimiento',meta: getResponsiveColumnMeta({ minWidth: 200, type: 'text', ellipsis: true, maxWidth: 280 })},
-  {
-    id: 'estado',
-    header: 'Estado',
-    meta: getResponsiveColumnMeta({ minWidth: 140, type: 'status', maxWidth: 180 }),
-    cell: ({ row }) => {
-      const estado = String((row.original as { estado?: unknown }).estado ?? '')
+const formatoTel = (tel?: string | null) => {
+  if (!tel) return '—'
+  return tel
+}
+
+export const nombreVisible = (cliente: ClienteLike): string => {
+  const nombreCompuesto = `${cliente.nombre || ""} ${cliente.apellidos || ""}`.trim()
+  return cliente.display_name || cliente.razon_social || (nombreCompuesto || "—")
+}
+
+const makeTwoLineHeader = (line1: string, line2: string) => (
+  <Box sx={{
+    display: 'inline-flex',
+    flexDirection: 'column',
+    textAlign: 'center',
+    lineHeight: 1.2
+  }}>
+    <span>{line1}</span>
+    <span>{line2}</span>
+  </Box>
+)
+
+// ============================================================================
+// COLUMN BUILDER - PATRÓN BUILDER PARA DEFINICIÓN DE COLUMNAS
+// ============================================================================
+
+/**
+ * Builder para crear columnas de forma fluida y type-safe
+ *
+ * @example
+ * ```typescript
+ * new ColumnBuilder<MyType>('id')
+ *   .header('ID')
+ *   .accessor(row => row.id)
+ *   .size(90, 130)
+ *   .align('center')
+ *   .priority(1)
+ *   .build()
+ * ```
+ */
+class ColumnBuilder<T> {
+  private config: any
+
+  constructor(id: string) {
+    this.config = {
+      id,
+      meta: {},
+    }
+  }
+
+  header(text: string | React.ReactNode) {
+    this.config.header = text as any
+    return this
+  }
+
+  accessor(key: keyof T | ((row: T) => any)) {
+    if (typeof key === 'function') {
+      this.config.accessorFn = key
+    } else {
+      this.config.accessorKey = key as string
+    }
+    return this
+  }
+
+  size(minWidth: number, maxWidth?: number) {
+    this.config.meta = {
+      ...this.config.meta,
+      minWidth: pxToResponsiveRem(minWidth),
+      maxWidth: maxWidth ? pxToResponsiveRem(maxWidth) : undefined,
+    }
+    return this
+  }
+
+  align(alignment: 'left' | 'center' | 'right') {
+    this.config.meta = { ...this.config.meta, align: alignment }
+    return this
+  }
+
+  alignHeader(alignment: 'left' | 'center' | 'right') {
+    this.config.meta = { ...this.config.meta, alignHeader: alignment }
+    return this
+  }
+
+  ellipsis(enabled = true, maxWidth?: number) {
+    this.config.meta = {
+      ...this.config.meta,
+      ellipsis: enabled,
+      ellipsisMaxWidth: maxWidth ? pxToResponsiveRem(maxWidth) : undefined,
+    }
+    return this
+  }
+
+  priority(level: 1 | 2 | 3 | 4 | 5) {
+    this.config.meta = { ...this.config.meta, priority: level }
+    return this
+  }
+
+  label(text: string) {
+    this.config.meta = { ...this.config.meta, label: text }
+    return this
+  }
+
+  cell(renderer: (props: any) => React.ReactNode) {
+    this.config.cell = renderer
+    return this
+  }
+
+  persist(enabled = true) {
+    this.config.meta = { ...this.config.meta, persist: enabled }
+    return this
+  }
+
+  exportable(enabled = true) {
+    this.config.meta = { ...this.config.meta, exportable: enabled }
+    return this
+  }
+
+  nowrapHeader(enabled = true) {
+    this.config.meta = { ...this.config.meta, nowrapHeader: enabled }
+    return this
+  }
+
+  build(): ResponsiveColumnDef<T> {
+    // Defaults finales
+    if (!this.config.meta?.alignHeader) {
+      this.config.meta = { ...this.config.meta, alignHeader: 'center' }
+    }
+    return this.config
+  }
+}
+
+// ============================================================================
+// FACTORIES - CREADORES DE COLUMNAS COMUNES
+// ============================================================================
+
+/**
+ * Crea una columna de ID estándar
+ */
+export function createIdColumn<T>(
+  accessor?: (row: T) => any
+): ResponsiveColumnDef<T> {
+  return new ColumnBuilder<T>('id')
+    .header('ID')
+    .accessor(accessor || ((row: any) => getId(row)))
+    .size(90, 130)
+    .align('center')
+    .priority(1)
+    .label('ID')
+    .cell(({ getValue }) => getValue() ?? '—')
+    .build()
+}
+
+/**
+ * Crea una columna de texto con ellipsis
+ */
+export function createTextColumn<T>(
+  id: string,
+  header: string,
+  accessor: keyof T | ((row: T) => any),
+  minWidth = 140,
+  maxWidth?: number
+): ResponsiveColumnDef<T> {
+  return new ColumnBuilder<T>(id)
+    .header(header)
+    .accessor(accessor as any)
+    .size(minWidth, maxWidth || minWidth * 1.8)
+    .align('center')
+    .ellipsis(true)
+    .label(header)
+    .cell(({ getValue }) => getValue() ?? '—')
+    .build()
+}
+
+/**
+ * Crea una columna de moneda (EUR)
+ */
+export function createCurrencyColumn<T>(
+  id: string,
+  header: string | React.ReactNode,
+  accessor: (row: T) => number | string | null | undefined,
+  minWidth = 150,
+  maxWidth = 200
+): ResponsiveColumnDef<T> {
+  return new ColumnBuilder<T>(id)
+    .header(header)
+    .accessor(accessor)
+    .size(minWidth, maxWidth)
+    .align('center')
+    .alignHeader('center')
+    .cell(({ getValue }) => {
+      const valor = getValue() as number | string | null | undefined
+      return <Box textAlign="center">{fmtEUR(valor)}</Box>
+    })
+    .label(typeof header === 'string' ? header : id)
+    .build()
+}
+
+/**
+ * Crea una columna de fecha
+ */
+export function createDateColumn<T>(
+  id: string,
+  header: string,
+  accessor: keyof T | ((row: T) => any),
+  minWidth = 110
+): ResponsiveColumnDef<T> {
+  return new ColumnBuilder<T>(id)
+    .header(header)
+    .accessor(accessor as any)
+    .size(minWidth, 140)
+    .align('center')
+    .nowrapHeader(true)
+    .cell(({ getValue }) => {
+      const value = getValue()
+      if (!value) return '—'
+      return new Date(String(value)).toLocaleDateString('es-ES')
+    })
+    .label(header)
+    .build()
+}
+
+/**
+ * Crea una columna de estado con Chip
+ */
+export function createStatusColumn<T>(
+  id: string,
+  header: string,
+  accessor: (row: T) => string,
+  minWidth = 140,
+  maxWidth = 180
+): ResponsiveColumnDef<T> {
+  return new ColumnBuilder<T>(id)
+    .header(header)
+    .accessor(accessor)
+    .size(minWidth, maxWidth)
+    .align('center')
+    .cell(({ getValue }) => {
+      const estado = String(getValue() || '')
       const metaInfo = ESTADOS_META[estado]
       const Icono = metaInfo?.icon
       return (
@@ -228,545 +340,412 @@ export const columnasAdmin: ColumnDef<GenericRow>[] = [
           sx={{ fontWeight: 500 }}
         />
       )
-    },
-  },
-]
-
-export const columnasTenant: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId,meta: getResponsiveColumnMeta({ minWidth: 90, type: 'id' })},
-  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: getResponsiveColumnMeta({ minWidth: 150, type: 'text', ellipsis: true, maxWidth: 250 })},
-
-  {
-    id: 'cliente',
-    header: 'Cliente',
-    meta: getResponsiveColumnMeta({ minWidth: 180, type: 'text', ellipsis: true, maxWidth: 300 }),
-    accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
-  },
-  {
-  id: 'valoracion',
-  header: 'Val. orientativa',
-  accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
-    (r.dispositivos ?? []).reduce(
-      (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
-      0
-    ),
-  sortingFn: (a, b, id) =>
-    Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
-  meta: {
-    ...getResponsiveColumnMeta({ minWidth: 120, type: 'currency', maxWidth: 160 }),
-    label: 'Valoración orientativa',
-    headerMaxWidth: 140,
-    toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
-  },
-  cell: ({ getValue }) => {
-    const total = Number(getValue<number>() ?? 0);
-    return total > 0 ? formatoMoneda(total) : '—';
-  },
-  },
-  {
-    id: 'valoracion_final',
-    header: 'Valoración final',
-    accessorFn: (r: { valor_total_final?: unknown }) => Number(r.valor_total_final ?? 0),
-    sortingFn: (a, b, id) =>
-      Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
-    meta: {
-      ...getResponsiveColumnMeta({ minWidth: 120, type: 'currency', maxWidth: 160 }),
-      label: 'Valoración final',
-      headerMaxWidth: 140,
-      toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
-    },
-    cell: ({ getValue }) => {
-      const valor = Number(getValue<number>() ?? 0);
-      return valor > 0 ? formatoMoneda(valor) : '—';
-    },
-  },
-  {
-    id: 'fecha_creacion',
-    header: 'Fecha',
-    accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
-    meta: {
-      ...getResponsiveColumnMeta({ minWidth: 100, type: 'date' }),
-      toCSV: (value: unknown /*, row */) => {
-        const d = value instanceof Date ? value : value ? new Date(String(value)) : null
-        return d ? d.toISOString() : ''
-      },
-    },
-    cell: ({ getValue }) => {
-      const v = getValue<Date | string | number | null>()
-      const d = v instanceof Date ? v : v ? new Date(v) : null
-      return d ? d.toLocaleDateString('es-ES') : '—'
-    },
-  },
-  {
-    id: 'seguimiento',
-    header: 'N de seguimiento',
-    accessorKey: 'numero_seguimiento',
-    meta: getResponsiveColumnMeta({ minWidth: 150, type: 'text', ellipsis: true, maxWidth: 240 }),
-  },
-  {
-    id: 'estado',
-    header: 'Estado',
-    accessorKey: 'estado',
-    meta: {
-      ...getResponsiveColumnMeta({ minWidth: 140, type: 'status', maxWidth: 180 }),
-      label: 'Estado',
-      toCSV: (value: unknown /*, row */) =>
-        typeof value === 'string' ? value : value == null ? '' : String(value),
-    },
-    cell: ({ getValue }) => {
-      const estado = (getValue<string>() ?? '').trim();
-      const meta = ESTADOS_B2B[estado] || {};
-      const Icono = meta.icon;
-
-      const label = ESTADO_LABEL_OVERRIDES[estado] || estado || '—'
-      return (
-        <Chip
-          label={label}
-          icon={Icono ? <Icono fontSize="small" /> : undefined}
-          color={meta.color || 'default'}
-          size="small"
-          sx={{ fontWeight: 500 }}
-        />
-      );
-    },
-  },
-]
-
-export const columnasDispositivosReales: ColumnDef<GenericRow>[] = [
-  { id: 'modelo', header: 'Modelo', accessorFn: (row: { modelo?: string }) => row.modelo || '—',
-    meta: { minWidth: 200,maxWidth:450, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 370,},  },
-  { id: 'capacidad', header: 'Capacidad', accessorFn: (row: { capacidad?: string }) => row.capacidad || '—',
-   meta: { minWidth: 150,maxWidth:150, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 120,},  },
-  { id: 'imei', header: 'IMEI', accessorFn: (row: { imei?: string }) => row.imei || '—',
-   meta: { minWidth: 150,maxWidth:250, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 240,},  },
-  { id: 'numero_serie', header: 'Nº Serie', accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—',
-   meta: { minWidth: 150,maxWidth:250, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 240,},  },
-  { id: 'estado_fisico', header: 'Estado físico', accessorFn: (row: { estado_fisico?: string }) => formatoBonito(row.estado_fisico) || '—',
-   meta: { minWidth: 150,maxWidth:160, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 140,},  },
-  { id: 'estado_funcional', header: 'Estado funcional', accessorFn: (row: { estado_funcional?: string }) => formatoBonito(row.estado_funcional) || '—',
-   meta: { minWidth: 150,maxWidth:200, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 190,},  },
-  { id: 'estado_valoracion', header: 'Valoración', accessorFn: (row: { estado_valoracion?: string }) => row.estado_valoracion || '—',
-   meta: { minWidth: 150,maxWidth:150, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 130,},  },
- {
-  id: 'precio_final',
-  header: 'Precio recompra',
-  accessorFn: (row: any) => {
-    const n = Number(row?.precio_final);
-    if (!Number.isFinite(n)) return '—';
-    return EUR.format(n).replace('\u00A0€', ' €');
-  },
-  meta: { minWidth: 160, maxWidth: 220, align: 'center', alignHeader: 'center' },
-},
-
-  {
-    id: 'fecha_recepcion',
-    header: 'Fecha recepción',
-    accessorFn: (row: { fecha_recepcion?: string }) => row.fecha_recepcion,
-    cell: ({ getValue }) => getValue() ? new Date(String(getValue())).toLocaleString('es-ES') : '—'
-  },
-];
-
-export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): { columnas: ColumnDef<T>[], zoom: number } {
-  const formatoTel = (t?: string) => {
-    const raw = (t || "").replace(/\D/g, "");
-    return raw.length === 9 ? `${raw.slice(0,3)} ${raw.slice(3,6)} ${raw.slice(6)}` : (t || "—");
-  };
-  const mayus = (s?: string) => (s || "").toUpperCase();
-  const eur = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
-  const toDisplayName = (r: ClienteLike) =>
-  r.display_name ??
-  r.razon_social ??
-  [r.nombre, r.apellidos].filter(Boolean).join(" ");
-  
-  const columnas: ColumnDef<T>[] = [
-    // Nombre visible unificado
-    { id: "display_name", header: "Nombre", accessorFn: (row: T) => toDisplayName(row as unknown as ClienteLike) || "",
-      // Activamos ellipsis por meta para que la tabla gestione el recorte y tooltip
-      meta: { minWidth: 190, ellipsis: true, ellipsisMaxWidth: 230,align: 'center',
-      alignHeader: 'center', } as any,
-    },
-
-    // Identificador fiscal unificado
-    { id: "identificador_fiscal", header: "ID fiscal", accessorFn: (row: T) => {
-      const r = row as unknown as ClienteLike
-      return r.identificador_fiscal || r.cif || r.nif || r.dni_nie || "—"
-    },
-      cell: ({ getValue }) => mayus(getValue() as string),
-      meta: { minWidth: 120, ellipsis: true, ellipsisMaxWidth: 140,align: 'center',
-      alignHeader: 'center', } as any },
-
-    // Tipo y canal (útiles para filtrar)
-    { id: "tipo_cliente", header: "Tipo", accessorFn: (row: T) => formatoBonito((row as unknown as ClienteLike).tipo_cliente), meta: { minWidth: 110, ellipsis: true, ellipsisMaxWidth: 130,align: 'center',
-      alignHeader: 'center', } as any },   // empresa | autonomo | particular
-  
-    // Contacto (solo empresas; en B2C muestra —)
-    { id: "contacto", header: "Contacto",
-      accessorFn: (row: T) => {
-        const r = row as unknown as ClienteLike
-        return r.tipo_cliente === "empresa" ? (r.contacto || "—") : "—"
-      },
-      meta: { minWidth: 160, ellipsis: true, ellipsisMaxWidth: 180,align: 'center',
-      alignHeader: 'center', } as any },
-    { id: "posicion", header: "Posición",
-      accessorFn: (row: T) => {
-        const r = row as unknown as ClienteLike
-        return r.tipo_cliente === "empresa" ? (r.posicion || "—") : "—"
-      },
-      meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,align: 'center',
-      alignHeader: 'center', } as any },
-
-    // Comunicación
-    { id: "correo", header: "Correo", accessorFn: (row: T) => (row as unknown as ClienteLike).correo || "—", meta: { minWidth: 190, ellipsis: true, ellipsisMaxWidth: 230,align: 'center',
-      alignHeader: 'center', } as any },
-    { id: "telefono", header: "Teléfono", accessorFn: (row: T) => formatoTel((row as unknown as ClienteLike).telefono), meta: { headerMaxWidth: 110, nowrapHeader: true, minWidth: 130, ellipsis: true, ellipsisMaxWidth: 140,align: 'center',
-      alignHeader: 'center', } as any },
-
-    // Tienda
-    { id: "tienda_nombre", header: "Tienda", accessorFn: (row: T) => (row as unknown as ClienteLike).tienda_nombre ?? "—", meta: { minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,align: 'center',
-      alignHeader: 'center', } as any },
-
-    // Oportunidades / Valor total
-    { id: "n_oportunidades", header: "OP",
-      accessorKey: "oportunidades_count",
-      cell: ({ getValue }) => getValue() ?? 0,
-      meta: {
-        headerMaxWidth: 120,
-        align: 'center',
-        alignHeader: 'center',
-        nowrapHeader: true,
-        minWidth: 100,
-        ellipsis: true,
-        ellipsisMaxWidth: 130,
-        
-      } as any },
-      
-
-    { id: "valor_total", header: "Valor total",
-      accessorKey: "valor_total_final",
-      cell: ({ getValue }) => eur(Number(getValue() || 0)),
-      meta: { headerMaxWidth: 110,align: "center", nowrapHeader: true, minWidth: 140, ellipsis: true, ellipsisMaxWidth: 160,
-        alignHeader: 'center', } as any },
-  ];
-
-  return { columnas, zoom: 1 };
+    })
+    .label(header)
+    .build()
 }
 
-export function getColumnasAuditoria({
+// ============================================================================
+// DEFINICIONES DE COLUMNAS - CAPACIDADES ADMIN
+// ============================================================================
+
+export const columnasCapacidadesAdmin: ResponsiveColumnDef<CapacidadRow>[] = [
+  new ColumnBuilder<CapacidadRow>('modelo__descripcion')
+    .header('Modelo')
+    .accessor((r) => r.modelo__descripcion || r.modelo?.descripcion || '—')
+    .size(180, 280)
+    .align('left')
+    .alignHeader('center')
+    .ellipsis(true)
+    .label('Modelo')
+    .build(),
+
+  new ColumnBuilder<CapacidadRow>('activo')
+    .header('Estado')
+    .accessor((r) => (r.activo ? 'Activo' : 'Inactivo'))
+    .size(100, 120)
+    .align('center')
+    .alignHeader('center')
+    .cell(({ row }) => (
+      <Chip label={row.original.activo ? 'Activo' : 'Inactivo'} color={row.original.activo ? 'success' : 'default'} size="small" />
+    ))
+    .label('Estado')
+    .build(),
+
+  new ColumnBuilder<CapacidadRow>('tamaño')
+    .header('Capacidad')
+    .accessor((r) => (r.tamaño ? `${r.tamaño} GB` : '—'))
+    .size(100, 120)
+    .align('center')
+    .alignHeader('center')
+    .label('Capacidad')
+    .build(),
+
+  createCurrencyColumn<CapacidadRow>('_b2b', 'B2B', (r) => r.precio_b2b, 110, 150),
+  createCurrencyColumn<CapacidadRow>('_b2c', 'B2C', (r) => r.precio_b2c, 110, 150),
+
+  new ColumnBuilder<CapacidadRow>('fuente')
+    .header('Fuente')
+    .accessor((r) => ({ b2b: r.b2b_fuente, b2c: r.b2c_fuente }))
+    .size(140, 200)
+    .align('left')
+    .alignHeader('center')
+    .cell(({ row }) => (
+      <Stack spacing={0}>
+        <Typography variant="caption">B2B: {row.original.b2b_fuente || '—'}</Typography>
+        <Typography variant="caption">B2C: {row.original.b2c_fuente || '—'}</Typography>
+      </Stack>
+    ))
+    .label('Fuente')
+    .build(),
+
+  new ColumnBuilder<CapacidadRow>('vigencia')
+    .header('Vigencia')
+    .accessor((r) => r)
+    .size(180, 280)
+    .align('left')
+    .alignHeader('center')
+    .cell(({ row }) => (
+      <Stack spacing={0}>
+        <Typography variant="caption">
+          B2B: {row.original.b2b_valid_from ? new Date(row.original.b2b_valid_from).toLocaleDateString('es-ES') : '—'} →{' '}
+          {row.original.b2b_valid_to ? new Date(row.original.b2b_valid_to).toLocaleDateString('es-ES') : '∞'}
+        </Typography>
+        <Typography variant="caption">
+          B2C: {row.original.b2c_valid_from ? new Date(row.original.b2c_valid_from).toLocaleDateString('es-ES') : '—'} →{' '}
+          {row.original.b2c_valid_to ? new Date(row.original.b2c_valid_to).toLocaleDateString('es-ES') : '∞'}
+        </Typography>
+      </Stack>
+    ))
+    .label('Vigencia')
+    .build(),
+]
+
+// ============================================================================
+// DEFINICIONES DE COLUMNAS - ADMIN (OPORTUNIDADES GLOBALES)
+// ============================================================================
+
+export const columnasAdmin: ResponsiveColumnDef<GenericRow>[] = [
+  createIdColumn<GenericRow>(),
+  createTextColumn<GenericRow>('partner', 'Partner', (r) => r.partner, 110, 140),
+  createTextColumn<GenericRow>('tienda', 'Tienda', (r) => (r as any).tienda?.nombre || '—', 100, 150),
+  createTextColumn<GenericRow>('cliente', 'Cliente', (r) => (r as any).cliente?.razon_social || '—', 130, 280),
+  createTextColumn<GenericRow>('oportunidad', 'Oportunidad', (r) => r.nombre, 140, 220),
+  createDateColumn<GenericRow>('fecha_creacion', 'Fecha', 'fecha_creacion', 110),
+  createCurrencyColumn<GenericRow>(
+    'valoracion_partner',
+    makeTwoLineHeader('Valoración', 'partner'),
+    (r) => Number((r as any).valor_total ?? 0),
+    140,
+    200
+  ),
+  createCurrencyColumn<GenericRow>(
+    'valoracion_final',
+    makeTwoLineHeader('Valoración', 'final'),
+    (r) => Number((r as any).valor_total_final ?? 0),
+    150,
+    200
+  ),
+  createTextColumn<GenericRow>('seguimiento', 'Número de seguimiento', (r) => r.numero_seguimiento, 200, 280),
+  createStatusColumn<GenericRow>('estado', 'Estado', (r) => String((r as any).estado ?? ''), 140, 180),
+]
+
+// ============================================================================
+// DEFINICIONES DE COLUMNAS - TENANT (OPORTUNIDADES LOCALES)
+// ============================================================================
+
+export const columnasTenant: ResponsiveColumnDef<GenericRow>[] = [
+  createIdColumn<GenericRow>(),
+  createTextColumn<GenericRow>('tienda', 'Tienda', (r) => {
+    const row = r as any
+    return row.tienda_nombre || row.tienda?.nombre || row.tienda_info?.nombre || '—'
+  }, 100, 220),
+  createTextColumn<GenericRow>('cliente', 'Cliente', (r) => {
+    const row = r as any
+    // Prioridad: display_name > razon_social > cliente_nombre > nombre+apellidos
+    if (row.cliente?.display_name) return row.cliente.display_name
+    if (row.cliente?.razon_social) return row.cliente.razon_social
+    if (row.cliente_nombre) return row.cliente_nombre
+    if (row.cliente?.nombre && row.cliente?.apellidos) {
+      return `${row.cliente.nombre} ${row.cliente.apellidos}`
+    }
+    if (row.cliente?.nombre) return row.cliente.nombre
+    return '—'
+  }, 130, 280),
+  createTextColumn<GenericRow>('oportunidad', 'Oportunidad', (r) => r.nombre, 140, 220),
+  createDateColumn<GenericRow>('fecha_creacion', 'Fecha', 'fecha_creacion', 110),
+  createCurrencyColumn<GenericRow>(
+    'valoracion',
+    makeTwoLineHeader('Valoración', 'inicial'),
+    (r) => Number((r as any).valor_total ?? 0),
+    140,
+    200
+  ),
+  createCurrencyColumn<GenericRow>(
+    'valoracion_final',
+    makeTwoLineHeader('Valoración', 'final'),
+    (r) => Number((r as any).valor_total_final ?? 0),
+    150,
+    200
+  ),
+  createTextColumn<GenericRow>('seguimiento', 'Número de seguimiento', (r) => r.numero_seguimiento, 200, 280),
+  createStatusColumn<GenericRow>('estado', 'Estado', (r) => String((r as any).estado ?? ''), 140, 180),
+]
+
+// ============================================================================
+// DEFINICIONES DE COLUMNAS - DISPOSITIVOS REALES
+// ============================================================================
+
+export const columnasDispositivosReales: ResponsiveColumnDef<GenericRow>[] = [
+  createTextColumn<GenericRow>('modelo', 'Modelo', (r) => r.modelo, 200, 450),
+  createTextColumn<GenericRow>('capacidad', 'Capacidad', (r) => r.capacidad, 150),
+  createTextColumn<GenericRow>('imei', 'IMEI', (r) => r.imei, 150, 250),
+  createTextColumn<GenericRow>('numero_serie', 'Nº Serie', (r) => r.numero_serie, 150, 250),
+  createTextColumn<GenericRow>('estado_fisico', 'Estado Físico', (r) => r.estado_fisico, 150),
+  createTextColumn<GenericRow>('estado_funcional', 'Estado Funcional', (r) => r.estado_funcional, 150),
+  createTextColumn<GenericRow>('estado_valoracion', 'Estado Valoración', (r) => r.estado_valoracion, 150),
+  createCurrencyColumn<GenericRow>('precio_final', 'Precio Final', (r) => r.precio_final as any, 160, 200),
+]
+
+// ============================================================================
+// FUNCIÓN GENERADORA - COLUMNAS CLIENTES
+// ============================================================================
+
+export function getColumnasClientes<T extends ClienteLike = ClienteLike>(): {
+  columnas: ResponsiveColumnDef<T>[]
+  zoom: number
+} {
+  const columnas: ResponsiveColumnDef<T>[] = [
+    createTextColumn<T>('display_name', 'Nombre', (r) => r.display_name || r.razon_social || r.nombre || '—', 190, 200),
+    createTextColumn<T>('identificador_fiscal', 'CIF/NIF', (r) => r.identificador_fiscal || r.cif || r.nif || r.dni_nie || '—', 120),
+    createTextColumn<T>('tipo_cliente', 'Tipo', (r) => formatoBonito(r.tipo_cliente), 110),
+    createTextColumn<T>('contacto', 'Contacto', (r) => r.contacto || '—', 150, 200),
+    createTextColumn<T>('posicion', 'Posición', (r) => r.posicion || '—', 140),
+    createTextColumn<T>('correo', 'Correo', (r) => r.correo || '—', 190, 280),
+    createTextColumn<T>('telefono', 'Teléfono', (r) => formatoTel(r.telefono), 150),
+    createTextColumn<T>('tienda_nombre', 'Tienda', (r) => r.tienda_nombre ?? '—', 90),
+
+    new ColumnBuilder<T>('oportunidades_count')
+      .header('Nº Opor.')
+      .accessor((r) => r.oportunidades_count ?? 0)
+      .size(140, 140)
+      .align('center')
+      .label('Nº Oportunidades')
+      .build(),
+
+    createCurrencyColumn<T>('valor_total', makeTwoLineHeader('Valor', 'Total'), (r) => r.valor_total_final ?? 0, 120, 200),
+  ]
+
+  return { columnas, zoom: 1.0 }
+}
+
+// ============================================================================
+// FUNCIÓN GENERADORA - COLUMNAS CONTACTOS
+// ============================================================================
+
+export function getColumnasContactos<T extends ClienteLike = ClienteLike>(): {
+  columnas: ResponsiveColumnDef<T>[]
+  zoom: number
+} {
+  const columnas: ResponsiveColumnDef<T>[] = [
+    createTextColumn<T>('cliente', 'Cliente', (r) => nombreVisible(r), 220, 240),
+
+    createTextColumn<T>('contacto_principal', 'Contacto principal', (r) => {
+      return r.tipo_cliente === 'empresa' ? (r.contacto || '—') : nombreVisible(r)
+    }, 200, 220),
+
+    createTextColumn<T>('posicion', 'Posición', (r) => {
+      return r.tipo_cliente === 'empresa' ? (r.posicion || '—') : '—'
+    }, 160, 180),
+
+    createTextColumn<T>('telefono', 'Teléfono', (r) => formatoTel(r.telefono), 130, 150),
+
+    createTextColumn<T>('correo', 'Correo', (r) => r.correo || '—', 220, 240),
+
+    createTextColumn<T>('contacto_financiero', 'Contacto financiero', (r) => r.contacto_financiero || '—', 200, 220),
+
+    createTextColumn<T>('telefono_financiero', 'Tel. financiero', (r) => formatoTel(r.telefono_financiero), 170, 170),
+
+    createTextColumn<T>('correo_financiero', 'Correo financiero', (r) => r.correo_financiero || '—', 200, 220),
+  ]
+
+  return { columnas, zoom: 1.0 }
+}
+
+// ============================================================================
+// FUNCIÓN GENERADORA - COLUMNAS AUDITORÍA
+// ============================================================================
+
+export function getColumnasAuditoria<T = any>({
+  dispositivos = [],
+  onUpdate = () => {},
   handleChange,
   guardarAuditoria,
-  dispositivosEditables: _dispositivosEditables,
+  dispositivosEditables,
   filaEditando,
-  setFilaEditando: _setFilaEditando,
-  calcularEstadoValoracion: _calcularEstadoValoracion,
+  setFilaEditando,
+  calcularEstadoValoracion,
   formTemporal,
   setFormTemporal,
 }: {
-  handleChange: (index: number, field: string, value: string) => void;
-  guardarAuditoria: (dispositivo: Record<string, unknown>, index: number, silencioso?: boolean) => void;
-  dispositivosEditables: Array<Record<string, unknown>>;
-  filaEditando: string | null;
-  setFilaEditando: (val: string | null) => void;
-  calcularEstadoValoracion: (fisico: string, funcional: string) => string;
-  formTemporal: Record<string, unknown>;
-  setFormTemporal: (val: Record<string, unknown>) => void;
-}): { columnas: ColumnDef<GenericRow>[], zoom: number } {
-  const columnas: ColumnDef<GenericRow>[] = [
-    {
-      id: 'modelo',
-      header: 'Modelo',
-      accessorFn: (row: { modelo?: string }) => row.modelo ?? '—',
-      meta: { minWidth: 300, align: 'center', alignHeader: 'left' },
-    },
-    {
-      id: 'capacidad',
-      header: 'Capacidad',
-      accessorFn: (row: { capacidad?: string }) => row.capacidad ?? '—',
-      meta: { minWidth: 100, align: 'center' },
-    },
-    {
-      id: 'imei',
-      header: 'IMEI',
-      accessorFn: (row: { imei?: string }) => row.imei || '—',
-      meta: { minWidth: 200, align: 'center' },
-    },
-    {
-      id: 'Numero_Serie',
-      header: 'Nº Serie',
-      accessorFn: (row: { numero_serie?: string }) => row.numero_serie || '—',
-      meta: { minWidth: 200, align: 'center' },
-    },
-    {
-      id: 'estado_fisico',
-      header: 'Estético',
-      cell: ({ row }) =>
-        filaEditando === row.original.id ? (
+  dispositivos?: T[]
+  onUpdate?: (id: number, field: string, value: any) => void
+  handleChange?: ((id: number, field: string, value: any) => void) | ((index: number, field: string, value: string) => void)
+  guardarAuditoria?: () => void
+  dispositivosEditables?: T[]
+  filaEditando?: number | null
+  setFilaEditando?: (id: number | null) => void
+  calcularEstadoValoracion?: (index: number) => string
+  formTemporal?: Record<string, any>
+  setFormTemporal?: (form: Record<string, any>) => void
+}): { columnas: ResponsiveColumnDef<T>[]; zoom: number } {
+  const updateHandler = handleChange || onUpdate
+
+  const columnas: ResponsiveColumnDef<T>[] = [
+    createTextColumn<T>('modelo', 'Modelo', (r: any) => r.modelo || '—', 300),
+    createTextColumn<T>('capacidad', 'Capacidad', (r: any) => r.capacidad || '—', 100),
+    createTextColumn<T>('imei', 'IMEI', (r: any) => r.imei || '—', 200),
+    createTextColumn<T>('Numero_Serie', 'Nº Serie', (r: any) => r.numero_serie || '—', 200),
+
+    // Columnas editables (estado_fisico, estado_funcional, etc.) - mantener lógica original
+    new ColumnBuilder<T>('estado_fisico')
+      .header('Estado Físico')
+      .accessor((r: any) => r.estado_fisico)
+      .size(120, 160)
+      .align('center')
+      .persist(true)
+      .cell(({ row }) => {
+        const disp = row.original as any
+        return (
           <Select
+            value={disp.estado_fisico || ''}
             size="small"
-            value={String((row.original as { estado_fisico?: unknown }).estado_fisico ?? '')}
-            onChange={(e) => handleChange(Number((row.original as { id?: unknown }).id), 'estado_fisico', String(e.target.value))}
+            onChange={(e) => updateHandler(disp.id, 'estado_fisico', e.target.value)}
+            sx={{ width: '100%' }}
           >
-            {estadosFisicos.map((e) => (
-              <MenuItem key={e} value={e}>
-                {formatoBonito(e)}
-              </MenuItem>
-            ))}
+            <MenuItem value="">—</MenuItem>
+            <MenuItem value="SIN_SIGNOS">Sin signos</MenuItem>
+            <MenuItem value="MINIMOS">Mínimos</MenuItem>
+            <MenuItem value="ALGUNOS">Algunos</MenuItem>
+            <MenuItem value="DESGASTE_VISIBLE">Desgaste visible</MenuItem>
+            <MenuItem value="DOBLADO">Doblado</MenuItem>
           </Select>
-        ) : (
-          formatoBonito(String((row.original as { estado_fisico?: unknown }).estado_fisico ?? ''))
-        ),
-      meta: { minWidth: 120, align: 'center', persist: true },
-    },
-    {
-      id: 'estado_funcional',
-      header: 'Funcional',
-      cell: ({ row }) =>
-        filaEditando === row.original.id ? (
+        )
+      })
+      .build(),
+
+    new ColumnBuilder<T>('estado_funcional')
+      .header('Estado Funcional')
+      .accessor((r: any) => r.estado_funcional)
+      .size(120, 160)
+      .align('center')
+      .persist(true)
+      .cell(({ row }) => {
+        const disp = row.original as any
+        return (
           <Select
+            value={disp.estado_funcional || ''}
             size="small"
-            value={String((row.original as { estado_funcional?: unknown }).estado_funcional ?? '')}
-            onChange={(e) => handleChange(Number((row.original as { id?: unknown }).id), 'estado_funcional', String(e.target.value))}
+            onChange={(e) => updateHandler(disp.id, 'estado_funcional', e.target.value)}
+            sx={{ width: '100%' }}
           >
-            {estadosFuncionales.map((e) => (
-              <MenuItem key={e} value={e}>
-                {formatoBonito(e)}
-              </MenuItem>
-            ))}
+            <MenuItem value="">—</MenuItem>
+            <MenuItem value="OK">OK</MenuItem>
+            <MenuItem value="PROBLEMAS">Problemas</MenuItem>
           </Select>
-        ) : (
-          formatoBonito(String((row.original as { estado_funcional?: unknown }).estado_funcional ?? ''))
-        ),
-      meta: { minWidth: 120, align: 'center', persist: true },
-    },
-    {
-      id: 'estado_valoracion',
-      header: 'Valoración',
-      accessorFn: (row: { estado_valoracion?: unknown }) => formatoBonito(String(row.estado_valoracion ?? '')),
-      meta: { minWidth: 130, align: 'center', alignHeader: 'left' },
-    },
-    {
-      id: 'precio_final',
-      header: 'Precio',
-      cell: ({ row }) => {
-        const id = String(row.original.id)
-        const temp = (formTemporal[id] as { precio_final?: unknown } | undefined)?.precio_final
-        const valorActual = temp ?? row.original.precio_final ?? row.original.precio_orientativo ?? ''
+        )
+      })
+      .build(),
 
-        return filaEditando === row.original.id ? (
-          <TextField
-            key={`precio-${row.original.id}`}
+    new ColumnBuilder<T>('estado_valoracion')
+      .header('Estado Valoración')
+      .accessor((r: any) => r.estado_valoracion)
+      .size(130, 170)
+      .align('center')
+      .persist(true)
+      .cell(({ row }) => {
+        const disp = row.original as any
+        return (
+          <Select
+            value={disp.estado_valoracion || ''}
             size="small"
-            type="number"
-            value={valorActual as string | number}
-            onChange={(e) => {
-              const next = { ...(formTemporal[id] as Record<string, unknown> | undefined), precio_final: e.target.value }
-              setFormTemporal({ ...formTemporal, [id]: next })
-            }}
-            onBlur={() => {
-              const toSave = String((formTemporal[id] as { precio_final?: unknown } | undefined)?.precio_final ?? valorActual ?? '')
-              if (toSave !== String(row.original.precio_final ?? '')) {
-                handleChange(Number((row.original as { id?: unknown }).id), 'precio_final', toSave);
-                guardarAuditoria(
-                  {
-                    ...row.original,
-                    precio_final: toSave,
-                  } as unknown as Record<string, unknown>,
-                  row.index,
-                  false
-                );
-              }
-            }}
-            inputProps={{ min: 0 }}
-          />
-        ) : (
-          <Typography variant="body2" align="center">
-            {String((row.original as { precio_final?: unknown; precio_orientativo?: unknown }).precio_final ?? (row.original as { precio_orientativo?: unknown }).precio_orientativo ?? '—') + ' €'}
-          </Typography>
-        );
-      },
-      meta: { minWidth: 125, align: 'center', alignHeader: 'left', persist: true },
-    },
-    {
-      id: 'observaciones',
-      header: 'Observaciones',
-      cell: ({ row }) => {
-        const id = String(row.original.id)
-        const temp = (formTemporal[id] as { observaciones?: unknown } | undefined)?.observaciones
-        const valorActual = String(temp ?? row.original.observaciones ?? '')
+            onChange={(e) => updateHandler(disp.id, 'estado_valoracion', e.target.value)}
+            sx={{ width: '100%' }}
+          >
+            <MenuItem value="">—</MenuItem>
+            <MenuItem value="A+">A+</MenuItem>
+            <MenuItem value="A">A</MenuItem>
+            <MenuItem value="B">B</MenuItem>
+            <MenuItem value="C">C</MenuItem>
+            <MenuItem value="D">D</MenuItem>
+          </Select>
+        )
+      })
+      .build(),
 
-        return filaEditando === row.original.id ? (
+    createCurrencyColumn<T>('precio_final', 'Precio Final', (r: any) => r.precio_final, 125, 180),
+
+    new ColumnBuilder<T>('observaciones')
+      .header('Observaciones')
+      .accessor((r: any) => r.observaciones)
+      .size(500)
+      .align('center')
+      .alignHeader('left')
+      .persist(true)
+      .cell(({ row }) => {
+        const disp = row.original as any
+        return (
           <TextField
-            key={`obs-${row.original.id}`}
+            value={disp.observaciones || ''}
+            multiline
             size="small"
-            value={valorActual}
-            onChange={(e) => {
-              const next = { ...(formTemporal[id] as Record<string, unknown> | undefined), observaciones: e.target.value }
-              setFormTemporal({ ...formTemporal, [id]: next })
-            }}
-            onBlur={() => {
-              if (valorActual !== String(row.original.observaciones ?? '')) {
-                handleChange(Number((row.original as { id?: unknown }).id), 'observaciones', valorActual);
-              }
-            }}
-            placeholder="Opcional"
-            sx={{ minWidth: 450 }}
+            onChange={(e) => updateHandler(disp.id, 'observaciones', e.target.value)}
+            sx={{ minWidth: pxToResponsiveRem(280) }}
           />
-          ) : (
-          <Typography variant="body2" align="center">
-             {String((row.original as { observaciones?: unknown }).observaciones ?? '—')}
-          </Typography>
-        );
-      },
-      meta: { minWidth: 500, align: 'center', alignHeader: 'left', persist: true },
-    },
-    
-  ];
+        )
+      })
+      .build(),
+  ]
 
-  return {
-    columnas,
-    zoom: 0.82, // 👈 escala visual para esta tabla
-  };
+  return { columnas, zoom: 1.0 }
 }
 
-export const columnasOperaciones: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId, meta: { minWidth: { xs: '5rem', sm: '5rem' }, maxWidth: { xs: '8rem', sm: '8rem' }, align: 'center', alignHeader: 'center' } },
-  {
-    id: 'comercial',
-    header: 'Comercial',
-    accessorFn: (r: { usuario_info?: { name?: string; } }) => r.usuario_info?.name || '—',
-    meta: {
-      align: 'center',
-      minWidth: { xs: 0, sm: '5rem',md: '5rem' },
-      maxWidth: { xs: '14rem', sm: '18rem', md: '20rem' },
-      alignHeader: 'center',
-      ellipsis: true,
-      ellipsisMaxWidth: { xs: '13rem', sm: '17rem', md: '19rem' },
-    },
-  },
-  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre', meta: { minWidth: { xs: 0, sm: '6rem' }, maxWidth: { xs: '10rem', sm: '12rem', md: '14rem' }, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: { xs: '9rem', sm: '11rem', md: '13rem' } } },
-  
-  {
-    id: 'cliente',
-    header: 'Cliente',
-    meta: {
-            minWidth: { xs: 0, sm: '6rem' },
-            maxWidth: { xs: '12rem', sm: '13rem', md: '14rem' },
-            align: 'center',
-            alignHeader: 'center',
-            ellipsis: true,
-            ellipsisMaxWidth: { xs: '11rem', sm: '12rem', md: '13rem' },
-          },
-    accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
-  },
-  {
-  id: 'valoracion',
-  header: makeTwoLineHeader('Valoración', 'orientativa'),
-  accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
-    (r.dispositivos ?? []).reduce(
-      (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
-      0
-    ),
-  sortingFn: (a, b, id) =>
-    Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
-  meta: {
-    label: 'Valoración orientativa',
-<<<<<<< HEAD
-    minWidth: 120,
-    maxWidth: 220,
-=======
-    minWidth: { xs: 0, sm: '7rem', md: '8rem' },
->>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
-    align: 'center',
-    alignHeader: 'center',
-    headerMaxWidth: { xs: '9rem', sm: '10rem', md: '11rem' },
-    // CSV crudo (número):
-    toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
-    // Si prefieres exportar formateado:
-    // toCSV: (v: number) => formatoMoneda(v ?? 0),
-  },
-  cell: ({ getValue }) => {
-    const total = Number(getValue<number>() ?? 0);
-    return total > 0 ? formatoMoneda(total) : '—';
-  },
-  },
-  {
-    id: 'valoracion_final',
-    header: makeTwoLineHeader('Valoración', 'final'),
-    accessorFn: (r: { valor_total_final?: unknown }) => Number(r.valor_total_final ?? 0),
-    sortingFn: (a, b, id) =>
-      Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
-    meta: {
-      label: 'Valoración final',
-      minWidth: { xs: 0, sm: '7rem', md: '8rem' },
-      align: 'center',
-      alignHeader: 'center',
-      headerMaxWidth: { xs: '9rem', sm: '10rem', md: '11rem' },
-      toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
-    },
-    cell: ({ getValue }) => {
-      const valor = Number(getValue<number>() ?? 0);
-      return valor > 0 ? formatoMoneda(valor) : '—';
-    },
-  },
-  {
-    id: 'fecha_creacion',
-    header: 'Fecha',
-    accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
-    meta: {
-      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
-      align: 'center',
-      alignHeader: 'center',
-      toCSV: (value: unknown /*, row */) => {
-        const d = value instanceof Date ? value : value ? new Date(String(value)) : null
-        return d ? d.toISOString() : ''
-      },
-    },
-    cell: ({ getValue }) => {
-      const v = getValue<Date | string | number | null>()
-      const d = v instanceof Date ? v : v ? new Date(v) : null
-      return d ? d.toLocaleDateString('es-ES') : '—'
-    },
-  },
-  {
-    id: 'seguimiento',
-    header: 'N de seguimiento',
-    accessorKey: 'numero_seguimiento',
-    meta: {
-      align: 'center',
-      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
-      maxWidth: { xs: '12rem', sm: '14rem', md: '16rem' },
-      alignHeader: 'center',
-      ellipsis: true,
-      ellipsisMaxWidth: { xs: '11rem', sm: '13rem', md: '15rem' },
-    },
-  },
-  {
-    id: 'estado',
-    header: 'Estado',
-    accessorKey: 'estado',                 // <- clave para que row.getValue('estado') funcione
-    meta: {
-      label: 'Estado',
-      align: 'center',
-      alignHeader: 'center',
-      toCSV: (value: unknown /*, row */) =>
-        typeof value === 'string' ? value : value == null ? '' : String(value),
-      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
-      maxWidth: { xs: '8rem', sm: '9rem', md: '10rem' },
-    },
-    cell: ({ getValue }) => {
-      const estado = (getValue<string>() ?? '').trim();
-      const meta = ESTADOS_B2B[estado] || {};
-      const Icono = meta.icon;
+// ============================================================================
+// DEFINICIONES DE COLUMNAS - OPERACIONES
+// ============================================================================
 
-      const label = ESTADO_LABEL_OVERRIDES[estado] || estado || '—'
-      return (
-        <Chip
-          label={label}
-          icon={Icono ? <Icono fontSize="small" /> : undefined}
-          color={meta.color || 'default'}
-          size="small"
-          sx={{ fontWeight: 500 }}
-        />
-      );
-    },
-  },
+export const columnasOperaciones: ResponsiveColumnDef<GenericRow>[] = [
+  createIdColumn<GenericRow>(),
+  createTextColumn<GenericRow>('comercial', 'Comercial', (r) => (r as any).usuario_info?.name || '—', 110, 200),
+
+  createTextColumn<GenericRow>('nombre', 'Nombre', (r) => r.nombre, 140, 200),
+  createTextColumn<GenericRow>('cliente', 'Cliente', (r) => {
+    const row = r as any
+    // Prioridad: display_name > razon_social > cliente_nombre > nombre+apellidos
+    if (row.cliente?.display_name) return row.cliente.display_name
+    if (row.cliente?.razon_social) return row.cliente.razon_social
+    if (row.cliente_nombre) return row.cliente_nombre
+    if (row.cliente?.nombre && row.cliente?.apellidos) {
+      return `${row.cliente.nombre} ${row.cliente.apellidos}`
+    }
+    if (row.cliente?.nombre) return row.cliente.nombre
+    return '—'
+  }, 130, 280),
+  createCurrencyColumn<GenericRow>(
+    'valoracion_partner',
+    makeTwoLineHeader('Valoración', 'partner'),
+    (r) => Number((r as any).valor_total ?? 0),
+    140,
+    200
+  ),
+  createCurrencyColumn<GenericRow>(
+    'valoracion_final',
+    makeTwoLineHeader('Valoración', 'final'),
+    (r) => Number((r as any).valor_total_final ?? 0),
+    150,
+    200
+  ),
+  createDateColumn<GenericRow>('fecha_creacion', 'Fecha', 'fecha_creacion', 110),
+  createTextColumn<GenericRow>('seguimiento', 'Número de seguimiento', (r) => r.numero_seguimiento, 200, 280),  
+  createStatusColumn<GenericRow>('estado', 'Estado', (r) => String(r.estado ?? ''), 120, 160),
 ]

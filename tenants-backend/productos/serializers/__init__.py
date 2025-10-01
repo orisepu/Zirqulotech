@@ -8,7 +8,14 @@ from .admincapacidades import (
 from .costespiezas import CostoPiezaListSerializer
 from .tiposreparacion import PiezaTipoSerializer,ManoObraTipoSerializer
 from .actualizador import TareaLikewizeSerializer,LikewizeCazadorResultadoSerializer
-from .valoraciones import ComercialIphoneInputSerializer
+from .valoraciones import (
+    ComercialIphoneInputSerializer,
+    BaseValoracionInputSerializer,
+    ComercialIpadInputSerializer,
+    ComercialMacBookInputSerializer,
+    ComercialIMacInputSerializer,
+    ComercialMacProInputSerializer,
+)
 __all__ = [
    "ModeloMiniSerializer",
    "ModeloCreateSerializer",
@@ -21,4 +28,9 @@ __all__ = [
    "TareaLikewizeSerializer",
    "ComercialIphoneInputSerializer",
    "LikewizeCazadorResultadoSerializer",
+   "BaseValoracionInputSerializer",
+   "ComercialIpadInputSerializer",
+   "ComercialMacBookInputSerializer",
+   "ComercialIMacInputSerializer",
+   "ComercialMacProInputSerializer",
 ]

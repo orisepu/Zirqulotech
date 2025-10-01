@@ -1,5 +1,6 @@
 // Opportunities Feature
 export * from './components'
-export * from './hooks'
-export * from './services'
-export * from './types'
+// hooks, services, and types are currently empty
+// export * from './hooks'
+// export * from './services'
+// export * from './types'

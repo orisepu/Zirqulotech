@@ -1,6 +1,7 @@
 import axios from "axios";
 import { navigateToLogin } from "@/shared/utils/navigation";
 import { API_BASE_URL } from "@/shared/config/env";
+import { getSecureItem, setSecureItem, removeSecureItem, secureTokens } from "@/shared/lib/secureStorage";
 
 export const BASE_URL = API_BASE_URL;
 
@@ -12,30 +13,35 @@ const api = axios.create({
   },
 });
 
-// Añade token y schema antes de cada request
-api.interceptors.request.use((config) => {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("access") : null;
-  const schema =
-    typeof window !== "undefined" ? localStorage.getItem("schema") : null;
-  const currentTenant =
-    typeof window !== "undefined" ? localStorage.getItem("currentTenant") : null;
+// Añade token y schema antes de cada request (ahora asíncrono)
+api.interceptors.request.use(async (config) => {
+  if (typeof window === "undefined") return config;
 
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    // Leer tokens del secure storage (encriptado)
+    const token = await getSecureItem("access");
+    const schema = await getSecureItem("schema");
+    const currentTenant = await getSecureItem("currentTenant");
+
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const tenantHeader = schema || currentTenant;
+    if (tenantHeader && config.headers) {
+      config.headers["X-Tenant"] = tenantHeader;
+    }
+
+    return config;
+  } catch (error) {
+    console.error("⚠️ Error leyendo tokens del secure storage:", error);
+    return config;
   }
-
-  const tenantHeader = schema || currentTenant;
-  if (tenantHeader && config.headers) {
-    config.headers["X-Tenant"] = tenantHeader;
-  }
-
-  return config;
 });
 
-// Función para refrescar token
+// Función para refrescar token (ahora con secure storage)
 async function refreshToken() {
-  const refresh = localStorage.getItem("refresh");
+  const refresh = await getSecureItem("refresh");
   if (!refresh) throw new Error("No hay token refresh");
 
   const res = await axios.post(`${BASE_URL}/api/token/refresh/`, {
@@ -43,7 +49,7 @@ async function refreshToken() {
   });
 
   const { access } = res.data;
-  localStorage.setItem("access", access);
+  await setSecureItem("access", access);
   return access;
 }
 
@@ -65,9 +71,9 @@ api.interceptors.response.use(
         originalRequest.headers["Authorization"] = `Bearer ${newAccess}`;
         return api(originalRequest); // Reintenta con nuevo token
       } catch (refreshError) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        localStorage.removeItem('chat_id');
+        // Limpiar tokens del secure storage
+        secureTokens.removeAllTokens();
+        removeSecureItem('chat_id');
         navigateToLogin();
         return Promise.reject(refreshError);
       }
@@ -91,8 +97,13 @@ export function login(empresa: string, email: string, password: string) {
     }
   );
 }
-export function getAccessToken() {
-  return typeof window !== "undefined" ? localStorage.getItem("access") : null;
+
+/**
+ * Obtiene el access token del secure storage
+ * @deprecated Prefer using getSecureItem('access') directly for better async handling
+ */
+export async function getAccessToken(): Promise<string | null> {
+  return getSecureItem("access");
 }
 
 

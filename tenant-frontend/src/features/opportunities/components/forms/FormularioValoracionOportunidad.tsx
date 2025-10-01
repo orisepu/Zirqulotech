@@ -600,6 +600,7 @@ export default function FormularioValoracionOportunidad({
   const esIpad = /\bipad\b/i.test(tipo || '')
   const esComercial = esIphone || esIpad
   const isProd = typeof window !== 'undefined' && process.env.NODE_ENV === 'production'
+  const modoInformativo = oportunidadId === -1
 
   const puedeAvanzarStrict = () => {
     switch (current) {
@@ -1091,7 +1092,7 @@ export default function FormularioValoracionOportunidad({
       >
         {/* Fila de botones */}
         <Stack direction="row" spacing={1.5} justifyContent="center" alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
-          <Button onClick={onClose}>Cancelar</Button>
+          <Button onClick={onClose}>{modoInformativo ? 'Cerrar' : 'Cancelar'}</Button>
           {activeStep > 0 && <Button onClick={handleAnterior}>Anterior</Button>}
           {activeStep < visibleSteps.length - 1 && (
             <Button
@@ -1112,7 +1113,7 @@ export default function FormularioValoracionOportunidad({
               Siguiente
             </Button>
           )}
-          {activeStep === visibleSteps.length - 1 && (
+          {activeStep === visibleSteps.length - 1 && !modoInformativo && (
             <>
               <Tooltip title="Ctrl + Shift + Enter">
                 <Button variant="outlined" onClick={() => handleSubmit(true)}>Guardar y añadir otro</Button>

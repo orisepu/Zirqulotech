@@ -97,38 +97,67 @@ export function getColumnMaxWidth(
  * getResponsiveColumnMeta({ minWidth: 200, type: 'text', ellipsis: true })
  * // { minWidth: 200, maxWidth: { xl: 440 }, ellipsisMaxWidth: 420, ... }
  */
+/**
+ * Convierte píxeles a rem con breakpoints responsivos
+ * @param px - Valor en píxeles
+ * @returns Objeto con breakpoints en rem
+ */
+function pxToResponsiveRem(px: number): { xs: string; sm: string; md?: string } {
+  const baseRem = px / 16 // 16px = 1rem
+
+  // Progresión responsive: xs (más pequeño) → sm → md (valor objetivo)
+  if (px >= 180) {
+    // Valores grandes: progresión más amplia
+    return {
+      xs: `${(baseRem * 0.85).toFixed(2)}rem`,
+      sm: `${(baseRem * 0.92).toFixed(2)}rem`,
+      md: `${baseRem.toFixed(2)}rem`,
+    }
+  } else if (px >= 120) {
+    // Valores medios: progresión moderada
+    return {
+      xs: `${(baseRem * 0.88).toFixed(2)}rem`,
+      sm: `${(baseRem * 0.94).toFixed(2)}rem`,
+      md: `${baseRem.toFixed(2)}rem`,
+    }
+  } else {
+    // Valores pequeños: progresión sutil
+    return {
+      xs: `${(baseRem * 0.9).toFixed(2)}rem`,
+      sm: `${baseRem.toFixed(2)}rem`,
+    }
+  }
+}
+
 export function getResponsiveColumnMeta(config: ColumnConfig): ColumnMeta {
   const { minWidth, type = 'custom', ellipsis = false, align, maxWidth: customMaxWidth } = config
+
+  // Convertir minWidth de px a rem responsivo
+  const responsiveMinWidth = pxToResponsiveRem(minWidth)
 
   // Configuración por defecto según tipo
   const defaults: Record<
     NonNullable<ColumnConfig['type']>,
-    { maxWidth: number | object; align: 'left' | 'center' | 'right'; ellipsis: boolean }
+    { maxWidth: ResponsiveValue; align: 'left' | 'center' | 'right'; ellipsis: boolean }
   > = {
-    id: { maxWidth: 130, align: 'center', ellipsis: false },
-    date: { maxWidth: 140, align: 'center', ellipsis: false },
-    status: { maxWidth: 160, align: 'center', ellipsis: false },
-    currency: { maxWidth: 180, align: 'right', ellipsis: false },
+    id: { maxWidth: pxToResponsiveRem(130), align: 'center', ellipsis: false },
+    date: { maxWidth: pxToResponsiveRem(140), align: 'center', ellipsis: false },
+    status: { maxWidth: pxToResponsiveRem(160), align: 'center', ellipsis: false },
+    currency: { maxWidth: pxToResponsiveRem(180), align: 'right', ellipsis: false },
     text: {
       maxWidth: {
-        xs: Math.round(minWidth * 1.5),
-        sm: Math.round(minWidth * 1.6),
-        md: Math.round(minWidth * 1.8),
-        lg: Math.round(minWidth * 2.0),
-        xl: Math.round(minWidth * 2.2),
-        xxl: Math.round(minWidth * 2.4),
-        xxxl: Math.round(minWidth * 2.6),
+        xs: `${(minWidth * 1.5 / 16).toFixed(2)}rem`,
+        sm: `${(minWidth * 1.6 / 16).toFixed(2)}rem`,
+        md: `${(minWidth * 1.8 / 16).toFixed(2)}rem`,
       },
       align: 'left',
       ellipsis: true,
     },
     custom: {
       maxWidth: {
-        md: Math.round(minWidth * 1.8),
-        lg: Math.round(minWidth * 2.0),
-        xl: Math.round(minWidth * 2.2),
-        xxl: Math.round(minWidth * 2.4),
-        xxxl: Math.round(minWidth * 2.6),
+        xs: `${(minWidth * 1.6 / 16).toFixed(2)}rem`,
+        sm: `${(minWidth * 1.8 / 16).toFixed(2)}rem`,
+        md: `${(minWidth * 2.0 / 16).toFixed(2)}rem`,
       },
       align: 'left',
       ellipsis: false,
@@ -138,24 +167,44 @@ export function getResponsiveColumnMeta(config: ColumnConfig): ColumnMeta {
   const typeDefaults = defaults[type]
   const finalAlign = align ?? typeDefaults.align
   const finalEllipsis = ellipsis || typeDefaults.ellipsis
-  const finalMaxWidth = customMaxWidth ?? typeDefaults.maxWidth
 
-  // Calcular ellipsisMaxWidth
-  let ellipsisMaxWidth: number | undefined
+  // Convertir customMaxWidth si es número (píxeles)
+  let finalMaxWidth: ResponsiveValue
+  if (customMaxWidth !== undefined) {
+    if (typeof customMaxWidth === 'number') {
+      finalMaxWidth = pxToResponsiveRem(customMaxWidth)
+    } else {
+      finalMaxWidth = customMaxWidth
+    }
+  } else {
+    finalMaxWidth = typeDefaults.maxWidth
+  }
+
+  // Calcular ellipsisMaxWidth en rem
+  let ellipsisMaxWidth: ResponsiveValue | undefined
   if (finalEllipsis) {
     if (typeof finalMaxWidth === 'number') {
-      ellipsisMaxWidth = finalMaxWidth - 20
+      ellipsisMaxWidth = pxToResponsiveRem(finalMaxWidth - 20)
     } else if (typeof finalMaxWidth === 'object') {
-      // Usar el valor más grande disponible (xxxl > xxl > xl > lg...)
-      const maxVal = (finalMaxWidth as any).xxxl ?? (finalMaxWidth as any).xxl ?? (finalMaxWidth as any).xl ?? minWidth * 2
-      ellipsisMaxWidth = maxVal - 20
+      // Si maxWidth ya es un objeto con breakpoints, restar 1.25rem (~20px)
+      const maxWidthObj = finalMaxWidth as Record<string, string>
+      if (maxWidthObj.md) {
+        const mdValue = parseFloat(maxWidthObj.md)
+        ellipsisMaxWidth = {
+          xs: `${Math.max(0, parseFloat(maxWidthObj.xs || '0') - 1.25).toFixed(2)}rem`,
+          sm: `${Math.max(0, parseFloat(maxWidthObj.sm || '0') - 1.25).toFixed(2)}rem`,
+          md: `${Math.max(0, mdValue - 1.25).toFixed(2)}rem`,
+        }
+      } else {
+        ellipsisMaxWidth = pxToResponsiveRem(minWidth * 2 - 20)
+      }
     } else {
-      ellipsisMaxWidth = minWidth * 2
+      ellipsisMaxWidth = pxToResponsiveRem(minWidth * 2)
     }
   }
 
   return {
-    minWidth,
+    minWidth: responsiveMinWidth,
     maxWidth: finalMaxWidth,
     ellipsisMaxWidth,
     align: finalAlign,

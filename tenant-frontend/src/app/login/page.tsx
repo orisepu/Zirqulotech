@@ -1,20 +1,15 @@
-"use client";
+import type { Metadata } from 'next'
+import LoginPageClient from '../LoginPageClient'
 
-import LoginForm from "@/features/auth/components/LoginForm";
-import { Box } from "@mui/material";
+export const metadata: Metadata = {
+  title: 'Iniciar Sesión - Zirqulo',
+  description: 'Accede a tu cuenta de partner en Zirqulo',
+  robots: {
+    index: false,
+    follow: false,
+  },
+}
 
 export default function LoginPage() {
-  return (
-    <Box
-      sx={{
-        minHeight: "100dvh",
-        display: "grid",
-        placeItems: "center",
-        px: 2,
-        bgcolor: "background.default", // ← usa el tema (dark/light)
-      }}
-    >
-      <LoginForm />
-    </Box>
-  );
+  return <LoginPageClient />
 }

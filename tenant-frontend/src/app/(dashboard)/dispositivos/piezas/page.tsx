@@ -13,7 +13,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SaveIcon from '@mui/icons-material/Save'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import api, { getAccessToken } from '@/services/api'
+import api from '@/services/api'
 import TablaReactiva from '@/shared/components/TablaReactiva2'
 import type { ColumnDef } from '@tanstack/react-table'
 
@@ -154,13 +154,10 @@ export default function AdminCostesReparacionPorModelo() {
     page_size: pageSize,
   }), [q, tipo, ordering, pageIndex, pageSize])
 
-  const canFetch = typeof window !== 'undefined' && !!getAccessToken()
-
   const { data: modelosData, isFetching: modelosLoading, error: modelosError, refetch: refetchModelos } = useQuery({
     queryKey: ['admin-modelos', params],
     queryFn: () => fetchModelos(params),
     placeholderData: keepPreviousData,
-    enabled: canFetch,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   })
@@ -176,7 +173,7 @@ export default function AdminCostesReparacionPorModelo() {
   const { data: coverage = [], isFetching: coverageLoading, refetch: refetchCoverage } = useQuery({
   queryKey: ['admin-costos-pieza-coverage', modeloIds.join(','), q, tipo],
   queryFn: () => fetchCoverage(modeloIds, { search: q || undefined, tipo: tipo || undefined }),
-  enabled: canFetch && modeloIds.length > 0,
+  enabled: modeloIds.length > 0,
   staleTime: 30_000,})
 
   const coverageArr = useMemo<CoverageRow[]>(
@@ -233,14 +230,13 @@ const coverageMap = useMemo(() => {
   const { data: opciones, isFetching: opcionesLoading } = useQuery({
     queryKey: ['admin-reparacion-opciones'],
     queryFn: fetchOpcionesReparacion,
-    enabled: canFetch,
     staleTime: 3600_000,
   })
 
   const { data: costes, isFetching: costesLoading, error: costesError, refetch: refetchCostes } = useQuery({
     queryKey: ['admin-costos-pieza-modelo', selected?.id],
     queryFn: () => fetchCostosPieza(selected!.id),
-    enabled: canFetch && !!selected?.id,
+    enabled: !!selected?.id,
     refetchOnWindowFocus: false,
   })
 
@@ -310,19 +306,6 @@ const coverageMap = useMemo(() => {
     if (!row.id) return
     await deleteMutation.mutateAsync(row.id)
     refetchCostes()
-  }
-
-  const canFetchToken = typeof window !== 'undefined' && !!getAccessToken()
-  if (!canFetchToken) {
-    return (
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Paper style={{ padding: 16 }}>
-            <Typography>Debes iniciar sesión para ver esta página.</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
-    )
   }
 
   return (

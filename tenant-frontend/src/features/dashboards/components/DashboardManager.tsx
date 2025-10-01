@@ -142,11 +142,14 @@ function useDashboardFilters(): [Filters, {
   setUsuarioId: (id?: number) => void
   applyPreset: (preset: PeriodPreset) => void
 }] {
-  const initialPreset = getCurrentQuarterPreset();
-  const initialQuarter = deriveQuarterBounds(initialPreset);
+  const initialPreset: PeriodPreset = 'ultimo_mes';
+  const initialMonth = {
+    fechaInicio: startOfMonthISO(),
+    fechaFin: endOfMonthISO()
+  };
   const [filters, setFilters] = useState<Filters>({
-    fechaInicio: initialQuarter.fechaInicio,
-    fechaFin: initialQuarter.fechaFin,
+    fechaInicio: initialMonth.fechaInicio,
+    fechaFin: initialMonth.fechaFin,
     granularidad: 'mes',
     tiendaId: undefined,
     usuarioId: undefined,

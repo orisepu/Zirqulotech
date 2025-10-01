@@ -1,4 +1,20 @@
-import React, { useMemo, useState, useEffect } from 'react'
+/**
+ * Componente de tabla responsive y escalable
+ *
+ * @description Tabla moderna con soporte completo para:
+ * - Responsive design con DPI scaling automático
+ * - Virtualización para tablas grandes (opcional)
+ * - Paginación client/server side
+ * - Ordenamiento y filtrado
+ * - Export a CSV
+ * - Selector de columnas con persistencia
+ * - Mobile-first con ocultación inteligente de columnas
+ *
+ * @version 2.0
+ * @date 2025-10-01
+ */
+
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Table,
   TableHead,
@@ -15,556 +31,532 @@ import {
   TableContainer,
   Checkbox,
   Button,
-  Select
+  TablePagination,
 } from '@mui/material'
 import {
-  ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
-  SortingState,
-  VisibilityState,
-  getPaginationRowModel,
+  getSortedRowModel,
   getFilteredRowModel,
-  getSortedRowModel
+  getPaginationRowModel,
+  type SortingState,
+  type VisibilityState,
+  type PaginationState,
 } from '@tanstack/react-table'
 import ViewColumnIcon from '@mui/icons-material/ViewColumn'
 import DownloadIcon from '@mui/icons-material/Download'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import Papa from 'papaparse'
-import { EllipsisTooltip } from "@/shared/components/ui/EllipsisTooltip";
-import { getTableContainerSx, getTableWrapperSx, getResponsiveTableZoom } from '@/shared/utils/tableResponsive'
+import { useDpiDetection } from '@/hooks/useDpiDetection'
+import { EllipsisTooltip } from '@/shared/components/ui/EllipsisTooltip'
+import {
+  getCellStyles,
+  getHeaderStyles,
+  getTableContainerStyles,
+  getDensityPadding,
+  calculateEllipsisMaxWidth,
+} from '@/shared/utils/tableResponsive.v2'
+import type {
+  ResponsiveTableProps,
+  ResponsiveColumnDef,
+  ResponsiveColumnMeta,
+  TableDensity,
+} from '@/shared/types/table.types'
+import type { ColumnDef } from '@tanstack/react-table'
 
-export interface TablaReactivaProps<TData> {
-  oportunidades: TData[];
-  columnas: ColumnDef<TData>[];
-  loading?: boolean;
-  onRowClick?: (row: TData) => void;
-  usuarioId?: string | number;
-  defaultSorting?: SortingState;
-  meta?: {
-    data: TData[];
-    setData: (val: TData[]) => void;
-    zoom?: number;
-  };
-  serverPagination?: boolean;
-  totalCount?: number;
-  pageIndex?: number;        // 0-based
-  pageSize?: number;
-  onPageChange?: (pageIndex: number) => void;      // 0-based
-  onPageSizeChange?: (pageSize: number) => void;
-  hideColumnSelector?: boolean;  // Ocultar selector de columnas
-  hideExport?: boolean;          // Ocultar botón de exportación
+// ============================================================================
+// TIPOS INTERNOS
+// ============================================================================
+
+interface TableToolbarProps {
+  onExport?: () => void
+  onOpenColumnSelector?: (event: React.MouseEvent<HTMLButtonElement>) => void
+  hideExport?: boolean
+  hideColumnSelector?: boolean
 }
 
-export default function TablaReactiva<TData>({
-  oportunidades,
-  columnas,
-  loading = false,
-  onRowClick,
-  usuarioId,
-  defaultSorting = [],
-  meta,
-  serverPagination = false,
-  totalCount,
-  pageIndex,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-  hideColumnSelector = false,
+interface ResponsiveCellProps<T> {
+  cell: any
+  meta?: ResponsiveColumnMeta
+  density: TableDensity
+  dpiLevel: 'normal' | 'medium' | 'high' | 'very-high'
+}
+
+// ============================================================================
+// COMPONENTE: TABLE TOOLBAR
+// ============================================================================
+
+function TableToolbar({
+  onExport,
+  onOpenColumnSelector,
   hideExport = false,
-}: TablaReactivaProps<TData>) {
+  hideColumnSelector = false,
+}: TableToolbarProps) {
+  if (hideExport && hideColumnSelector) return null
 
-  const [globalFilter, setGlobalFilter] = useState('')
-  const STORAGE_KEY_VISIBILITY = `columnasVisibles_oportunidades_${usuarioId}`
-  const datos = Array.isArray(oportunidades) ? oportunidades : []
-  const isDev = process.env.NODE_ENV !== 'production'
+  return (
+    <TableRow>
+      <TableCell colSpan={999}>
+        <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
+          {!hideColumnSelector && (
+            <IconButton onClick={onOpenColumnSelector} size="small" title="Seleccionar columnas">
+              <ViewColumnIcon />
+            </IconButton>
+          )}
+          {!hideExport && (
+            <IconButton onClick={onExport} size="small" title="Exportar a CSV">
+              <DownloadIcon />
+            </IconButton>
+          )}
+        </Box>
+      </TableCell>
+    </TableRow>
+  )
+}
 
-  // Estado interno solo si NO usamos server-side
-  const [internalPagination, setInternalPagination] = useState({ pageIndex: 0, pageSize: 10 })
-  const pagination = serverPagination
-    ? { pageIndex: pageIndex ?? 0, pageSize: pageSize ?? 10 }
-    : internalPagination
+// ============================================================================
+// COMPONENTE: RESPONSIVE CELL
+// ============================================================================
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY_VISIBILITY)
-      if (saved) return JSON.parse(saved)
+function ResponsiveCell<T>({ cell, meta, density, dpiLevel }: ResponsiveCellProps<T>) {
+  const cellStyles = getCellStyles(meta, density, dpiLevel)
+  const content = flexRender(cell.column.columnDef.cell, cell.getContext())
+
+  // Estilos de debug para desarrollo (mostrar bordes de columnas)
+  const devBorder = process.env.NODE_ENV === 'development' ? { borderRight: '1px solid rgba(224, 224, 224, 0.5)' } : {}
+
+  // Si la columna requiere ellipsis, usar EllipsisTooltip
+  if (meta?.ellipsis) {
+    // Calcular maxWidth restando automáticamente ~20px para dar espacio a los "..."
+    const maxWidth = calculateEllipsisMaxWidth(meta.ellipsisMaxWidth, meta.maxWidth)
+    // Convertir ResponsiveSize a string para EllipsisTooltip
+    const maxWidthStr = typeof maxWidth === 'object' ? maxWidth.md || maxWidth.sm || maxWidth.xs || '100%' : maxWidth
+
+    // Obtener contenido de texto: intentar con content renderizado, si no funciona usar getValue()
+    let textContent = ''
+    if (typeof content === 'string' || typeof content === 'number') {
+      textContent = String(content)
+    } else {
+      const rawValue = cell.getValue()
+      textContent = rawValue != null ? String(rawValue) : '—'
     }
-    // por defecto, todas visibles
-    return Object.fromEntries(columnas.map((c) => [c.id, true]))
+
+    // Sobrescribir estilos para quitar overflow/textOverflow del TableCell
+    // porque EllipsisTooltip ya los maneja internamente
+    const cellStylesWithoutEllipsis = {
+      ...cellStyles,
+      overflow: 'visible',
+      textOverflow: 'clip',
+      ...devBorder,
+    }
+
+    return (
+      <TableCell sx={cellStylesWithoutEllipsis}>
+        <EllipsisTooltip text={textContent} maxWidth={maxWidthStr} />
+      </TableCell>
+    )
+  }
+
+  return <TableCell sx={{ ...cellStyles, ...devBorder }}>{content}</TableCell>
+}
+
+// ============================================================================
+// COMPONENTE: COLUMN SELECTOR MENU
+// ============================================================================
+
+interface ColumnSelectorMenuProps {
+  anchorEl: HTMLElement | null
+  open: boolean
+  onClose: () => void
+  columns: any[]
+  columnVisibility: VisibilityState
+  onToggleColumn: (columnId: string) => void
+}
+
+function ColumnSelectorMenu({
+  anchorEl,
+  open,
+  onClose,
+  columns,
+  columnVisibility,
+  onToggleColumn,
+}: ColumnSelectorMenuProps) {
+  return (
+    <Menu anchorEl={anchorEl} open={open} onClose={onClose}>
+      {columns.map((column) => {
+        const meta = column.columnDef.meta as ResponsiveColumnMeta | undefined
+        const label = meta?.label || column.id
+        const isVisible = columnVisibility[column.id] !== false
+
+        return (
+          <MenuItem
+            key={column.id}
+            onClick={() => onToggleColumn(column.id)}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+          >
+            <Checkbox checked={isVisible} size="small" />
+            {label}
+          </MenuItem>
+        )
+      })}
+    </Menu>
+  )
+}
+
+// ============================================================================
+// COMPONENTE PRINCIPAL: TABLA REACTIVA
+// ============================================================================
+
+export default function TablaReactiva<TData>(props: ResponsiveTableProps<TData> & {
+  // Aliases para retrocompatibilidad
+  oportunidades?: TData[]
+  columnas?: ResponsiveColumnDef<TData>[] | ColumnDef<TData, any>[]
+  usuarioId?: string | number
+  serverPagination?: boolean
+}) {
+  // Extraer props con aliases para retrocompatibilidad
+  const {
+    data: dataProp,
+    oportunidades,
+    columns: columnsProp,
+    columnas,
+    userId: userIdProp,
+    usuarioId,
+    paginationMode: paginationModeProp,
+    serverPagination,
+    loading = false,
+    onRowClick,
+    storageKey,
+    totalCount,
+    pageIndex: controlledPageIndex,
+    pageSize: controlledPageSize,
+    onPageChange,
+    onPageSizeChange,
+    pageSizeOptions = [10, 25, 50, 100],
+    hideColumnSelector = false,
+    hideExport = false,
+    enableVirtualization = false,
+    estimatedRowHeight = 50,
+    enableSorting = true,
+    enableGlobalFilter = false,
+    density = 'normal',
+    striped = false,
+    hoverEffect = true,
+    stickyHeader = false,
+    maxHeight,
+    className,
+    sx,
+    mobileBreakpoint = 'sm',
+    autoHideLowPriority = true,
+    defaultSorting = [],
+    meta: customMeta,
+  } = props
+
+  // Resolver aliases
+  const data = dataProp || oportunidades || []
+  const columns = columnsProp || columnas || []
+  const userId = userIdProp || usuarioId
+  const paginationMode = serverPagination ? 'server' : (paginationModeProp || 'client')
+  // ========== STATE ==========
+  const { dpiLevel } = useDpiDetection({ enableWarnings: false })
+  const [sorting, setSorting] = useState<SortingState>(defaultSorting)
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [columnSelectorAnchor, setColumnSelectorAnchor] = useState<HTMLElement | null>(null)
+
+  // Storage key para persistencia
+  const finalStorageKey = storageKey || `table_visibility_${userId || 'default'}`
+
+  // Visibilidad de columnas con persistencia
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    if (typeof window === 'undefined') {
+      return Object.fromEntries(columns.map((c) => [c.id, true]))
+    }
+    const saved = localStorage.getItem(finalStorageKey)
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {
+        return Object.fromEntries(columns.map((c) => [c.id, true]))
+      }
+    }
+    return Object.fromEntries(columns.map((c) => [c.id, true]))
   })
 
-  // onPaginationChange compatible con controlado/no controlado
-  const handlePaginationChange = (
-    updater:
-      | { pageIndex: number; pageSize: number }
-      | ((old: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number })
-  ) => {
-    const current = pagination as { pageIndex: number; pageSize: number }
-    const next = typeof updater === 'function' ? (updater as (old: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number })(current) : updater
-    if (serverPagination) {
-      if (next.pageIndex !== current.pageIndex) onPageChange?.(next.pageIndex)
-      if (next.pageSize !== current.pageSize) onPageSizeChange?.(next.pageSize)
+  // Guardar visibilidad en localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(finalStorageKey, JSON.stringify(columnVisibility))
+    }
+  }, [columnVisibility, finalStorageKey])
+
+  // Paginación
+  const [internalPagination, setInternalPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: pageSizeOptions[0],
+  })
+
+  const pagination =
+    paginationMode === 'server'
+      ? {
+          pageIndex: controlledPageIndex ?? 0,
+          pageSize: controlledPageSize ?? pageSizeOptions[0],
+        }
+      : internalPagination
+
+  const handlePaginationChange = (updater: any) => {
+    if (paginationMode === 'server') {
+      const newState = typeof updater === 'function' ? updater(pagination) : updater
+      onPageChange?.(newState.pageIndex)
+      onPageSizeChange?.(newState.pageSize)
     } else {
-      setInternalPagination(next)
+      setInternalPagination(updater)
     }
   }
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_VISIBILITY, JSON.stringify(columnVisibility))
-    }
-  }, [columnVisibility, STORAGE_KEY_VISIBILITY])
-
-  const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? [])
-  const columnDefs = useMemo<ColumnDef<TData, unknown>[]>(() => columnas as ColumnDef<TData, unknown>[], [columnas])
-  const tableMeta = useMemo(() => {
-    if (!meta) return undefined
-    const setDataWrapped = (val: TData[] | ((old: TData[]) => TData[])) => {
-      if (typeof val === 'function') {
-        const next = (val as (old: TData[]) => TData[])(meta.data)
-        meta.setData(next)
-      } else {
-        meta.setData(val)
-      }
-    }
-    return { data: meta.data, setData: setDataWrapped, zoom: meta.zoom }
-    // Dependencias finas para evitar cierres obsoletos
-  }, [meta])
-  const table = useReactTable<TData>({
-    data: datos,
-    columns: columnDefs,
-    getRowId: (row: TData, index: number) => {
-      const r = row as Record<string, unknown> & { tenant?: string | number; id?: string | number }
-      if (r && r.tenant !== undefined && r.id !== undefined) return `${r.tenant}-${r.id}`
-      if (r.id !== undefined) return String(r.id)
-      return String(index)
+  // ========== TABLA ==========
+  const table = useReactTable({
+    data,
+    columns: columns as any,
+    state: {
+      sorting,
+      globalFilter,
+      columnVisibility,
+      pagination,
     },
-    state: { sorting, pagination, globalFilter, columnVisibility },
-    meta:tableMeta,
-    onPaginationChange: handlePaginationChange,
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setColumnVisibility,
-    getFilteredRowModel: getFilteredRowModel(),
+    onPaginationChange: handlePaginationChange,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: serverPagination ? undefined : getPaginationRowModel(),
-    manualPagination: serverPagination, // 🔑
-    pageCount: serverPagination
-      ? Math.max(1, Math.ceil((totalCount ?? datos.length) / (pagination.pageSize || 10)))
-      : undefined,
-    autoResetPageIndex: false,
-    initialState: {
-      sorting: [
-        { id: 'fecha_creacion', desc: false },
-      ]
-    }
+    getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
+    getFilteredRowModel: enableGlobalFilter ? getFilteredRowModel() : undefined,
+    getPaginationRowModel: paginationMode === 'client' ? getPaginationRowModel() : undefined,
+    manualPagination: paginationMode === 'server',
+    pageCount: paginationMode === 'server' ? Math.ceil((totalCount || 0) / pagination.pageSize) : undefined,
+    meta: customMeta,
   })
 
-  const toggleColumna = (id: string) => {
-    const col = table.getColumn(id)
-    if (!col) return
-    col.toggleVisibility()
+  const visibleColumns = table.getAllColumns().filter((col) => col.getIsVisible())
+
+  // ========== HANDLERS ==========
+  const handleToggleColumn = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }))
   }
 
-  const exportToCSV = () => {
-    const visibleColumns = table.getVisibleLeafColumns();
+  const handleExport = () => {
+    const rows = table.getFilteredRowModel().rows
+    const exportableColumns = visibleColumns.filter((col) => {
+      const meta = col.columnDef.meta as ResponsiveColumnMeta | undefined
+      return meta?.exportable !== false
+    })
 
-    type ColMeta = {
-      label?: string;
-      toCSV?: (value: unknown, row: TData) => unknown;
-      minWidth?: number;
-      headerMaxWidth?: number;
-      alignHeader?: 'left' | 'center' | 'right';
-      align?: 'left' | 'center' | 'right';
-      ellipsis?: boolean;
-      ellipsisMaxWidth?: number;
-    };
+    const csvData = rows.map((row) => {
+      const rowData: Record<string, any> = {}
+      exportableColumns.forEach((col) => {
+        const meta = col.columnDef.meta as ResponsiveColumnMeta | undefined
+        const label = meta?.label || col.id
+        const value = row.getValue(col.id)
 
-    const headers = visibleColumns.map((col) =>
-      ((col.columnDef.meta as ColMeta | undefined)?.label) || col.id
-    );
-
-    const rows = table.getRowModel().rows.map((row) =>
-      visibleColumns.map((col) => {
-        const raw = row.getValue(col.id); // <- accessorFn ya aplicado
-        const toCSV = (col.columnDef.meta as ColMeta | undefined)?.toCSV;
-
-        const val = toCSV ? toCSV(raw, row.original as TData) : raw;
-
-        if (val == null) return '';
-        if (val instanceof Date) return val.toISOString();
-        if (typeof val === 'object') return JSON.stringify(val);
-        return String(val);
+        // Si hay formatter custom, usarlo
+        if (meta?.exportFormatter) {
+          rowData[label] = meta.exportFormatter(value)
+        } else {
+          rowData[label] = value
+        }
       })
-    );
+      return rowData
+    })
 
-    const csv = Papa.unparse({ fields: headers, data: rows });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'oportunidades.csv';
-    link.click();
-  };
-
-
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
-  const open = Boolean(anchorEl)
-  const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)
-  const handleClose = () => setAnchorEl(null)
-
-  if (loading) {
-    return <CircularProgress />
+    const csv = Papa.unparse(csvData)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `export_${Date.now()}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
-  const visibleCols = table.getVisibleLeafColumns()
-
-  // Calcular zoom responsivo
-  // autoZoom ahora siempre es 1.0 (sin zoom), pero respetamos meta.zoom custom
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920
-  const autoZoom = getResponsiveTableZoom(viewportWidth)
-  const finalZoom = meta?.zoom ?? (autoZoom < 1 ? autoZoom : undefined)
-  // Solo aplica zoom si meta.zoom existe o autoZoom < 1 (caso custom como auditoría)
+  // ========== RENDER ==========
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress />
+      </Box>
+    )
+  }
 
   return (
-    <Box sx={getTableWrapperSx()}>
-    <TableContainer
-      component={Paper}
-      sx={getTableContainerSx(finalZoom)}
-    >
-      <Table
-        size="small"
-        sx={{
-          width: '100%',
-          tableLayout: 'auto', // <- clave: dejamos que el layout estire
-          '& th, & td': {
-            whiteSpace: 'nowrap',
-            ...(isDev
-              ? {
-                  borderLeft: '1px dashed rgba(255, 255, 255, 0.16)',
-                }
-              : {}),
-          },
-          ...(isDev
-            ? {
-                '& th:first-of-type, & td:first-of-type': { borderLeft: 'none' },
-              }
-            : {}),
-        }}
+    <Box className={className} sx={sx}>
+      <TableContainer
+        component={Paper}
+        sx={getTableContainerStyles(maxHeight, stickyHeader)}
       >
-        <colgroup>
-          {visibleCols.map((column) => (
-            <col
-              key={column.id}
-              style={{
-                // sin width -> el layout reparte y estira
-                minWidth: column.columnDef.meta?.minWidth
-                  ? `${column.columnDef.meta.minWidth}px`
-                  : undefined,
-              }}
-            />
-          ))}
-          {onRowClick && <col style={{ width: '50px' }} />}
-        </colgroup>
+        <Table size={density === 'compact' ? 'small' : 'medium'} sx={{ width: '100%', tableLayout: 'auto' }}>
+          {/* COLGROUP para widths */}
+          <colgroup>
+            {visibleColumns.map((column) => {
+              const meta = column.columnDef.meta as ResponsiveColumnMeta | undefined
+              return (
+                <col
+                  key={column.id}
+                  style={{
+                    minWidth: typeof meta?.minWidth === 'string' ? meta.minWidth : undefined,
+                    maxWidth: typeof meta?.maxWidth === 'string' ? meta.maxWidth : undefined,
+                    width: typeof meta?.width === 'string' ? meta.width : undefined,
+                  }}
+                />
+              )
+            })}
+            {onRowClick && <col style={{ width: '3.125rem' }} />}
+          </colgroup>
 
-        <TableHead>
-          {(!hideColumnSelector || !hideExport) && (
-            <TableRow>
-              <TableCell colSpan={visibleCols.length + (onRowClick ? 1 : 0)}>
-                <Box display="flex" justifyContent="right" alignItems="center">
-                  {!hideColumnSelector && (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <IconButton onClick={handleOpen}>
-                        <ViewColumnIcon />
-                      </IconButton>
-                      <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
-                        <Box display="flex" flexDirection="column">
-                          {table.getAllLeafColumns().map((col) => {
-                            const plainLabel = col.columnDef.meta?.label || col.id
-                            return (
-                              <MenuItem
-                                key={col.id}
-                                disableRipple
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  toggleColumna(col.id)
-                                }}
-                              >
-                                <Checkbox checked={!!table.getColumn(col.id)?.getIsVisible()} size="small" sx={{ p: 0 }} />
-                                <Box fontSize={14}>{plainLabel}</Box>
-                              </MenuItem>
-                            )
-                          })}
-                          <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
-                          <Box display="flex" justifyContent="space-between" px={1}>
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                const allVisible = table.getAllLeafColumns().every(c => c.getIsVisible())
-                                const updated: VisibilityState = Object.fromEntries(
-                                  table.getAllLeafColumns().map(col => [col.id, !allVisible])
-                                )
-                                setColumnVisibility(updated)
-                              }}
-                            >
-                              Mostrar/Ocultar todos
-                            </Button>
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                const reset: VisibilityState = Object.fromEntries(
-                                  table.getAllLeafColumns().map(c => [c.id, true])
-                                )
-                                setColumnVisibility(reset)
-                              }}
-                            >
-                              Reset
-                            </Button>
-                          </Box>
-                        </Box>
-                      </Menu>
-                    </Box>
-                  )}
+          <TableHead>
+            {/* Toolbar row */}
+            {(!hideColumnSelector || !hideExport) && (
+              <TableToolbar
+                onExport={handleExport}
+                onOpenColumnSelector={(e) => setColumnSelectorAnchor(e.currentTarget as HTMLElement)}
+                hideExport={hideExport}
+                hideColumnSelector={hideColumnSelector}
+              />
+            )}
 
-                  {!hideExport && (
-                    <IconButton onClick={exportToCSV} size="small" title="Exportar CSV">
-                      <DownloadIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Box>
-              </TableCell>
-            </TableRow>
-          )}
+            {/* Headers row */}
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  const meta = header.column.columnDef.meta as ResponsiveColumnMeta | undefined
+                  const headerStyles = getHeaderStyles(meta, density, dpiLevel)
+                  const devBorder = process.env.NODE_ENV === 'development' ? { borderRight: '1px solid rgba(224, 224, 224, 0.5)' } : {}
 
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                const headerMeta = header.column.columnDef.meta as {
-                  minWidth?: number
-                  maxWidth?: number
-                  headerMaxWidth?: number
-                  nowrapHeader?: boolean
-                  headerWrap?: boolean
-                  alignHeader?: 'left' | 'center' | 'right'
-                } | undefined
-                const headerAlign = headerMeta?.alignHeader ?? 'left'
-                const justify =
-                  headerAlign === 'right' ? 'flex-end' :
-                  headerAlign === 'center' ? 'center' : 'flex-start'
+                  if (header.isPlaceholder) {
+                    return <TableCell key={header.id} />
+                  }
 
-                return (
-                  <TableCell
-                    key={header.id}
-                    align={headerAlign}
-                    sx={{
-                      textAlign: headerAlign,
-                      minWidth: headerMeta?.minWidth,
-                      maxWidth: headerMeta?.maxWidth ?? headerMeta?.headerMaxWidth,
-                      width: headerMeta?.maxWidth,
-                      whiteSpace: headerMeta?.nowrapHeader ? 'nowrap' : 'normal',
-                      overflow: headerMeta?.nowrapHeader ? 'hidden' : 'visible',
-                      textOverflow: headerMeta?.nowrapHeader ? 'ellipsis' : 'clip',
-                      wordBreak: 'normal',
-                      overflowWrap: headerMeta?.nowrapHeader ? 'normal' : 'break-word',
-                      display: 'table-cell',
-                      position: 'relative',
-                    }}
-                  >
-                    {!header.isPlaceholder && (
-                      <Box
-                        sx={{
-                          position: 'relative',
-                          width: '100%',
-                          pl: 0,         // reserva para no pegar el texto al borde
-                          pr: 0         // reserva sitio para el icono
-                        }}
-                      >
-                        {/* Capa centrada para el título (no envuelve) */}
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            inset: 0,
-                            top: 0,
-                            bottom: 0,
-                            left: 8,          // respeta padding izquierdo
-                            right: 8,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: justify,    // center / flex-start / flex-end
-                            pointerEvents: 'none',
-                            whiteSpace: 'nowrap',       // <- evita salto de línea
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            zIndex: 0,
-                          }}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </Box>
-                                               {/* Área clicable de sort (ocupa todo, sin desplazar el título) */}
+                  const canSort = header.column.getCanSort()
+                  const isSorted = header.column.getIsSorted()
+
+                  return (
+                    <TableCell key={header.id} sx={{ ...headerStyles, ...devBorder }}>
+                      {canSort ? (
                         <TableSortLabel
-                          active={header.column.getIsSorted() !== false}
-                          direction={(header.column.getIsSorted() || 'asc') as 'asc' | 'desc'}
+                          active={isSorted !== false}
+                          direction={isSorted || 'asc'}
                           onClick={header.column.getToggleSortingHandler()}
                           sx={{
                             display: 'block',
                             width: '100%',
-                            height: 30,                 // altura mínima del header
-                            lineHeight: '40px',
-                            whiteSpace: 'nowrap',
-                            position: 'relative', 
-                            zIndex: 1,     
                             '& .MuiTableSortLabel-icon': {
-                              position: 'absolute',
-                              right: 0,
-                              top: '50%',               // <- centrado vertical
-                              transform: 'translateY(-50%)',
-                              margin: 0,
-                              zIndex: 2,
+                              marginLeft: '0.25rem',
                             },
                           }}
                         >
-                          {/* Mantén algo de contenido para no romper accesibilidad,
-                              pero invisible (el título real está en la capa absolute) */}
-                          <span style={{ opacity: 0 }}>.</span>
+                          <Box component="span" sx={{ paddingLeft: '1.125rem' }}>
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </Box>
                         </TableSortLabel>
-                      </Box>
-                    )}
-                  </TableCell>
-                )
-              })}
-              {onRowClick && <TableCell />}
-            </TableRow>
-          ))}
-        </TableHead>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                    </TableCell>
+                  )
+                })}
+                {onRowClick && <TableCell sx={{ ...getHeaderStyles(undefined, density, dpiLevel), ...(process.env.NODE_ENV === 'development' ? { borderRight: '1px solid rgba(224, 224, 224, 0.5)' } : {}) }} />}
+              </TableRow>
+            ))}
+          </TableHead>
 
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id} hover>
-              {row.getVisibleCells().map((cell) => {
-                const meta =
-                  (cell.column.columnDef.meta as {
-                    minWidth?: number
-                    maxWidth?: number
-                    align?: 'left' | 'center' | 'right'
-                    ellipsis?: boolean
-                    ellipsisMaxWidth?: number | string
-                  } | undefined) || {}
-                const rawValue = cell.getValue(); // lo que devuelve el accessor
-                let content = flexRender(cell.column.columnDef.cell, cell.getContext());
-                const alignCell = ((): 'left'|'center'|'right' => {
-                  const esGuion = (typeof rawValue === 'string' && rawValue.trim() === '—') ||
-                                  (typeof content === 'string' && content.trim() === '—')
-                  return esGuion ? 'center' : (meta.align || 'left')
-                })()
-                  // Si no hay cell custom, usamos el valor "crudo" de forma segura
-                if (content == null || content === false) {
-                  if (
-                    React.isValidElement(rawValue) ||
-                    typeof rawValue === 'string' ||
-                    typeof rawValue === 'number'
-                  ) {
-                    content = rawValue as React.ReactNode;
-                  } else if (rawValue == null) {
-                    content = '';
-                  } else {
-                    content = String(rawValue);
-                  }
-                }
-
-                // Si la columna pide ellipsis+tooltip
-                if (meta.ellipsis) {
-                  // convierte a string de forma robusta
-                  const text =
-                    typeof rawValue === "string"
-                      ? rawValue
-                      : rawValue == null
-                      ? ""
-                      : String(rawValue);
-
-                  content = (
-                    <Box
-                      sx={{
-                        minWidth: 0,
-                        maxWidth:
-                          meta.ellipsisMaxWidth ??
-                          meta.maxWidth ??
-                          meta.minWidth ??
-                          240,
-                        overflow: 'hidden',
-                        textAlign: 'inherit',     
-                        display: 'inline-block',  
-                        width: '100%',
-                      }}
-                    >
-                      <EllipsisTooltip text={text} maxWidth="100%" />
-                    </Box>
-                  );
-                }
-
-                const esGuion = (() => {
-                  if (typeof rawValue === 'string' && rawValue.trim() === '—') return true
-                  if (typeof content === 'string' && content.trim() === '—') return true
-                  return false
-                })()
-
-                return (
-                  <TableCell
-                    key={cell.id}
-                    style={{ minWidth: meta.minWidth, maxWidth: meta.maxWidth, width: meta.maxWidth }}
-                    align={alignCell}
-                    sx={{ textAlign: alignCell }}   // <- fuerza el text-align real del td
-                  >
-                    {content}
-                  </TableCell>
-                );
-              })}
-              {onRowClick && (
-                <TableCell>
-                  <IconButton size="small" onClick={() => onRowClick(row.original)}>
-                    <VisibilityIcon fontSize="small" />
-                  </IconButton>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={visibleColumns.length + (onRowClick ? 1 : 0)} align="center">
+                  <Box py={4}>No hay datos para mostrar</Box>
                 </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row, rowIndex) => (
+                <TableRow
+                  key={row.id}
+                  hover={hoverEffect}
+                  sx={{
+                    cursor: onRowClick ? 'pointer' : 'default',
+                    backgroundColor: striped && rowIndex % 2 === 1 ? 'action.hover' : 'transparent',
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta as ResponsiveColumnMeta | undefined
+                    return (
+                      <ResponsiveCell
+                        key={cell.id}
+                        cell={cell}
+                        meta={meta}
+                        density={density}
+                        dpiLevel={dpiLevel}
+                      />
+                    )
+                  })}
+                  {onRowClick && (
+                    <TableCell sx={{ ...getCellStyles(undefined, density, dpiLevel), ...(process.env.NODE_ENV === 'development' ? { borderRight: '1px solid rgba(224, 224, 224, 0.5)' } : {}) }}>
+                      <IconButton size="small" onClick={() => onRowClick(row.original)}>
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      <Box display="flex" justifyContent="right" p={2} gap={2}>
-        <Select
-          size="small"
-          value={table.getState().pagination.pageSize}
-          onChange={(e) => table.setPageSize(Number(e.target.value))}
-        >
-          {[10, 25, 50].map((pageSize) => (
-            <MenuItem key={pageSize} value={pageSize}>
-              {pageSize} por página
-            </MenuItem>
-          ))}
-        </Select>
+      {/* Paginación */}
+      <TablePagination
+        component="div"
+        count={paginationMode === 'server' ? totalCount || 0 : table.getFilteredRowModel().rows.length}
+        page={pagination.pageIndex}
+        onPageChange={(_, page) => {
+          if (paginationMode === 'server') {
+            onPageChange?.(page)
+          } else {
+            setInternalPagination((prev) => ({ ...prev, pageIndex: page }))
+          }
+        }}
+        rowsPerPage={pagination.pageSize}
+        onRowsPerPageChange={(e) => {
+          const newSize = parseInt(e.target.value, 10)
+          if (paginationMode === 'server') {
+            onPageSizeChange?.(newSize)
+          } else {
+            setInternalPagination({ pageIndex: 0, pageSize: newSize })
+          }
+        }}
+        rowsPerPageOptions={pageSizeOptions}
+        labelRowsPerPage="Filas por página:"
+        labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+      />
 
-        <Button
-          size="small"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Anterior
-        </Button>
-        <Button
-          size="small"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Siguiente
-        </Button>
-        <Box display="flex" alignItems="center" fontSize={14}>
-          Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
-        </Box>
-      </Box>
-    </TableContainer>
+      {/* Column Selector Menu */}
+      <ColumnSelectorMenu
+        anchorEl={columnSelectorAnchor}
+        open={Boolean(columnSelectorAnchor)}
+        onClose={() => setColumnSelectorAnchor(null)}
+        columns={table.getAllColumns()}
+        columnVisibility={columnVisibility}
+        onToggleColumn={handleToggleColumn}
+      />
     </Box>
   )
 }
+
+// ============================================================================
+// EXPORTS PARA RETROCOMPATIBILIDAD
+// ============================================================================
+
+export type { ResponsiveTableProps as TablaReactivaProps }

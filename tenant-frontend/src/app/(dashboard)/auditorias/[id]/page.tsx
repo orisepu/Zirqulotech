@@ -22,7 +22,7 @@ export default function AuditoriaDispositivosPage() {
   const searchParams = useSearchParams();
   const tenant = searchParams.get('tenant');
 
-  const [filaEditando, setFilaEditando] = useState<string | null>(null);
+  const [filaEditando, setFilaEditando] = useState<number | null>(null);
   const [dispositivosEditables, setDispositivosEditables] = useState<DispositivoEditable[]>([]);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; type: 'success'|'error'|'warning'|'info' }>({ open: false, message: '', type: 'success' });
   const [auditoriaIniciada, setAuditoriaIniciada] = useState(false);

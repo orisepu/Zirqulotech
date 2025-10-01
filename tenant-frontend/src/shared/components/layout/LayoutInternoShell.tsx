@@ -34,14 +34,16 @@ import {
 } from '@mui/icons-material'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useColorMode } from '@/context/ThemeContext'
 import { useUsuario } from '@/context/UsuarioContext'
 import ToasterProvider from '@/components/ToasterProvider'
 import BuscadorUniversal from '@/components/BuscadorUniversal'
 import NotificacionesBell from '@/features/notifications/components/NotificacionesBell'
-import React, { useState, useEffect } from 'react'
-import { getAccessToken } from '@/services/api'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { getSecureItem } from '@/shared/lib/secureStorage'
 import { getWebSocketUrl } from '@/shared/config/env'
+import { useWebSocketWithRetry } from '@/hooks/useWebSocketWithRetry'
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import BreadcrumbsExplorador from "@/components/BreadcrumbsExplorador";
@@ -59,28 +61,69 @@ export default function LayoutInternoShell({ children }: { children: React.React
   const usuario = useUsuario()
   const pathname = usePathname();
 
-  const [socket, setSocket] = useState<WebSocket | null>(null)
-
-   const token = typeof window !== 'undefined' ? getAccessToken() : null
+  // Construct WebSocket URL with token
+  const [wsUrl, setWsUrl] = useState<string>('')
+  const [wsEnabled, setWsEnabled] = useState(true)
+  const [tokenRefreshTrigger, setTokenRefreshTrigger] = useState(0)
+  const tokenRefreshAttemptsRef = useRef(0)
+  const MAX_TOKEN_REFRESH_ATTEMPTS = 3
 
   useEffect(() => {
-    if (!token) return
-    const wsUrl = getWebSocketUrl(`/ws/notificaciones/?token=${token}`)
-    const ws = new WebSocket(wsUrl)
-    setSocket(ws)
+    const loadWsUrl = async () => {
+      // IMPORTANTE: No construir URL si ya alcanzamos el límite
+      if (tokenRefreshAttemptsRef.current >= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.warn('⚠️ No se construye URL: límite de intentos alcanzado')
+        setWsUrl('')
+        setWsEnabled(false)
+        return
+      }
 
-    ws.onclose = () => {
-      console.warn('🔌 WebSocket cerrado. Intentando reconectar en 3s...')
-      setTimeout(() => {
-        const reconnectUrl = getWebSocketUrl(`/ws/notificaciones/?token=${token}`)
-        setSocket(new WebSocket(reconnectUrl))
-      }, 3000)
-    }
+      const token = await getSecureItem('access')
+      if (!token) {
+        console.warn('⚠️ No se pudo obtener token para WebSocket de notificaciones')
+        return
+      }
 
-    return () => {
-      ws.close()
+      const url = getWebSocketUrl(`/ws/notificaciones/?token=${token}`)
+      console.log('🔄 Construyendo URL de WebSocket de notificaciones con token actualizado')
+      setWsUrl(url)
     }
-  }, [token])
+    loadWsUrl()
+  }, [tokenRefreshTrigger])
+
+  // Use WebSocket hook with retry
+  const { socket } = useWebSocketWithRetry({
+    url: wsUrl,
+    enabled: !!wsUrl && wsEnabled,
+    maxRetries: 5,
+    initialRetryDelay: 2000,
+    maxRetryDelay: 30000,
+    onOpen: () => {
+      console.log('✅ WebSocket de notificaciones conectado')
+      tokenRefreshAttemptsRef.current = 0
+      setWsEnabled(true)
+    },
+    onClose: () => {
+      console.warn('🔌 WebSocket de notificaciones cerrado')
+
+      const nuevoIntento = tokenRefreshAttemptsRef.current + 1
+      console.log(`📊 Contador actual: ${tokenRefreshAttemptsRef.current}, nuevo: ${nuevoIntento}, máximo: ${MAX_TOKEN_REFRESH_ATTEMPTS}`)
+
+      if (nuevoIntento <= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        console.log(`🔄 Solicitando URL con token actualizado (intento ${nuevoIntento}/${MAX_TOKEN_REFRESH_ATTEMPTS})...`)
+        tokenRefreshAttemptsRef.current = nuevoIntento
+        setTokenRefreshTrigger(prev => prev + 1)
+      } else {
+        console.error(`❌ LÍMITE ALCANZADO: ${nuevoIntento} > ${MAX_TOKEN_REFRESH_ATTEMPTS}. WebSocket DESHABILITADO permanentemente.`)
+        tokenRefreshAttemptsRef.current = nuevoIntento
+        setWsEnabled(false)
+        setWsUrl('')
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Error en WebSocket de notificaciones:', error)
+    },
+  })
 
   const navItems = [
     { label: 'Dashboard',               icon: <SpaceDashboardRounded />, to: '/dashboard' },
@@ -208,6 +251,7 @@ export default function LayoutInternoShell({ children }: { children: React.React
             gridTemplateColumns: "1fr auto 1fr",
             alignItems: "center",
             gap: 1,
+            pl: "5px",
           }}
         >
           {/* IZQUIERDA: menú (mobile) + bienvenida */}
@@ -222,6 +266,14 @@ export default function LayoutInternoShell({ children }: { children: React.React
                 <MenuIcon />
               </IconButton>
             )}
+            {/* Logo */}
+            <Image
+              src={theme.palette.mode === "dark" ? "/imagenes/zirqulo-logo-dark.png" : "/imagenes/zirqulo-logo-light.png"}
+              alt="Zirqulo"
+              width={50}
+              height={50}
+              style={{ objectFit: "contain" }}
+            />
             {/* 🧑 Bienvenida a la izquierda */}
             <Typography
               variant="h6"

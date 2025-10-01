@@ -5,66 +5,10 @@ import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AutoAwesome, Psychology, Speed, TrendingUp, Warning, Close, Search } from '@mui/icons-material'
 import api from '@/services/api'
+import type { Cambio, DiffData } from '@/features/opportunities/types/likewize'
+import { cleanModelName } from '@/features/opportunities/utils/deviceNameCleaner'
 
-// Types from the original page
-type Cambio = {
-  id: string
-  kind: 'INSERT' | 'UPDATE' | 'DELETE'
-  tipo: string
-  modelo_norm: string
-  almacenamiento_gb: number
-  capacidad_id?: number | null
-  marca?: string
-  antes: string | null
-  despues: string | null
-  delta: number | null
-  nombre_likewize_original?: string
-  nombre_normalizado?: string
-  confianza_mapeo?: 'alta' | 'media' | 'baja'
-  necesita_revision?: boolean
-}
-
-type DiffData = {
-  summary: { inserts: number, updates: number, deletes: number, total: number }
-  changes: Cambio[]
-  // V3 specific fields
-  is_v3?: boolean
-  resumen?: {
-    inserciones?: number
-    actualizaciones?: number
-    eliminaciones?: number
-    sin_cambios?: number
-<<<<<<< HEAD
-    total_comparaciones?: number
-=======
->>>>>>> 82b852b462b1eb0a346c7559b041d0a2726eaa5d
-  }
-  v3_stats?: {
-    confidence_stats?: {
-      promedio?: number
-      alta_confianza?: number
-      media_confianza?: number
-      baja_confianza?: number
-    }
-  }
-  comparaciones?: Array<{
-    change_type?: string
-<<<<<<< HEAD
-    [key: string]: unknown
-=======
-    likewize_info?: {
-      modelo_raw?: string
-      modelo_norm?: string
-      likewize_model_code?: string
-      marca?: string
-      almacenamiento_gb?: string | number
-    }
-    [key: string]: any
->>>>>>> 82b852b462b1eb0a346c7559b041d0a2726eaa5d
-  }>
-}
-
-// Import existing components (assuming they exist)
+// Import existing components
 // import LikewizeB2BPage from '@/app/(dashboard)/dispositivos/actualizar/page'
 import MappingMetrics from './MappingMetrics'
 import IncrementalUpdateControls from './IncrementalUpdateControls'
@@ -75,28 +19,7 @@ import { ReviewPanel } from './ReviewPanel'
 import { ConfidenceIndicator } from './ConfidenceIndicator'
 import { useDeviceMappingEnhanced } from '@/shared/hooks/useDeviceMappingEnhanced'
 import { useLearningMetrics, useLaunchV3UpdateTask, useRealTimeLearningMetrics, useTaskMonitoring, useActiveV3Tasks } from '@/hooks/useLearningV3'
-
-interface TabPanelProps {
-  children?: React.ReactNode
-  index: number
-  value: number
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`enhanced-tabpanel-${index}`}
-      aria-labelledby={`enhanced-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  )
-}
+import { TabPanel } from '@/shared/components/TabPanel'
 
 interface EnhancedLikewizePageProps {
   tareaId?: string
@@ -129,52 +52,6 @@ export function EnhancedLikewizePage({
     almacenamiento_gb: '',
     likewize_model_code: ''
   })
-
-  // Función para limpiar el nombre del modelo y hacerlo user-friendly
-  const cleanModelName = (rawName: string): string => {
-    if (!rawName) return ''
-
-    let cleaned = rawName
-
-    // Remover capacidad de almacenamiento
-    cleaned = cleaned.replace(/\s*\d+\s*(GB|TB)\s*(SSD|HDD)?/gi, '')
-
-    // Remover información de cores
-    cleaned = cleaned.replace(/\s*\d+\s*Core\s+(CPU|GPU)/gi, '')
-
-    // Remover códigos de modelo (A####)
-    cleaned = cleaned.replace(/\s*A\d{4}/g, '')
-
-    // Remover versiones técnicas de modelo (ej: iMac15 4 → iMac)
-    cleaned = cleaned.replace(/iMac\d+\s*\d+/gi, 'iMac')
-    cleaned = cleaned.replace(/MacBook\s*Pro\d+,\d+/gi, 'MacBook Pro')
-    cleaned = cleaned.replace(/iPhone\d+,\d+/gi, (match) => {
-      // Mantener número de iPhone si es relevante
-      const num = match.match(/\d+/)
-      return num ? `iPhone ${num[0]}` : 'iPhone'
-    })
-
-    // Convertir pulgadas: "24 inch" → "24\""
-    cleaned = cleaned.replace(/(\d+)\s*inch/gi, '$1"')
-
-    // Extraer y formatear año: "10/2023" o "2023" → "(2023)"
-    const yearMatch = cleaned.match(/\b(\d{1,2}\/)?(\d{4})\b/)
-    let year = ''
-    if (yearMatch) {
-      year = ` (${yearMatch[2]})`
-      cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/, '')
-    }
-
-    // Limpiar espacios múltiples
-    cleaned = cleaned.replace(/\s+/g, ' ').trim()
-
-    // Añadir año al final si existe
-    if (year) {
-      cleaned += year
-    }
-
-    return cleaned
-  }
 
   const {
     useMappingStatistics,
