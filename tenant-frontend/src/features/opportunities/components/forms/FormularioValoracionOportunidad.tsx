@@ -255,7 +255,13 @@ export default function FormularioValoracionOportunidad({
   const { data: capacidades = [], isLoading: loadingCaps } = useQuery({
     queryKey: ['capacidades-por-modelo', modelo, oportunidadId],
     enabled: !!modelo,
-    queryFn: async () => (await api.get(`/api/capacidades-por-modelo/?modelo=${modelo}&oportunidad=${oportunidadId}`)).data,
+    queryFn: async () => {
+      // Solo incluir oportunidad si es un número válido
+      const oppParam = (typeof oportunidadId === 'number' && !Number.isNaN(oportunidadId))
+        ? `&oportunidad=${oportunidadId}`
+        : ''
+      return (await api.get(`/api/capacidades-por-modelo/?modelo=${modelo}${oppParam}`)).data
+    },
     staleTime: 2 * 60 * 1000,
   })
 
