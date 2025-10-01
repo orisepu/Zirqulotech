@@ -357,7 +357,7 @@ export default function GestionarUsuariosPage() {
           placeholder="Buscar por nombre o email..."
           value={searchTerm}
           onChange={handleSearchChange}
-          sx={{ minWidth: 300 }}
+          sx={{ minWidth: { xs: 0, sm: '18rem' } }}
           slotProps={{
             input: {
               startAdornment: (

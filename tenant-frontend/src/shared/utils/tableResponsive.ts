@@ -1,10 +1,21 @@
 import type { SxProps, Theme } from '@mui/material/styles'
 
+/** Type helper for responsive values (shared with TanStack Table types) */
+export type ResponsiveValue = number | string | {
+  xs?: number | string
+  sm?: number | string
+  md?: number | string
+  lg?: number | string
+  xl?: number | string
+  xxl?: number | string
+  xxxl?: number | string
+}
+
 /**
  * Configuración para definir el comportamiento de una columna
  */
 export interface ColumnConfig {
-  /** Ancho mínimo de la columna en píxeles */
+  /** Ancho mínimo de la columna */
   minWidth: number
   /** Tipo de dato que determina el comportamiento por defecto */
   type?: 'id' | 'text' | 'date' | 'currency' | 'status' | 'custom'
@@ -13,16 +24,17 @@ export interface ColumnConfig {
   /** Alineación personalizada (si no se especifica, usa la del tipo) */
   align?: 'left' | 'center' | 'right'
   /** maxWidth personalizado (sobrescribe el calculado) */
-  maxWidth?: number | { xs?: number; sm?: number; md?: number; lg?: number; xl?: number }
+  maxWidth?: ResponsiveValue
 }
 
 /**
  * Metadata calculada para una columna de tabla
  */
 export interface ColumnMeta {
-  minWidth: number
-  maxWidth?: number | { xs?: number; sm?: number; md?: number; lg?: number; xl?: number }
-  ellipsisMaxWidth?: number
+  minWidth: ResponsiveValue
+  maxWidth?: ResponsiveValue
+  ellipsisMaxWidth?: ResponsiveValue
+  headerMaxWidth?: ResponsiveValue
   align: 'left' | 'center' | 'right'
   alignHeader: 'left' | 'center' | 'right'
   ellipsis?: boolean
@@ -160,15 +172,24 @@ export function getResponsiveColumnMeta(config: ColumnConfig): ColumnMeta {
  *
  * @example
  * <TableContainer sx={getTableContainerSx(0.9)}>
+ *
+ * @remarks
+ * Usa CSS zoom property en lugar de transform: scale() para mejor compatibilidad
+ * con escalado del SO y zoom del navegador. Fallback a transform para navegadores antiguos.
  */
 export function getTableContainerSx(zoom?: number): SxProps<Theme> {
   return {
     overflowX: 'auto',
     ...(zoom && zoom < 1
       ? {
-          transform: `scale(${zoom}) translateZ(0)`,
-          transformOrigin: 'top left',
-          width: `${100 / zoom}%`,
+          // Usar CSS zoom property (mejor compatibilidad con OS scaling)
+          zoom: zoom,
+          // Fallback para navegadores que no soportan zoom
+          '@supports not (zoom: 1)': {
+            transform: `scale(${zoom}) translateZ(0)`,
+            transformOrigin: 'top left',
+            width: `${100 / zoom}%`,
+          },
         }
       : {}),
   }

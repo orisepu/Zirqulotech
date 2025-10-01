@@ -9,6 +9,7 @@ import {
   Button,
   Tooltip,
   Badge,
+  Chip,
 } from "@mui/material";
 import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -19,13 +20,13 @@ import { getWebSocketUrl } from "@/shared/config/env";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useUsuario } from "@/context/UsuarioContext";
+import { toast } from 'react-toastify';
 import type { ReactNode } from 'react';
 interface Mensaje {
   autor: string;
   texto: string;
   oportunidad_id?: string | number;
   tenant?: string;
-  es_local?: boolean;
 }
 
 export default function ChatConSoporteContextual() {
@@ -33,7 +34,7 @@ export default function ChatConSoporteContextual() {
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [input, setInput] = useState("");
-  const [socketListo, setSocketListo] = useState(false);
+  const [estadoWs, setEstadoWs] = useState<'desconectado' | 'conectando' | 'conectado' | 'error'>('desconectado');
   type OportunidadMin = { cliente?: { razon_social?: string } } | null;
   const [oportunidad, setOportunidad] = useState<OportunidadMin>(null);
 
@@ -105,40 +106,69 @@ export default function ChatConSoporteContextual() {
       String(chatId)
     )}/?token=${encodeURIComponent(token || "")}&tenant=${encodeURIComponent(tenant)}`);
     const ws = new WebSocket(url);
+    setEstadoWs('conectando');
 
     ws.onopen = () => {
-      setSocketListo(true);
+      setEstadoWs('conectado');
       socketRef.current = ws;
     };
 
     ws.onmessage = (e) => {
-      const data: Mensaje = JSON.parse(e.data);
+      const data = JSON.parse(e.data);
+
+      // Manejar cierre de chat
+      if (data.type === 'chat_closed') {
+        console.log('🔒 Chat cerrado por soporte:', data.mensaje);
+        setEstadoWs('desconectado');
+        ws.close();
+        setAbierto(false);
+        // Mostrar notificación
+        toast.info(data.mensaje || 'El chat ha sido cerrado por el equipo de soporte');
+        return;
+      }
+
+      // Mensaje normal
+      const mensaje: Mensaje = data;
+      const ahora = Date.now();
 
       setMensajes((prev) => {
-        const yaExiste = prev.some(
+        // Verificar duplicados solo en los últimos 10 mensajes (ventana de tiempo)
+        const recientes = prev.slice(-10);
+        const yaExiste = recientes.some(
           (m) =>
-            m.texto === data.texto &&
-            m.oportunidad_id === data.oportunidad_id &&
-            m.autor === data.autor
+            m.texto === mensaje.texto &&
+            m.oportunidad_id === mensaje.oportunidad_id &&
+            m.autor === mensaje.autor
         );
-        return yaExiste ? prev : [...prev, data];
+
+        if (yaExiste) {
+          return prev; // Ignorar duplicado
+        }
+
+        // Añadir mensaje con timestamp local para futuras comparaciones
+        return [...prev, { ...mensaje, _timestamp: ahora }];
       });
 
-      if (!abierto && data.autor !== usuario?.name) {
+      if (!abierto && mensaje.autor !== usuario?.name) {
         setNoLeidos((prev) => prev + 1);
       }
     };
 
+    ws.onerror = (error) => {
+      console.error('❌ Error en WebSocket del chat:', error);
+      setEstadoWs('error');
+    };
+
     ws.onclose = () => {
-      setSocketListo(false);
+      setEstadoWs('desconectado');
       socketRef.current = null;
     };
 
     return () => {
       ws.close();
-      setSocketListo(false);
+      setEstadoWs('desconectado');
     };
-  }, [chatId, usuario, abierto]);
+  }, [chatId, usuario]);
 
   // Scroll automático al final al cambiar mensajes
   useEffect(() => {
@@ -177,12 +207,6 @@ export default function ChatConSoporteContextual() {
   const enviar = () => {
     if (!input.trim() || !socketRef.current) return;
     if (socketRef.current.readyState === WebSocket.OPEN) {
-      const nuevo: Mensaje = {
-        autor: usuario?.name || "Yo",
-        texto: input,
-        oportunidad_id: oportunidadRef ?? undefined,
-        es_local: true,
-      };
       socketRef.current.send(
         JSON.stringify({
           texto: input,
@@ -190,7 +214,6 @@ export default function ChatConSoporteContextual() {
         })
       );
       setInput("");
-      setMensajes((prev) => [...prev, nuevo]);
     } else {
       console.warn("⛔ WebSocket aún no está listo para enviar");
     }
@@ -252,9 +275,31 @@ export default function ChatConSoporteContextual() {
           }}
         >
           <Box
-            sx={{ px: 2, py: 1, bgcolor: "primary.main", color: "primary.contrastText" }}
+            sx={{
+              px: 2,
+              py: 1,
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
           >
             <Typography variant="h6">Chat con Soporte</Typography>
+            <Chip
+              size="small"
+              label={
+                estadoWs === 'conectado' ? 'Conectado' :
+                estadoWs === 'conectando' ? 'Conectando...' :
+                estadoWs === 'error' ? 'Error' : 'Desconectado'
+              }
+              color={
+                estadoWs === 'conectado' ? 'success' :
+                estadoWs === 'conectando' ? 'info' :
+                estadoWs === 'error' ? 'error' : 'default'
+              }
+              sx={{ height: 20, fontSize: '0.7rem' }}
+            />
           </Box>
 
           <Box
@@ -310,9 +355,9 @@ export default function ChatConSoporteContextual() {
                   enviar();
                 }
               }}
-              disabled={!socketListo}
+              disabled={estadoWs !== 'conectado'}
             />
-            <Button onClick={enviar} variant="contained" disabled={!input.trim() || !socketListo}>
+            <Button onClick={enviar} variant="contained" disabled={!input.trim() || estadoWs !== 'conectado'}>
               Enviar
             </Button>
           </Box>

@@ -628,38 +628,38 @@ export function getColumnasAuditoria({
 }
 
 export const columnasOperaciones: ColumnDef<GenericRow>[] = [
-  { id: 'id', header: 'ID', accessorFn: getId,meta: { minWidth: 80,maxWidth: 130, align: 'center', alignHeader: 'center'}, },
+  { id: 'id', header: 'ID', accessorFn: getId, meta: { minWidth: { xs: '5rem', sm: '5rem' }, maxWidth: { xs: '8rem', sm: '8rem' }, align: 'center', alignHeader: 'center' } },
   {
     id: 'comercial',
     header: 'Comercial',
     accessorFn: (r: { usuario_info?: { name?: string; } }) => r.usuario_info?.name || '—',
     meta: {
       align: 'center',
-      minWidth: 100,
-      maxWidth: 320,
+      minWidth: { xs: 0, sm: '5rem',md: '5rem' },
+      maxWidth: { xs: '14rem', sm: '18rem', md: '20rem' },
       alignHeader: 'center',
       ellipsis: true,
-      ellipsisMaxWidth: 180,
+      ellipsisMaxWidth: { xs: '13rem', sm: '17rem', md: '19rem' },
     },
   },
-  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre',meta: { minWidth: 100,maxWidth: 220, align: 'center',alignHeader: 'center',ellipsis: true,ellipsisMaxWidth: 200,}, },
+  { id: 'nombre', header: 'Nombre', accessorKey: 'nombre', meta: { minWidth: { xs: 0, sm: '6rem' }, maxWidth: { xs: '10rem', sm: '12rem', md: '14rem' }, align: 'center', alignHeader: 'center', ellipsis: true, ellipsisMaxWidth: { xs: '9rem', sm: '11rem', md: '13rem' } } },
   
-  { 
+  {
     id: 'cliente',
-    header: 'Cliente', 
-    meta: { 
-            minWidth: 200, 
-            maxWidth: 220,
+    header: 'Cliente',
+    meta: {
+            minWidth: { xs: 0, sm: '6rem' },
+            maxWidth: { xs: '12rem', sm: '13rem', md: '14rem' },
             align: 'center',
             alignHeader: 'center',
             ellipsis: true,
-            ellipsisMaxWidth: 230,
+            ellipsisMaxWidth: { xs: '11rem', sm: '12rem', md: '13rem' },
           },
     accessorFn: (r: { cliente?: { razon_social?: string; nombre?: string; apellidos?: string } }) => r.cliente?.razon_social ||`${r.cliente?.nombre || ""} ${r.cliente?.apellidos || ""}`.trim()
   },
   {
   id: 'valoracion',
-  header: 'Val. orientativa',
+  header: makeTwoLineHeader('Valoración', 'orientativa'),
   accessorFn: (r: { dispositivos?: Array<{ precio_orientativo?: unknown; cantidad?: unknown }> }) =>
     (r.dispositivos ?? []).reduce(
       (acc: number, d) => acc + (Number(d.precio_orientativo) || 0) * (Number(d.cantidad) || 0),
@@ -669,11 +669,15 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
     Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
   meta: {
     label: 'Valoración orientativa',
+<<<<<<< HEAD
     minWidth: 120,
     maxWidth: 220,
+=======
+    minWidth: { xs: 0, sm: '7rem', md: '8rem' },
+>>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
     align: 'center',
     alignHeader: 'center',
-    headerMaxWidth: 140,
+    headerMaxWidth: { xs: '9rem', sm: '10rem', md: '11rem' },
     // CSV crudo (número):
     toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     // Si prefieres exportar formateado:
@@ -686,16 +690,16 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
   },
   {
     id: 'valoracion_final',
-    header: 'Valoración final',
+    header: makeTwoLineHeader('Valoración', 'final'),
     accessorFn: (r: { valor_total_final?: unknown }) => Number(r.valor_total_final ?? 0),
     sortingFn: (a, b, id) =>
       Number(a.getValue(id) || 0) - Number(b.getValue(id) || 0),
     meta: {
       label: 'Valoración final',
-      minWidth: 120,
+      minWidth: { xs: 0, sm: '7rem', md: '8rem' },
       align: 'center',
       alignHeader: 'center',
-      headerMaxWidth: 140,
+      headerMaxWidth: { xs: '9rem', sm: '10rem', md: '11rem' },
       toCSV: (value: unknown /*, row */) => String(Number(value ?? 0)),
     },
     cell: ({ getValue }) => {
@@ -708,7 +712,7 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
     header: 'Fecha',
     accessorFn: (r: { fecha_creacion?: string | Date }) => new Date(r.fecha_creacion as unknown as string | number | Date),
     meta: {
-      minWidth: 100,
+      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
       align: 'center',
       alignHeader: 'center',
       toCSV: (value: unknown /*, row */) => {
@@ -728,11 +732,11 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
     accessorKey: 'numero_seguimiento',
     meta: {
       align: 'center',
-      minWidth: 100,
-      maxWidth: 200,
+      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
+      maxWidth: { xs: '12rem', sm: '14rem', md: '16rem' },
       alignHeader: 'center',
       ellipsis: true,
-      ellipsisMaxWidth: 180,
+      ellipsisMaxWidth: { xs: '11rem', sm: '13rem', md: '15rem' },
     },
   },
   {
@@ -745,8 +749,8 @@ export const columnasOperaciones: ColumnDef<GenericRow>[] = [
       alignHeader: 'center',
       toCSV: (value: unknown /*, row */) =>
         typeof value === 'string' ? value : value == null ? '' : String(value),
-      minWidth: 100,
-      maxWidth: 150,
+      minWidth: { xs: 0, sm: '6rem', md: '7rem' },
+      maxWidth: { xs: '8rem', sm: '9rem', md: '10rem' },
     },
     cell: ({ getValue }) => {
       const estado = (getValue<string>() ?? '').trim();

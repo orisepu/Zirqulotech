@@ -522,7 +522,17 @@ export const ThemeWrapper: React.FC<ThemeWrapperProps> = ({ children, initialMod
                   : 'radial-gradient(circle at 15% 15%, rgba(45,90,80,0.24), transparent 45%), radial-gradient(circle at 85% 5%, rgba(26,40,54,0.35), transparent 40%)',
               backgroundAttachment: 'fixed',
               color: theme.palette.text.primary,
-              minHeight: '100%'
+              minHeight: '100%',
+              // Optimización para diferentes escalados del SO
+              '@media (resolution: 1.25dppx)': {
+                fontSize: '100%', // Mantener tamaño de fuente base en 125% scaling
+              },
+              '@media (resolution: 1.5dppx)': {
+                fontSize: '100%', // Mantener tamaño de fuente base en 150% scaling
+              },
+              '@media (resolution: 2dppx)': {
+                fontSize: '100%', // Mantener tamaño de fuente base en 200% scaling
+              },
             },
             '#__next': { minHeight: '100%' },
             'input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus': {

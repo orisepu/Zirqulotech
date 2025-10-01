@@ -6,23 +6,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   // Performance optimizations
-  experimental: {
-    optimizePackageImports: [
-      '@mui/material',
-      '@mui/icons-material',
-      '@tanstack/react-query',
-      'lodash'
-    ],
-    // Turbopack optimizations
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js'
-        }
-      }
-    }
-  },
+  
 
   // CKEditor 5 aggregated necesita transpilarse
   transpilePackages: ["ckeditor5"],

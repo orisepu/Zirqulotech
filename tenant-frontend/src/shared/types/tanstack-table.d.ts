@@ -2,24 +2,27 @@
 import type {} from '@tanstack/react-table'
 
 declare module '@tanstack/react-table' {
+  // Type helper for responsive values
+  type ResponsiveValue = number | string | {
+    xs?: number | string
+    sm?: number | string
+    md?: number | string
+    lg?: number | string
+    xl?: number | string
+    xxl?: number | string
+    xxxl?: number | string
+  }
+
   interface ColumnMeta<TData, TValue> {
-    minWidth?: number
-    headerMaxWidth?: number
-    maxWidth?: number | {
-      xs?: number
-      sm?: number
-      md?: number
-      lg?: number
-      xl?: number
-      xxl?: number
-      xxxl?: number
-    }
+    minWidth?: ResponsiveValue
+    headerMaxWidth?: ResponsiveValue
+    maxWidth?: ResponsiveValue
     align?: 'left' | 'center' | 'right'
     alignHeader?: 'left' | 'center' | 'right'
     label?: string
     toCSV?: (value: TValue, row: TData) => unknown
     ellipsis?: boolean
-    ellipsisMaxWidth?: number | string
+    ellipsisMaxWidth?: ResponsiveValue
     persist?: boolean
     nowrapHeader?: boolean
     headerWrap?: number | boolean

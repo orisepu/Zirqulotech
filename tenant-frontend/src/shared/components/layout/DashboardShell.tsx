@@ -218,7 +218,7 @@ export default function DashboardShell({
 {/* 🧭 Breadcrumbs tipo explorador */}
     <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center", minWidth: 0 }}>
                 {/* Si los breadcrumbs son largos, que recorten con elipsis */}
-                <Box sx={{ maxWidth: { xs: 220, sm: 420, md: 800, lg: 1000}, overflow: "hidden" }}>
+                <Box sx={{ maxWidth: { xs: "14rem", sm: "28rem", md: "50rem", lg: "60rem" }, overflow: "hidden" }}>
                   <BreadcrumbsExplorador />
                 </Box>
               </Box>

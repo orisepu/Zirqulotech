@@ -364,14 +364,11 @@ export default function TablaReactiva<TData>({
                       minWidth: headerMeta?.minWidth,
                       maxWidth: headerMeta?.maxWidth ?? headerMeta?.headerMaxWidth,
                       width: headerMeta?.maxWidth,
-                      whiteSpace: headerMeta?.nowrapHeader
-                        ? 'nowrap'
-                        : headerMeta?.headerWrap
-                          ? 'normal'
-                          : 'normal',
-                      overflow: headerMeta?.nowrapHeader ? 'hidden' : undefined,
-                      textOverflow: headerMeta?.nowrapHeader ? 'ellipsis' : undefined,
-                      wordBreak: headerMeta?.nowrapHeader ? 'normal' : 'break-word',
+                      whiteSpace: headerMeta?.nowrapHeader ? 'nowrap' : 'normal',
+                      overflow: headerMeta?.nowrapHeader ? 'hidden' : 'visible',
+                      textOverflow: headerMeta?.nowrapHeader ? 'ellipsis' : 'clip',
+                      wordBreak: 'normal',
+                      overflowWrap: headerMeta?.nowrapHeader ? 'normal' : 'break-word',
                       display: 'table-cell',
                       position: 'relative',
                     }}

@@ -235,7 +235,7 @@ export default function LayoutInternoShell({ children }: { children: React.React
           {/* CENTRO: breadcrumbs centrados */}
           <Box sx={{ justifySelf: "center", overflow: "hidden" }}>
             {/* Si los breadcrumbs son largos, que recorten con elipsis */}
-            <Box sx={{ maxWidth: { xs: 220, sm: 420, md: 560}, overflow: "hidden" }}>
+            <Box sx={{ maxWidth: { xs: "14rem", sm: "28rem", md: "36rem" }, overflow: "hidden" }}>
               <BreadcrumbsExplorador />
             </Box>
           </Box>

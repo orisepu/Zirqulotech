@@ -6,13 +6,15 @@ import { useEffect, useRef, useState } from 'react'
 import api, { getAccessToken } from '@/services/api'
 import { getWebSocketUrl } from '@/shared/config/env'
 import {
-  Box, IconButton, Badge, Paper, Typography, TextField, Button, useTheme
+  Box, IconButton, Badge, Paper, Typography, TextField, Button, useTheme, Chip
 } from '@mui/material'
 import ChatIcon from '@mui/icons-material/Chat'
 import CloseIcon from '@mui/icons-material/Close'
 import Link from 'next/link'
 import LinkIcon from '@mui/icons-material/Link'
 import Tooltip from '@mui/material/Tooltip'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'react-toastify'
 import type { ReactNode } from 'react';
 
 type Mensaje = {
@@ -48,11 +50,39 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
   const [abierto, setAbierto] = useState(false)
   const [mensajes, setMensajes] = useState<Mensaje[]>([])
   const [input, setInput] = useState('')
-  const [chatId, setChatId] = useState<number | null>(null)
-  const [usuario, setUsuario] = useState<{ id: number, name: string } | null>(null)
   const [noLeidos, setNoLeidos] = useState(0)
+  const [estadoWs, setEstadoWs] = useState<'desconectado' | 'conectando' | 'conectado' | 'error'>('desconectado')
   const socketRef = useRef<WebSocket | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Query para obtener usuario actual
+  const { data: usuario } = useQuery({
+    queryKey: ['usuario-actual'],
+    queryFn: async () => {
+      const res = await api.get('/api/yo/')
+      return { id: res.data.id, name: res.data.username }
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+
+  // Query para obtener o crear chat
+  const { data: chatId } = useQuery({
+    queryKey: ['chat-soporte', usuario?.id],
+    queryFn: async () => {
+      const guardado = localStorage.getItem('chat_id')
+      if (guardado) {
+        return parseInt(guardado)
+      }
+      const res = await api.post('/api/chat/soporte/', { cliente_id: usuario?.id })
+      const id = res.data?.id
+      if (id) {
+        localStorage.setItem('chat_id', id.toString())
+      }
+      return id
+    },
+    enabled: !!usuario,
+    staleTime: Infinity,
+  })
   const renderMensaje = (msg: Mensaje): ReactNode => {
     const partes: ReactNode[] = [msg.texto];   
     if (msg.oportunidad_id && msg.tenant) {
@@ -72,76 +102,83 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
 
   
 
-  
-  useEffect(() => {
-    api.get('/api/yo/')
-      .then(res => setUsuario({ id: res.data.id, name: res.data.username }))
-      .catch(console.error)
-  }, [])
 
   useEffect(() => {
-    if (!usuario) return
+    if (!chatId || !usuario) return
 
-    const guardado = localStorage.getItem('chat_id')
-    if (guardado) {
-      setChatId(parseInt(guardado))
-    } else {
-      api.post('/api/chat/soporte/', { cliente_id: usuario.id })
-        .then(res => {
-          const id = res.data?.id
-          if (id) {
-            localStorage.setItem('chat_id', id.toString())
-            setChatId(id)
-          }
-        })
-        .catch(console.error)
-    }
-  }, [usuario])
-
-  const refreshAccessToken = async () => {
-    const refresh = localStorage.getItem('refresh')
-    if (!refresh) return null
-    try {
-      const res = await api.post('/api/token/refresh/', { refresh })
-      const access = res.data.access
-      localStorage.setItem('access', access)
-      return access
-    } catch (err) {
-      console.error('❌ Error refrescando token:', err)
-      return null
-    }
-  }
-
-  useEffect(() => {
-    if (!chatId) return
     const conectar = async () => {
-      let token = getAccessToken()
-      if (!token) token = await refreshAccessToken()
-      if (!token) return
+      setEstadoWs('conectando')
+      const token = getAccessToken()
+      if (!token) {
+        setEstadoWs('error')
+        return
+      }
 
+<<<<<<< HEAD
       const wsUrl = getWebSocketUrl(`/ws/chat/${chatId}/?token=${token}`)
       const socket = new WebSocket(wsUrl)
+=======
+      // 1. Cargar historial PRIMERO
+      try {
+        const res = await api.get(`/api/chat/${chatId}/mensajes/`)
+        setMensajes(res.data)
+      } catch (error) {
+        console.error('Error cargando historial:', error)
+      }
+
+      // 2. LUEGO conectar WebSocket
+      const tenant = localStorage.getItem("schema") || localStorage.getItem("currentTenant") || ""
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      const socket = new WebSocket(
+        `${proto}://${window.location.host}/ws/chat/${chatId}/?token=${token}&tenant=${encodeURIComponent(tenant)}`
+      )
+>>>>>>> 0b3dae74 (feat: improve responsive design and WebSocket reliability)
       socketRef.current = socket
 
+      socket.onopen = () => {
+        setEstadoWs('conectado')
+      }
+
       socket.onmessage = (e) => {
-        const data: Mensaje = JSON.parse(e.data)
-        setMensajes(prev => [...prev, data])
-        if (data.autor !== usuario?.name && !abierto) {
+        const data = JSON.parse(e.data)
+
+        // Manejar cierre de chat
+        if (data.type === 'chat_closed') {
+          console.log('🔒 Chat cerrado por soporte:', data.mensaje)
+          setEstadoWs('desconectado')
+          socket.close()
+          setAbierto(false)
+          // Mostrar notificación
+          toast.info(data.mensaje || 'El chat ha sido cerrado por el equipo de soporte')
+          return
+        }
+
+        // Mensaje normal
+        const mensaje: Mensaje = data
+        setMensajes(prev => [...prev, mensaje])
+        if (mensaje.autor !== usuario?.name && !abierto) {
           playBeep()
           setNoLeidos(n => n + 1)
         }
       }
 
-      socket.onclose = () => console.warn('🔌 WebSocket cerrado')
+      socket.onerror = (error) => {
+        console.error('❌ Error en WebSocket del chat:', error)
+        setEstadoWs('error')
+      }
 
-      api.get(`/api/chat/${chatId}/mensajes/`)
-        .then(res => setMensajes(res.data))
-        .catch(console.error)
+      socket.onclose = () => {
+        console.warn('🔌 WebSocket cerrado')
+        setEstadoWs('desconectado')
+      }
     }
 
     conectar()
-    return () => socketRef.current?.close()
-  }, [chatId, usuario, abierto])
+    return () => {
+      socketRef.current?.close()
+      setEstadoWs('desconectado')
+    }
+  }, [chatId, usuario])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -190,7 +227,23 @@ export default function ChatConTenantsAdaptado({ oportunidad }: ChatConTenantsAd
           }}
         >
           <Box display="flex" justifyContent="space-between" alignItems="center" px={2} py={1}>
-            <Typography variant="subtitle1">Chat con Soporte</Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="subtitle1">Chat con Soporte</Typography>
+              <Chip
+                size="small"
+                label={
+                  estadoWs === 'conectado' ? 'Conectado' :
+                  estadoWs === 'conectando' ? 'Conectando...' :
+                  estadoWs === 'error' ? 'Error' : 'Desconectado'
+                }
+                color={
+                  estadoWs === 'conectado' ? 'success' :
+                  estadoWs === 'conectando' ? 'info' :
+                  estadoWs === 'error' ? 'error' : 'default'
+                }
+                sx={{ height: 20, fontSize: '0.7rem' }}
+              />
+            </Box>
             <IconButton onClick={() => setAbierto(false)} size="small">
               <CloseIcon />
             </IconButton>

@@ -93,6 +93,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "creada": event.get("creada"),
         })
 
+    async def chat_closed(self, event):
+        """Notifica a los clientes conectados que el chat ha sido cerrado"""
+        await self.send(text_data=json.dumps({
+            'type': 'chat_closed',
+            'mensaje': event.get('mensaje', 'El chat ha sido cerrado por soporte'),
+            'cerrado_por': event.get('cerrado_por', 'Soporte'),
+        }))
+
     
     @database_sync_to_async
     def guardar_mensaje(self, user_id, texto, oportunidad_id, dispositivo_id):

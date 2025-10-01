@@ -530,7 +530,7 @@ export default function OportunidadDetallePageGlobal() {
         <Grid container spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'stretch' }}>
           <Grid
             size={{ xs: 12, md: realesIdx !== null && tabActivo === realesIdx ? 12 : 6 }}
-            sx={{ display: 'flex', minWidth: 400 }}
+            sx={{ display: 'flex', minWidth: { xs: 0, sm: '25rem' } }}
           >
             <TabsOportunidad
               oportunidad={oportunidadResumen as OportunidadResumen}
@@ -577,7 +577,7 @@ export default function OportunidadDetallePageGlobal() {
           </Grid>
 
           {(realesIdx === null || tabActivo !== realesIdx) && (
-            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: 400 }}>
+            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: { xs: 0, sm: '20rem' } }}>
               <ComentariosPanel
                 comentarios={comentarios}
                 onEnviar={enviarComentario}
@@ -587,7 +587,7 @@ export default function OportunidadDetallePageGlobal() {
           )}
 
           {(realesIdx === null || tabActivo !== realesIdx) && (
-            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: 300 }}>
+            <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', minWidth: { xs: 0, sm: '18rem' } }}>
               <HistorialPanel historial={historial} />
             </Grid>
           )}
