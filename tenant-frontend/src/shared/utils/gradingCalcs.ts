@@ -1,12 +1,60 @@
 import { CuestionarioComercialInput, DisplayImageStatus, GlassStatus, HousingStatus, GradingParamsPorModelo, ResultadoValoracion } from '@/shared/types/grading'
 
-export function pasaGatesComercial(input: CuestionarioComercialInput): { gate: ResultadoValoracion['gate'] } {
-  // Sin chequeos legales: sólo energía, pantalla/cristal, chasis, funcional básico
-  if (input.enciende === false || input.carga === false) return { gate: 'DEFECTUOSO' }
-  if (input.display_image_status !== DisplayImageStatus.OK) return { gate: 'DEFECTUOSO' }
-  if ([GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status)) return { gate: 'DEFECTUOSO' }
+/**
+ * Configuración de capacidades por tipo de dispositivo
+ */
+export interface DeviceCapabilities {
+  hasBattery: boolean
+  hasDisplay: boolean
+}
+
+export function getDeviceCapabilities(tipo?: string): DeviceCapabilities {
+  if (!tipo) return { hasBattery: true, hasDisplay: true }
+
+  const tipoLower = tipo.toLowerCase()
+
+  // Dispositivos sin batería ni pantalla (desktop sin display integrado)
+  if (tipoLower.includes('mac pro') || tipoLower.includes('mac studio') || tipoLower.includes('mac mini')) {
+    return { hasBattery: false, hasDisplay: false }
+  }
+
+  // Dispositivos con pantalla pero sin batería (desktop con display)
+  if (tipoLower.includes('imac')) {
+    return { hasBattery: false, hasDisplay: true }
+  }
+
+  // Dispositivos con batería y pantalla (portátiles, móviles, tablets)
+  return { hasBattery: true, hasDisplay: true }
+}
+
+export function pasaGatesComercial(
+  input: CuestionarioComercialInput,
+  tipo?: string
+): { gate: ResultadoValoracion['gate'] } {
+  const capabilities = getDeviceCapabilities(tipo)
+
+  // Gate básico: enciende
+  if (input.enciende === false) return { gate: 'DEFECTUOSO' }
+
+  // Gate de carga: solo si tiene batería
+  if (capabilities.hasBattery && input.carga === false) return { gate: 'DEFECTUOSO' }
+
+  // Gates de pantalla: solo si tiene pantalla integrada
+  if (capabilities.hasDisplay) {
+    if (input.display_image_status && input.display_image_status !== DisplayImageStatus.OK) {
+      return { gate: 'DEFECTUOSO' }
+    }
+    if (input.glass_status && [GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status)) {
+      return { gate: 'DEFECTUOSO' }
+    }
+  }
+
+  // Gate de housing: todos los dispositivos
   if (input.housing_status === HousingStatus.DOBLADO) return { gate: 'DEFECTUOSO' }
+
+  // Gate funcional: todos los dispositivos
   if (input.funcional_basico_ok === false) return { gate: 'DEFECTUOSO' }
+
   return { gate: 'OK' }
 }
 
@@ -27,29 +75,52 @@ export function topesDesdeV(V_Aplus: number, pp_A: number, pp_B: number, pp_C: n
 export function calcularOferta(
   input: CuestionarioComercialInput,
   params: GradingParamsPorModelo,
-  pp_func: number // % único por fallo funcional declarado en comercial (si lo hubiera)
+  pp_func: number, // % único por fallo funcional declarado en comercial (si lo hubiera)
+  tipo?: string // Tipo de dispositivo para determinar capacidades
 ): ResultadoValoracion {
-  const { gate } = pasaGatesComercial(input)
+  const capabilities = getDeviceCapabilities(tipo)
+  const { gate } = pasaGatesComercial(input, tipo)
   const { V_A, V_B, V_C } = topesDesdeV(params.V_Aplus, params.pp_A, params.pp_B, params.pp_C)
 
   let V_tope = params.V_Aplus
   let grado_estetico: ResultadoValoracion['grado_estetico'] = 'C'
 
   if (gate === 'OK') {
-    grado_estetico = gradoEsteticoDesdeTabla(input.glass_status, input.housing_status)
+    // Para dispositivos con pantalla, usar glass_status; sino, usar housing solo
+    const glass = capabilities.hasDisplay && input.glass_status ? input.glass_status : GlassStatus.NONE
+    const housing = input.housing_status || HousingStatus.SIN_SIGNOS
+    grado_estetico = gradoEsteticoDesdeTabla(glass, housing)
     V_tope = grado_estetico === 'A+' ? params.V_Aplus : grado_estetico === 'A' ? V_A : grado_estetico === 'B' ? V_B : V_C
   } else {
-    const pantallaOk = [GlassStatus.NONE, GlassStatus.MICRO, GlassStatus.VISIBLE].includes(input.glass_status) && input.display_image_status === DisplayImageStatus.OK
-    const chasisOk = ![HousingStatus.DOBLADO].includes(input.housing_status)
+    // Lógica de grado D: evaluar dimensiones sanas
+    const pantallaOk = capabilities.hasDisplay
+      ? (input.glass_status && [GlassStatus.NONE, GlassStatus.MICRO, GlassStatus.VISIBLE].includes(input.glass_status) &&
+         input.display_image_status === DisplayImageStatus.OK)
+      : true // Si no tiene pantalla, siempre OK para esta dimensión
+
+    const chasisOk = ![HousingStatus.DOBLADO].includes(input.housing_status || HousingStatus.SIN_SIGNOS)
+
     if (!pantallaOk && chasisOk) V_tope = params.V_Aplus
     else if (pantallaOk && !chasisOk) V_tope = V_B
     else V_tope = Math.min(params.V_Aplus, V_A, V_B, V_C)
   }
 
-  // Los costes de params ya incluyen MO (horas*tarifa + fija) desde backend
-  const pr_bat = input.battery_health_pct !== null && input.battery_health_pct < 85 ? params.pr_bateria : 0
-  const pr_pant = (input.display_image_status !== DisplayImageStatus.OK || [GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status)) ? params.pr_pantalla : 0
-  const pr_chas = (input.housing_status === HousingStatus.DESGASTE_VISIBLE || input.housing_status === HousingStatus.DOBLADO) ? params.pr_chasis : 0
+  // Deducciones (solo aplicar si el dispositivo tiene esa característica)
+  // Batería: solo si tiene batería
+  const pr_bat = capabilities.hasBattery && input.battery_health_pct !== null && input.battery_health_pct !== undefined && input.battery_health_pct < 85
+    ? params.pr_bateria
+    : 0
+
+  // Pantalla: solo si tiene pantalla
+  const pr_pant = capabilities.hasDisplay && (
+    (input.display_image_status && input.display_image_status !== DisplayImageStatus.OK) ||
+    (input.glass_status && [GlassStatus.DEEP, GlassStatus.CHIP, GlassStatus.CRACK].includes(input.glass_status))
+  ) ? params.pr_pantalla : 0
+
+  // Chasis: todos los dispositivos
+  const pr_chas = (input.housing_status === HousingStatus.DESGASTE_VISIBLE || input.housing_status === HousingStatus.DOBLADO)
+    ? params.pr_chasis
+    : 0
 
   let V1 = V_tope - (pr_bat + pr_pant + pr_chas)
   if (!Number.isFinite(V1)) V1 = 0
