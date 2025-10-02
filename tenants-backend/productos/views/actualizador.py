@@ -21,6 +21,34 @@ from ..likewize_config import get_apple_presets, get_extra_presets, list_unique_
 from ..serializers import TareaLikewizeSerializer,LikewizeCazadorResultadoSerializer
 
 
+# ============== Capacidades estándar por tipo de dispositivo ==============
+
+STANDARD_CAPACITIES = {
+    'iMac': [256, 512, 1024, 2048],
+    'MacBook Pro': [256, 512, 1024, 2048],
+    'MacBook Air': [256, 512, 1024, 2048],
+    'MacBook': [256, 512],
+    'Mac mini': [256, 512, 1024, 2048],
+    'Mac Pro': [512, 1024, 2048, 4096, 8192],
+    'Mac Studio': [512, 1024, 2048, 4096, 8192],
+    'iPhone': [64, 128, 256, 512, 1024],
+    'iPhone 11': [64, 128, 256],
+    'iPhone 12': [64, 128, 256, 512],
+    'iPhone 13': [128, 256, 512, 1024],
+    'iPhone 14': [128, 256, 512, 1024],
+    'iPhone 15': [128, 256, 512, 1024],
+    'iPhone 15 Pro': [256, 512, 1024],
+    'iPhone 15 Pro Max': [256, 512, 1024],
+    'iPhone 16': [128, 256, 512, 1024],
+    'iPhone 16 Pro': [256, 512, 1024],
+    'iPhone 16 Pro Max': [256, 512, 1024],
+    'iPad': [64, 256, 512],
+    'iPad Pro': [128, 256, 512, 1024, 2048],
+    'iPad Air': [64, 256, 512],
+    'iPad mini': [64, 256, 512],
+}
+
+
 # ============== helpers ==============
 
 def _resolve_model_from_setting(value, setting_name: str):
@@ -831,8 +859,10 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
         if modelo_update_fields:
             modelo.save(update_fields=modelo_update_fields)
 
-        # Crear/obtener Capacidad
+        # Crear/obtener Capacidades (todas las estándar del tipo)
         cap_qs = CapacidadModel.objects.filter(**{rel_field: modelo})
+
+        # Buscar si ya existe la capacidad específica
         cap = cap_qs.filter(**{f"{gb_field}__iexact": tamaño_txt}).first()
         if not cap:
             for existing in cap_qs:
@@ -846,16 +876,85 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
                     tamaño_txt = existing_txt or tamaño_txt
                     break
 
+        # Si no existe la capacidad, crear TODAS las capacidades estándar para este tipo
         if not cap:
+            # Obtener capacidades estándar para este tipo de dispositivo
+            standard_capacities = STANDARD_CAPACITIES.get(tipo_val, [256, 512, 1024, 2048])
+
+            # Defaults para capacidades nuevas
             cap_defaults = {}
             if hasattr(CapacidadModel, "precio_b2b"):
                 cap_defaults["precio_b2b"] = None
-            cap = CapacidadModel.objects.create(**{rel_field: modelo, gb_field: tamaño_txt}, **cap_defaults)
+
+            # Crear todas las capacidades estándar
+            created_capacities = []
+            for gb in standard_capacities:
+                capacity_txt = f"{gb // 1024} TB" if gb >= 1024 else f"{gb} GB"
+
+                # Verificar si ya existe esta capacidad
+                existing_cap = cap_qs.filter(**{f"{gb_field}__iexact": capacity_txt}).first()
+                if existing_cap:
+                    if gb == gb_value:
+                        cap = existing_cap
+                        tamaño_txt = capacity_txt
+                    continue
+
+                # Crear nueva capacidad
+                new_cap = CapacidadModel.objects.create(
+                    **{rel_field: modelo, gb_field: capacity_txt},
+                    **cap_defaults
+                )
+                created_capacities.append(new_cap)
+
+                # Si es la capacidad que necesitamos, guardarla
+                if gb == gb_value:
+                    cap = new_cap
+                    tamaño_txt = capacity_txt
+
+            # Si aún no tenemos cap, crear la específica que necesitamos
+            if not cap:
+                cap = CapacidadModel.objects.create(
+                    **{rel_field: modelo, gb_field: tamaño_txt},
+                    **cap_defaults
+                )
 
         s.capacidad_id = cap.id
         fields_to_update.add("capacidad_id")
         if fields_to_update:
             s.save(update_fields=list(fields_to_update))
+
+        # IMPORTANTE: Mapear automáticamente otros items de staging con el mismo modelo
+        # que acabamos de crear/actualizar
+        auto_mapped_count = 0
+        try:
+            # Buscar otros items sin mapear de la misma tarea con modelo similar
+            unmapped_items = LikewizeItemStaging.objects.filter(
+                tarea_id=tarea_id,
+                capacidad_id__isnull=True,
+                modelo_norm=modelo_nombre
+            )
+
+            # Obtener todas las capacidades del modelo recién creado
+            all_capacities = CapacidadModel.objects.filter(**{rel_field: modelo})
+
+            for unmapped_item in unmapped_items:
+                if not unmapped_item.almacenamiento_gb:
+                    continue
+
+                # Formatear capacidad del item
+                item_gb = unmapped_item.almacenamiento_gb
+                item_capacity_txt = f"{item_gb // 1024} TB" if item_gb >= 1024 else f"{item_gb} GB"
+
+                # Buscar capacidad correspondiente
+                matching_cap = all_capacities.filter(**{f"{gb_field}__iexact": item_capacity_txt}).first()
+
+                if matching_cap:
+                    unmapped_item.capacidad_id = matching_cap.id
+                    unmapped_item.save(update_fields=['capacidad_id'])
+                    auto_mapped_count += 1
+        except Exception as e:
+            # No fallar si el auto-mapeo falla, solo registrar
+            pass
 
         return Response({
             "created": True,
@@ -865,6 +964,7 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
             "modelo_norm": modelo_nombre,
             "tipo": tipo_val,
             "marca": marca_val,
+            "auto_mapped_count": auto_mapped_count,
         }, status=201)
 
 
@@ -872,7 +972,8 @@ class RemapearTareaLikewizeView(APIView):
     """
     POST /api/precios/likewize/tareas/<uuid:tarea_id>/remapear/
     Remapea automáticamente todos los dispositivos sin mapear de una tarea,
-    creando modelos y capacidades según sea necesario.
+    buscando modelos y capacidades existentes en la BD (NO crea nada nuevo).
+    Los dispositivos que no encuentren match quedarán sin mapear para "No Encontrados".
     """
     permission_classes = [permissions.IsAdminUser]
 
@@ -912,22 +1013,27 @@ class RemapearTareaLikewizeView(APIView):
                     failed_count += 1
                     continue
 
-                # Crear/obtener modelo
-                modelo, _ = ModeloModel.objects.get_or_create(
-                    **{rel_name: modelo_nombre},
-                    defaults={"tipo": item.tipo or "iPhone", "marca": "Apple"}
-                )
+                # SOLO buscar modelo existente (NO crear)
+                try:
+                    modelo = ModeloModel.objects.get(**{rel_name: modelo_nombre})
+                except ModeloModel.DoesNotExist:
+                    # No existe el modelo, dejar sin mapear para que vaya a "No Encontrados"
+                    failed_count += 1
+                    continue
 
                 # Formatear capacidad
                 gb = item.almacenamiento_gb
                 tamaño_txt = f"{gb // 1024} TB" if gb >= 1024 else f"{gb} GB"
 
-                # Crear/obtener capacidad
-                cap, _ = CapacidadModel.objects.get_or_create(
-                    **{rel_field: modelo, gb_field: tamaño_txt}
-                )
+                # SOLO buscar capacidad existente (NO crear)
+                try:
+                    cap = CapacidadModel.objects.get(**{rel_field: modelo, gb_field: tamaño_txt})
+                except CapacidadModel.DoesNotExist:
+                    # No existe la capacidad, dejar sin mapear
+                    failed_count += 1
+                    continue
 
-                # Actualizar staging
+                # Actualizar staging solo si encontró match
                 item.capacidad_id = cap.id
                 item.save(update_fields=['capacidad_id'])
                 created_count += 1

@@ -5,10 +5,7 @@ import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AutoAwesome, Psychology, Speed, TrendingUp, Warning, Close, Search } from '@mui/icons-material'
 import api from '@/services/api'
-import type { Cambio, DiffData } from '@/features/opportunities/types/likewize'
-import { cleanModelName } from '@/features/opportunities/utils/deviceNameCleaner'
-
-// Import existing components
+// Import existing components (assuming they exist)
 // import LikewizeB2BPage from '@/app/(dashboard)/dispositivos/actualizar/page'
 import MappingMetrics from './MappingMetrics'
 import IncrementalUpdateControls from './IncrementalUpdateControls'
@@ -19,7 +16,106 @@ import { ReviewPanel } from './ReviewPanel'
 import { ConfidenceIndicator } from './ConfidenceIndicator'
 import { useDeviceMappingEnhanced } from '@/shared/hooks/useDeviceMappingEnhanced'
 import { useLearningMetrics, useLaunchV3UpdateTask, useRealTimeLearningMetrics, useTaskMonitoring, useActiveV3Tasks } from '@/hooks/useLearningV3'
-import { TabPanel } from '@/shared/components/TabPanel'
+
+// Types from the original page
+type Cambio = {
+  id: string
+  kind: 'INSERT' | 'UPDATE' | 'DELETE'
+  tipo: string
+  modelo_norm: string
+  almacenamiento_gb: number
+  capacidad_id?: number | null
+  marca?: string
+  antes: string | null
+  despues: string | null
+  delta: number | null
+  nombre_likewize_original?: string
+  nombre_normalizado?: string
+  confianza_mapeo?: 'alta' | 'media' | 'baja'
+  necesita_revision?: boolean
+}
+
+type DiffData = {
+  summary: { inserts: number, updates: number, deletes: number, total: number }
+  changes: Cambio[]
+  // V3 specific fields
+  is_v3?: boolean
+  resumen?: {
+    inserciones?: number
+    actualizaciones?: number
+    eliminaciones?: number
+    sin_cambios?: number
+    total_comparaciones?: number
+  }
+  v3_stats?: {
+    confidence_stats?: {
+      promedio?: number
+      alta_confianza?: number
+      media_confianza?: number
+      baja_confianza?: number
+    }
+  }
+  comparaciones?: Array<{
+    change_type?: string
+    [key: string]: unknown
+  }>
+}
+
+// Capacidades estándar por tipo de dispositivo (debe coincidir con backend)
+const STANDARD_CAPACITIES: Record<string, number[]> = {
+  'iMac': [256, 512, 1024, 2048],
+  'MacBook Pro': [256, 512, 1024, 2048],
+  'MacBook Air': [256, 512, 1024, 2048],
+  'MacBook': [256, 512],
+  'Mac mini': [256, 512, 1024, 2048],
+  'Mac Pro': [512, 1024, 2048, 4096, 8192],
+  'Mac Studio': [512, 1024, 2048, 4096, 8192],
+  'iPhone': [64, 128, 256, 512, 1024],
+  'iPhone 11': [64, 128, 256],
+  'iPhone 12': [64, 128, 256, 512],
+  'iPhone 13': [128, 256, 512, 1024],
+  'iPhone 14': [128, 256, 512, 1024],
+  'iPhone 15': [128, 256, 512, 1024],
+  'iPhone 15 Pro': [256, 512, 1024],
+  'iPhone 15 Pro Max': [256, 512, 1024],
+  'iPhone 16': [128, 256, 512, 1024],
+  'iPhone 16 Pro': [256, 512, 1024],
+  'iPhone 16 Pro Max': [256, 512, 1024],
+  'iPad': [64, 256, 512],
+  'iPad Pro': [128, 256, 512, 1024, 2048],
+  'iPad Air': [64, 256, 512],
+  'iPad mini': [64, 256, 512],
+}
+
+// Función helper para formatear capacidades GB → texto legible
+const formatCapacity = (gb: number): string => {
+  if (gb >= 1024) {
+    return `${gb / 1024} TB`
+  }
+  return `${gb} GB`
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode
+  index: number
+  value: number
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`enhanced-tabpanel-${index}`}
+      aria-labelledby={`enhanced-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
+    </div>
+  )
+}
 
 interface EnhancedLikewizePageProps {
   tareaId?: string
@@ -52,6 +148,111 @@ export function EnhancedLikewizePage({
     almacenamiento_gb: '',
     likewize_model_code: ''
   })
+
+  // Función para limpiar el nombre del modelo manteniendo información técnica importante
+  const cleanModelName = (rawName: string): string => {
+    if (!rawName) return ''
+
+    let cleaned = rawName
+
+    // 1. Remover SOLO capacidad de almacenamiento (GB/TB/SSD/HDD)
+    cleaned = cleaned.replace(/\s*\d+\s*(GB|TB)\s*(SSD|HDD)?/gi, '')
+
+    // 2. Mejorar formato de cores: "8 Core CPU" → "8-Core CPU"
+    cleaned = cleaned.replace(/(\d+)\s*Core\s+(CPU|GPU)/gi, '$1-Core $2')
+
+    // 3. Simplificar modelo base manteniendo resto de info
+    cleaned = cleaned.replace(/iMac\d+\s*\d+/gi, 'iMac')
+    // MacBook Pro (varias variantes)
+    cleaned = cleaned.replace(/MacBook\s*Pro\d+\s*\d+/gi, 'MacBook Pro')
+    cleaned = cleaned.replace(/MacBookPro\d+\s*\d+/gi, 'MacBook Pro')
+    cleaned = cleaned.replace(/MacBook\s*Pro\d+,\d+/gi, 'MacBook Pro')
+    // MacBook Air
+    cleaned = cleaned.replace(/MacBook\s*Air\d+\s*\d+/gi, 'MacBook Air')
+    cleaned = cleaned.replace(/MacBookAir\d+\s*\d+/gi, 'MacBook Air')
+    // iPhone
+    cleaned = cleaned.replace(/iPhone\d+,\d+/gi, (match) => {
+      const num = match.match(/\d+/)
+      return num ? `iPhone ${num[0]}` : 'iPhone'
+    })
+
+    // 4. Convertir pulgadas: "24 inch" → "24\""
+    cleaned = cleaned.replace(/(\d+)\s*inch/gi, '$1"')
+
+    // 5. Extraer y formatear año: "10/2023" → "(2023)"
+    const yearMatch = cleaned.match(/\b(\d{1,2}\/)?(\d{4})\b/)
+    let year = ''
+    if (yearMatch) {
+      year = ` (${yearMatch[2]})`
+      cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/, '')
+    }
+
+    // 6. Limpiar espacios múltiples
+    cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
+    // 7. Añadir año al final
+    if (year) {
+      cleaned += year
+    }
+
+    return cleaned
+  }
+
+  // Función para limpiar código Likewize (sin capacidad pero manteniendo info técnica)
+  const cleanLikewizeCode = (rawCode: string): string => {
+    if (!rawCode) return ''
+
+    let cleaned = rawCode
+
+    // Remover SOLO la capacidad de almacenamiento, mantener resto de info técnica
+    cleaned = cleaned.replace(/\s*\d+\s*(GB|TB)\s*(SSD|HDD)?/gi, '')
+
+    // Limpiar espacios múltiples
+    cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
+    return cleaned
+  }
+
+  // Función para extraer tipo específico del dispositivo del nombre del modelo
+  const extractDeviceType = (modelName: string): string => {
+    if (!modelName) return ''
+
+    const lower = modelName.toLowerCase()
+
+    // Detectar tipos específicos de Mac (orden importante: específicos primero)
+    if (lower.includes('imac')) return 'iMac'
+    if (lower.includes('macbookpro') || lower.includes('macbook pro')) return 'MacBook Pro'
+    if (lower.includes('macbookair') || lower.includes('macbook air')) return 'MacBook Air'
+    if (lower.includes('macbook')) return 'MacBook'
+    if (lower.includes('mac mini')) return 'Mac mini'
+    if (lower.includes('mac pro')) return 'Mac Pro'
+    if (lower.includes('mac studio')) return 'Mac Studio'
+
+    // Detectar modelos de iPhone (intentar mantener número de modelo)
+    if (lower.includes('iphone')) {
+      // Extraer "iPhone 15 Pro Max", "iPhone 14", etc.
+      const iphoneMatch = modelName.match(/iPhone\s+(\d+\s*)?(Pro\s*Max|Pro|Plus)?/i)
+      if (iphoneMatch) {
+        return iphoneMatch[0].trim()
+      }
+      return 'iPhone'
+    }
+
+    // Detectar iPad
+    if (lower.includes('ipad pro')) return 'iPad Pro'
+    if (lower.includes('ipad air')) return 'iPad Air'
+    if (lower.includes('ipad mini')) return 'iPad mini'
+    if (lower.includes('ipad')) return 'iPad'
+
+    // Otros dispositivos Apple
+    if (lower.includes('apple watch')) return 'Apple Watch'
+    if (lower.includes('airpods')) return 'AirPods'
+
+    // Fallback genérico
+    if (lower.includes('mac')) return 'Mac'
+
+    return ''
+  }
 
   const {
     useMappingStatistics,
@@ -295,11 +496,19 @@ export function EnhancedLikewizePage({
       const { data } = await api.post(`/api/precios/likewize/tareas/${activeTaskId}/crear-capacidad/`, params)
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['unmapped_items'] })
       queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+      queryClient.invalidateQueries({ queryKey: ['likewize_tarea'] })
       setCreateDeviceModalOpen(false)
       setSelectedUnmappedItem(null)
+
+      // Mostrar mensaje de éxito con auto-mapeo
+      if (data.auto_mapped_count > 0) {
+        alert(`✅ Modelo creado con éxito!\n\n📦 Capacidades creadas automáticamente\n🔗 ${data.auto_mapped_count} items adicionales mapeados automáticamente`)
+      } else {
+        alert('✅ Modelo y capacidades creados con éxito!')
+      }
     }
   })
 
@@ -308,12 +517,14 @@ export function EnhancedLikewizePage({
     setSelectedUnmappedItem(item)
 
     // Inicializar campos editables con valores limpios
+    const modelName = item.modelo_norm || item.modelo_raw || ''
+
     setEditableDevice({
-      modelo: cleanModelName(item.modelo_norm || item.modelo_raw || ''),
+      modelo: cleanModelName(modelName),
       marca: item.marca || 'Apple',
-      tipo: item.tipo || 'Mac',
+      tipo: extractDeviceType(modelName) || item.tipo || 'Mac', // Extraer tipo específico del nombre
       almacenamiento_gb: String(item.almacenamiento_gb || ''),
-      likewize_model_code: item.modelo_raw || item.likewize_model_code || '' // Usar modelo_raw como código real
+      likewize_model_code: cleanLikewizeCode(item.modelo_raw || item.likewize_model_code || '') // Priorizar modelo_raw sobre likewize_model_code
     })
 
     setCreateDeviceModalOpen(true)
@@ -2091,7 +2302,7 @@ export function EnhancedLikewizePage({
         fullWidth
       >
         <DialogTitle>
-          Crear Modelo y Capacidad
+          Crear Modelo y Todas sus Capacidades
           {editableDevice.modelo && (
             <Typography variant="body2" color="text.secondary">
               {editableDevice.modelo}
@@ -2101,8 +2312,7 @@ export function EnhancedLikewizePage({
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             <Alert severity="info">
-              Revisa y edita la información antes de crear. El nombre del modelo se ha limpiado automáticamente para ser más legible.
-              Esta acción ayudará a entrenar el sistema de mapeo para futuros dispositivos similares.
+              Revisa y edita la información antes de crear. Se crearán automáticamente <strong>todas las capacidades estándar</strong> para este tipo de dispositivo.
             </Alert>
 
             <Stack spacing={2}>
@@ -2158,6 +2368,53 @@ export function EnhancedLikewizePage({
                 </Alert>
               )}
             </Stack>
+
+            {/* Sección de capacidades que se crearán */}
+            {editableDevice.tipo && (() => {
+              const standardCapacities = STANDARD_CAPACITIES[editableDevice.tipo] || [256, 512, 1024, 2048]
+              const currentCapacity = parseInt(editableDevice.almacenamiento_gb) || 0
+
+              return (
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      📦 Capacidades que se crearán automáticamente
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {standardCapacities.map((gb) => {
+                        const isCurrentCapacity = gb === currentCapacity
+                        return (
+                          <Chip
+                            key={gb}
+                            label={formatCapacity(gb)}
+                            size="medium"
+                            color={isCurrentCapacity ? 'primary' : 'default'}
+                            variant={isCurrentCapacity ? 'filled' : 'outlined'}
+                            sx={{
+                              fontWeight: isCurrentCapacity ? 'bold' : 'normal',
+                              ...(isCurrentCapacity && {
+                                borderWidth: 2,
+                                borderColor: 'primary.main'
+                              })
+                            }}
+                          />
+                        )
+                      })}
+                    </Box>
+
+                    <Alert severity="success" icon={false}>
+                      <Typography variant="body2">
+                        ✅ Se crearán <strong>{standardCapacities.length} capacidades</strong> para este modelo
+                        {currentCapacity > 0 && (
+                          <> (incluye <strong>{formatCapacity(currentCapacity)}</strong> del item actual)</>
+                        )}
+                      </Typography>
+                    </Alert>
+                  </Stack>
+                </Paper>
+              )
+            })()}
 
             {createFromUnmappedMutation.isPending && (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
