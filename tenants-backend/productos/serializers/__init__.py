@@ -4,6 +4,7 @@ from .admincapacidades import (
     CapacidadAdminListSerializer,
     SetPrecioRecompraSerializer,
     CapacidadAdminUpsertSerializer,
+    AjusteMasivoPreciosSerializer,
 )
 from .costespiezas import CostoPiezaListSerializer
 from .tiposreparacion import PiezaTipoSerializer,ManoObraTipoSerializer
@@ -22,6 +23,7 @@ __all__ = [
    "CapacidadAdminListSerializer",
    "SetPrecioRecompraSerializer",
    "CapacidadAdminUpsertSerializer",
+   "AjusteMasivoPreciosSerializer",
    "CostoPiezaListSerializer",
    "PiezaTipoSerializer",
    "ManoObraTipoSerializer",

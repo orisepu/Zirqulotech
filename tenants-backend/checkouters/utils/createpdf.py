@@ -289,8 +289,8 @@ def generar_pdf_oportunidad(oportunidad):
         Paragraph("<b>Capacidad</b>", cell_center),
         Paragraph("<b>Estado equipo</b>", cell_center),
         Paragraph("<b>Cantidad</b>", cell_center),
-        Paragraph("<b>Precio unitario (€)</b>", cell_center),
-        Paragraph("<b>Total (€)</b>", cell_center),
+        Paragraph("<b>Precio unit. sin IVA (€)</b>", cell_center),
+        Paragraph("<b>Total sin IVA (€)</b>", cell_center),
     ]
 
     data = [headers]
@@ -314,15 +314,30 @@ def generar_pdf_oportunidad(oportunidad):
             Paragraph(euros(total_linea), cell_right),
         ])
 
-    # Fila de total (caja)
+    # Filas de totales con IVA desglosado
+    iva_rate = Decimal("0.21")  # 21% IVA
+    subtotal = Decimal(str(total_general))
+    iva_amount = (subtotal * iva_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_con_iva = subtotal + iva_amount
+
     data.append([
         "", "", "", "",
-        Paragraph("<b>TOTAL</b>", cell_right),
+        Paragraph("<b>SUBTOTAL (sin IVA)</b>", cell_right),
         Paragraph(f"<b>{euros(total_general)}</b>", cell_right),
+    ])
+    data.append([
+        "", "", "", "",
+        Paragraph("<b>IVA (21%)</b>", cell_right),
+        Paragraph(f"<b>{euros(iva_amount)}</b>", cell_right),
+    ])
+    data.append([
+        "", "", "", "",
+        Paragraph("<b>TOTAL (con IVA)</b>", cell_right),
+        Paragraph(f"<b>{euros(total_con_iva)}</b>", cell_right),
     ])
 
     table = Table(data, repeatRows=1, colWidths=[160, 60, 80, 60, 90, 90])
-    # Estilos con filas alternas y caja de total resaltada
+    # Estilos con filas alternas y caja de totales resaltada
     ts = [
     # Encabezado sutil
     ("BACKGROUND", (0, 0), (-1, 0), colors.white),
@@ -333,15 +348,16 @@ def generar_pdf_oportunidad(oportunidad):
     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
 
-    # Cuerpo con filas alternas
-    ("GRID", (0, 1), (-1, -2), 0.25, GREY_BORDER),
-    ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, GREY_ROW]),
+    # Cuerpo con filas alternas (excluyendo las 3 últimas filas de totales)
+    ("GRID", (0, 1), (-1, -4), 0.25, GREY_BORDER),
+    ("ROWBACKGROUNDS", (0, 1), (-1, -4), [colors.white, GREY_ROW]),
 
-    # Fila TOTAL sutil (sin fondo de color)
-    ("LINEABOVE", (0, -1), (-1, -1), 1.0, GREY_BORDER),
-    ("TEXTCOLOR", (-3, -1), (-3, -1), BRAND_DARK),
-    ("FONTNAME", (-3, -1), (-3, -1), "Helvetica-Bold"),
-    ("FONTNAME", (-2, -1), (-1, -1), "Helvetica-Bold"),
+    # Filas de totales (3 últimas filas)
+    ("LINEABOVE", (0, -3), (-1, -3), 1.2, GREY_BORDER),  # Línea antes del subtotal
+    ("TEXTCOLOR", (-2, -3), (-2, -1), BRAND_DARK),
+    ("FONTNAME", (-2, -3), (-1, -1), "Helvetica-Bold"),
+    ("BACKGROUND", (0, -1), (-1, -1), GREY_SOFT),  # Fondo sutil para total final
+    ("LINEABOVE", (0, -1), (-1, -1), 1.5, BRAND_PRIMARY),  # Línea destacada antes del total
 ]
     table.setStyle(TableStyle(ts))
     elements.append(table)
@@ -356,9 +372,9 @@ def generar_pdf_oportunidad(oportunidad):
     precios_headers = [
         Paragraph("<b>Modelo</b>", cell_center),
         Paragraph("<b>Capacidad</b>", cell_center),
-        Paragraph("<b>Excelente (€)</b>", cell_center),
-        Paragraph("<b>Muy bueno (€)</b>", cell_center),
-        Paragraph("<b>Bueno (€)</b>", cell_center),
+        Paragraph("<b>Excelente (€, sin IVA)</b>", cell_center),
+        Paragraph("<b>Muy bueno (€, sin IVA)</b>", cell_center),
+        Paragraph("<b>Bueno (€, sin IVA)</b>", cell_center),
     ]
 
     precios_data = [precios_headers]

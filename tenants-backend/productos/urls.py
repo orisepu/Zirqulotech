@@ -10,6 +10,7 @@ from .views.admincapacidades import (
     ModeloSearchView,
     AsociarLikewizeModeloView,
     SetPrecioRecompraAdminView,
+    AjusteMasivoPreciosView,
 )
 from .views.tiposreparacion import PiezaTipoViewSet, ManoObraTipoViewSet
 from .views.costespiezas import (
@@ -69,6 +70,7 @@ urlpatterns = [
     path("admin/capacidades/", CapacidadAdminListView.as_view(), name="admin-capacidades-list"),
     path("admin/capacidades/<int:pk>/", CapacidadAdminDetailView.as_view(), name="admin-capacidades-detail"),
     path("admin/precios/set/", SetPrecioRecompraAdminView.as_view(), name="admin-precio-set"),
+    path("admin/precios/ajustar-masivo/", AjusteMasivoPreciosView.as_view(), name="admin-precios-ajustar-masivo"),
     path("admin/reparacion/opciones/", ReparacionOpcionesView.as_view(), name="admin-reparacion-opciones"),
     path("admin/costos-pieza/", CostosPiezaListView.as_view(), name="admin-costos-pieza-list"),
     path("admin/costos-pieza/set/", CostosPiezaSetView.as_view(), name="admin-costos-pieza-set"),

@@ -209,7 +209,7 @@ export default function TabsOportunidad({
                             <Paper sx={{ p: 2, width: '100%' }}>
                               <Typography><strong>Modelo:</strong> {modeloDesc} {capacidadTam}</Typography>
                               <Typography><strong>Cantidad:</strong> {cantidadStr}</Typography>
-                              <Typography><strong>Precio orientativo:</strong> {formatEUR(precioOrientativo)}</Typography>
+                              <Typography><strong>Precio orientativo (sin IVA):</strong> {formatEUR(precioOrientativo)}</Typography>
                               {puedeEditar && (
                                 <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                                   <Button size="small" variant="outlined" onClick={() => onEditarItem(d)}>Editar</Button>
@@ -290,13 +290,13 @@ export default function TabsOportunidad({
 
                               {/* Precio orientativo + precios por estado si existen */}
                               <Box sx={{ mt: 1 }}>
-                                <Typography><strong>Precio orientativo:</strong> {formatEUR(precioOrientativo)}</Typography>
+                                <Typography><strong>Precio orientativo (sin IVA):</strong> {formatEUR(precioOrientativo)}</Typography>
                                 {hayRango && (
                                   <Box sx={{ mt: 0.5 }}>
                                     <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>Rango por estado</Typography>
-                                    <Typography>• Excelente: {formatEUR(precioExcelente)}</Typography>
-                                    <Typography>• Muy bueno: {formatEUR(precioMuyBueno)}</Typography>
-                                    <Typography>• Bueno: {formatEUR(precioBueno)}</Typography>
+                                    <Typography>• Excelente (sin IVA): {formatEUR(precioExcelente)}</Typography>
+                                    <Typography>• Muy bueno (sin IVA): {formatEUR(precioMuyBueno)}</Typography>
+                                    <Typography>• Bueno (sin IVA): {formatEUR(precioBueno)}</Typography>
                                   </Box>
                                 )}
                               </Box>

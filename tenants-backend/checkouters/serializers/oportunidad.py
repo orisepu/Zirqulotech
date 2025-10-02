@@ -5,7 +5,7 @@ from ..models.tienda import Tienda
 from .dispositivo import DispositivoSerializer
 from .base import ClienteSimpleSerializer
 from .documento import DocumentoSerializer
-from django.db.models import Sum
+from django.db.models import Sum, F
 
 User = get_user_model()
 
@@ -54,6 +54,7 @@ class ComentarioOportunidadSerializer(serializers.ModelSerializer):
 
 class OportunidadSerializer(serializers.ModelSerializer):
     facturas = serializers.SerializerMethodField()
+    valor_total = serializers.SerializerMethodField()
     valor_total_final = serializers.SerializerMethodField()
     tienda = serializers.PrimaryKeyRelatedField(queryset=Tienda.objects.all(), required=False, write_only=True)
     usuario = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, write_only=True)
@@ -84,6 +85,13 @@ class OportunidadSerializer(serializers.ModelSerializer):
         return DocumentoSerializer(
             obj.documentos.filter(tipo="factura"), many=True, context=self.context
         ).data
+
+    def get_valor_total(self, obj):
+        """Calcula el valor total inicial (valoración del partner)"""
+        agg = obj.dispositivos_oportunidad.aggregate(
+            s=Sum(F('precio_orientativo') * F('cantidad'))
+        )
+        return float(agg["s"] or 0)
 
     def get_valor_total_final(self, obj):
         agg = obj.dispositivos_reales.aggregate(s=Sum("precio_final"))

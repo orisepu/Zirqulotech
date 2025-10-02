@@ -11,12 +11,14 @@ from rest_framework.views import APIView
 
 from productos.models.modelos import Modelo, Capacidad
 from productos.models.precios import PrecioRecompra
+from productos.models.utils import set_precio_recompra, get_precio_vigente
 from productos.serializers import (
     CapacidadAdminListSerializer,
     CapacidadAdminUpsertSerializer,
     ModeloCreateSerializer,
     ModeloMiniSerializer,
     SetPrecioRecompraSerializer,
+    AjusteMasivoPreciosSerializer,
 )
 
 
@@ -312,3 +314,131 @@ class SetPrecioRecompraAdminView(APIView):
             "fuente": row.fuente,
             "tenant_schema": row.tenant_schema,
         }, status=status.HTTP_201_CREATED)
+
+
+class AjusteMasivoPreciosView(APIView):
+    """
+    Ajusta precios de forma masiva aplicando un porcentaje.
+
+    Ejemplos de uso:
+    - Quitar IVA del 21%: porcentaje_ajuste=-17.355
+    - Subir 10%: porcentaje_ajuste=10
+    - Bajar 5%: porcentaje_ajuste=-5
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        from decimal import Decimal
+
+        serializer = AjusteMasivoPreciosSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated = serializer.validated_data
+        porcentaje = validated['porcentaje_ajuste']
+        canal = validated['canal']
+        tipo = validated.get('tipo', '').strip()
+        marca = validated.get('marca', '').strip()
+        modelo_id = validated.get('modelo_id')
+        fuente = validated.get('fuente', '').strip()
+        effective_at = validated.get('effective_at') or timezone.now()
+        tenant_schema = validated.get('tenant_schema', '').strip() or None
+
+        # Construir queryset de capacidades a actualizar
+        capacidades_qs = Capacidad.objects.select_related('modelo').all()
+
+        if modelo_id:
+            capacidades_qs = capacidades_qs.filter(modelo_id=modelo_id)
+        if tipo:
+            capacidades_qs = capacidades_qs.filter(modelo__tipo__iexact=tipo)
+        if marca:
+            capacidades_qs = capacidades_qs.filter(modelo__marca__iexact=marca)
+
+        # Determinar canales a procesar
+        canales_a_procesar = []
+        if canal == 'AMBOS':
+            canales_a_procesar = ['B2B', 'B2C']
+        else:
+            canales_a_procesar = [canal]
+
+        # Recolectar precios a actualizar
+        actualizaciones = []
+        errores = []
+
+        for capacidad in capacidades_qs:
+            for canal_actual in canales_a_procesar:
+                # Obtener precio vigente
+                precio_vigente = get_precio_vigente(
+                    capacidad_id=capacidad.id,
+                    canal=canal_actual,
+                    fecha=effective_at,
+                    fuente=fuente or None,
+                    tenant_schema=tenant_schema
+                )
+
+                if not precio_vigente:
+                    continue
+
+                # Calcular nuevo precio
+                precio_actual = Decimal(str(precio_vigente.precio_neto))
+                factor = Decimal('1') + (porcentaje / Decimal('100'))
+                nuevo_precio = precio_actual * factor
+
+                # Redondear a 2 decimales
+                nuevo_precio = nuevo_precio.quantize(Decimal('0.01'))
+
+                # Validar que el precio no sea negativo o cero
+                if nuevo_precio <= 0:
+                    errores.append({
+                        'capacidad_id': capacidad.id,
+                        'canal': canal_actual,
+                        'precio_actual': str(precio_actual),
+                        'error': f'El precio resultante ({nuevo_precio}) no es válido'
+                    })
+                    continue
+
+                actualizaciones.append({
+                    'capacidad': capacidad,
+                    'canal': canal_actual,
+                    'precio_actual': precio_actual,
+                    'precio_nuevo': nuevo_precio,
+                    'fuente': precio_vigente.fuente,
+                })
+
+        # Aplicar las actualizaciones
+        precios_actualizados = []
+        for act in actualizaciones:
+            try:
+                nuevo_registro = set_precio_recompra(
+                    capacidad_id=act['capacidad'].id,
+                    canal=act['canal'],
+                    precio_neto=act['precio_nuevo'],
+                    effective_at=effective_at,
+                    fuente=act['fuente'],
+                    tenant_schema=tenant_schema,
+                    changed_by=request.user
+                )
+                precios_actualizados.append({
+                    'capacidad_id': act['capacidad'].id,
+                    'capacidad_nombre': f"{act['capacidad'].modelo.descripcion} - {act['capacidad'].tamaño}",
+                    'canal': act['canal'],
+                    'precio_anterior': str(act['precio_actual']),
+                    'precio_nuevo': str(act['precio_nuevo']),
+                    'diferencia': str(act['precio_nuevo'] - act['precio_actual']),
+                })
+            except Exception as e:
+                errores.append({
+                    'capacidad_id': act['capacidad'].id,
+                    'canal': act['canal'],
+                    'precio_actual': str(act['precio_actual']),
+                    'error': str(e)
+                })
+
+        return Response({
+            'mensaje': f'Ajuste masivo aplicado: {len(precios_actualizados)} precios actualizados',
+            'total_actualizados': len(precios_actualizados),
+            'total_errores': len(errores),
+            'porcentaje_aplicado': str(porcentaje),
+            'effective_at': effective_at.isoformat(),
+            'precios_actualizados': precios_actualizados[:50],  # Limitar a 50 para no saturar la respuesta
+            'errores': errores[:20],  # Limitar errores a 20
+        }, status=status.HTTP_200_OK)

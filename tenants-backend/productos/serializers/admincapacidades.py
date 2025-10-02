@@ -112,3 +112,44 @@ class SetPrecioRecompraSerializer(serializers.Serializer):
             tenant_schema=(validated.get("tenant_schema") or None),
             changed_by=getattr(request, "user", None),
         )
+
+
+class AjusteMasivoPreciosSerializer(serializers.Serializer):
+    """
+    Serializer para ajustar precios de forma masiva aplicando un porcentaje.
+
+    Ejemplos de uso:
+    - Para quitar IVA del 21%: porcentaje_ajuste = -17.355 (equivale a dividir por 1.21)
+    - Para subir 10%: porcentaje_ajuste = 10
+    - Para bajar 5%: porcentaje_ajuste = -5
+    """
+    porcentaje_ajuste = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        help_text="Porcentaje a aplicar (positivo para subir, negativo para bajar). Ej: -17.355 para quitar IVA 21%"
+    )
+    canal = serializers.ChoiceField(
+        choices=[('B2B', 'B2B'), ('B2C', 'B2C'), ('AMBOS', 'Ambos')],
+        default='AMBOS'
+    )
+    tipo = serializers.CharField(required=False, allow_blank=True, help_text="Filtrar por tipo de modelo (opcional)")
+    marca = serializers.CharField(required=False, allow_blank=True, help_text="Filtrar por marca (opcional)")
+    modelo_id = serializers.IntegerField(required=False, allow_null=True, help_text="Filtrar por modelo específico (opcional)")
+    fuente = serializers.CharField(required=False, allow_blank=True, help_text="Filtrar por fuente (manual, likewize, etc)")
+    effective_at = serializers.CharField(required=False, allow_blank=True, help_text="Fecha de aplicación (ISO 8601), por defecto ahora")
+    tenant_schema = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_effective_at(self, value):
+        if not value:
+            return None
+        dt = parse_datetime(value)
+        if not dt:
+            raise serializers.ValidationError("Fecha/hora inválida (usa ISO 8601).")
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+
+    def validate_modelo_id(self, value):
+        if value and not Modelo.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Modelo no encontrado.")
+        return value

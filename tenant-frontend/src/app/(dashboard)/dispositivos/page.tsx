@@ -36,6 +36,7 @@ import PriceChangeIcon from '@mui/icons-material/PriceChange'
 import UpdateIcon from '@mui/icons-material/Update'
 import BusinessIcon from '@mui/icons-material/Business'
 import PersonIcon from '@mui/icons-material/Person'
+import PercentIcon from '@mui/icons-material/Percent'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Dayjs } from 'dayjs'
 import { useRouter } from 'next/navigation'
@@ -83,6 +84,21 @@ async function fetchModelosSinCapacidades(params: { q?: string; tipo?: string; m
 
 async function postSetPrecio(body: SetPrecioBody) {
   const { data } = await api.post('/api/admin/precios/set/', body)
+  return data
+}
+
+type AjusteMasivoBody = {
+  porcentaje_ajuste: string | number
+  canal: 'B2B' | 'B2C' | 'AMBOS'
+  tipo?: string
+  marca?: string
+  modelo_id?: number
+  fuente?: string
+  effective_at?: string
+}
+
+async function postAjusteMasivo(body: AjusteMasivoBody) {
+  const { data } = await api.post('/api/admin/precios/ajustar-masivo/', body)
   return data
 }
 
@@ -135,6 +151,13 @@ export default function AdminCapacidadesTablaReactiva() {
 
   // B2C selection modal
   const [openB2CModal, setOpenB2CModal] = useState(false)
+
+  // Bulk adjustment modal
+  const [openBulkAdjust, setOpenBulkAdjust] = useState(false)
+  const [bulkPorcentaje, setBulkPorcentaje] = useState('')
+  const [bulkCanal, setBulkCanal] = useState<'B2B' | 'B2C' | 'AMBOS'>('AMBOS')
+  const [bulkTipo, setBulkTipo] = useState('')
+  const [bulkMarca, setBulkMarca] = useState('')
 
   const [openEditDatos, setOpenEditDatos] = useState(false)
   const [rowTarget, setRowTarget] = useState<CapacidadRow | null>(null)
@@ -333,6 +356,19 @@ export default function AdminCapacidadesTablaReactiva() {
     },
   })
 
+  const bulkAdjustMutation = useMutation({
+    mutationFn: postAjusteMasivo,
+    onSuccess: async (data) => {
+      setOpenBulkAdjust(false)
+      const msg = `Ajuste aplicado: ${data.total_actualizados} precios actualizados${data.total_errores > 0 ? `, ${data.total_errores} errores` : ''}`
+      setSnack({ open: true, msg, sev: data.total_errores > 0 ? 'warning' as 'success' : 'success' })
+      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades'] })
+    },
+    onError: (e: any) => {
+      setSnack({ open: true, msg: e?.message || 'Error aplicando ajuste', sev: 'error' })
+    },
+  })
+
   // Event handlers for B2C navigation
   const handleBackMarketClick = () => {
     setOpenB2CModal(false)
@@ -392,6 +428,16 @@ export default function AdminCapacidadesTablaReactiva() {
     setPrecioMutation.mutate(body)
   }
 
+  const handleBulkAdjust = () => {
+    const body: AjusteMasivoBody = {
+      porcentaje_ajuste: bulkPorcentaje,
+      canal: bulkCanal,
+    }
+    if (bulkTipo) body.tipo = bulkTipo
+    if (bulkMarca) body.marca = bulkMarca
+    bulkAdjustMutation.mutate(body)
+  }
+
   // ===== COLUMN DEFINITIONS =====
   const columnas = useMemo(() => {
     const base = [...columnasCapacidadesAdmin]
@@ -436,6 +482,14 @@ export default function AdminCapacidadesTablaReactiva() {
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h5">Gestión de Dispositivos</Typography>
             <Box display="flex" gap={1}>
+              <Button
+                variant="outlined"
+                startIcon={<PercentIcon />}
+                onClick={() => setOpenBulkAdjust(true)}
+                color="warning"
+              >
+                Ajuste Masivo
+              </Button>
               <Button
                 variant="contained"
                 startIcon={<BusinessIcon />}
@@ -800,6 +854,111 @@ export default function AdminCapacidadesTablaReactiva() {
             onClick={() => setOpenB2CModal(false)}
           >
             Cancelar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Adjustment Dialog */}
+      <Dialog open={openBulkAdjust} onClose={() => setOpenBulkAdjust(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Ajuste Masivo de Precios</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="info">
+              <Typography variant="body2" fontWeight="bold" gutterBottom>
+                Ejemplos de uso:
+              </Typography>
+              <Typography variant="body2" component="div">
+                • Para <b>quitar IVA del 21%</b>: -17.355 (equivale a dividir por 1.21)
+                <br />
+                • Para <b>subir precios 10%</b>: 10
+                <br />
+                • Para <b>bajar precios 5%</b>: -5
+              </Typography>
+            </Alert>
+
+            <TextField
+              label="Porcentaje de ajuste"
+              type="number"
+              value={bulkPorcentaje}
+              onChange={(e) => setBulkPorcentaje(e.target.value)}
+              helperText="Positivo para subir, negativo para bajar. Ej: -17.355 para quitar IVA 21%"
+              required
+              autoFocus
+              inputProps={{ step: '0.001' }}
+            />
+
+            {bulkPorcentaje && (
+              <Alert severity="success">
+                <Typography variant="body2">
+                  <b>Preview:</b> Un precio de 100€ quedará en{' '}
+                  {(100 * (1 + parseFloat(bulkPorcentaje || '0') / 100)).toFixed(2)}€
+                </Typography>
+              </Alert>
+            )}
+
+            <FormControl fullWidth>
+              <InputLabel>Canal</InputLabel>
+              <Select
+                value={bulkCanal}
+                label="Canal"
+                onChange={(e) => setBulkCanal(e.target.value as typeof bulkCanal)}
+              >
+                <MenuItem value="AMBOS">Ambos (B2B y B2C)</MenuItem>
+                <MenuItem value="B2B">Solo B2B</MenuItem>
+                <MenuItem value="B2C">Solo B2C</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Typography variant="subtitle2" color="text.secondary">
+              Filtros opcionales (dejar vacío para aplicar a todos):
+            </Typography>
+
+            <FormControl fullWidth>
+              <InputLabel>Tipo (opcional)</InputLabel>
+              <Select
+                value={bulkTipo}
+                label="Tipo (opcional)"
+                onChange={(e) => setBulkTipo(e.target.value)}
+              >
+                <MenuItem value=""><em>Todos</em></MenuItem>
+                {tiposModelo?.map((option) => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Marca (opcional)</InputLabel>
+              <Select
+                value={bulkMarca}
+                label="Marca (opcional)"
+                onChange={(e) => setBulkMarca(e.target.value)}
+              >
+                <MenuItem value=""><em>Todas</em></MenuItem>
+                {marcasModelo?.map((option) => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Alert severity="warning">
+              Esta operación creará nuevas versiones de precios y cerrará las actuales.
+              Los cambios se aplicarán de forma inmediata.
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenBulkAdjust(false)} disabled={bulkAdjustMutation.isPending}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkAdjust}
+            disabled={bulkAdjustMutation.isPending || !bulkPorcentaje}
+            startIcon={<PercentIcon />}
+            color="warning"
+          >
+            {bulkAdjustMutation.isPending ? 'Aplicando...' : 'Aplicar Ajuste'}
           </Button>
         </DialogActions>
       </Dialog>
