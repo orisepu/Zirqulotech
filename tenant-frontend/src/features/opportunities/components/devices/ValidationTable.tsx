@@ -35,6 +35,29 @@ import React from 'react'
 import { useState, useMemo } from 'react'
 import { ConfidenceIndicator } from './ConfidenceIndicator'
 
+// Extraer tipo genérico del nombre del modelo (igual que en CreateDeviceModal)
+const extractDeviceType = (modelName: string): string => {
+  const lower = modelName.toLowerCase().replace(/\s+/g, ' ')
+
+  if (lower.includes('iphone')) return 'iPhone'
+
+  if (lower.includes('ipad pro') || lower.includes('ipadpro')) return 'iPad Pro'
+  if (lower.includes('ipad air') || lower.includes('ipadair')) return 'iPad Air'
+  if (lower.includes('ipad mini') || lower.includes('ipadmini')) return 'iPad mini'
+  if (lower.includes('ipad')) return 'iPad'
+
+  if (lower.includes('macbook pro') || lower.includes('macbookpro')) return 'MacBook Pro'
+  if (lower.includes('macbook air') || lower.includes('macbookair')) return 'MacBook Air'
+  if (lower.includes('macbook')) return 'MacBook'
+
+  if (lower.includes('imac')) return 'iMac'
+  if (lower.includes('mac mini') || lower.includes('macmini')) return 'Mac mini'
+  if (lower.includes('mac pro') || lower.includes('macpro')) return 'Mac Pro'
+  if (lower.includes('mac studio') || lower.includes('macstudio')) return 'Mac Studio'
+
+  return 'Mac'
+}
+
 export type ValidationItem = {
   id: string | number
   staging_item_id?: string | number
@@ -128,8 +151,11 @@ export function ValidationTable({
       }
 
       // Filtro por tipo de dispositivo
-      if (deviceTypeFilter !== 'all' && item.likewize_info.tipo !== deviceTypeFilter) {
-        return false
+      if (deviceTypeFilter !== 'all') {
+        const extractedType = extractDeviceType(item.likewize_info.modelo_raw || item.likewize_info.modelo_norm)
+        if (extractedType !== deviceTypeFilter) {
+          return false
+        }
       }
 
       // Búsqueda por texto
@@ -391,7 +417,7 @@ export function ValidationTable({
                             {item.likewize_info.modelo_norm}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {item.likewize_info.tipo} • {item.likewize_info.almacenamiento_gb}GB
+                            {extractDeviceType(item.likewize_info.modelo_raw || item.likewize_info.modelo_norm)} • {item.likewize_info.almacenamiento_gb}GB
                           </Typography>
                         </Stack>
                       </TableCell>

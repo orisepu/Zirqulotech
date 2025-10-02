@@ -15,6 +15,7 @@ from productos.models import TareaActualizacionLikewize, LikewizeItemStaging
 from productos.models.autoaprendizaje import LearningSession
 from productos.services.auto_learning_engine_v3 import AutoLearningEngine
 from productos.services.feedback_system_v3 import FeedbackSystem
+from productos.services.metadata_extractors import AppleMetadataExtractor
 from productos.likewize_config import get_apple_presets, get_extra_presets
 
 logger = logging.getLogger(__name__)
@@ -445,25 +446,33 @@ class Command(BaseCommand):
     ):
         """Guarda los items procesados en staging"""
 
+        # Inicializar extractor de metadatos
+        apple_extractor = AppleMetadataExtractor()
+
         staging_items = []
 
         for item_data in processed_items:
             likewize_item = item_data['likewize_item']
             capacidad = item_data['capacidad']
 
-            # Normalizar datos
+            # Extraer metadatos usando AppleMetadataExtractor
+            metadata = apple_extractor.extract_metadata(likewize_item)
+
+            # Crear staging item con metadatos correctos
             staging_item = LikewizeItemStaging(
                 tarea=tarea,
-                tipo=likewize_item.get('ProductCategoryName', ''),
-                marca=likewize_item.get('BrandName', 'Apple'),
-                modelo_norm=likewize_item.get('M_Model', ''),
-                modelo_raw=likewize_item.get('ModelName', ''),
-                almacenamiento_gb=self._parse_storage(likewize_item.get('Capacity', '')),
+                tipo=metadata.device_type,  # ✅ Usa tipo específico (Mac Pro, MacBook Pro, etc.)
+                marca=metadata.brand,
+                modelo_norm=metadata.model_normalized,
+                modelo_raw=metadata.model_raw,
+                almacenamiento_gb=metadata.capacity_gb,
                 precio_b2b=item_data['precio'],
                 capacidad_id=capacidad.id if capacidad else None,
-                likewize_model_code=likewize_item.get('M_Model', ''),
-                phone_model_id=likewize_item.get('PhoneModelId'),
-                confidence_score=item_data['confidence']
+                likewize_model_code=metadata.likewize_model_code,  # ✅ A-number o M_Model inteligente
+                pulgadas=metadata.screen_size,
+                any=metadata.year,
+                a_number=metadata.a_number,
+                cpu=metadata.cpu
             )
 
             staging_items.append(staging_item)
