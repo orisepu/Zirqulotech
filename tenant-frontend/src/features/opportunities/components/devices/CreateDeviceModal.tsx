@@ -101,23 +101,43 @@ export function CreateDeviceModal({
   const [selectedCapacities, setSelectedCapacities] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
-  // Función para limpiar el nombre del modelo
-  const cleanModelName = (rawName: string): string => {
+  // Función para limpiar y enriquecer el nombre del modelo
+  const cleanModelName = (rawName: string, additionalInfo?: { cpu?: string, a_number?: string, year?: number }): string => {
     if (!rawName) return ''
 
     let cleaned = rawName
 
-    // 1. Remover SOLO capacidad de almacenamiento (GB/TB/SSD/HDD)
+    // 1. Extraer tamaño de pantalla ANTES de normalizar (ej: "16 inch", "13 inch")
+    const screenSizeMatch = cleaned.match(/(\d+(?:\.\d+)?)\s*inch/i)
+    const screenSize = screenSizeMatch ? `${screenSizeMatch[1]}"` : ''
+
+    // 2. Extraer información de cores antes de procesar
+    const coresMatch = cleaned.match(/(\d+)\s*Core\s+CPU\s+(\d+)\s*Core\s+GPU/i)
+    const cores = coresMatch ? `${coresMatch[1]}-Core CPU ${coresMatch[2]}-Core GPU` :
+                  cleaned.match(/(\d+)\s*Core\s+(CPU|GPU)/gi)?.map(c => c.replace(/(\d+)\s*Core\s+(CPU|GPU)/i, '$1-Core $2')).join(' ') || ''
+
+    // 3. Remover M-chips del texto (M1, M2, M3, M4 Pro, M4 Max, etc.) - los añadiremos desde additionalInfo.cpu
+    cleaned = cleaned.replace(/\s*M\d+\s*(Pro|Max|Ultra)?/gi, '')
+
+    // 4. Remover A-Numbers del texto (A3403, A2337, etc.) - los añadiremos desde additionalInfo.a_number
+    cleaned = cleaned.replace(/\s*A\d{4}/gi, '')
+
+    // 5. Remover capacidad de almacenamiento (GB/TB/SSD/HDD)
     cleaned = cleaned.replace(/\s*\d+\s*(GB|TB)\s*(SSD|HDD)?/gi, '')
 
-    // 2. Mejorar formato de cores: "8 Core CPU" → "8-Core CPU"
-    cleaned = cleaned.replace(/(\d+)\s*Core\s+(CPU|GPU)/gi, '$1-Core $2')
+    // 6. Remover tamaño de pantalla del texto (ya lo extraímos)
+    cleaned = cleaned.replace(/\s*\d+(?:\.\d+)?\s*inch/gi, '')
 
-    // 3. Simplificar modelo base manteniendo resto de info
+    // 7. Remover información de cores del texto (ya la extraímos)
+    cleaned = cleaned.replace(/\s*\d+\s*Core\s+(CPU|GPU)/gi, '')
+
+    // 8. Remover fechas (las manejaremos con el campo year)
+    cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/g, '')
+
+    // 9. Normalizar nombres base de modelos (eliminando códigos internos)
     cleaned = cleaned.replace(/iMac\d+\s*\d+/gi, 'iMac')
     cleaned = cleaned.replace(/MacBook\s*Pro\d+\s*\d+/gi, 'MacBook Pro')
     cleaned = cleaned.replace(/MacBookPro\d+\s*\d+/gi, 'MacBook Pro')
-    cleaned = cleaned.replace(/MacBook\s*Pro\d+,\d+/gi, 'MacBook Pro')
     cleaned = cleaned.replace(/MacBook\s*Air\d+\s*\d+/gi, 'MacBook Air')
     cleaned = cleaned.replace(/MacBookAir\d+\s*\d+/gi, 'MacBook Air')
     cleaned = cleaned.replace(/iPhone\d+,\d+/gi, (match) => {
@@ -125,74 +145,71 @@ export function CreateDeviceModal({
       return num ? `iPhone ${num[0]}` : 'iPhone'
     })
 
-    // 4. Convertir pulgadas: "24 inch" → "24\""
-    cleaned = cleaned.replace(/(\d+)\s*inch/gi, '$1"')
-
-    // 5. Extraer y formatear año: "10/2023" → "(2023)"
-    const yearMatch = cleaned.match(/\b(\d{1,2}\/)?(\d{4})\b/)
-    let year = ''
-    if (yearMatch) {
-      year = ` (${yearMatch[2]})`
-      cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/, '')
-    }
-
-    // 6. Limpiar espacios múltiples
+    // 10. Limpiar espacios múltiples
     cleaned = cleaned.replace(/\s+/g, ' ').trim()
 
-    // 7. Añadir año al final
-    if (year) {
-      cleaned += year
-    }
+    // 11. Construir nombre completo con toda la información disponible
+    const parts = [cleaned]
 
-    return cleaned
+    if (screenSize) parts.push(screenSize)
+    if (additionalInfo?.cpu) parts.push(additionalInfo.cpu)
+    if (cores) parts.push(cores)
+    if (additionalInfo?.a_number) parts.push(additionalInfo.a_number)
+    if (additionalInfo?.year) parts.push(`(${additionalInfo.year})`)
+
+    return parts.join(' ').replace(/\s+/g, ' ').trim()
   }
 
-  // Extraer tipo específico del nombre del modelo
+  // Extraer tipo genérico del nombre del modelo (debe coincidir con DEVICE_TYPES)
   const extractDeviceType = (modelName: string): string => {
-    const lower = modelName.toLowerCase()
+    const lower = modelName.toLowerCase().replace(/\s+/g, ' ') // Normalizar espacios
+
+    // iPhone - devolver solo "iPhone" genérico
     if (lower.includes('iphone')) {
-      // Extraer modelo específico de iPhone
-      const match = modelName.match(/iphone\s*(\d+\s*(?:pro\s*(?:max)?)?)/i)
-      if (match) {
-        const specific = match[1].trim()
-        return `iPhone ${specific}`
-      }
       return 'iPhone'
     }
-    if (lower.includes('ipad pro')) return 'iPad Pro'
-    if (lower.includes('ipad air')) return 'iPad Air'
-    if (lower.includes('ipad mini')) return 'iPad mini'
-    if (lower.includes('ipad')) return 'iPad'
-    if (lower.includes('macbook pro')) return 'MacBook Pro'
-    if (lower.includes('macbook air')) return 'MacBook Air'
-    if (lower.includes('macbook')) return 'MacBook'
-    if (lower.includes('imac')) return 'iMac'
-    if (lower.includes('mac mini')) return 'Mac mini'
-    if (lower.includes('mac pro')) return 'Mac Pro'
-    if (lower.includes('mac studio')) return 'Mac Studio'
-    return 'Mac'
-  }
 
-  // Limpiar código Likewize
-  const cleanLikewizeCode = (code: string): string => {
-    if (!code) return ''
-    // Extraer solo el código del modelo (última parte después del último espacio)
-    const parts = code.trim().split(/\s+/)
-    return parts[parts.length - 1].toUpperCase()
+    // iPad (chequear variantes específicas primero)
+    if (lower.includes('ipad pro') || lower.includes('ipadpro')) return 'iPad Pro'
+    if (lower.includes('ipad air') || lower.includes('ipadair')) return 'iPad Air'
+    if (lower.includes('ipad mini') || lower.includes('ipadmini')) return 'iPad mini'
+    if (lower.includes('ipad')) return 'iPad'
+
+    // MacBook (chequear variantes específicas primero)
+    if (lower.includes('macbook pro') || lower.includes('macbookpro')) return 'MacBook Pro'
+    if (lower.includes('macbook air') || lower.includes('macbookair')) return 'MacBook Air'
+    if (lower.includes('macbook')) return 'MacBook'
+
+    // Mac desktop
+    if (lower.includes('imac')) return 'iMac'
+    if (lower.includes('mac mini') || lower.includes('macmini')) return 'Mac mini'
+    if (lower.includes('mac pro') || lower.includes('macpro')) return 'Mac Pro'
+    if (lower.includes('mac studio') || lower.includes('macstudio')) return 'Mac Studio'
+
+    return 'Mac'
   }
 
   // Auto-rellenar formulario cuando se abre el modal
   useEffect(() => {
     if (open && item) {
-      const modelName = item.likewize_info.modelo_norm || item.likewize_info.modelo_raw || ''
+      const modelName = item.likewize_info.modelo_raw || item.likewize_info.modelo_norm || ''
       const extractedType = extractDeviceType(modelName)
+
+      // Determinar código Likewize: priorizar A-number si existe, sino usar M_Model del backend
+      const likewizeCode = item.likewize_info.a_number ||
+                          item.likewize_info.likewize_model_code ||
+                          extractDeviceType(modelName)
 
       setFormData({
         tipo: extractedType || item.likewize_info.tipo || 'Mac',
         marca: item.likewize_info.marca || 'Apple',
-        modelo: cleanModelName(modelName),
+        modelo: cleanModelName(modelName, {
+          cpu: item.likewize_info.cpu,
+          a_number: item.likewize_info.a_number,
+          year: item.likewize_info.any
+        }),
         almacenamiento_gb: String(item.likewize_info.almacenamiento_gb || ''),
-        likewize_model_code: cleanLikewizeCode(item.likewize_info.likewize_model_code || item.likewize_info.modelo_raw || '')
+        likewize_model_code: likewizeCode
       })
 
       // Las capacidades se auto-seleccionarán mediante el useEffect de availableCapacities

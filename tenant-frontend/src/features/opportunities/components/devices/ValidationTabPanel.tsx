@@ -27,6 +27,7 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
   const [pendingValidationIds, setPendingValidationIds] = useState<(string | number)[]>([])
   const [selectedItem, setSelectedItem] = useState<ValidationItem | null>(null)
   const [isTransitioningToCreate, setIsTransitioningToCreate] = useState(false)
+  const [createSuccessMessage, setCreateSuccessMessage] = useState<string | null>(null)
 
   // Resetear flag de transición cuando el modal de creación se abre
   useEffect(() => {
@@ -114,9 +115,12 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
         setSelectedItem(null)
         refetchItems()
 
-        // Mostrar mensaje de éxito
+        // Mostrar mensaje de éxito con detalles
         if (data.auto_mapped_count > 0) {
-          alert(`✅ Modelo creado con éxito!\n\n📦 ${data.capacidades_creadas || 'Capacidades'} creadas automáticamente\n🔗 ${data.auto_mapped_count} items adicionales mapeados automáticamente`)
+          setCreateSuccessMessage(
+            `📦 ${data.capacidades_creadas || 'Capacidades'} creadas automáticamente • ` +
+            `🔗 ${data.auto_mapped_count} items adicionales mapeados automáticamente`
+          )
         }
       }
     })
@@ -175,8 +179,19 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
         )}
 
         {createMutation.isSuccess && (
-          <Alert severity="success" onClose={() => createMutation.reset()}>
-            ✓ Dispositivo creado correctamente
+          <Alert
+            severity="success"
+            onClose={() => {
+              createMutation.reset()
+              setCreateSuccessMessage(null)
+            }}
+          >
+            <Stack spacing={0.5}>
+              <div>✓ Dispositivo creado correctamente</div>
+              {createSuccessMessage && (
+                <div style={{ fontSize: '0.875rem' }}>{createSuccessMessage}</div>
+              )}
+            </Stack>
           </Alert>
         )}
       </Stack>

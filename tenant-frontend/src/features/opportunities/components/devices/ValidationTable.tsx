@@ -216,11 +216,39 @@ export function ValidationTable({
       {/* Estadísticas y Filtros */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" sx={{ mb: 2 }}>
-          <Chip label={`Total: ${stats.total}`} color="default" />
-          <Chip label={`Mapeados: ${stats.mapped}`} color="success" />
-          <Chip label={`No Mapeados: ${stats.unmapped}`} color="warning" />
-          <Chip label={`Baja Confianza: ${stats.lowConfidence}`} color="error" />
-          <Chip label={`Requieren Revisión: ${stats.needsReview}`} color="info" />
+          <Chip
+            label={`Total: ${stats.total}`}
+            color="default"
+            variant={filter === 'all' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('all')}
+            sx={{ cursor: 'pointer' }}
+          />
+          <Chip
+            label={`Mapeados: ${stats.mapped}`}
+            color="success"
+            variant={filter === 'mapped' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('mapped')}
+            sx={{ cursor: 'pointer' }}
+          />
+          <Chip
+            label={`No Mapeados: ${stats.unmapped}`}
+            color="warning"
+            variant={filter === 'unmapped' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('unmapped')}
+            sx={{ cursor: 'pointer' }}
+          />
+          <Chip
+            label={`Baja Confianza: ${stats.lowConfidence}`}
+            color="error"
+            variant={filter === 'low_confidence' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('low_confidence')}
+            sx={{ cursor: 'pointer' }}
+          />
+          <Chip
+            label={`Requieren Revisión: ${stats.needsReview}`}
+            color="info"
+            variant="outlined"
+          />
 
           <Box sx={{ flexGrow: 1 }} />
 
