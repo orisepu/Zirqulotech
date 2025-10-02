@@ -149,16 +149,20 @@ export default function ChatConTenants() {
     retry: false,
   });
   useEffect(() => {
-    const token = getAccessToken();
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const chatIds = new Set(chats.map(c => c.id));
+    const conectarChats = async () => {
+      const token = await getSecureItem('access');
+      if (!token) return;
 
-    // Conectar WebSockets para chats nuevos
-    chats.forEach((chat: ChatInfo) => {
-      if (!wsConexiones.current[chat.id]) {
-        console.log(`🔌 Conectando WebSocket para chat ${chat.id} (${chat.schema})`);
-        setEstadosWs((prev) => ({ ...prev, [chat.id]: 'conectando' }));
-        const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`);
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const chatIds = new Set(chats.map(c => c.id));
+
+      // Conectar WebSockets para chats nuevos
+      chats.forEach((chat: ChatInfo) => {
+        if (!wsConexiones.current[chat.id]) {
+          console.log(`🔌 Conectando WebSocket para chat ${chat.id} (${chat.schema})`);
+          retryCounters.current[chat.id] = 0; // Initialize retry counter
+          setEstadosWs((prev) => ({ ...prev, [chat.id]: 'conectando' }));
+          const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${chat.id}/?token=${token}&schema=${chat.schema}`);
 
         ws.onopen = () => {
           console.log(`✅ WebSocket conectado para chat ${chat.id}`);
