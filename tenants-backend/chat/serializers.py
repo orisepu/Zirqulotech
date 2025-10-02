@@ -10,7 +10,7 @@ class ChatSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Chat
-        fields = ['id', 'creado', 'cerrado', 'cliente', 'cliente_nombre', 'schema', 'ultimo_mensaje']
+        fields = ['id', 'creado', 'cerrado', 'cliente', 'cliente_nombre', 'schema', 'ultimo_mensaje', 'ultimo_mensaje_fecha']
 
     def get_cliente(self, obj):
         return {

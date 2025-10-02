@@ -56,8 +56,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             log_ws_event(self.scope["user"], "✉️ Mensaje recibido", texto)
 
-            # Guardar mensaje
+            # Guardar mensaje y actualizar fecha del último mensaje
             mensaje = await self.guardar_mensaje(self.user_id, texto, oportunidad_id, None)
+            await self.actualizar_ultimo_mensaje_fecha(self.chat_id)
 
             # Enviar mensaje a todos los del grupo
             await self.channel_layer.group_send(
@@ -94,6 +95,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         "creada": mensaje.creada.isoformat() if mensaje else None,
                     }
                 )
+
+            # Notificar a managers/admins sobre nuevo mensaje (tipo WhatsApp)
+            await self.notificar_managers_nuevo_mensaje(texto)
 
         except Exception as e:
             log_exception("receive", e)
@@ -209,3 +213,67 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def _es_empleado_interno(user_id):
         from progeek.models import UserGlobalRole
         return UserGlobalRole.objects.filter(user_id=user_id, es_empleado_interno=True).exists()
+
+    @database_sync_to_async
+    def actualizar_ultimo_mensaje_fecha(self, chat_id):
+        """Actualiza la fecha del último mensaje del chat"""
+        from .models import Chat
+        from django_tenants.utils import schema_context
+        from django.utils import timezone
+
+        with schema_context(self.tenant_schema):
+            try:
+                chat = Chat.objects.get(id=chat_id)
+                chat.ultimo_mensaje_fecha = timezone.now()
+                chat.save(update_fields=['ultimo_mensaje_fecha'])
+                print(f"✅ Actualizada fecha último mensaje para chat {chat_id}")
+            except Chat.DoesNotExist:
+                print(f"❌ Chat {chat_id} no encontrado al actualizar fecha")
+
+    async def notificar_managers_nuevo_mensaje(self, texto):
+        """Notifica a managers/admins que hay un nuevo mensaje (tipo WhatsApp)"""
+        from progeek.models import UserGlobalRole
+
+        # Obtener todos los managers/admins
+        managers = await self._get_managers()
+        cliente_nombre = await self._get_cliente_nombre(self.chat_id)
+
+        for manager_id in managers:
+            # Solo notificar si el manager NO es quien envió el mensaje
+            if manager_id != self.user_id:
+                await self.channel_layer.group_send(
+                    f"user_{manager_id}",
+                    {
+                        "type": "nueva_notificacion",
+                        "mensaje": f"Nuevo mensaje de {cliente_nombre}: {texto[:50]}{'...' if len(texto) > 50 else ''}",
+                        "tipo": "nuevo_mensaje_chat",
+                        "chat_id": self.chat_id,
+                        "tenant": self.tenant_schema,
+                        "url": "/chat",
+                    }
+                )
+
+        print(f"✅ Notificación enviada a {len(managers)} managers sobre mensaje en chat {self.chat_id}")
+
+    @database_sync_to_async
+    def _get_managers(self):
+        """Obtiene lista de IDs de managers/admins"""
+        from progeek.models import UserGlobalRole
+        return list(
+            UserGlobalRole.objects.filter(
+                es_empleado_interno=True
+            ).values_list('user_id', flat=True)
+        )
+
+    @database_sync_to_async
+    def _get_cliente_nombre(self, chat_id):
+        """Obtiene el nombre del cliente del chat"""
+        from .models import Chat
+        from django_tenants.utils import schema_context
+
+        with schema_context(self.tenant_schema):
+            try:
+                chat = Chat.objects.select_related('cliente').get(id=chat_id)
+                return chat.cliente.name if chat.cliente else "Cliente"
+            except Chat.DoesNotExist:
+                return "Cliente"

@@ -168,6 +168,16 @@ def listar_chats_abiertos(request):
             for chat in chats:
                 data = ChatSerializer(chat).data
                 data["tenant"] = tenant.schema_name
+
+                # Contar mensajes no leídos: mensajes que NO son del manager actual
+                # (todos los mensajes del cliente son "no leídos" para el manager)
+                mensajes_no_leidos = Mensaje.objects.filter(
+                    chat=chat
+                ).exclude(
+                    autor=user  # Excluir mensajes del propio manager
+                ).count()
+
+                data["mensajes_no_leidos"] = mensajes_no_leidos
                 resultados.append(data)
 
     return Response(resultados)

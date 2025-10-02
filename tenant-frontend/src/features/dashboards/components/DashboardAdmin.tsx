@@ -7,7 +7,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { Dayjs } from 'dayjs'
-import { fetchDashboardAdmin, DashboardManagerResponse } from '@/services/api'
+import api, { fetchDashboardAdmin, DashboardManagerResponse } from '@/services/api'
 import KpiCard from '@/features/dashboards/components/manager/KpiCard'
 import EvolucionChart from '@/features/dashboards/components/manager/EvolucionChart'
 import PipelineChart from '@/features/dashboards/components/manager/PipelineChart'
@@ -26,7 +26,10 @@ export default function DashboardAdminPage() {
   // Reutilizamos el endpoint/shape del manager hasta tener uno específico de admin
   const { data: partners = [] } = useQuery({
     queryKey: ['tenants'],
-    queryFn: async () => (await fetch('/api/tenants/')).json().catch(() => []),
+    queryFn: async () => {
+      const res = await api.get('/api/tenants/');
+      return Array.isArray(res.data) ? res.data : [];
+    },
     staleTime: 5 * 60 * 1000,
   })
 

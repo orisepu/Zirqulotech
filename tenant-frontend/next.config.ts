@@ -30,14 +30,7 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "https://zirqulartech.com/api/:path*",
-      },
-    ];
-  },
+  
 
   // Headers for security and performance
   async headers() {

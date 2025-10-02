@@ -103,6 +103,13 @@ export default function LayoutInternoShell({ children }: { children: React.React
       tokenRefreshAttemptsRef.current = 0
       setWsEnabled(true)
     },
+    onMessage: (data) => {
+      console.log('📨 Notificación recibida:', data);
+
+      // Disparar evento personalizado para que otros componentes puedan escucharlo
+      const event = new CustomEvent('ws-notification', { detail: data });
+      window.dispatchEvent(event);
+    },
     onClose: () => {
       console.warn('🔌 WebSocket de notificaciones cerrado')
 

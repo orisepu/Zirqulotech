@@ -31,6 +31,7 @@ type ChatInfo = {
   cliente_nombre: string
   ultimo_mensaje: string
   schema: string
+  mensajes_no_leidos?: number
 }
 
 type Mensaje = {
@@ -127,6 +128,26 @@ export default function ChatConTenants() {
     Notification.requestPermission()
   }, [])
 
+  // Listener para notificaciones de nuevos mensajes via WebSocket global
+  useEffect(() => {
+    const handleNuevaNotificacion = (event: CustomEvent) => {
+      const { tipo, chat_id } = event.detail;
+
+      if (tipo === 'nuevo_mensaje_chat' && chat_id) {
+        console.log(`📩 Notificación de nuevo mensaje en chat ${chat_id}`);
+
+        // Refrescar lista de chats para actualizar contador de no leídos
+        queryClient.invalidateQueries({ queryKey: ['chats-abiertos'] });
+      }
+    };
+
+    window.addEventListener('ws-notification' as any, handleNuevaNotificacion);
+
+    return () => {
+      window.removeEventListener('ws-notification' as any, handleNuevaNotificacion);
+    };
+  }, [queryClient]);
+
   const { data: chats = [], isLoading, isError } = useQuery<ChatInfo[]>({
     queryKey: ["chats-abiertos"],
     queryFn: async () => {
@@ -134,7 +155,17 @@ export default function ChatConTenants() {
       return res.data;
     },
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 10000, // Poll cada 10 segundos para detectar nuevos chats
+    // Polling eliminado: ahora usamos WebSocket para notificaciones en tiempo real
+    onSuccess: (data) => {
+      // Inicializar contador de no leídos desde el backend
+      const noLeidosDesdeBackend: Record<number, number> = {};
+      data.forEach(chat => {
+        if (chat.mensajes_no_leidos) {
+          noLeidosDesdeBackend[chat.id] = chat.mensajes_no_leidos;
+        }
+      });
+      setNoLeidos(prev => ({ ...prev, ...noLeidosDesdeBackend }));
+    },
   });
 
   // Query para buscar TODOS los usuarios (no solo managers/empleados)

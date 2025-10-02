@@ -6,6 +6,7 @@ class Chat(models.Model):
     cliente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chats')
     creado = models.DateTimeField(auto_now_add=True)
     cerrado = models.BooleanField(default=False)
+    ultimo_mensaje_fecha = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Chat #{self.id} con {self.cliente.name}"
