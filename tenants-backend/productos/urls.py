@@ -23,7 +23,8 @@ from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewiz
   DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
   IphoneAuditoriaValoracionView,
   LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView,
-  ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView
+  ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView,
+  ValidarMapeoLikewizeView, CorregirMapeoLikewizeView, ValidationItemsLikewizeView
 )
 from .views.autoaprendizaje_v3 import (
     LanzarActualizacionV3View,
@@ -86,6 +87,9 @@ urlpatterns = [
     path("precios/likewize/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/crear-capacidad/", CrearDesdeNoMapeadoLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/remapear/", RemapearTareaLikewizeView.as_view()),
+    path("precios/likewize/tareas/<uuid:tarea_id>/validar-mapeo/", ValidarMapeoLikewizeView.as_view()),
+    path("precios/likewize/tareas/<uuid:tarea_id>/corregir-mapeo/", CorregirMapeoLikewizeView.as_view()),
+    path("precios/likewize/tareas/<uuid:tarea_id>/validation-items/", ValidationItemsLikewizeView.as_view()),
     # B2C (Swappie) staging/diff
     path("precios/b2c/actualizar/", LanzarActualizacionB2CView.as_view()),
     path("precios/b2c/ultima/", UltimaTareaB2CView.as_view()),

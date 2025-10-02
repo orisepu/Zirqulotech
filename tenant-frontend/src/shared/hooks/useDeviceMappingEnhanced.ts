@@ -327,18 +327,122 @@ export function useDeviceMappingEnhanced() {
     }
   }
 
+  // Validate mapping as correct
+  const useValidateMapping = () => {
+    return useMutation({
+      mutationFn: async (params: {
+        tarea_id: string
+        staging_item_ids: (string | number)[]
+        apply_prices?: boolean  // default: true en backend
+      }) => {
+        const { data } = await api.post(`/api/precios/likewize/tareas/${params.tarea_id}/validar-mapeo/`, {
+          staging_item_ids: params.staging_item_ids,
+          apply_prices: params.apply_prices !== undefined ? params.apply_prices : true
+        })
+        return data
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-review'] })
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-statistics'] })
+        queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+      }
+    })
+  }
+
+  // Correct mapping to different capacity
+  const useCorrectMapping = () => {
+    return useMutation({
+      mutationFn: async (params: {
+        tarea_id: string
+        staging_item_id: string | number
+        new_capacidad_id: number
+        reason?: string
+      }) => {
+        const { data } = await api.post(`/api/precios/likewize/tareas/${params.tarea_id}/corregir-mapeo/`, {
+          staging_item_id: params.staging_item_id,
+          new_capacidad_id: params.new_capacidad_id,
+          reason: params.reason || 'Corrección manual'
+        })
+        return data
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-review'] })
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-statistics'] })
+        queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+        queryClient.invalidateQueries({ queryKey: ['unmapped_items'] })
+      }
+    })
+  }
+
+  // Create device from unmapped item (enhanced with batch capacity creation)
+  const useCreateFromUnmapped = () => {
+    return useMutation({
+      mutationFn: async (params: {
+        tarea_id: string
+        staging_id: string | number
+        tipo: string
+        marca: string
+        modelo: string
+        almacenamiento_gb: number
+        likewize_model_code?: string
+        capacidades_a_crear?: number[]
+      }) => {
+        const { data } = await api.post(`/api/precios/likewize/tareas/${params.tarea_id}/crear-capacidad/`, {
+          staging_id: params.staging_id,
+          tipo: params.tipo,
+          marca: params.marca,
+          modelo: params.modelo,
+          almacenamiento_gb: params.almacenamiento_gb,
+          likewize_model_code: params.likewize_model_code,
+          capacidades_a_crear: params.capacidades_a_crear
+        })
+        return data
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-review'] })
+        queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-statistics'] })
+        queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+        queryClient.invalidateQueries({ queryKey: ['unmapped_items'] })
+        queryClient.invalidateQueries({ queryKey: ['likewize_tarea'] })
+      }
+    })
+  }
+
+  // Get validation items (combines mapped + unmapped with metadata)
+  const useValidationItems = (tareaId: string) => {
+    return useQuery({
+      queryKey: ['validation_items', tareaId],
+      queryFn: async () => {
+        const { data } = await api.get(`/api/precios/likewize/tareas/${tareaId}/validation-items/`)
+        return data.items as Array<{
+          id: string | number
+          staging_item_id: string | number
+          likewize_info: any
+          mapped_info: any
+          mapping_metadata: any
+        }>
+      },
+      enabled: Boolean(tareaId),
+      staleTime: 30_000
+    })
+  }
+
   return {
     // Queries
     useMappingsForReview,
     useMappingStatistics,
     useAlgorithmComparison,
     useKnowledgeBaseSearch,
+    useValidationItems,
 
     // Mutations / actions
     useMappingValidation,
     useTestMapping,
     useSessionReportFetcher,
     useEnhancedLikewizeUpdate,
+    useValidateMapping,
+    useCorrectMapping,
+    useCreateFromUnmapped,
 
     // Utilities
     getMappingConfidence,

@@ -43,6 +43,7 @@ class iOSDeviceInfo:
     model_base: str = ""     # iPhone 15, iPad Pro
     model_variant: str = ""  # Pro, Pro Max, Plus, mini, Air
     generation: str = ""     # 15, 13, etc.
+    screen_size: Optional[float] = None  # 12.9, 13, 6.1, etc. (pulgadas)
     capacity_gb: Optional[int] = None
     capacity_formatted: str = ""  # 128GB, 1TB
 
@@ -230,6 +231,9 @@ class iOSMappingService:
         device_info.capacity_gb = self._extract_capacity_gb(device_info)
         device_info.capacity_formatted = self._format_capacity(device_info.capacity_gb)
 
+        # Extraer tamaño de pantalla (pulgadas)
+        device_info.screen_size = self._extract_screen_size(device_info)
+
         # Calcular confianza de extracción
         device_info.extraction_confidence = self._calculate_ios_extraction_confidence(device_info)
 
@@ -338,6 +342,58 @@ class iOSMappingService:
                 return f"{tb_value:.1f}TB"
         else:
             return f"{capacity_gb}GB"
+
+    def _extract_screen_size(self, device_info: iOSDeviceInfo) -> Optional[float]:
+        """Extrae tamaño de pantalla en pulgadas de dispositivos iOS."""
+        sources = [device_info.full_name, device_info.model_name, device_info.m_model]
+
+        for source in sources:
+            if not source:
+                continue
+
+            # Patrones para pulgadas - soportar comillas tipográficas '', "", inch, pulgadas
+            patterns = [
+                r'(\d+(?:\.\d+)?)\s*(?:inch|pulgadas?)',  # 12.9 inch, 13 pulgadas
+                r'(\d+(?:\.\d+)?)\s*[""\'\'"]',            # 12.9", 12.9'', 12.9"
+                r'(\d+(?:\.\d+)?)-inch',                   # 12.9-inch, 13-inch
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, source, re.I)
+                if match:
+                    try:
+                        size = float(match.group(1))
+                        # Validar rango razonable para dispositivos iOS (iPad: 7.9-13, iPhone: 4-7)
+                        if 4.0 <= size <= 15.0:
+                            return size
+                    except (ValueError, IndexError):
+                        continue
+
+        return None
+
+    def _extract_screen_size_from_description(self, description: str) -> Optional[float]:
+        """Extrae tamaño de pantalla de una descripción de modelo en BD."""
+        if not description:
+            return None
+
+        # Mismos patrones que _extract_screen_size
+        patterns = [
+            r'(\d+(?:\.\d+)?)\s*(?:inch|pulgadas?)',  # 12.9 inch, 13 pulgadas
+            r'(\d+(?:\.\d+)?)\s*[""\'\'"]',            # 12.9", 12.9'', 12.9"
+            r'(\d+(?:\.\d+)?)-inch',                   # 12.9-inch, 13-inch
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, description, re.I)
+            if match:
+                try:
+                    size = float(match.group(1))
+                    if 4.0 <= size <= 15.0:
+                        return size
+                except (ValueError, IndexError):
+                    continue
+
+        return None
 
     def _enrich_with_knowledge_base(self, device_info: iOSDeviceInfo):
         """Enriquece información usando base de conocimiento."""
@@ -560,12 +616,65 @@ class iOSMappingService:
             similarity_score = self._calculate_name_similarity(modelo.descripcion, search_terms)
 
             if similarity_score > 0.6:  # Umbral de similitud
+                # Verificar compatibilidad de pulgadas si está disponible
+                screen_size_penalty = 0
+                screen_size_match = True
+
+                if device_info.screen_size:
+                    # Extraer pulgadas del modelo en BD
+                    modelo_screen_size = self._extract_screen_size_from_description(modelo.descripcion)
+
+                    if modelo_screen_size:
+                        # Si ambos tienen pulgadas, deben coincidir EXACTAMENTE
+                        size_diff = abs(device_info.screen_size - modelo_screen_size)
+
+                        # Para iPads, CERO tolerancia (12.9 vs 13 son modelos diferentes)
+                        if device_info.screen_size >= 10.0:
+                            # Tolerancia: 0" - debe ser exacto
+                            # Esto rechaza 12.9 → 13.0, 11 → 11.1, etc.
+                            if size_diff > 0.0:
+                                screen_size_match = False
+                                screen_size_penalty = 50
+                        else:
+                            # Para iPhones, tolerancia pequeña (6.1 vs 6.2, etc.)
+                            if size_diff > 0.2:
+                                screen_size_match = False
+                                screen_size_penalty = 30
+
                 for capacidad in modelo.capacidades.filter(activo=True):
                     capacity_match = self._ios_capacity_matches(capacidad, device_info.capacity_gb)
+
+                    # CRÍTICO: En fuzzy matching, la capacidad DEBE coincidir
+                    # No podemos mapear 32GB → 1TB solo por nombre similar
+                    if not capacity_match:
+                        continue
+
+                    # CRÍTICO: Si tenemos datos de pantalla, DEBEN coincidir
+                    # No podemos mapear 12.9" → 13" aunque el nombre sea similar
+                    if not screen_size_match:
+                        continue
 
                     confidence = int(similarity_score * 70)
                     if capacity_match:
                         confidence += 15
+
+                    # Aplicar penalización por pulgadas diferentes
+                    confidence -= screen_size_penalty
+
+                    # No crear candidato si confianza es baja
+                    if confidence < 50:  # Threshold mínimo para fuzzy
+                        continue
+
+                    match_reasons = [
+                        f"Similitud nombre: {similarity_score:.2f}",
+                        f"Términos: {', '.join(search_terms)}",
+                        f"Capacidad: {'✓' if capacity_match else '✗'} {device_info.capacity_formatted}"
+                    ]
+
+                    if device_info.screen_size:
+                        match_reasons.append(
+                            f"Pantalla: {'✓' if screen_size_match else '✗'} {device_info.screen_size}\" (penalización: {screen_size_penalty})"
+                        )
 
                     candidates.append(iOSMappingCandidate(
                         capacity_id=capacidad.id,
@@ -574,11 +683,7 @@ class iOSMappingService:
                         match_type="fuzzy",
                         name_similarity_score=similarity_score,
                         capacity_match=capacity_match,
-                        match_reasons=[
-                            f"Similitud nombre: {similarity_score:.2f}",
-                            f"Términos: {', '.join(search_terms)}",
-                            f"Capacidad: {'✓' if capacity_match else '✗'} {device_info.capacity_formatted}"
-                        ]
+                        match_reasons=match_reasons
                     ))
 
         if candidates:
@@ -602,7 +707,7 @@ class iOSMappingService:
     def _ios_capacity_matches(self, capacidad_obj, target_gb: Optional[int]) -> bool:
         """Verifica coincidencia de capacidad para iOS manejando formatos inconsistentes."""
         if not target_gb:
-            return True
+            return False  # Sin datos de capacidad, no puede ser match confiable
 
         capacity_str = capacidad_obj.tamaño
 

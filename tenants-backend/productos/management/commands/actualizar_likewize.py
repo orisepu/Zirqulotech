@@ -1147,6 +1147,34 @@ class Command(BaseCommand):
         parser.add_argument("--brands", nargs="*", type=str, default=None)
         parser.add_argument("--mapping_system", type=str, default="v1", choices=["v1", "v2"])
 
+    @staticmethod
+    def _format_capacity_for_v2(gb_value):
+        """
+        Formatea capacidad en GB a string con unidad para servicios V2.
+
+        Args:
+            gb_value: Capacidad en GB (int o None)
+
+        Returns:
+            String formateado: "512GB", "1TB", etc.
+        """
+        if not gb_value:
+            return ""
+
+        gb_value = int(gb_value)
+
+        # Convertir a TB si >= 1024
+        if gb_value >= 1024:
+            tb = gb_value / 1024
+            # Si es TB entero (1TB, 2TB), mostrar sin decimales
+            if tb == int(tb):
+                return f"{int(tb)}TB"
+            # Si tiene decimales (1.5TB), mostrarlos
+            return f"{tb}TB"
+
+        # Menor a 1TB: mostrar en GB
+        return f"{gb_value}GB"
+
     def handle(self, *args, **opts):
         tarea = TareaActualizacionLikewize.objects.get(pk=opts["tarea"])
         tarea.estado = "RUNNING"
@@ -1362,7 +1390,13 @@ class Command(BaseCommand):
                         continue
                     if excluded_model_name_patterns and any(pattern.search(nombre_raw) for pattern in excluded_model_name_patterns):
                         continue
-                    s = norm_modelo(nombre_raw)
+
+                    # IMPORTANTE: Usar M_Model (sin capacidad) para modelo_norm en lugar de FullName
+                    # Esto mejora el mapeo fuzzy al comparar solo nombres de modelo sin la capacidad
+                    # Ej: "iPad Pro 12.9'' Wi-Fi" en lugar de "iPad Pro 12.9'' Wi-Fi 32GB"
+                    m_model_for_norm = (m.get("M_Model") or m.get("MasterModelName") or nombre_raw).strip()
+                    s = norm_modelo(m_model_for_norm)
+
                     marca = (m.get("BrandName") or marca_por_defecto).strip() or marca_por_defecto
                     product_category = (m.get("ProductCategoryName") or tipo).strip() or tipo
                     capacidad_raw = m.get("Capacity") or ""
@@ -1410,7 +1444,7 @@ class Command(BaseCommand):
                         "tipo": product_category,
                         "marca": marca,
                         "modelo_raw": nombre_raw,
-                        "likewize_model_code": m_model_suffix,
+                        "likewize_model_code": m_model_raw,  # Código completo, no solo sufijo
                         "likewize_model_code_raw": m_model_raw,
                         "likewize_modelo": m_model_raw,
                         "modelo_norm": s,
@@ -1498,7 +1532,7 @@ class Command(BaseCommand):
                         'MasterModelName': x["modelo_norm"],
                         'ModelName': x.get("modelo_norm", ""),
                         'FullName': x.get("modelo_raw", ""),
-                        'Capacity': x.get("almacenamiento_gb", 0),
+                        'Capacity': self._format_capacity_for_v2(x.get("almacenamiento_gb", 0)),
                         'BrandName': x.get("marca", "Apple"),
                         'ProductCategoryName': x.get("tipo", ""),
                         'ModelValue': str(x.get("precio_b2b", "0")),

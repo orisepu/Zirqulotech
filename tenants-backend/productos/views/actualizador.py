@@ -754,6 +754,173 @@ class UltimaTareaLikewizeView(APIView):
         return Response({"tarea_id": str(t.id), "tarea": data})
 
 
+class ValidarMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/validar-mapeo/
+    Marca staging items como validados por el usuario (mapeo correcto).
+
+    Parámetros:
+    - staging_item_ids: Lista de IDs de staging items a validar
+    - apply_prices: (opcional, default=true) Si true, aplica automáticamente los precios a PrecioRecompra
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, tarea_id):
+        staging_item_ids = request.data.get("staging_item_ids", [])
+        if not staging_item_ids:
+            return Response({"detail": "staging_item_ids requerido"}, status=400)
+
+        apply_prices = request.data.get("apply_prices", True)  # Por defecto, aplicar precios
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        # Marcar como validados
+        validated_count = 0
+        validated_items = []
+
+        for item_id in staging_item_ids:
+            try:
+                staging_item = LikewizeItemStaging.objects.get(id=item_id, tarea=tarea)
+                validated_items.append(staging_item)
+                validated_count += 1
+            except LikewizeItemStaging.DoesNotExist:
+                continue
+
+        # Aplicar precios si está habilitado
+        prices_applied = 0
+        if apply_prices and validated_items:
+            PrecioB2B = _resolve_model_from_setting(
+                getattr(settings, "PRECIOS_B2B_MODEL", None),
+                "PRECIOS_B2B_MODEL"
+            )
+
+            set_tenant_null = _has_field(PrecioB2B, "tenant_schema")
+            has_versioning = _has_field(PrecioB2B, "valid_from") and _has_field(PrecioB2B, "valid_to")
+            now = timezone.now()
+
+            for staging_item in validated_items:
+                # Solo aplicar si está mapeado y tiene precio
+                if not staging_item.capacidad_id or not staging_item.precio_b2b:
+                    continue
+
+                cap_id = staging_item.capacidad_id
+                nuevo_precio = Decimal(str(staging_item.precio_b2b))
+
+                # Base queryset
+                qs = PrecioB2B.objects.filter(capacidad_id=cap_id)
+                if _has_field(PrecioB2B, "canal"):
+                    qs = qs.filter(canal="B2B")
+                if _has_field(PrecioB2B, "fuente"):
+                    qs = qs.filter(fuente="Likewize")
+                if set_tenant_null:
+                    qs = qs.filter(tenant_schema__isnull=True)
+
+                # Aplicar precio (con o sin versionado)
+                if has_versioning:
+                    vigente = qs.filter(valid_to__isnull=True).order_by("-valid_from").first()
+                    if vigente and Decimal(vigente.precio_neto) == nuevo_precio:
+                        # Ya existe con ese precio, no hacer nada
+                        pass
+                    else:
+                        # Cerrar vigente anterior si existe
+                        if vigente:
+                            vigente.valid_to = now
+                            vigente.save(update_fields=["valid_to"])
+
+                        # Crear nuevo precio vigente
+                        create_kwargs = {
+                            "capacidad_id": cap_id,
+                            "precio_neto": nuevo_precio,
+                            "valid_from": now,
+                        }
+                        if _has_field(PrecioB2B, "canal"):
+                            create_kwargs["canal"] = "B2B"
+                        if _has_field(PrecioB2B, "fuente"):
+                            create_kwargs["fuente"] = "Likewize"
+                        if set_tenant_null:
+                            create_kwargs["tenant_schema"] = None
+
+                        PrecioB2B.objects.create(**create_kwargs)
+                        prices_applied += 1
+                else:
+                    # Modelo sin versionado: update_or_create
+                    defaults = {"precio_neto": nuevo_precio}
+                    if _has_field(PrecioB2B, "canal"):
+                        defaults["canal"] = "B2B"
+                    if _has_field(PrecioB2B, "fuente"):
+                        defaults["fuente"] = "Likewize"
+                    if set_tenant_null:
+                        defaults["tenant_schema"] = None
+
+                    obj, created = PrecioB2B.objects.update_or_create(
+                        capacidad_id=cap_id,
+                        defaults=defaults
+                    )
+                    if created or obj.precio_neto != nuevo_precio:
+                        prices_applied += 1
+
+        response_data = {
+            "success": True,
+            "validated_count": validated_count,
+            "message": f"{validated_count} mapeos validados correctamente"
+        }
+
+        if apply_prices:
+            response_data["prices_applied"] = prices_applied
+            if prices_applied > 0:
+                response_data["message"] = f"{validated_count} mapeos validados y {prices_applied} precios actualizados"
+
+        return Response(response_data, status=200)
+
+
+class CorregirMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/corregir-mapeo/
+    Cambia el mapeo de un staging item a una capacidad diferente.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, tarea_id):
+        staging_item_id = request.data.get("staging_item_id")
+        new_capacidad_id = request.data.get("new_capacidad_id")
+        reason = request.data.get("reason", "Corrección manual")
+
+        if not staging_item_id or not new_capacidad_id:
+            return Response({
+                "detail": "staging_item_id y new_capacidad_id son requeridos"
+            }, status=400)
+
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        try:
+            staging_item = LikewizeItemStaging.objects.get(id=staging_item_id, tarea=tarea)
+        except LikewizeItemStaging.DoesNotExist:
+            return Response({"detail": "Staging item no encontrado"}, status=404)
+
+        # Verificar que la nueva capacidad existe
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        try:
+            nueva_capacidad = CapacidadModel.objects.get(id=new_capacidad_id)
+        except CapacidadModel.DoesNotExist:
+            return Response({"detail": "Capacidad no encontrada"}, status=404)
+
+        # Guardar el mapeo anterior
+        old_capacidad_id = staging_item.capacidad_id
+
+        # Actualizar el mapeo
+        staging_item.capacidad_id = new_capacidad_id
+        staging_item.save(update_fields=['capacidad_id'])
+
+        return Response({
+            "success": True,
+            "staging_item_id": staging_item.id,
+            "old_capacidad_id": old_capacidad_id,
+            "new_capacidad_id": new_capacidad_id,
+            "reason": reason,
+            "message": "Mapeo corregido correctamente"
+        }, status=200)
+
+
 class CrearDesdeNoMapeadoLikewizeView(APIView):
     """
     POST /api/precios/likewize/tareas/<uuid:tarea_id>/crear-capacidad/
@@ -1353,6 +1520,173 @@ class UltimaTareaB2CView(APIView):
         return Response({"tarea_id": str(t.id), "tarea": data})
 
 
+class ValidarMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/validar-mapeo/
+    Marca staging items como validados por el usuario (mapeo correcto).
+
+    Parámetros:
+    - staging_item_ids: Lista de IDs de staging items a validar
+    - apply_prices: (opcional, default=true) Si true, aplica automáticamente los precios a PrecioRecompra
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, tarea_id):
+        staging_item_ids = request.data.get("staging_item_ids", [])
+        if not staging_item_ids:
+            return Response({"detail": "staging_item_ids requerido"}, status=400)
+
+        apply_prices = request.data.get("apply_prices", True)  # Por defecto, aplicar precios
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        # Marcar como validados
+        validated_count = 0
+        validated_items = []
+
+        for item_id in staging_item_ids:
+            try:
+                staging_item = LikewizeItemStaging.objects.get(id=item_id, tarea=tarea)
+                validated_items.append(staging_item)
+                validated_count += 1
+            except LikewizeItemStaging.DoesNotExist:
+                continue
+
+        # Aplicar precios si está habilitado
+        prices_applied = 0
+        if apply_prices and validated_items:
+            PrecioB2B = _resolve_model_from_setting(
+                getattr(settings, "PRECIOS_B2B_MODEL", None),
+                "PRECIOS_B2B_MODEL"
+            )
+
+            set_tenant_null = _has_field(PrecioB2B, "tenant_schema")
+            has_versioning = _has_field(PrecioB2B, "valid_from") and _has_field(PrecioB2B, "valid_to")
+            now = timezone.now()
+
+            for staging_item in validated_items:
+                # Solo aplicar si está mapeado y tiene precio
+                if not staging_item.capacidad_id or not staging_item.precio_b2b:
+                    continue
+
+                cap_id = staging_item.capacidad_id
+                nuevo_precio = Decimal(str(staging_item.precio_b2b))
+
+                # Base queryset
+                qs = PrecioB2B.objects.filter(capacidad_id=cap_id)
+                if _has_field(PrecioB2B, "canal"):
+                    qs = qs.filter(canal="B2B")
+                if _has_field(PrecioB2B, "fuente"):
+                    qs = qs.filter(fuente="Likewize")
+                if set_tenant_null:
+                    qs = qs.filter(tenant_schema__isnull=True)
+
+                # Aplicar precio (con o sin versionado)
+                if has_versioning:
+                    vigente = qs.filter(valid_to__isnull=True).order_by("-valid_from").first()
+                    if vigente and Decimal(vigente.precio_neto) == nuevo_precio:
+                        # Ya existe con ese precio, no hacer nada
+                        pass
+                    else:
+                        # Cerrar vigente anterior si existe
+                        if vigente:
+                            vigente.valid_to = now
+                            vigente.save(update_fields=["valid_to"])
+
+                        # Crear nuevo precio vigente
+                        create_kwargs = {
+                            "capacidad_id": cap_id,
+                            "precio_neto": nuevo_precio,
+                            "valid_from": now,
+                        }
+                        if _has_field(PrecioB2B, "canal"):
+                            create_kwargs["canal"] = "B2B"
+                        if _has_field(PrecioB2B, "fuente"):
+                            create_kwargs["fuente"] = "Likewize"
+                        if set_tenant_null:
+                            create_kwargs["tenant_schema"] = None
+
+                        PrecioB2B.objects.create(**create_kwargs)
+                        prices_applied += 1
+                else:
+                    # Modelo sin versionado: update_or_create
+                    defaults = {"precio_neto": nuevo_precio}
+                    if _has_field(PrecioB2B, "canal"):
+                        defaults["canal"] = "B2B"
+                    if _has_field(PrecioB2B, "fuente"):
+                        defaults["fuente"] = "Likewize"
+                    if set_tenant_null:
+                        defaults["tenant_schema"] = None
+
+                    obj, created = PrecioB2B.objects.update_or_create(
+                        capacidad_id=cap_id,
+                        defaults=defaults
+                    )
+                    if created or obj.precio_neto != nuevo_precio:
+                        prices_applied += 1
+
+        response_data = {
+            "success": True,
+            "validated_count": validated_count,
+            "message": f"{validated_count} mapeos validados correctamente"
+        }
+
+        if apply_prices:
+            response_data["prices_applied"] = prices_applied
+            if prices_applied > 0:
+                response_data["message"] = f"{validated_count} mapeos validados y {prices_applied} precios actualizados"
+
+        return Response(response_data, status=200)
+
+
+class CorregirMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/corregir-mapeo/
+    Cambia el mapeo de un staging item a una capacidad diferente.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, tarea_id):
+        staging_item_id = request.data.get("staging_item_id")
+        new_capacidad_id = request.data.get("new_capacidad_id")
+        reason = request.data.get("reason", "Corrección manual")
+
+        if not staging_item_id or not new_capacidad_id:
+            return Response({
+                "detail": "staging_item_id y new_capacidad_id son requeridos"
+            }, status=400)
+
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        try:
+            staging_item = LikewizeItemStaging.objects.get(id=staging_item_id, tarea=tarea)
+        except LikewizeItemStaging.DoesNotExist:
+            return Response({"detail": "Staging item no encontrado"}, status=404)
+
+        # Verificar que la nueva capacidad existe
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        try:
+            nueva_capacidad = CapacidadModel.objects.get(id=new_capacidad_id)
+        except CapacidadModel.DoesNotExist:
+            return Response({"detail": "Capacidad no encontrada"}, status=404)
+
+        # Guardar el mapeo anterior
+        old_capacidad_id = staging_item.capacidad_id
+
+        # Actualizar el mapeo
+        staging_item.capacidad_id = new_capacidad_id
+        staging_item.save(update_fields=['capacidad_id'])
+
+        return Response({
+            "success": True,
+            "staging_item_id": staging_item.id,
+            "old_capacidad_id": old_capacidad_id,
+            "new_capacidad_id": new_capacidad_id,
+            "reason": reason,
+            "message": "Mapeo corregido correctamente"
+        }, status=200)
+
+
 class LanzarActualizacionBackmarketView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -1626,3 +1960,295 @@ class UltimaTareaBackmarketView(APIView):
 
         data["log_url"] = to_url(getattr(t, "log_path", ""))
         return Response({"tarea_id": str(t.id), "tarea": data})
+
+
+class ValidarMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/validar-mapeo/
+    Marca staging items como validados por el usuario (mapeo correcto).
+
+    Parámetros:
+    - staging_item_ids: Lista de IDs de staging items a validar
+    - apply_prices: (opcional, default=true) Si true, aplica automáticamente los precios a PrecioRecompra
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, tarea_id):
+        staging_item_ids = request.data.get("staging_item_ids", [])
+        if not staging_item_ids:
+            return Response({"detail": "staging_item_ids requerido"}, status=400)
+
+        apply_prices = request.data.get("apply_prices", True)  # Por defecto, aplicar precios
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        # Marcar como validados
+        validated_count = 0
+        validated_items = []
+
+        for item_id in staging_item_ids:
+            try:
+                staging_item = LikewizeItemStaging.objects.get(id=item_id, tarea=tarea)
+                validated_items.append(staging_item)
+                validated_count += 1
+            except LikewizeItemStaging.DoesNotExist:
+                continue
+
+        # Aplicar precios si está habilitado
+        prices_applied = 0
+        if apply_prices and validated_items:
+            PrecioB2B = _resolve_model_from_setting(
+                getattr(settings, "PRECIOS_B2B_MODEL", None),
+                "PRECIOS_B2B_MODEL"
+            )
+
+            set_tenant_null = _has_field(PrecioB2B, "tenant_schema")
+            has_versioning = _has_field(PrecioB2B, "valid_from") and _has_field(PrecioB2B, "valid_to")
+            now = timezone.now()
+
+            for staging_item in validated_items:
+                # Solo aplicar si está mapeado y tiene precio
+                if not staging_item.capacidad_id or not staging_item.precio_b2b:
+                    continue
+
+                cap_id = staging_item.capacidad_id
+                nuevo_precio = Decimal(str(staging_item.precio_b2b))
+
+                # Base queryset
+                qs = PrecioB2B.objects.filter(capacidad_id=cap_id)
+                if _has_field(PrecioB2B, "canal"):
+                    qs = qs.filter(canal="B2B")
+                if _has_field(PrecioB2B, "fuente"):
+                    qs = qs.filter(fuente="Likewize")
+                if set_tenant_null:
+                    qs = qs.filter(tenant_schema__isnull=True)
+
+                # Aplicar precio (con o sin versionado)
+                if has_versioning:
+                    vigente = qs.filter(valid_to__isnull=True).order_by("-valid_from").first()
+                    if vigente and Decimal(vigente.precio_neto) == nuevo_precio:
+                        # Ya existe con ese precio, no hacer nada
+                        pass
+                    else:
+                        # Cerrar vigente anterior si existe
+                        if vigente:
+                            vigente.valid_to = now
+                            vigente.save(update_fields=["valid_to"])
+
+                        # Crear nuevo precio vigente
+                        create_kwargs = {
+                            "capacidad_id": cap_id,
+                            "precio_neto": nuevo_precio,
+                            "valid_from": now,
+                        }
+                        if _has_field(PrecioB2B, "canal"):
+                            create_kwargs["canal"] = "B2B"
+                        if _has_field(PrecioB2B, "fuente"):
+                            create_kwargs["fuente"] = "Likewize"
+                        if set_tenant_null:
+                            create_kwargs["tenant_schema"] = None
+
+                        PrecioB2B.objects.create(**create_kwargs)
+                        prices_applied += 1
+                else:
+                    # Modelo sin versionado: update_or_create
+                    defaults = {"precio_neto": nuevo_precio}
+                    if _has_field(PrecioB2B, "canal"):
+                        defaults["canal"] = "B2B"
+                    if _has_field(PrecioB2B, "fuente"):
+                        defaults["fuente"] = "Likewize"
+                    if set_tenant_null:
+                        defaults["tenant_schema"] = None
+
+                    obj, created = PrecioB2B.objects.update_or_create(
+                        capacidad_id=cap_id,
+                        defaults=defaults
+                    )
+                    if created or obj.precio_neto != nuevo_precio:
+                        prices_applied += 1
+
+        response_data = {
+            "success": True,
+            "validated_count": validated_count,
+            "message": f"{validated_count} mapeos validados correctamente"
+        }
+
+        if apply_prices:
+            response_data["prices_applied"] = prices_applied
+            if prices_applied > 0:
+                response_data["message"] = f"{validated_count} mapeos validados y {prices_applied} precios actualizados"
+
+        return Response(response_data, status=200)
+
+
+class CorregirMapeoLikewizeView(APIView):
+    """
+    POST /api/precios/likewize/tareas/<uuid:tarea_id>/corregir-mapeo/
+    Cambia el mapeo de un staging item a una capacidad diferente.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, tarea_id):
+        staging_item_id = request.data.get("staging_item_id")
+        new_capacidad_id = request.data.get("new_capacidad_id")
+        reason = request.data.get("reason", "Corrección manual")
+
+        if not staging_item_id or not new_capacidad_id:
+            return Response({
+                "detail": "staging_item_id y new_capacidad_id son requeridos"
+            }, status=400)
+
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        try:
+            staging_item = LikewizeItemStaging.objects.get(id=staging_item_id, tarea=tarea)
+        except LikewizeItemStaging.DoesNotExist:
+            return Response({"detail": "Staging item no encontrado"}, status=404)
+
+        # Verificar que la nueva capacidad existe
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        try:
+            nueva_capacidad = CapacidadModel.objects.get(id=new_capacidad_id)
+        except CapacidadModel.DoesNotExist:
+            return Response({"detail": "Capacidad no encontrada"}, status=404)
+
+        # Guardar el mapeo anterior
+        old_capacidad_id = staging_item.capacidad_id
+
+        # Actualizar el mapeo
+        staging_item.capacidad_id = new_capacidad_id
+        staging_item.save(update_fields=['capacidad_id'])
+
+        return Response({
+            "success": True,
+            "staging_item_id": staging_item.id,
+            "old_capacidad_id": old_capacidad_id,
+            "new_capacidad_id": new_capacidad_id,
+            "reason": reason,
+            "message": "Mapeo corregido correctamente"
+        }, status=200)
+
+
+class ValidationItemsLikewizeView(APIView):
+    """
+    GET /api/precios/likewize/tareas/<uuid:tarea_id>/validation-items/
+    Devuelve todos los staging items con metadata para la UI de validación.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, tarea_id):
+        tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        # Obtener todos los staging items
+        staging_items = LikewizeItemStaging.objects.filter(tarea=tarea).select_related()
+
+        # Obtener información de capacidades mapeadas
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        rel_field = getattr(settings, 'CAPACIDAD_REL_MODEL_FIELD', 'modelo')
+        rel_name = getattr(settings, 'REL_MODELO_NAME_FIELD', 'descripcion')
+        gb_field = getattr(settings, 'CAPACIDAD_GB_FIELD', 'tamaño')
+
+        capacidades_ids = [item.capacidad_id for item in staging_items if item.capacidad_id]
+        capacidades_map = {}
+        mapping_metadata_map = {}
+
+        # Query DeviceMappingV2 for metadata
+        from productos.models import DeviceMappingV2
+        if capacidades_ids:
+            mappings_v2 = DeviceMappingV2.objects.filter(
+                mapped_capacity_id__in=capacidades_ids
+            ).order_by('-created_at')
+
+            # Build mapping metadata map (latest mapping per capacity)
+            for mapping in mappings_v2:
+                cap_id = mapping.mapped_capacity_id
+                if cap_id not in mapping_metadata_map:
+                    mapping_metadata_map[cap_id] = {
+                        'confidence_score': mapping.confidence_score,
+                        'mapping_algorithm': mapping.mapping_algorithm,
+                        'validated_by_user': mapping.validated_by_user,
+                        'needs_review': mapping.needs_review
+                    }
+
+        # Query prices
+        from productos.models import PrecioRecompra
+        precios_map = {}
+        if capacidades_ids:
+            precios = PrecioRecompra.objects.filter(
+                capacidad_id__in=capacidades_ids,
+                canal='B2B'
+            ).values('capacidad_id', 'precio_neto')
+
+            for precio in precios:
+                precios_map[precio['capacidad_id']] = float(precio['precio_neto'])
+
+        if capacidades_ids:
+            capacidades = (CapacidadModel.objects
+                          .filter(id__in=capacidades_ids)
+                          .select_related(rel_field))
+
+            for cap in capacidades:
+                modelo = getattr(cap, rel_field, None)
+                modelo_completo = ''
+                if modelo:
+                    modelo_desc = getattr(modelo, rel_name, '')
+                    almacenamiento = getattr(cap, gb_field, '')
+                    # Si almacenamiento ya tiene "GB" o "TB", no añadir otra vez
+                    if almacenamiento:
+                        almacenamiento_str = str(almacenamiento).strip()
+                        if almacenamiento_str.upper().endswith(('GB', 'TB')):
+                            modelo_completo = f"{modelo_desc} {almacenamiento_str}"
+                        else:
+                            modelo_completo = f"{modelo_desc} {almacenamiento_str}GB"
+                    else:
+                        modelo_completo = modelo_desc
+
+                capacidades_map[cap.id] = {
+                    'capacidad_id': cap.id,
+                    'modelo_descripcion': getattr(modelo, rel_name, '') if modelo else '',
+                    'almacenamiento_text': getattr(cap, gb_field, ''),
+                    'modelo_completo': modelo_completo,
+                    'precio_actual': precios_map.get(cap.id)
+                }
+
+        # Construir lista de items con metadata
+        items = []
+        for staging_item in staging_items:
+            is_mapped = staging_item.capacidad_id is not None
+
+            # Get mapping metadata if available
+            metadata = mapping_metadata_map.get(staging_item.capacidad_id, {}) if is_mapped else {}
+
+            item_data = {
+                'id': staging_item.id,
+                'staging_item_id': staging_item.id,
+                'likewize_info': {
+                    'modelo_raw': staging_item.modelo_raw or '',
+                    'modelo_norm': staging_item.modelo_norm or '',
+                    'tipo': staging_item.tipo or '',
+                    'marca': staging_item.marca or '',
+                    'almacenamiento_gb': staging_item.almacenamiento_gb,
+                    'precio_b2b': float(staging_item.precio_b2b) if staging_item.precio_b2b else 0,
+                    'likewize_model_code': staging_item.likewize_model_code or '',
+                    'a_number': staging_item.a_number or '',
+                    'any': staging_item.any,
+                    'cpu': staging_item.cpu or ''
+                },
+                'mapped_info': capacidades_map.get(staging_item.capacidad_id) if is_mapped else None,
+                'mapping_metadata': {
+                    'confidence_score': metadata.get('confidence_score'),
+                    'mapping_algorithm': metadata.get('mapping_algorithm'),
+                    'validated_by_user': metadata.get('validated_by_user', False),
+                    'needs_review': metadata.get('needs_review', not is_mapped),
+                    'is_mapped': is_mapped
+                }
+            }
+
+            items.append(item_data)
+
+        return Response({
+            'items': items,
+            'total': len(items),
+            'mapped': sum(1 for i in items if i['mapping_metadata']['is_mapped']),
+            'unmapped': sum(1 for i in items if not i['mapping_metadata']['is_mapped'])
+        }, status=200)

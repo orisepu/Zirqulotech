@@ -29,7 +29,9 @@ from .actualizador import (
     DiffBackmarketView,
     AplicarCambiosBackmarketView,
     UltimaTareaBackmarketView,
-
+    ValidarMapeoLikewizeView,
+    CorregirMapeoLikewizeView,
+    ValidationItemsLikewizeView,
 )
 from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoracionView
 from .valoraciones_genericas import ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView
@@ -71,4 +73,7 @@ __all__ = [
    "AplicarCambiosB2CView",
    "ValoracionComercialGenericaView",
    "ValoracionAuditoriaGenericaView",
+   "ValidarMapeoLikewizeView",
+   "CorregirMapeoLikewizeView",
+   "ValidationItemsLikewizeView",
 ]

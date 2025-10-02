@@ -557,7 +557,7 @@ class MacMappingService:
     def _capacity_matches(self, capacidad_obj, target_gb: Optional[int]) -> bool:
         """Verifica si una capacidad coincide con el objetivo."""
         if not target_gb:
-            return True  # Si no sabemos la capacidad, asumimos que coincide
+            return False  # Sin datos de capacidad, no puede ser match confiable
 
         # Extraer GB de la descripción de capacidad
         capacity_str = capacidad_obj.tamaño

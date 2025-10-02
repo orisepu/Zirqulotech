@@ -14,6 +14,7 @@ import DeviceMappingStrategy from './DeviceMappingStrategy'
 import MappingAuditPanel from './MappingAuditPanel'
 import { ReviewPanel } from './ReviewPanel'
 import { ConfidenceIndicator } from './ConfidenceIndicator'
+import { ValidationTabPanel } from './ValidationTabPanel'
 import { useDeviceMappingEnhanced } from '@/shared/hooks/useDeviceMappingEnhanced'
 import { useLearningMetrics, useLaunchV3UpdateTask, useRealTimeLearningMetrics, useTaskMonitoring, useActiveV3Tasks } from '@/hooks/useLearningV3'
 
@@ -1059,6 +1060,7 @@ export function EnhancedLikewizePage({
                 scrollButtons="auto"
               >
                 <Tab label="Actualización V3" />
+                <Tab label="Validación" icon={<Psychology fontSize="small" />} iconPosition="start" />
                 <Tab label="Cambios de Precios" />
                 <Tab label="No Encontrados" />
                 <Tab label="Revisión Manual" />
@@ -1074,9 +1076,14 @@ export function EnhancedLikewizePage({
                 />
               </TabPanel>
 
+              {/* Nueva Tab de Validación */}
               <TabPanel value={tabValue} index={1}>
+                <ValidationTabPanel tareaId={activeTaskId} />
+              </TabPanel>
+
+              <TabPanel value={tabValue} index={2}>
                 <Stack spacing={3}>
-                  {/* Task Source Indicator & Switcher */}
+                  {/* Task Source Indicator & Switcher - Cambios de Precios */}
                   {activeTaskId && (
                     <Card variant="outlined">
                       <Box sx={{ p: 2 }}>
@@ -1798,7 +1805,7 @@ export function EnhancedLikewizePage({
               </TabPanel>
 
               {/* Pestaña No Encontrados */}
-              <TabPanel value={tabValue} index={2}>
+              <TabPanel value={tabValue} index={3}>
                 <Stack spacing={3}>
                   <Alert severity="warning" icon={<Warning />}>
                     <strong>Dispositivos sin mapear</strong>
@@ -1867,7 +1874,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={4}>
+              <TabPanel value={tabValue} index={5}>
                 <Stack spacing={3}>
                   <Alert severity="info">
                     El sistema V2 utiliza estrategias específicas optimizadas según el tipo de dispositivo
@@ -1940,7 +1947,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={5}>
+              <TabPanel value={tabValue} index={6}>
                 <Stack spacing={3}>
                   <MappingMetrics />
 
@@ -1974,7 +1981,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={3}>
+              <TabPanel value={tabValue} index={4}>
                 <ReviewPanel
                   onReviewCompleted={() => {
                     refetchLearningMetrics()
@@ -1983,7 +1990,7 @@ export function EnhancedLikewizePage({
                 />
               </TabPanel>
 
-              <TabPanel value={tabValue} index={6}>
+              <TabPanel value={tabValue} index={7}>
                 <Stack spacing={3}>
                   <Alert severity="info">
                     El sistema V3 utiliza estrategias específicas optimizadas según el tipo de dispositivo
@@ -2054,7 +2061,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={4}>
+              <TabPanel value={tabValue} index={6}>
                 <Stack spacing={3}>
                   <MappingMetrics />
 
@@ -2138,7 +2145,7 @@ export function EnhancedLikewizePage({
                 </Stack>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={5}>
+              <TabPanel value={tabValue} index={7}>
                 <Card variant="outlined">
                   <CardHeader title="Análisis de Calidad de Mappings V3" />
                   <Box sx={{ p: 2 }}>
@@ -2298,7 +2305,7 @@ export function EnhancedLikewizePage({
       <Dialog
         open={createDeviceModalOpen}
         onClose={() => setCreateDeviceModalOpen(false)}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
       >
         <DialogTitle>
