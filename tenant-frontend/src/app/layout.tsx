@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
 import { ReactQueryProvider } from "@/features/auth/components/providers/ReactQueryProvider";
 import { DpiDebugger } from "@/shared/components/dev/DpiDebugger";
 import { ResponsiveTypography } from "@/shared/components/layout/ResponsiveTypography";
+import { GoogleAnalytics } from "@/shared/components/analytics/GoogleAnalytics";
+import { PageViewTracker } from "@/shared/components/analytics/PageViewTracker";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -40,9 +42,11 @@ export default async function RootLayout({
   return (
     <html lang="es" data-theme-mode={initialMode ?? undefined}>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <GoogleAnalytics />
         <ThemeRegistry>
           <ThemeWrapper initialMode={initialMode as 'dark' | 'light' | undefined}>
             <ReactQueryProvider>
+              <PageViewTracker />
               <ResponsiveTypography />
               {children}
               <DpiDebugger />

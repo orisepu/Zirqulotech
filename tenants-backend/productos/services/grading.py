@@ -74,7 +74,8 @@ def calcular(params: Params, i: dict):
         return 'C'
 
     if gate=='OK':
-        g = grado(i['glass_status'], i['housing_status'])
+        # Para dispositivos sin pantalla, usar NONE como glass_status por defecto
+        g = grado(i.get('glass_status', 'NONE'), i.get('housing_status', 'SIN_SIGNOS'))
         V_tope = params.V_Aplus if g=='A+' else (A if g=='A' else (B if g=='B' else C))
     else:
         # ===== Helpers de grado por dimensión =====

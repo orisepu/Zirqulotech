@@ -1774,7 +1774,7 @@ export default function FormularioAuditoriaDispositivo({
                             Resumen backend (técnica)
                           </Typography>
                           <Box>Topes — A+: <b>{fmtEUR(valoracionTecnica.V_Aplus)}</b> · A: <b>{fmtEUR(valoracionTecnica.V_A)}</b> · B: <b>{fmtEUR(valoracionTecnica.V_B)}</b> · C: <b>{fmtEUR(valoracionTecnica.V_C)}</b></Box>
-                          <Box>V_suelo: <b>{fmtEUR(valoracionTecnica.params.V_suelo)}</b> · <span style={{ opacity: .8 }}>{valoracionTecnica.params.v_suelo_regla?.label}</span></Box>
+                          <Box>V_suelo: <b>{fmtEUR(valoracionTecnica.params?.V_suelo ?? 0)}</b> · <span style={{ opacity: .8 }}>{valoracionTecnica.params?.v_suelo_regla?.label}</span></Box>
                           <Box>Deducciones: bat <b>{fmtEUR(valoracionTecnica.deducciones.pr_bat)}</b> · pant <b>{fmtEUR(valoracionTecnica.deducciones.pr_pant)}</b> · chas <b>{fmtEUR(valoracionTecnica.deducciones.pr_chas)}</b></Box>
                           <Box>Oferta backend: <b>{fmtEUR(valoracionTecnica.oferta)}</b></Box>
                           <Box sx={{ my: 1, borderTop: 1, borderColor: 'divider' }} />

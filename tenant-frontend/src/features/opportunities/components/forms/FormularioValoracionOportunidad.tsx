@@ -605,7 +605,7 @@ export default function FormularioValoracionOportunidad({
 
   const esIphone = /\biphone\b/i.test(tipo || '')
   const esIpad = /\bipad\b/i.test(tipo || '')
-  const esComercial = esIphone || esIpad
+  const esComercial = true
   const isProd = typeof window !== 'undefined' && process.env.NODE_ENV === 'production'
   const modoInformativo = oportunidadId === -1
 
@@ -815,8 +815,31 @@ export default function FormularioValoracionOportunidad({
     const cantidadNumRaw = typeof cantidad === 'string' ? parseInt(cantidad) || 1 : cantidad
     const cantidadNum = modoCompleto ? 1 : cantidadNumRaw
 
-    if (!oportunidadId || Number.isNaN(Number(oportunidadId))) { alert('Falta el ID numérico de la oportunidad.'); return }
-    if (!modelo || !capacidad) { alert('Selecciona modelo y capacidad.'); return }
+    // Debug: mostrar valores para diagnosticar
+    console.log('[FormularioValoracion] handleSubmit:', {
+      oportunidadId,
+      tipo: typeof oportunidadId,
+      isNaN: Number.isNaN(Number(oportunidadId)),
+      esNumerico: oportunidadId !== -1 && oportunidadId <= 0,
+      modoInformativo,
+    })
+
+    // Validar que tengamos un ID válido (número > 0 o -1 para modo informativo)
+    if (!oportunidadId || Number.isNaN(Number(oportunidadId)) || (oportunidadId !== -1 && oportunidadId <= 0)) {
+      toast.error(`Falta el ID numérico de la oportunidad. (recibido: ${oportunidadId})`)
+      return
+    }
+
+    // En modo informativo no se puede guardar
+    if (modoInformativo) {
+      toast.warning('No se puede guardar en modo informativo.')
+      return
+    }
+
+    if (!modelo || !capacidad) {
+      toast.error('Selecciona modelo y capacidad.')
+      return
+    }
 
     // Recalculamos en backend para guardar oferta más reciente (todos los dispositivos)
     let ofertaToSave: number | null = precioCalculado
@@ -1201,28 +1224,28 @@ export default function FormularioValoracionOportunidad({
                   (() => {
                     const sumD = r.deducciones.pr_bat + r.deducciones.pr_pant + r.deducciones.pr_chas
                     const V1 = r.V_tope - sumD
-                    const V2 = r.calculo.aplica_pp_func ? Math.round(V1 * (1 - r.deducciones.pp_func)) : V1
+                    const V2 = r.calculo?.aplica_pp_func ? Math.round(V1 * (1 - r.deducciones.pp_func)) : V1
                     const redondeo5 = Math.round(V2 / 5) * 5
-                    const ofertaFinal = Math.max(redondeo5, r.params.V_suelo, 0)
+                    const ofertaFinal = Math.max(redondeo5, r.params?.V_suelo ?? 0, 0)
 
                     const jsonDebug = {
                       input: payloadIphone, // enciende/carga/estética/etc. enviado al backend
-                      topes: { Aplus: r.V_Aplus, A: r.V_A, B: r.V_B, C: r.V_C, V_suelo: r.params.V_suelo },
+                      topes: { Aplus: r.V_Aplus, A: r.V_A, B: r.V_B, C: r.V_C, V_suelo: r.params?.V_suelo ?? 0 },
                       deducciones: r.deducciones,
                       costes: {
-                        bateria: r.params.pr_bateria,
-                        pantalla: r.params.pr_pantalla,
-                        chasis: r.params.pr_chasis,
+                        bateria: r.params?.pr_bateria ?? 0,
+                        pantalla: r.params?.pr_pantalla ?? 0,
+                        chasis: r.params?.pr_chasis ?? 0,
                       },
-                      suelo_regla: r.params.v_suelo_regla,
+                      suelo_regla: r.params?.v_suelo_regla,
                       calculo: {
                         V_tope: r.V_tope,
                         sum_deducciones: sumD,
                         V1,
-                        aplica_pp_func: r.calculo.aplica_pp_func,
+                        aplica_pp_func: r.calculo?.aplica_pp_func ?? false,
                         V2,
                         redondeo5,
-                        suelo: r.params.V_suelo,
+                        suelo: r.params?.V_suelo ?? 0,
                         oferta_final: ofertaFinal
                       },
                     }
@@ -1235,7 +1258,7 @@ export default function FormularioValoracionOportunidad({
 
                         <Box>Gate: <b>{r.gate}</b> · Grado estético: <b>{r.grado_estetico}</b></Box>
                         <Box>Topes — A+: <b>{fmtEUR(r.V_Aplus)}</b> · A: <b>{fmtEUR(r.V_A)}</b> · B: <b>{fmtEUR(r.V_B)}</b> · C: <b>{fmtEUR(r.V_C)}</b></Box>
-                        <Box>V_suelo: <b>{fmtEUR(r.params.V_suelo)}</b> · <span style={{ opacity: .8 }}>{r.params.v_suelo_regla?.label}</span></Box>
+                        <Box>V_suelo: <b>{fmtEUR(r.params?.V_suelo ?? 0)}</b> · <span style={{ opacity: .8 }}>{r.params?.v_suelo_regla?.label ?? 'N/A'}</span></Box>
                         <Box>V_tope usado: <b>{fmtEUR(r.V_tope)}</b></Box>
 
                         <Box sx={{ mt: .5 }}>
@@ -1243,12 +1266,12 @@ export default function FormularioValoracionOportunidad({
                         </Box>
 
                         <Box>V1 = V_tope − (bat + pant + chas) = <b>{fmtEUR(V1)}</b></Box>
-                        {r.calculo.aplica_pp_func
+                        {r.calculo?.aplica_pp_func
                           ? <Box>V2 = V1 × (1 − pp_func <b>{Math.round(r.deducciones.pp_func * 100)}%</b>) ⇒ <b>{fmtEUR(V2)}</b></Box>
                           : <Box>V2 = V1 (sin penalización funcional) ⇒ <b>{fmtEUR(V1)}</b></Box>
                         }
                         <Box>Redondeo: round(V2 / 5) × 5 ⇒ <b>{fmtEUR(redondeo5)}</b></Box>
-                        <Box>Suelo: max(Redondeo, V_suelo <b>{fmtEUR(r.params.V_suelo)}</b>, 0) ⇒ <b>{fmtEUR(ofertaFinal)}</b></Box>
+                        <Box>Suelo: max(Redondeo, V_suelo <b>{fmtEUR(r.params?.V_suelo ?? 0)}</b>, 0) ⇒ <b>{fmtEUR(ofertaFinal)}</b></Box>
 
                         <Box sx={{ my: 1, borderTop: 1, borderColor: 'divider' }} />
 

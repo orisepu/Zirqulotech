@@ -57,3 +57,14 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 })
+
+// Mock Google Analytics gtag
+Object.defineProperty(window, 'gtag', {
+  writable: true,
+  value: jest.fn(),
+})
+
+Object.defineProperty(window, 'dataLayer', {
+  writable: true,
+  value: [],
+})

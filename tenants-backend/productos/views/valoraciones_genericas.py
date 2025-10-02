@@ -336,7 +336,17 @@ class ValoracionComercialGenericaView(APIView):
             "capacidad_id": i['capacidad_id'],
             "canal": canal,
             "tenant": tenant_schema,
-            **out
+            **out,
+            "params": {
+                "V_suelo": params.V_suelo,
+                "pp_A": params.pp_A,
+                "pp_B": params.pp_B,
+                "pp_C": params.pp_C,
+                "pr_bateria": params.pr_bateria,
+                "pr_pantalla": params.pr_pantalla,
+                "pr_chasis": params.pr_chasis,
+                "v_suelo_regla": params.v_suelo_regla,
+            },
         }, http_status.HTTP_200_OK)
 
 
