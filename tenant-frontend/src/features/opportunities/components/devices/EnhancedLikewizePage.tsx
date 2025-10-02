@@ -84,7 +84,7 @@ export function EnhancedLikewizePage({
 }: EnhancedLikewizePageProps) {
   const [tabValue, setTabValue] = useState(0)
   const queryClient = useQueryClient()
-  const activeTaskId = tareaId
+  const activeTaskId = tareaId || null
 
   const diff = useQuery({
     queryKey: ['likewize_diff', activeTaskId],

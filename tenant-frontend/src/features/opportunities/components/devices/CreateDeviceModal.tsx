@@ -64,6 +64,7 @@ interface CreateDeviceModalProps {
   // Items de Likewize para detectar capacidades reales
   allLikewizeItems?: Array<{
     likewize_info: {
+      modelo_raw?: string
       modelo_norm: string
       almacenamiento_gb: number | null
       tipo: string
