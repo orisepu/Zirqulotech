@@ -156,17 +156,20 @@ export default function ChatConTenants() {
     },
     staleTime: 1000 * 60 * 5,
     // Polling eliminado: ahora usamos WebSocket para notificaciones en tiempo real
-    onSuccess: (data) => {
-      // Inicializar contador de no leídos desde el backend
+  });
+
+  // Inicializar contador de no leídos desde el backend (React Query v5 pattern)
+  useEffect(() => {
+    if (chats && chats.length > 0) {
       const noLeidosDesdeBackend: Record<number, number> = {};
-      data.forEach(chat => {
+      chats.forEach(chat => {
         if (chat.mensajes_no_leidos) {
           noLeidosDesdeBackend[chat.id] = chat.mensajes_no_leidos;
         }
       });
       setNoLeidos(prev => ({ ...prev, ...noLeidosDesdeBackend }));
-    },
-  });
+    }
+  }, [chats]);
 
   // Query para buscar TODOS los usuarios (no solo managers/empleados)
   const { data: usuarios = [], isLoading: isLoadingUsuarios, error: errorUsuarios } = useQuery<User[]>({
