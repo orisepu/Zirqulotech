@@ -27,11 +27,52 @@ Guía para configurar Azure AD:
 
 import logging
 import msal
+import re
 import requests
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 logger = logging.getLogger(__name__)
+
+
+def extract_and_validate_email(email_string):
+    """
+    Extrae y valida un email de una cadena que puede tener formato "Name <email@domain.com>" o "email@domain.com".
+
+    Args:
+        email_string (str): Cadena que contiene un email
+
+    Returns:
+        str: Email validado y limpio
+
+    Raises:
+        ValidationError: Si el email no es válido
+    """
+    if not email_string or not isinstance(email_string, str):
+        raise ValidationError("Email string cannot be empty or non-string")
+
+    email_string = email_string.strip()
+
+    # Patrón regex para extraer email de formato "Name <email@domain.com>"
+    # Grupo de captura para el email dentro de < >
+    match = re.search(r'<([^>]+)>', email_string)
+
+    if match:
+        # Extraído de formato "Name <email@domain.com>"
+        email = match.group(1).strip()
+    else:
+        # Asumir que es solo el email sin formato
+        email = email_string
+
+    # Validar el email extraído usando el validador de Django
+    try:
+        validate_email(email)
+        return email
+    except ValidationError as e:
+        logger.error(f"Invalid email format: '{email_string}' -> extracted: '{email}'")
+        raise ValidationError(f"Invalid email address: {email}") from e
 
 
 class MicrosoftOAuth2EmailBackend(BaseEmailBackend):
@@ -156,19 +197,20 @@ class MicrosoftOAuth2EmailBackend(BaseEmailBackend):
                 'Content-Type': 'application/json'
             }
 
-            # Endpoint para enviar email
-            # Extraer email limpio del remitente
-            from_email = message.from_email
+            # ✅ Endpoint para enviar email con validación robusta
+            # Extraer y validar email limpio del remitente
+            from_email = message.from_email or self.from_email
 
-            # Si viene en formato "Name <email@domain.com>", extraer solo el email
-            if from_email and '<' in from_email and '>' in from_email:
-                # Formato: "Name <email@domain.com>"
-                from_email = from_email.split('<')[1].split('>')[0].strip()
-            elif not from_email:
-                # Si no hay from_email, usar DEFAULT_FROM_EMAIL
-                from_email = self.from_email
+            try:
+                # Usar función segura de extracción y validación
+                from_email = extract_and_validate_email(from_email)
+                logger.debug(f"Enviando email desde: {from_email}")
+            except ValidationError as e:
+                logger.error(f"Invalid from_email: {e}")
+                if not self.fail_silently:
+                    raise
+                return False
 
-            logger.debug(f"Enviando email desde: {from_email}")
             endpoint = f"{self.graph_endpoint}/users/{from_email}/sendMail"
 
             # Enviar petición
@@ -206,21 +248,33 @@ class MicrosoftOAuth2EmailBackend(BaseEmailBackend):
         Returns:
             dict: Payload en formato Microsoft Graph API
         """
-        # Convertir destinatarios a formato Graph
-        to_recipients = [
-            {"emailAddress": {"address": addr}}
-            for addr in message.to
-        ]
+        # ✅ Convertir destinatarios a formato Graph con validación
+        to_recipients = []
+        for addr in message.to:
+            try:
+                validated_addr = extract_and_validate_email(addr)
+                to_recipients.append({"emailAddress": {"address": validated_addr}})
+            except ValidationError:
+                logger.warning(f"Skipping invalid TO email: {addr}")
+                # Si fail_silently está habilitado, continuamos; si no, el error se propagará
 
-        cc_recipients = [
-            {"emailAddress": {"address": addr}}
-            for addr in message.cc
-        ] if message.cc else []
+        cc_recipients = []
+        if message.cc:
+            for addr in message.cc:
+                try:
+                    validated_addr = extract_and_validate_email(addr)
+                    cc_recipients.append({"emailAddress": {"address": validated_addr}})
+                except ValidationError:
+                    logger.warning(f"Skipping invalid CC email: {addr}")
 
-        bcc_recipients = [
-            {"emailAddress": {"address": addr}}
-            for addr in message.bcc
-        ] if message.bcc else []
+        bcc_recipients = []
+        if message.bcc:
+            for addr in message.bcc:
+                try:
+                    validated_addr = extract_and_validate_email(addr)
+                    bcc_recipients.append({"emailAddress": {"address": validated_addr}})
+                except ValidationError:
+                    logger.warning(f"Skipping invalid BCC email: {addr}")
 
         # Determinar content type
         content_type = "HTML" if message.content_subtype == "html" else "Text"

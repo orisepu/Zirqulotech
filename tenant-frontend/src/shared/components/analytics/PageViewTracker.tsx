@@ -26,21 +26,6 @@ export function PageViewTracker() {
   const searchParams = useSearchParams();
   const usuario = useUsuarioActual();
 
-  // Configurar user properties cuando el usuario esté disponible
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') return;
-    if (!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID) return;
-    if (!usuario) return;
-
-    setUserProperties(
-      usuario.id,
-      usuario.rol_actual || undefined,
-      usuario.tenant?.schema || undefined,
-      usuario.tenant?.name || undefined,
-      usuario.tenant?.es_demo
-    );
-  }, [usuario]);
-
   // Actualizar título de la página con el nombre del tenant
   useEffect(() => {
     if (!usuario?.tenant?.name) return;
@@ -50,24 +35,41 @@ export function PageViewTracker() {
     document.title = `${baseTitle} - ${tenantName}`;
   }, [usuario]);
 
-  // Track pageviews
+  // ✅ Configurar user properties Y track pageviews (combinados para evitar race condition)
   useEffect(() => {
     // Solo track en producción y si GA está configurado
     if (process.env.NODE_ENV !== 'production') return;
     if (!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID) return;
 
-    // Construir URL completa con query params
-    const url = searchParams?.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
+    // Función async para ejecutar en orden correcto
+    const trackPageView = async () => {
+      // 1. Primero configurar user properties si tenemos usuario
+      if (usuario) {
+        await setUserProperties(
+          usuario.id,
+          usuario.rol_actual || undefined,
+          usuario.tenant?.schema || undefined,
+          usuario.tenant?.name || undefined,
+          usuario.tenant?.es_demo
+        );
+      }
 
-    // Enviar pageview con datos enriquecidos del usuario
-    pageview(url, {
-      user_id: usuario?.id,
-      user_role: usuario?.rol_actual || undefined,
-      tenant_schema: usuario?.tenant?.schema || undefined,
-      tenant_name: usuario?.tenant?.name || undefined,
-      is_demo: usuario?.tenant?.es_demo,
+      // 2. Luego enviar pageview con datos enriquecidos
+      const url = searchParams?.toString()
+        ? `${pathname}?${searchParams.toString()}`
+        : pathname;
+
+      await pageview(url, {
+        user_id: usuario?.id,
+        user_role: usuario?.rol_actual || undefined,
+        tenant_schema: usuario?.tenant?.schema || undefined,
+        tenant_name: usuario?.tenant?.name || undefined,
+        is_demo: usuario?.tenant?.es_demo,
+      });
+    };
+
+    trackPageView().catch(err => {
+      console.error('[PageViewTracker] Error tracking pageview:', err);
     });
   }, [pathname, searchParams, usuario]);
 

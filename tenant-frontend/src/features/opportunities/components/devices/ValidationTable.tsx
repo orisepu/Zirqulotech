@@ -126,13 +126,15 @@ export function ValidationTable({
 
   // Helper: Detectar si hay cambio de precio
   const hasPriceChange = (item: ValidationItem): boolean => {
-    if (!item.mapping_metadata?.is_mapped || !item.mapped_info) return false
+    // ✅ Null checks críticos para evitar runtime errors
+    if (!item.mapping_metadata?.is_mapped || !item.mapped_info || !item.likewize_info) return false
 
     const precioLikewize = item.likewize_info.precio_b2b
     const precioActual = item.mapped_info.precio_actual
 
-    // Si no hay precio actual, consideramos que hay cambio
+    // Si no hay precio actual o likewize, consideramos que hay cambio
     if (precioActual === null || precioActual === undefined) return true
+    if (precioLikewize === null || precioLikewize === undefined) return true
 
     // Comparar precios (tolerancia de 0.01€ para errores de redondeo)
     return Math.abs(precioLikewize - precioActual) > 0.01
@@ -175,6 +177,8 @@ export function ValidationTable({
 
       // Filtro por tipo de dispositivo
       if (deviceTypeFilter !== 'all') {
+        // ✅ Null check para evitar acceso a propiedades de undefined
+        if (!item.likewize_info) return false
         const extractedType = extractDeviceType(item.likewize_info.modelo_raw || item.likewize_info.modelo_norm)
         if (extractedType !== deviceTypeFilter) {
           return false
@@ -184,8 +188,11 @@ export function ValidationTable({
       // Búsqueda por texto
       if (searchQuery) {
         const query = searchQuery.toLowerCase()
-        const matchLikewize = item.likewize_info.modelo_raw?.toLowerCase().includes(query) ||
-                             item.likewize_info.modelo_norm?.toLowerCase().includes(query)
+        // ✅ Null check para likewize_info antes de acceder a sus propiedades
+        const matchLikewize = item.likewize_info ? (
+          item.likewize_info.modelo_raw?.toLowerCase().includes(query) ||
+          item.likewize_info.modelo_norm?.toLowerCase().includes(query)
+        ) : false
         const matchMapped = item.mapped_info?.modelo_descripcion?.toLowerCase().includes(query)
         if (!matchLikewize && !matchMapped) return false
       }
@@ -445,10 +452,10 @@ export function ValidationTable({
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Typography variant="body2" fontWeight="medium">
-                            {item.likewize_info.modelo_norm}
+                            {item.likewize_info?.modelo_norm || 'N/A'}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {extractDeviceType(item.likewize_info.modelo_raw || item.likewize_info.modelo_norm)} • {item.likewize_info.almacenamiento_gb}GB
+                            {item.likewize_info ? `${extractDeviceType(item.likewize_info.modelo_raw || item.likewize_info.modelo_norm)} • ${item.likewize_info.almacenamiento_gb}GB` : 'N/A'}
                           </Typography>
                         </Stack>
                       </TableCell>
@@ -483,7 +490,7 @@ export function ValidationTable({
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Typography variant="body2">
-                            {formatPrice(item.likewize_info.precio_b2b)}
+                            {item.likewize_info?.precio_b2b !== undefined ? formatPrice(item.likewize_info.precio_b2b) : 'N/A'}
                           </Typography>
                           {isMapped && item.mapped_info?.precio_actual && (
                             <Typography variant="caption" color="text.secondary">
@@ -552,19 +559,19 @@ export function ValidationTable({
                                 </Typography>
                                 <Stack spacing={0.5}>
                                   <Typography variant="caption">
-                                    <strong>Nombre Original:</strong> {item.likewize_info.modelo_raw}
+                                    <strong>Nombre Original:</strong> {item.likewize_info?.modelo_raw || 'N/A'}
                                   </Typography>
                                   <Typography variant="caption">
-                                    <strong>Código Likewize:</strong> {item.likewize_info.likewize_model_code || 'N/A'}
+                                    <strong>Código Likewize:</strong> {item.likewize_info?.likewize_model_code || 'N/A'}
                                   </Typography>
                                   <Typography variant="caption">
-                                    <strong>A-Number:</strong> {item.likewize_info.a_number || 'N/A'}
+                                    <strong>A-Number:</strong> {item.likewize_info?.a_number || 'N/A'}
                                   </Typography>
                                   <Typography variant="caption">
-                                    <strong>Año:</strong> {item.likewize_info.any || 'N/A'}
+                                    <strong>Año:</strong> {item.likewize_info?.any || 'N/A'}
                                   </Typography>
                                   <Typography variant="caption">
-                                    <strong>CPU:</strong> {item.likewize_info.cpu || 'N/A'}
+                                    <strong>CPU:</strong> {item.likewize_info?.cpu || 'N/A'}
                                   </Typography>
                                 </Stack>
                               </Box>
