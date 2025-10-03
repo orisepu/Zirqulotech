@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALERTA DE SEGURIDAD - Acceso Bloqueado</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #dc3545;
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .alert-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .critical-alert {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .critical-alert strong {
+            color: #dc3545;
+            font-size: 18px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .critical-alert p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .details-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .details-box h3 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .detail-value {
+            color: #212529;
+            text-align: right;
+        }
+        .blocked-location {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .impossible-travel-box {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .impossible-travel-box h4 {
+            margin-top: 0;
+            color: #856404;
+            font-size: 16px;
+        }
+        .travel-stat {
+            display: inline-block;
+            background-color: #ffffff;
+            border-radius: 4px;
+            padding: 10px 20px;
+            margin: 5px;
+            font-weight: 600;
+        }
+        .travel-stat-value {
+            font-size: 24px;
+            color: #dc3545;
+            display: block;
+        }
+        .travel-stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+        .actions {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            padding: 14px 30px;
+            background-color: #dc3545;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .button-secondary {
+            background-color: #007bff;
+        }
+        .security-steps {
+            background-color: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .security-steps h4 {
+            margin-top: 0;
+            color: #007bff;
+            font-size: 16px;
+        }
+        .security-steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .security-steps li {
+            margin: 10px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .urgency-badge {
+            display: inline-block;
+            background-color: #dc3545;
+            color: #ffffff;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="alert-icon">🚨</div>
+            <h1>ALERTA DE SEGURIDAD CRÍTICA</h1>
+            <p style="margin: 10px 0 0 0; font-size: 14px;">Tu cuenta ha sido bloqueada temporalmente</p>
+        </div>
+
+        <div class="content">
+            <div class="urgency-badge">⚡ ACCIÓN INMEDIATA REQUERIDA</div>
+
+            <div class="greeting">
+                Hola {{ user_name }},
+            </div>
+
+            <div class="critical-alert">
+                <strong>🔒 Hemos bloqueado un intento de acceso a tu cuenta</strong>
+                <p>Se detectó un "viaje imposible" - tu cuenta intentó accederse desde una ubicación físicamente imposible de alcanzar en el tiempo transcurrido.</p>
+            </div>
+
+            <p style="font-weight: 600; color: #dc3545;">
+                ⚠️ Esto indica que <strong>alguien más tiene tus credenciales</strong> y está intentando acceder a tu cuenta de forma fraudulenta.
+            </p>
+
+            <div class="impossible-travel-box">
+                <h4>📊 Análisis del Viaje Imposible</h4>
+                <div>
+                    <div class="travel-stat">
+                        <span class="travel-stat-value">{{ distance_km }} km</span>
+                        <span class="travel-stat-label">Distancia</span>
+                    </div>
+                    <div class="travel-stat">
+                        <span class="travel-stat-value">{{ hours }} horas</span>
+                        <span class="travel-stat-label">Tiempo transcurrido</span>
+                    </div>
+                </div>
+                <p style="margin-top: 15px; font-size: 14px; color: #856404;">
+                    <strong>Velocidad requerida: {{ distance_km|floatformat:0|add:"0" }} km / {{ hours }} h =
+                    {% widthratio distance_km hours 1 %} km/h</strong><br>
+                    (Imposible para un ser humano en transporte comercial)
+                </p>
+            </div>
+
+            <div class="details-box">
+                <h3>🚫 Intento de Acceso BLOQUEADO</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Ubicación del intento:</span>
+                    <span class="detail-value blocked-location">{{ current_city }}, {{ current_country }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Dirección IP:</span>
+                    <span class="detail-value blocked-location">{{ current_ip }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Estado:</span>
+                    <span class="detail-value blocked-location">❌ BLOQUEADO</span>
+                </div>
+            </div>
+
+            <div class="details-box">
+                <h3>✅ Tu Último Acceso Legítimo</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Ubicación:</span>
+                    <span class="detail-value">{{ last_city }}, {{ last_country }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Hace:</span>
+                    <span class="detail-value">{{ hours }} horas</span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="https://progeek.es/cambiar-password" class="button">🔐 Cambiar Contraseña AHORA</a>
+            </div>
+
+            <div class="security-steps">
+                <h4>🛡️ Pasos Inmediatos para Proteger Tu Cuenta:</h4>
+                <ol>
+                    <li><strong>CAMBIA TU CONTRASEÑA INMEDIATAMENTE</strong> - Usa el botón de arriba</li>
+                    <li><strong>Usa una contraseña DIFERENTE</strong> - No reutilices contraseñas de otros servicios</li>
+                    <li><strong>Invalida todas las sesiones activas</strong> - Desde el panel de seguridad</li>
+                    <li><strong>Revisa el historial de logins</strong> - Verifica si hay accesos que no reconoces</li>
+                    <li><strong>Revisa cambios recientes</strong> - Comprueba si se modificó algo en tu cuenta</li>
+                    <li><strong>Contacta con soporte</strong> - Envía un email a incidentes@zirqulo.com</li>
+                </ol>
+            </div>
+
+            <div class="warning-box">
+                <strong>⚠️ IMPORTANTE:</strong> Tu cuenta permanecerá bloqueada hasta que cambies tu contraseña.
+                Esto es una medida de protección para evitar que el atacante acceda a tus datos de clientes y operaciones.
+            </div>
+
+            <div class="actions">
+                <a href="https://progeek.es/historial-logins" class="button button-secondary">Ver Historial Completo</a>
+                <a href="mailto:incidentes@zirqulo.com" class="button button-secondary">Contactar Soporte</a>
+            </div>
+
+            <p style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+                <strong>¿Cómo detectamos esto?</strong><br>
+                Zirqulo Partners utiliza un sistema avanzado de seguridad basado en geolocalización (GeoLite2).
+                Cuando detectamos que una cuenta intenta accederse desde dos ubicaciones físicamente imposibles de alcanzar
+                en el tiempo transcurrido (más de {{ distance_km|floatformat:0 }} km en menos de {{ hours|floatformat:1 }} horas),
+                bloqueamos automáticamente el acceso y te notificamos.
+            </p>
+
+            <p style="margin-top: 20px; font-size: 14px; color: #6c757d;">
+                <strong>¿Esto fue un error?</strong><br>
+                Si estás seguro de que ambos accesos fueron tuyos (por ejemplo, si usas una VPN que cambia tu ubicación),
+                contacta con soporte para revisar tu caso. Sin embargo, te recomendamos cambiar tu contraseña de todas formas
+                como medida preventiva.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p style="color: #dc3545; font-weight: 600;">
+                🚨 ESTE ES UN EMAIL DE SEGURIDAD CRÍTICA 🚨
+            </p>
+            <p>
+                No ignores este mensaje. Tu cuenta y los datos de tus clientes pueden estar en riesgo.<br>
+                Contacta con <a href="mailto:incidentes@zirqulo.com">incidentes@zirqulo.com</a> si necesitas ayuda urgente.
+            </p>
+            <p>
+                © 2025 Zirqulo Partners. Todos los derechos reservados.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -15,7 +15,11 @@ from productos.models import TareaActualizacionLikewize, LikewizeItemStaging
 from productos.models.autoaprendizaje import LearningSession
 from productos.services.auto_learning_engine_v3 import AutoLearningEngine
 from productos.services.feedback_system_v3 import FeedbackSystem
-from productos.services.metadata_extractors import AppleMetadataExtractor
+from productos.services.metadata_extractors import (
+    AppleMetadataExtractor,
+    GoogleMetadataExtractor,
+    SamsungMetadataExtractor
+)
 from productos.likewize_config import get_apple_presets, get_extra_presets
 
 logger = logging.getLogger(__name__)
@@ -163,21 +167,26 @@ class Command(BaseCommand):
         tarea.save()
 
         # 1. Obtener cookies
+        tarea.add_log("🔑 Obteniendo cookies de Likewize...", "INFO")
         cookies = await self._get_cookies()
+        tarea.add_log(f"✅ Cookies obtenidas exitosamente", "SUCCESS")
         self.stdout.write("Cookies obtenidas exitosamente")
 
         # 2. Obtener datos de Likewize
         tarea.subestado = "Descargando datos de Likewize"
+        tarea.add_log("📥 Descargando datos de Likewize...", "INFO")
         tarea.save()
 
         likewize_data = await self._fetch_likewize_data(
             cookies, options, tarea
         )
 
+        tarea.add_log(f"✅ Descargados {len(likewize_data)} items de Likewize", "SUCCESS")
         self.stdout.write(f"Descargados {len(likewize_data)} items de Likewize")
 
         # 3. Procesar con autoaprendizaje
         tarea.subestado = "Procesando con autoaprendizaje"
+        tarea.add_log(f"🤖 Procesando {len(likewize_data)} items con autoaprendizaje...", "INFO")
         tarea.save()
 
         processed_items = await self._process_with_learning(
@@ -187,11 +196,14 @@ class Command(BaseCommand):
         # 4. Guardar en staging
         if not options['dry_run']:
             tarea.subestado = "Guardando en staging"
+            tarea.add_log(f"💾 Guardando {len(processed_items)} items en staging...", "INFO")
             tarea.save()
 
             await self._save_to_staging(processed_items, tarea, learning_session)
+            tarea.add_log(f"✅ Items guardados en staging correctamente", "SUCCESS")
 
         tarea.subestado = "Completado"
+        tarea.add_log("🎉 Actualización V3 completada exitosamente", "SUCCESS")
         tarea.save()
 
     async def _get_cookies(self) -> Dict[str, str]:
@@ -260,17 +272,20 @@ class Command(BaseCommand):
                     tarea.progreso = progress
                     tarea.save()
 
+                    marca = preset.get('marca', 'Unknown')
+                    tarea.add_log(f"⏳ Procesando {marca}...", "INFO")
                     preset_data = await self._fetch_preset_data(session, preset)
                     all_data.extend(preset_data)
 
                     processed_presets += 1
 
+                    tarea.add_log(f"✅ {marca}: {len(preset_data)} items descargados", "SUCCESS")
                     self.stdout.write(
-                        f"Procesado preset {preset.get('marca', 'Unknown')}: "
-                        f"{len(preset_data)} items"
+                        f"Procesado preset {marca}: {len(preset_data)} items"
                     )
 
                 except Exception as e:
+                    tarea.add_log(f"❌ Error procesando {preset.get('marca', 'Unknown')}: {str(e)}", "ERROR")
                     logger.error(f"Error procesando preset {preset}: {e}")
                     continue
 
@@ -331,6 +346,18 @@ class Command(BaseCommand):
 
         except Exception as e:
             logger.error(f"Error en fetch_preset_data: {e}")
+
+        # Filtrar modelos excluidos (variantes regionales no europeas)
+        exclude_list = preset.get('exclude_m_models', [])
+        if exclude_list:
+            original_count = len(data)
+            data = [
+                item for item in data
+                if item.get('M_Model') not in exclude_list
+            ]
+            filtered_count = original_count - len(data)
+            if filtered_count > 0:
+                logger.info(f"Filtrados {filtered_count} modelos excluidos de {preset.get('marca', 'Unknown')}")
 
         return data
 
@@ -406,13 +433,22 @@ class Command(BaseCommand):
 
                 # Mostrar progreso cada 100 items
                 if processed_count % 100 == 0:
+                    progress_pct = int((processed_count / total_items) * 100)
+                    mapped_total = predicted_count + learned_count
+                    avg_conf = self._calculate_avg_confidence(processed_items)
+                    tarea.add_log(
+                        f"🔄 Procesados {processed_count}/{total_items} items ({progress_pct}%) - "
+                        f"Mapeados: {mapped_total}, Confianza: {avg_conf:.2f}",
+                        "INFO"
+                    )
                     self.stdout.write(
                         f"Procesados {processed_count}/{total_items} items. "
-                        f"Mapeados: {predicted_count + learned_count}, "
-                        f"Confianza promedio: {self._calculate_avg_confidence(processed_items):.3f}"
+                        f"Mapeados: {mapped_total}, "
+                        f"Confianza promedio: {avg_conf:.3f}"
                     )
 
             except Exception as e:
+                tarea.add_log(f"⚠️ Error procesando item: {str(e)[:100]}", "WARNING")
                 logger.error(f"Error procesando item {item.get('ModelName', 'Unknown')}: {e}")
                 continue
 
@@ -446,8 +482,12 @@ class Command(BaseCommand):
     ):
         """Guarda los items procesados en staging"""
 
-        # Inicializar extractor de metadatos
-        apple_extractor = AppleMetadataExtractor()
+        # Inicializar extractores de metadatos para cada marca
+        extractors = {
+            'apple': AppleMetadataExtractor(),
+            'google': GoogleMetadataExtractor(),
+            'samsung': SamsungMetadataExtractor(),
+        }
 
         staging_items = []
 
@@ -455,8 +495,13 @@ class Command(BaseCommand):
             likewize_item = item_data['likewize_item']
             capacidad = item_data['capacidad']
 
-            # Extraer metadatos usando AppleMetadataExtractor
-            metadata = apple_extractor.extract_metadata(likewize_item)
+            # Determinar marca y seleccionar extractor apropiado
+            brand = likewize_item.get('BrandName', 'Apple')
+            brand_key = brand.lower()
+            extractor = extractors.get(brand_key, extractors['apple'])
+
+            # Extraer metadatos usando el extractor apropiado
+            metadata = extractor.extract_metadata(likewize_item)
 
             # Crear staging item con metadatos correctos
             staging_item = LikewizeItemStaging(

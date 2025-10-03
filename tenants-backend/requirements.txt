@@ -1,3 +1,4 @@
+aiohttp==3.12.15
 anyio==4.9.0
 asgiref==3.9.0
 attrs==25.3.0
@@ -66,3 +67,6 @@ bleach
 python-decouple
 playwright
 requests
+geoip2==4.7.0
+maxminddb==2.4.0
+django-axes==7.0.0

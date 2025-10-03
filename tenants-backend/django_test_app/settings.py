@@ -54,8 +54,10 @@ SHARED_APPS = [
     "tenant_users.permissions",
     "tenant_users.tenants",
     "django_filters",
+    # Security apps
+    "axes",  # Django Axes - Protección contra fuerza bruta
+    "security",  # Sistema de seguridad con geolocalización
     # Test project apps
-    
     "progeek",
     'productos',
     'notificaciones',
@@ -79,7 +81,10 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 # django-tenant-users settings
 TENANT_USERS_DOMAIN = config("TENANT_USERS_DOMAIN", default="progeek.es")
-AUTHENTICATION_BACKENDS = ("tenant_users.permissions.backend.UserBackend",)
+AUTHENTICATION_BACKENDS = (
+    "axes.backends.AxesBackend",  # Django Axes debe estar primero
+    "tenant_users.permissions.backend.UserBackend",
+)
 AUTH_USER_MODEL = "users.TenantUser"
 
 # django-tenants settings
@@ -98,6 +103,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "axes.middleware.AxesMiddleware",  # Django Axes - Debe estar después de AuthenticationMiddleware
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -274,8 +280,75 @@ LOGGING = {
             'propagate': False,
         },
         "b2c.contratos": {
-            "handlers": ["console"], 
+            "handlers": ["console"],
             "level": "INFO"
+        },
+        'security': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }
+
+# ========================================
+# SECURITY: Geolocalización de logins
+# ========================================
+
+# GeoIP2 Database Path
+# Base de datos GeoLite2-City.mmdb para geolocalización de IPs
+GEOIP_PATH = BASE_DIR.parent / 'data' / 'geoip'
+
+# Location Security Settings
+# Sistema de detección de logins sospechosos basado en ubicación
+LOCATION_SECURITY_ENABLED = config("LOCATION_SECURITY_ENABLED", default=True, cast=bool)
+
+# Umbral de distancia en kilómetros para alertas
+# Si el usuario se mueve más de esta distancia, se envía alerta
+LOCATION_ALERT_THRESHOLD_KM = config("LOCATION_ALERT_THRESHOLD_KM", default=500, cast=int)
+
+# Umbral de tiempo en horas para detectar viajes imposibles
+# Si el usuario se mueve LOCATION_ALERT_THRESHOLD_KM en menos de estas horas, se bloquea
+LOCATION_ALERT_THRESHOLD_HOURS = config("LOCATION_ALERT_THRESHOLD_HOURS", default=4, cast=int)
+
+# ========================================
+# SECURITY: Django Axes - Protección contra fuerza bruta
+# ========================================
+
+# Configuración de Django Axes para protección contra ataques de fuerza bruta
+# Documentación: https://django-axes.readthedocs.io/
+
+# Número máximo de intentos fallidos antes de bloquear
+AXES_FAILURE_LIMIT = config("AXES_FAILURE_LIMIT", default=5, cast=int)
+
+# Tiempo de bloqueo en horas (None = permanente hasta reset manual)
+AXES_COOLOFF_TIME = config("AXES_COOLOFF_TIME", default=1, cast=int)  # 1 hora
+
+# Bloquear por combinación de username + IP (más seguro)
+AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True
+
+# Usar modelo de usuario personalizado
+AXES_USERNAME_FORM_FIELD = "email"  # TenantUser usa 'email' en lugar de 'username'
+
+# Lockout basado en IP (si True, bloquea toda la IP tras X intentos)
+AXES_ONLY_USER_FAILURES = False  # False = bloquea IP + usuario
+
+# Resetear intentos tras login exitoso
+AXES_RESET_ON_SUCCESS = True
+
+# Registrar intentos de acceso en la base de datos
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+
+# Verbose logging
+AXES_VERBOSE = True
+
+# No bloquear IPs de whitelist (localhost, IPs privadas)
+AXES_NEVER_LOCKOUT_WHITELIST = True
+AXES_IP_WHITELIST = ['127.0.0.1', 'localhost']
+
+# Handler personalizado para lockout
+# AXES_LOCKOUT_TEMPLATE = None  # Usa respuesta JSON por defecto
+# AXES_LOCKOUT_URL = None  # Usa respuesta JSON por defecto
+
+# Cache backend (usar redis en producción para mejor rendimiento)
+AXES_CACHE = 'default'

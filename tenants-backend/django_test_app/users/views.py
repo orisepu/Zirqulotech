@@ -8,6 +8,10 @@ from django_test_app.companies.models import Company
 from tenant_users.permissions.models import UserTenantPermissions
 from checkouters.models.tienda import UserTenantExtension
 from progeek.models import UserGlobalRole
+from security.services import LocationSecurityService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TenantLoginView(APIView):
     def post(self, request):
@@ -21,7 +25,7 @@ class TenantLoginView(APIView):
         # ✅ Login como usuario interno si empresa == 'zirqulotech''
         if empresa and empresa.lower() == "zirqulotech":
             with schema_context("public"):
-                return self.login_user_in_schema(email, password)
+                return self.login_user_in_schema(email, password, request)
 
         if not empresa:
             return Response({"detail": "Falta el campo empresa."}, status=status.HTTP_400_BAD_REQUEST)
@@ -34,9 +38,9 @@ class TenantLoginView(APIView):
 
         # 🏗 Login en schema del tenant
         with schema_context(tenant.schema_name):
-            return self.login_user_in_schema(email, password, tenant)
+            return self.login_user_in_schema(email, password, request, tenant)
 
-    def login_user_in_schema(self, email, password, tenant=None):
+    def login_user_in_schema(self, email, password, request, tenant=None):
         UserModel = get_user_model()
         try:
             user = UserModel.objects.get(email=email)
@@ -48,6 +52,34 @@ class TenantLoginView(APIView):
 
         if not user.is_active:
             return Response({"detail": "Usuario inactivo."}, status=status.HTTP_403_FORBIDDEN)
+
+        # 🔐 VERIFICACIÓN DE SEGURIDAD BASADA EN UBICACIÓN (GeoLite2)
+        try:
+            security_service = LocationSecurityService()
+            security_check = security_service.check_login_security(user, request)
+
+            if security_check == 'BLOCK':
+                logger.warning(f"Login BLOCKED for {user.email} due to impossible travel")
+                return Response({
+                    'detail': 'Login bloqueado por razones de seguridad. '
+                              'Se ha enviado un email a tu cuenta con más información.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            elif security_check == 'REQUIRE_2FA':
+                logger.info(f"Login from unusual location for {user.email}, requiring additional verification")
+                return Response({
+                    'detail': 'Se detectó un login desde una ubicación inusual. '
+                              'Por seguridad, verifica tu email para continuar.',
+                    'require_verification': True
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
+            # security_check == True: Login exitoso, continuar
+            logger.info(f"Successful login for {user.email}")
+
+        except Exception as e:
+            # Si hay error en la verificación de ubicación, permitir login pero registrar el error
+            logger.error(f"Error in location security check for {user.email}: {e}")
+            # Continuar con el login normal
 
         # ⛔ Validar permisos solo si estamos en un schema de tenant
         if tenant:

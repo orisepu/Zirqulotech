@@ -23,12 +23,24 @@ class TareaActualizacionLikewize(models.Model):
     progreso = models.PositiveSmallIntegerField(default=0)       # 0..100
     subestado = models.CharField(max_length=120, blank=True, default="")
     meta = models.JSONField(default=dict, blank=True)
+    logs = models.JSONField(default=list, blank=True)  # Lista de objetos {timestamp, level, message}
 
     class Meta:
         db_table = "precios_tarea_actualizacion_likewize"
 
     def __str__(self):
         return f"{self.id} [{self.estado}]"
+
+    def add_log(self, message: str, level: str = 'INFO'):
+        """Añade un log con timestamp a la lista de logs"""
+        if not isinstance(self.logs, list):
+            self.logs = []
+        self.logs.append({
+            'timestamp': timezone.now().isoformat(),
+            'level': level,
+            'message': message
+        })
+        self.save(update_fields=['logs'])
     
 class LikewizeItemStaging(models.Model):
     """
