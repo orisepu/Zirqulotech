@@ -15,7 +15,11 @@ from productos.models import TareaActualizacionLikewize, LikewizeItemStaging
 from productos.models.autoaprendizaje import LearningSession
 from productos.services.auto_learning_engine_v3 import AutoLearningEngine
 from productos.services.feedback_system_v3 import FeedbackSystem
-from productos.services.metadata_extractors import AppleMetadataExtractor
+from productos.services.metadata_extractors import (
+    AppleMetadataExtractor,
+    GoogleMetadataExtractor,
+    SamsungMetadataExtractor
+)
 from productos.likewize_config import get_apple_presets, get_extra_presets
 
 logger = logging.getLogger(__name__)
@@ -332,6 +336,18 @@ class Command(BaseCommand):
         except Exception as e:
             logger.error(f"Error en fetch_preset_data: {e}")
 
+        # Filtrar modelos excluidos (variantes regionales no europeas)
+        exclude_list = preset.get('exclude_m_models', [])
+        if exclude_list:
+            original_count = len(data)
+            data = [
+                item for item in data
+                if item.get('M_Model') not in exclude_list
+            ]
+            filtered_count = original_count - len(data)
+            if filtered_count > 0:
+                logger.info(f"Filtrados {filtered_count} modelos excluidos de {preset.get('marca', 'Unknown')}")
+
         return data
 
     async def _fetch_model_capacities(
@@ -446,8 +462,12 @@ class Command(BaseCommand):
     ):
         """Guarda los items procesados en staging"""
 
-        # Inicializar extractor de metadatos
-        apple_extractor = AppleMetadataExtractor()
+        # Inicializar extractores de metadatos para cada marca
+        extractors = {
+            'apple': AppleMetadataExtractor(),
+            'google': GoogleMetadataExtractor(),
+            'samsung': SamsungMetadataExtractor(),
+        }
 
         staging_items = []
 
@@ -455,8 +475,13 @@ class Command(BaseCommand):
             likewize_item = item_data['likewize_item']
             capacidad = item_data['capacidad']
 
-            # Extraer metadatos usando AppleMetadataExtractor
-            metadata = apple_extractor.extract_metadata(likewize_item)
+            # Determinar marca y seleccionar extractor apropiado
+            brand = likewize_item.get('BrandName', 'Apple')
+            brand_key = brand.lower()
+            extractor = extractors.get(brand_key, extractors['apple'])
+
+            # Extraer metadatos usando el extractor apropiado
+            metadata = extractor.extract_metadata(likewize_item)
 
             # Crear staging item con metadatos correctos
             staging_item = LikewizeItemStaging(

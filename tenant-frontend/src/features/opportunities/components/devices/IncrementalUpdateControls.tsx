@@ -2,11 +2,14 @@
 
 import {
   Card, CardHeader, CardContent, Button, Stack, Typography, Alert,
-  FormControlLabel, Switch, Box, LinearProgress
+  FormControlLabel, Switch, Box, LinearProgress, Chip
 } from '@mui/material'
 import {
   PlayArrow as PlayIcon,
-  Update as UpdateIcon
+  Update as UpdateIcon,
+  Apple as AppleIcon,
+  PhoneAndroid as AndroidIcon,
+  SelectAll as SelectAllIcon
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useDeviceMappingEnhanced } from '@/shared/hooks/useDeviceMappingEnhanced'
@@ -24,7 +27,7 @@ export default function IncrementalUpdateControls({
 }: IncrementalUpdateControlsProps) {
   const [incrementalMode, setIncrementalMode] = useState(true)
   const [forceFullUpdate, setForceFullUpdate] = useState(false)
-  const [selectedBrands] = useState<string[]>([])
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(['Apple']) // Pre-seleccionar Apple
 
   const {
     useEnhancedLikewizeUpdate,
@@ -42,18 +45,39 @@ export default function IncrementalUpdateControls({
     return 'Error desconocido'
   }
 
-  const handleEnhancedUpdate = async (mode: 'apple' | 'others') => {
+  const toggleBrand = (brand: string) => {
+    setSelectedBrands(prev =>
+      prev.includes(brand)
+        ? prev.filter(b => b !== brand)
+        : [...prev, brand]
+    )
+  }
+
+  const handleSelectAll = () => {
+    setSelectedBrands(prev =>
+      prev.length === 3 ? [] : ['Apple', 'Google', 'Samsung']
+    )
+  }
+
+  const handleUnifiedUpdate = async () => {
+    // Determinar mode basado en selección
+    const mode = selectedBrands.includes('Apple') && selectedBrands.length === 1
+      ? 'apple'
+      : 'others'
+
+    const brands = mode === 'others' ? selectedBrands : undefined
+
     try {
       const result = await enhancedUpdate.mutateAsync({
         mode,
-        brands: selectedBrands.length > 0 ? selectedBrands : undefined,
+        brands,
         incremental: incrementalMode,
         force_full: forceFullUpdate
       })
 
       onUpdate?.(result)
     } catch (error) {
-      console.error('Error in enhanced update:', error)
+      console.error('Error in unified update:', error)
     }
   }
 
@@ -130,6 +154,51 @@ export default function IncrementalUpdateControls({
             </Stack>
           </Box>
 
+          {/* Selector de Marcas */}
+          <Box>
+            <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+              Marcas a Actualizar
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip
+                label="Apple"
+                icon={<AppleIcon />}
+                clickable
+                color={selectedBrands.includes('Apple') ? 'primary' : 'default'}
+                variant={selectedBrands.includes('Apple') ? 'filled' : 'outlined'}
+                onClick={() => toggleBrand('Apple')}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="Google"
+                icon={<AndroidIcon />}
+                clickable
+                color={selectedBrands.includes('Google') ? 'primary' : 'default'}
+                variant={selectedBrands.includes('Google') ? 'filled' : 'outlined'}
+                onClick={() => toggleBrand('Google')}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="Samsung"
+                icon={<AndroidIcon />}
+                clickable
+                color={selectedBrands.includes('Samsung') ? 'primary' : 'default'}
+                variant={selectedBrands.includes('Samsung') ? 'filled' : 'outlined'}
+                onClick={() => toggleBrand('Samsung')}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="Todas"
+                icon={<SelectAllIcon />}
+                clickable
+                color={selectedBrands.length === 3 ? 'secondary' : 'default'}
+                variant={selectedBrands.length === 3 ? 'filled' : 'outlined'}
+                onClick={handleSelectAll}
+                sx={{ cursor: 'pointer' }}
+              />
+            </Stack>
+          </Box>
+
           {/* Botones de Actualización */}
           <Box>
             <Typography variant="subtitle2" gutterBottom fontWeight={600}>
@@ -140,22 +209,13 @@ export default function IncrementalUpdateControls({
                 variant="contained"
                 size="large"
                 startIcon={<UpdateIcon />}
-                onClick={() => handleEnhancedUpdate('apple')}
-                disabled={disabled || isProcessing}
+                onClick={handleUnifiedUpdate}
+                disabled={disabled || isProcessing || selectedBrands.length === 0}
                 color="primary"
               >
-                {isProcessing ? 'Procesando...' : 'Actualizar Apple'}
-              </Button>
-
-              <Button
-                variant="contained"
-                size="large"
-                color="secondary"
-                startIcon={<UpdateIcon />}
-                onClick={() => handleEnhancedUpdate('others')}
-                disabled={disabled || isProcessing || selectedBrands.length === 0}
-              >
-                {isProcessing ? 'Procesando...' : 'Actualizar Otras Marcas'}
+                {isProcessing
+                  ? 'Procesando...'
+                  : `Actualizar ${selectedBrands.length === 3 ? 'Todas' : selectedBrands.join(', ')}`}
               </Button>
 
               {tareaId && (
