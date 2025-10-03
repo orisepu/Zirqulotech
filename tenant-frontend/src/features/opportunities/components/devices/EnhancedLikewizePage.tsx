@@ -108,7 +108,7 @@ export function EnhancedLikewizePage({
       return data as {
         estado: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'ERROR'
         error_message?: string
-        logs?: Array<{ timestamp: string; level: string; message: string }>
+        logs?: Array<{ timestamp: string; level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'; message: string }>
       }
     },
     enabled: !!activeTaskId,

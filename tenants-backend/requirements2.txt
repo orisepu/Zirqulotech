@@ -35,3 +35,4 @@ zopfli==0.2.3.post1
 geoip2==4.7.0
 maxminddb==2.4.0
 django-axes==7.0.0
+msal

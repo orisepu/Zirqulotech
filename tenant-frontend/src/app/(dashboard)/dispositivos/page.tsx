@@ -37,7 +37,7 @@ import UpdateIcon from '@mui/icons-material/Update'
 import BusinessIcon from '@mui/icons-material/Business'
 import PersonIcon from '@mui/icons-material/Person'
 import PercentIcon from '@mui/icons-material/Percent'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Dayjs } from 'dayjs'
 import { useRouter } from 'next/navigation'
 import api from '@/services/api'
@@ -200,7 +200,6 @@ export default function AdminCapacidadesTablaReactiva() {
   const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['admin-capacidades', params],
     queryFn: () => fetchCapacidades(params),
-    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   })
@@ -276,7 +275,7 @@ export default function AdminCapacidadesTablaReactiva() {
     onSuccess: async () => {
       setOpenSetPrice(false)
       setSnack({ open: true, msg: 'Precio guardado', sev: 'success' })
-      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades', params], exact: true })
     },
     onError: (e: any) => {
       setSnack({ open: true, msg: e?.message || 'Error guardando', sev: 'error' })
@@ -333,7 +332,7 @@ export default function AdminCapacidadesTablaReactiva() {
       setSnack({ open: true, msg, sev: 'success' })
       closeEditDatos()
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-capacidades'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-capacidades', params], exact: true }),
         queryClient.invalidateQueries({ queryKey: ['tipos-modelo'] }),
         queryClient.invalidateQueries({ queryKey: ['marcas-modelo'] }),
       ])
@@ -349,7 +348,7 @@ export default function AdminCapacidadesTablaReactiva() {
     },
     onSuccess: async (_, variables) => {
       setSnack({ open: true, msg: variables.nextActivo ? 'Capacidad activada' : 'Capacidad desactivada', sev: 'success' })
-      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades', params], exact: true })
     },
     onError: (e: any) => {
       setSnack({ open: true, msg: e?.message || 'Error cambiando estado', sev: 'error' })
@@ -362,7 +361,7 @@ export default function AdminCapacidadesTablaReactiva() {
       setOpenBulkAdjust(false)
       const msg = `Ajuste aplicado: ${data.total_actualizados} precios actualizados${data.total_errores > 0 ? `, ${data.total_errores} errores` : ''}`
       setSnack({ open: true, msg, sev: data.total_errores > 0 ? 'warning' as 'success' : 'success' })
-      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin-capacidades', params], exact: true })
     },
     onError: (e: any) => {
       setSnack({ open: true, msg: e?.message || 'Error aplicando ajuste', sev: 'error' })

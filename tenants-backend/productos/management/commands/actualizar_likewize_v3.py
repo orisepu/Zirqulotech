@@ -9,7 +9,11 @@ from typing import Dict, List, Optional
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.db import transaction
+from django.db import models
+from django.apps import apps
+from django.conf import settings
 from playwright.async_api import async_playwright
+from asgiref.sync import sync_to_async
 
 from productos.models import TareaActualizacionLikewize, LikewizeItemStaging
 from productos.models.autoaprendizaje import LearningSession
@@ -21,6 +25,7 @@ from productos.services.metadata_extractors import (
     SamsungMetadataExtractor
 )
 from productos.likewize_config import get_apple_presets, get_extra_presets
+from productos.management.commands.actualizar_likewize import resolver_capacidad_id
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +107,10 @@ class Command(BaseCommand):
                 }
             )
 
-            # Ejecutar actualización asíncrona
-            asyncio.run(self._run_update_async(
+            # Ejecutar actualización (síncrona con async donde sea necesario)
+            self._run_update(
                 tarea, learning_engine, learning_session, options
-            ))
+            )
 
             # Calcular métricas finales
             learning_session.calculate_metrics()
@@ -151,14 +156,14 @@ class Command(BaseCommand):
             }
         )
 
-    async def _run_update_async(
+    def _run_update(
         self,
         tarea: TareaActualizacionLikewize,
         learning_engine: AutoLearningEngine,
         learning_session: LearningSession,
         options: Dict
     ):
-        """Ejecuta la actualización de forma asíncrona"""
+        """Ejecuta la actualización (síncrona con async donde sea necesario)"""
 
         # Actualizar estado
         tarea.estado = "RUNNING"
@@ -166,40 +171,40 @@ class Command(BaseCommand):
         tarea.subestado = "Obteniendo cookies"
         tarea.save()
 
-        # 1. Obtener cookies
+        # 1. Obtener cookies (async)
         tarea.add_log("🔑 Obteniendo cookies de Likewize...", "INFO")
-        cookies = await self._get_cookies()
+        cookies = asyncio.run(self._get_cookies())
         tarea.add_log(f"✅ Cookies obtenidas exitosamente", "SUCCESS")
         self.stdout.write("Cookies obtenidas exitosamente")
 
-        # 2. Obtener datos de Likewize
+        # 2. Obtener datos de Likewize (async)
         tarea.subestado = "Descargando datos de Likewize"
         tarea.add_log("📥 Descargando datos de Likewize...", "INFO")
         tarea.save()
 
-        likewize_data = await self._fetch_likewize_data(
+        likewize_data = asyncio.run(self._fetch_likewize_data(
             cookies, options, tarea
-        )
+        ))
 
         tarea.add_log(f"✅ Descargados {len(likewize_data)} items de Likewize", "SUCCESS")
         self.stdout.write(f"Descargados {len(likewize_data)} items de Likewize")
 
-        # 3. Procesar con autoaprendizaje
+        # 3. Procesar con autoaprendizaje (síncrono)
         tarea.subestado = "Procesando con autoaprendizaje"
         tarea.add_log(f"🤖 Procesando {len(likewize_data)} items con autoaprendizaje...", "INFO")
         tarea.save()
 
-        processed_items = await self._process_with_learning(
-            likewize_data, learning_engine, learning_session, options
+        processed_items = self._process_with_learning(
+            likewize_data, learning_engine, learning_session, options, tarea
         )
 
-        # 4. Guardar en staging
+        # 4. Guardar en staging (síncrono)
         if not options['dry_run']:
             tarea.subestado = "Guardando en staging"
             tarea.add_log(f"💾 Guardando {len(processed_items)} items en staging...", "INFO")
             tarea.save()
 
-            await self._save_to_staging(processed_items, tarea, learning_session)
+            self._save_to_staging(processed_items, tarea, learning_session)
             tarea.add_log(f"✅ Items guardados en staging correctamente", "SUCCESS")
 
         tarea.subestado = "Completado"
@@ -270,22 +275,22 @@ class Command(BaseCommand):
                     # Actualizar progreso
                     progress = int((processed_presets / total_presets) * 100)
                     tarea.progreso = progress
-                    tarea.save()
+                    await sync_to_async(tarea.save)()
 
                     marca = preset.get('marca', 'Unknown')
-                    tarea.add_log(f"⏳ Procesando {marca}...", "INFO")
+                    await sync_to_async(tarea.add_log)(f"⏳ Procesando {marca}...", "INFO")
                     preset_data = await self._fetch_preset_data(session, preset)
                     all_data.extend(preset_data)
 
                     processed_presets += 1
 
-                    tarea.add_log(f"✅ {marca}: {len(preset_data)} items descargados", "SUCCESS")
+                    await sync_to_async(tarea.add_log)(f"✅ {marca}: {len(preset_data)} items descargados", "SUCCESS")
                     self.stdout.write(
                         f"Procesado preset {marca}: {len(preset_data)} items"
                     )
 
                 except Exception as e:
-                    tarea.add_log(f"❌ Error procesando {preset.get('marca', 'Unknown')}: {str(e)}", "ERROR")
+                    await sync_to_async(tarea.add_log)(f"❌ Error procesando {preset.get('marca', 'Unknown')}: {str(e)}", "ERROR")
                     logger.error(f"Error procesando preset {preset}: {e}")
                     continue
 
@@ -384,12 +389,13 @@ class Command(BaseCommand):
             logger.error(f"Error en fetch_model_capacities para {master_model_id}: {e}")
             return []
 
-    async def _process_with_learning(
+    def _process_with_learning(
         self,
         likewize_data: List[Dict],
         learning_engine: AutoLearningEngine,
         learning_session: LearningSession,
-        options: Dict
+        options: Dict,
+        tarea: TareaActualizacionLikewize
     ) -> List[Dict]:
         """Procesa los datos con el sistema de autoaprendizaje"""
 
@@ -403,6 +409,17 @@ class Command(BaseCommand):
         learned_count = 0
         predicted_count = 0
 
+        # Obtener modelos para mapeo tradicional
+        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
+        equivalencias = {}  # Puede poblarse desde la BD si existe tabla de equivalencias
+
+        # Inicializar extractores de metadatos
+        extractors = {
+            'apple': AppleMetadataExtractor(),
+            'google': GoogleMetadataExtractor(),
+            'samsung': SamsungMetadataExtractor(),
+        }
+
         for item in likewize_data:
             try:
                 # Extraer precio
@@ -412,6 +429,32 @@ class Command(BaseCommand):
 
                 # Intentar mapeo con autoaprendizaje
                 capacidad, confidence, match_type = learning_engine.predict_mapping(item)
+
+                # Si no encontró mapeo, usar sistema tradicional como fallback
+                if not capacidad:
+                    # Seleccionar extractor apropiado
+                    brand = (item.get('BrandName') or 'Apple').lower()
+                    extractor = extractors.get(brand, extractors['apple'])
+                    metadata = extractor.extract_metadata(item)
+
+                    capacidad_id = resolver_capacidad_id(
+                        modelo_norm=metadata.model_normalized or '',
+                        almacenamiento_gb=metadata.capacity_gb,
+                        equivalencias=equivalencias,
+                        a_number=metadata.a_number,
+                        pulgadas=metadata.screen_size,
+                        anio=metadata.year,
+                        cpu=metadata.cpu or '',
+                        tipo=metadata.device_type,
+                        marca=metadata.brand,
+                        likewize_code=metadata.likewize_model_code,
+                        likewize_code_raw=item.get('M_Model')
+                    )
+
+                    if capacidad_id:
+                        capacidad = CapacidadModel.objects.filter(id=capacidad_id).first()
+                        confidence = 0.85  # Confianza alta para mapeo tradicional
+                        match_type = 'traditional_fallback'
 
                 processed_item = {
                     'likewize_item': item,
@@ -474,7 +517,7 @@ class Command(BaseCommand):
         confidences = [item['confidence'] for item in processed_items if item['capacidad']]
         return sum(confidences) / len(confidences) if confidences else 0.0
 
-    async def _save_to_staging(
+    def _save_to_staging(
         self,
         processed_items: List[Dict],
         tarea: TareaActualizacionLikewize,
@@ -496,7 +539,7 @@ class Command(BaseCommand):
             capacidad = item_data['capacidad']
 
             # Determinar marca y seleccionar extractor apropiado
-            brand = likewize_item.get('BrandName', 'Apple')
+            brand = likewize_item.get('BrandName') or 'Apple'
             brand_key = brand.lower()
             extractor = extractors.get(brand_key, extractors['apple'])
 
@@ -507,7 +550,7 @@ class Command(BaseCommand):
             staging_item = LikewizeItemStaging(
                 tarea=tarea,
                 tipo=metadata.device_type,  # ✅ Usa tipo específico (Mac Pro, MacBook Pro, etc.)
-                marca=metadata.brand,
+                marca=metadata.brand or brand,  # Fallback a la marca del item si metadata.brand es None
                 modelo_norm=metadata.model_normalized,
                 modelo_raw=metadata.model_raw,
                 almacenamiento_gb=metadata.capacity_gb,
@@ -559,15 +602,7 @@ class Command(BaseCommand):
         # Obtener estadísticas de staging
         staging_stats = LikewizeItemStaging.objects.filter(tarea=tarea).aggregate(
             total=models.Count('id'),
-            mapped=models.Count('id', filter=models.Q(capacidad_id__isnull=False)),
-            high_confidence=models.Count(
-                'id',
-                filter=models.Q(confidence_score__gte=0.9)
-            ),
-            needs_review=models.Count(
-                'id',
-                filter=models.Q(confidence_score__lt=0.7)
-            )
+            mapped=models.Count('id', filter=models.Q(capacidad_id__isnull=False))
         )
 
         self.stdout.write("\n" + "="*60)
@@ -579,23 +614,28 @@ class Command(BaseCommand):
         self.stdout.write(f"Items procesados: {learning_session.total_items_processed}")
         self.stdout.write(f"Items guardados: {staging_stats['total']}")
         self.stdout.write(f"Items mapeados: {staging_stats['mapped']}")
-        self.stdout.write(f"Tasa de mapeo: {staging_stats['mapped'] / staging_stats['total'] * 100:.1f}%")
+
+        if staging_stats['total'] > 0:
+            tasa_mapeo = staging_stats['mapped'] / staging_stats['total'] * 100
+            self.stdout.write(f"Tasa de mapeo: {tasa_mapeo:.1f}%")
 
         self.stdout.write("\nMÉTRICAS DE AUTOAPRENDIZAJE:")
-        self.stdout.write(f"Items aprendidos: {learning_session.items_learned}")
-        self.stdout.write(f"Items predichos: {learning_session.items_predicted}")
-        self.stdout.write(f"Confianza promedio: {learning_session.avg_confidence:.3f}")
+        self.stdout.write(f"Items aprendidos: {learning_session.items_learned or 0}")
+        self.stdout.write(f"Items predichos: {learning_session.items_predicted or 0}")
 
-        self.stdout.write("\nCONFIANZA:")
-        self.stdout.write(f"Alta confianza (>0.9): {staging_stats['high_confidence']}")
-        self.stdout.write(f"Necesita revisión (<0.7): {staging_stats['needs_review']}")
+        avg_conf = learning_session.avg_confidence
+        if avg_conf is not None:
+            self.stdout.write(f"Confianza promedio: {avg_conf:.3f}")
+        else:
+            self.stdout.write(f"Confianza promedio: N/A")
 
         self.stdout.write("\n" + "="*60)
 
-        if staging_stats['needs_review'] > 0:
+        unmapped_count = staging_stats['total'] - staging_stats['mapped']
+        if unmapped_count > 0:
             self.stdout.write(
                 self.style.WARNING(
-                    f"⚠️  {staging_stats['needs_review']} items necesitan revisión manual"
+                    f"⚠️  {unmapped_count} items sin mapear necesitan revisión manual"
                 )
             )
 

@@ -9,6 +9,7 @@ from tenant_users.permissions.models import UserTenantPermissions
 from checkouters.models.tienda import UserTenantExtension
 from progeek.models import UserGlobalRole
 from security.services import LocationSecurityService
+from axes.models import AccessAttempt
 import logging
 
 logger = logging.getLogger(__name__)
@@ -42,12 +43,47 @@ class TenantLoginView(APIView):
 
     def login_user_in_schema(self, email, password, request, tenant=None):
         UserModel = get_user_model()
+
+        # 🛡️ VERIFICAR BLOQUEO DE DJANGO AXES ANTES DE INTENTAR LOGIN
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.conf import settings
+
+        failure_limit = getattr(settings, 'AXES_FAILURE_LIMIT', 5)
+        ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+        # Buscar el registro de intentos para esta combinación específica
+        cutoff_time = timezone.now() - timedelta(hours=settings.AXES_COOLOFF_TIME or 1)
+
+        try:
+            attempt = AccessAttempt.objects.get(
+                username=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                attempt_time__gte=cutoff_time
+            )
+
+            if attempt.failures_since_start >= failure_limit:
+                logger.warning(f"Login attempt for {email} BLOCKED by Django Axes ({attempt.failures_since_start} attempts)")
+                return Response({
+                    'detail': 'Cuenta bloqueada por demasiados intentos de inicio de sesión. '
+                              'Por favor, inténtelo de nuevo más tarde.'
+                }, status=status.HTTP_403_FORBIDDEN)
+        except AccessAttempt.DoesNotExist:
+            # No hay intentos previos, continuar normalmente
+            pass
+
         try:
             user = UserModel.objects.get(email=email)
         except UserModel.DoesNotExist:
+            # 🛡️ Registrar intento fallido en Axes
+            self._log_failed_attempt(request, email)
             return Response({"detail": "Credenciales incorrectas."}, status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.check_password(password):
+            # 🛡️ Registrar intento fallido en Axes
+            self._log_failed_attempt(request, email)
             return Response({"detail": "Credenciales incorrectas."}, status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.is_active:
@@ -113,6 +149,11 @@ class TenantLoginView(APIView):
 
         # 🎟️ Emitir tokens
         refresh = RefreshToken.for_user(user)
+
+        # 🛡️ LOGIN EXITOSO - Resetear contador de Axes (eliminar intentos fallidos previos)
+        AccessAttempt.objects.filter(username=user.email).delete()
+        logger.info(f"Django Axes: reset attempts for {user.email} after successful login")
+
         user_data = {
             "id": user.id,
             "email": user.email,
@@ -151,5 +192,35 @@ class TenantLoginView(APIView):
             "schema": tenant.schema_name if tenant else "public",
             "tenantAccess": tenant_schemas,
             "user": user_data,
-            
         })
+
+    def _log_failed_attempt(self, request, email):
+        """Registra un intento fallido de login en Django Axes"""
+        from django.utils import timezone
+
+        # Obtener IP del request
+        ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+        # Actualizar o crear registro de intento fallido
+        attempt, created = AccessAttempt.objects.get_or_create(
+            username=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            defaults={
+                'attempt_time': timezone.now(),
+                'get_data': '',
+                'post_data': '',
+                'http_accept': request.META.get('HTTP_ACCEPT', ''),
+                'path_info': request.path,
+                'failures_since_start': 1
+            }
+        )
+
+        if not created:
+            # Si ya existía, incrementar contador y actualizar timestamp
+            attempt.failures_since_start += 1
+            attempt.attempt_time = timezone.now()
+            attempt.save()
+
+        logger.info(f"Django Axes: registered failed attempt #{attempt.failures_since_start} for {email} from {ip_address}")

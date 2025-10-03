@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 // Debug helper (activable también en producción):
 // - En consola: localStorage.setItem('AUD_DEBUG','1') o window.__AUD_DEBUG__ = true
 const __AUD_DEBUG__ = typeof window !== 'undefined'
@@ -538,7 +538,6 @@ export default function FormularioAuditoriaDispositivo({
       queryKey: auditoriaKey,
       queryFn: () => postValoracionIphoneAuditoria(payloadAuditoria, tenant || undefined),
       enabled: canQueryAuditoria,
-      placeholderData: keepPreviousData,
       refetchOnMount: 'always',
       refetchOnWindowFocus: false,
       staleTime: 0,

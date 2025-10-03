@@ -94,7 +94,7 @@ export type ValidationItem = {
   }
 }
 
-type FilterType = 'all' | 'mapped' | 'unmapped' | 'low_confidence'
+type FilterType = 'all' | 'mapped_no_change' | 'mapped_price_change' | 'unmapped' | 'low_confidence'
 type DeviceTypeFilter = 'all' | 'iPhone' | 'iPad' | 'Mac' | 'MacBook Pro' | 'MacBook Air' | 'iMac'
 
 interface ValidationTableProps {
@@ -124,10 +124,26 @@ export function ValidationTable({
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25)
 
+  // Helper: Detectar si hay cambio de precio
+  const hasPriceChange = (item: ValidationItem): boolean => {
+    if (!item.mapping_metadata?.is_mapped || !item.mapped_info) return false
+
+    const precioLikewize = item.likewize_info.precio_b2b
+    const precioActual = item.mapped_info.precio_actual
+
+    // Si no hay precio actual, consideramos que hay cambio
+    if (precioActual === null || precioActual === undefined) return true
+
+    // Comparar precios (tolerancia de 0.01€ para errores de redondeo)
+    return Math.abs(precioLikewize - precioActual) > 0.01
+  }
+
   // Estadísticas
   const stats = useMemo(() => {
     const total = items.length
     const mapped = items.filter(i => i.mapping_metadata?.is_mapped).length
+    const mappedNoChange = items.filter(i => i.mapping_metadata?.is_mapped && !hasPriceChange(i)).length
+    const mappedPriceChange = items.filter(i => i.mapping_metadata?.is_mapped && hasPriceChange(i)).length
     const unmapped = items.filter(i => !i.mapping_metadata?.is_mapped).length
     const lowConfidence = items.filter(i =>
       i.mapping_metadata?.confidence_score !== null &&
@@ -136,14 +152,21 @@ export function ValidationTable({
     ).length
     const needsReview = items.filter(i => i.mapping_metadata?.needs_review).length
 
-    return { total, mapped, unmapped, lowConfidence, needsReview }
+    return { total, mapped, mappedNoChange, mappedPriceChange, unmapped, lowConfidence, needsReview }
   }, [items])
 
   // Items filtrados
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       // Filtro por estado de mapeo
-      if (filter === 'mapped' && !item.mapping_metadata?.is_mapped) return false
+      if (filter === 'mapped_no_change') {
+        if (!item.mapping_metadata?.is_mapped) return false
+        if (hasPriceChange(item)) return false
+      }
+      if (filter === 'mapped_price_change') {
+        if (!item.mapping_metadata?.is_mapped) return false
+        if (!hasPriceChange(item)) return false
+      }
       if (filter === 'unmapped' && item.mapping_metadata?.is_mapped) return false
       if (filter === 'low_confidence') {
         const confidence = item.mapping_metadata?.confidence_score
@@ -250,22 +273,29 @@ export function ValidationTable({
             sx={{ cursor: 'pointer' }}
           />
           <Chip
-            label={`Mapeados: ${stats.mapped}`}
+            label={`✓ Sin cambios: ${stats.mappedNoChange}`}
             color="success"
-            variant={filter === 'mapped' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('mapped')}
+            variant={filter === 'mapped_no_change' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('mapped_no_change')}
+            sx={{ cursor: 'pointer' }}
+          />
+          <Chip
+            label={`⚠ Cambio precio: ${stats.mappedPriceChange}`}
+            color="warning"
+            variant={filter === 'mapped_price_change' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('mapped_price_change')}
             sx={{ cursor: 'pointer' }}
           />
           <Chip
             label={`No Mapeados: ${stats.unmapped}`}
-            color="warning"
+            color="error"
             variant={filter === 'unmapped' ? 'filled' : 'outlined'}
             onClick={() => setFilter('unmapped')}
             sx={{ cursor: 'pointer' }}
           />
           <Chip
             label={`Baja Confianza: ${stats.lowConfidence}`}
-            color="error"
+            color="info"
             variant={filter === 'low_confidence' ? 'filled' : 'outlined'}
             onClick={() => setFilter('low_confidence')}
             sx={{ cursor: 'pointer' }}
@@ -296,11 +326,12 @@ export function ValidationTable({
               label="Estado"
               value={filter}
               onChange={(e) => setFilter(e.target.value as FilterType)}
-              sx={{ minWidth: 150 }}
+              sx={{ minWidth: 200 }}
             >
               <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="mapped">Solo Mapeados</MenuItem>
-              <MenuItem value="unmapped">Solo No Mapeados</MenuItem>
+              <MenuItem value="mapped_no_change">✓ Sin cambios de precio</MenuItem>
+              <MenuItem value="mapped_price_change">⚠ Con cambio de precio</MenuItem>
+              <MenuItem value="unmapped">No Mapeados</MenuItem>
               <MenuItem value="low_confidence">Baja Confianza</MenuItem>
             </TextField>
 

@@ -24,7 +24,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import NextLink from 'next/link';
 import { chipColorToCss } from '@/shared/utils/theme'
 import api from '@/services/api';
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ESTADOS_META } from '@/context/estados';
 import { useUsuario } from '@/context/UsuarioContext';
 
@@ -264,7 +264,6 @@ export default function TenantDashboardPage() {
         granularidad,
         estado_minimo: estadoMinimo,
       }),
-    placeholderData: keepPreviousData,
   });
 
   // Oportunidades recientes
@@ -282,7 +281,6 @@ export default function TenantDashboardPage() {
         tienda: tiendaIdEfectiva || null,
         limit: 5,
       }),
-    placeholderData: keepPreviousData,
   });
 
   // Otras queries
@@ -297,7 +295,6 @@ export default function TenantDashboardPage() {
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
       }),
-    placeholderData: keepPreviousData,
   });
 
   const { data: pipeline = [], isLoading: cargandoPipeline } = useQuery<PipelineRow[]>({
@@ -308,7 +305,6 @@ export default function TenantDashboardPage() {
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
       }),
-    placeholderData: keepPreviousData,
   });
 
   const { data: rankingProductos = [], isLoading: cargandoRanking } = useQuery<RankingItem[]>({
@@ -319,7 +315,6 @@ export default function TenantDashboardPage() {
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
       }),
-    placeholderData: keepPreviousData,
   });
 
   const {
@@ -340,7 +335,6 @@ export default function TenantDashboardPage() {
         estado_inicio: 'Recibido',
         estado_fin: 'Pagado',
       }),
-    placeholderData: keepPreviousData,
   });
 
   const { data: totalPagado = { total_pagado: 0 }, isLoading: cargandoTotalPagado } = useQuery<TotalPagado>({
@@ -351,7 +345,6 @@ export default function TenantDashboardPage() {
         fecha_fin: fechaFin,
         tienda_id: tiendaIdEfectiva || null,
       }),
-    placeholderData: keepPreviousData,
   });
 
   /* -------- Derivados -------- */

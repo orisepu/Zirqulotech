@@ -25,7 +25,10 @@ export interface GAEventParams {
   event_label?: string;
   value?: number;
   tenant_schema?: string;
+  tenant_name?: string;
+  user_id?: number;
   user_role?: string;
+  is_demo?: boolean;
   [key: string]: unknown;
 }
 
@@ -79,22 +82,26 @@ export function gtag(
  * Track page views
  *
  * @param url - URL de la página (ej: '/dashboard')
- * @param tenant - Schema del tenant (opcional, se obtiene automáticamente)
+ * @param params - Parámetros adicionales (user_id, user_role, tenant_name, etc.)
  *
  * @example
  * pageview('/dashboard');
- * pageview('/oportunidades/123', 'progeek');
+ * pageview('/oportunidades/123', { user_id: 42, user_role: 'manager', tenant_name: 'ProGeek' });
  */
-export function pageview(url: string, tenant?: string): void {
+export function pageview(url: string, params?: GAEventParams): void {
   if (!isGAEnabled()) return;
 
-  const tenantSchema = tenant || getCurrentTenant();
+  const tenantSchema = params?.tenant_schema || getCurrentTenant();
 
   gtag('event', 'page_view', {
     page_path: url,
     page_location: window.location.href,
     page_title: document.title,
     tenant_schema: tenantSchema || 'unknown',
+    tenant_name: params?.tenant_name,
+    user_id: params?.user_id,
+    user_role: params?.user_role,
+    is_demo: params?.is_demo,
   });
 }
 
@@ -116,6 +123,36 @@ export function event(action: string, params?: GAEventParams): void {
   gtag('event', action, {
     ...params,
     tenant_schema: tenantSchema || 'unknown',
+  });
+}
+
+/**
+ * Configura propiedades persistentes del usuario en GA4
+ *
+ * @param userId - ID del usuario
+ * @param userRole - Rol del usuario (manager/empleado/admin)
+ * @param tenantSchema - Schema del tenant
+ * @param tenantName - Nombre del tenant
+ * @param isDemo - Si es cuenta demo
+ *
+ * @example
+ * setUserProperties(42, 'manager', 'progeek', 'ProGeek', false);
+ */
+export function setUserProperties(
+  userId?: number,
+  userRole?: string,
+  tenantSchema?: string,
+  tenantName?: string,
+  isDemo?: boolean
+): void {
+  if (!isGAEnabled()) return;
+
+  gtag('set', 'user_properties', {
+    user_id: userId,
+    user_role: userRole,
+    tenant_schema: tenantSchema,
+    tenant_name: tenantName,
+    account_type: isDemo ? 'demo' : 'production',
   });
 }
 

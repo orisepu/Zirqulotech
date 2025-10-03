@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Typography, CircularProgress } from '@mui/material'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
 import TablaReactiva from '@/shared/components/TablaReactiva2'
 import { getIdlink } from '@/shared/utils/id'
@@ -35,7 +35,6 @@ export default function PipelineGlobalPage() {
       )
       return res.data
     },
-    placeholderData: keepPreviousData, // <- reemplaza keepPreviousData: true
   })
 
   return (

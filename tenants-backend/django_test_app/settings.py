@@ -184,14 +184,22 @@ USE_L10N = True
 
 USE_TZ = True
 
+# Email Configuration
+# Soporta tanto OAuth2 (Microsoft 365) como SMTP tradicional
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
+
+# Microsoft 365 OAuth2 Configuration (preferido)
+MICROSOFT_CLIENT_ID = config("MICROSOFT_CLIENT_ID", default="")
+MICROSOFT_CLIENT_SECRET = config("MICROSOFT_CLIENT_SECRET", default="")
+MICROSOFT_TENANT_ID = config("MICROSOFT_TENANT_ID", default="")
+
+# SMTP Configuration (fallback)
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-
-EMAIL_HOST_USER = config("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
@@ -325,13 +333,11 @@ AXES_FAILURE_LIMIT = config("AXES_FAILURE_LIMIT", default=5, cast=int)
 AXES_COOLOFF_TIME = config("AXES_COOLOFF_TIME", default=1, cast=int)  # 1 hora
 
 # Bloquear por combinación de username + IP (más seguro)
-AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True
+# Nueva sintaxis para django-axes 7.x
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 
 # Usar modelo de usuario personalizado
 AXES_USERNAME_FORM_FIELD = "email"  # TenantUser usa 'email' en lugar de 'username'
-
-# Lockout basado en IP (si True, bloquea toda la IP tras X intentos)
-AXES_ONLY_USER_FAILURES = False  # False = bloquea IP + usuario
 
 # Resetear intentos tras login exitoso
 AXES_RESET_ON_SUCCESS = True
@@ -343,8 +349,9 @@ AXES_ENABLE_ACCESS_FAILURE_LOG = True
 AXES_VERBOSE = True
 
 # No bloquear IPs de whitelist (localhost, IPs privadas)
-AXES_NEVER_LOCKOUT_WHITELIST = True
-AXES_IP_WHITELIST = ['127.0.0.1', 'localhost']
+# Comentado temporalmente para testing
+# AXES_NEVER_LOCKOUT_WHITELIST = True
+# AXES_IP_WHITELIST = ['127.0.0.1', 'localhost']
 
 # Handler personalizado para lockout
 # AXES_LOCKOUT_TEMPLATE = None  # Usa respuesta JSON por defecto

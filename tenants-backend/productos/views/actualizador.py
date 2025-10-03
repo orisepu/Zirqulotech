@@ -247,9 +247,20 @@ class LanzarActualizacionLikewizeView(APIView):
             }
         )
 
+        # Log inicial para confirmar que la tarea se creó
+        tarea.add_log("🚀 Tarea creada, iniciando actualización...", "INFO")
+
         def _runner():
-            # ejecuta el management command en este mismo proceso/venv
-            call_command('actualizar_likewize', tarea=str(tarea.id), mode=mode, brands=canonical_brands, mapping_system=mapping_system)
+            try:
+                # ejecuta el management command en este mismo proceso/venv
+                call_command('actualizar_likewize_v3', tarea=str(tarea.id), mode=mode, brands=canonical_brands)
+            except Exception as e:
+                tarea.add_log(f"❌ Error ejecutando comando: {str(e)}", "ERROR")
+                tarea.estado = "ERROR"
+                tarea.error_message = str(e)
+                tarea.finalizado_en = timezone.now()
+                tarea.save()
+                raise
 
         Thread(target=_runner, daemon=True).start()
         return Response({"tarea_id": str(tarea.id)}, status=status.HTTP_202_ACCEPTED)
