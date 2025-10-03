@@ -1,13 +1,14 @@
 'use client'
 
 import React from 'react'
-import { Box, Grid, Paper, Stack, Typography } from '@mui/material'
+import { Box, Grid, Paper, Stack, Typography, Alert } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import MemoryIcon from '@mui/icons-material/Memory'
 import NumbersIcon from '@mui/icons-material/Numbers'
 import PsychologyIcon from '@mui/icons-material/Psychology'
 import BrushIcon from '@mui/icons-material/Brush'
 import BoltIcon from '@mui/icons-material/Bolt'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { CatalogoValoracion, FuncPantallaValue } from './tipos'
 import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
 
@@ -300,9 +301,14 @@ export default function PasoValoracion({
             )}
           </Grid>
 
-          <Typography variant="caption" color="text.secondary">
-            Valores sujetos a auditoría técnica (diagnóstico, bloqueos, piezas). FMI/Activation Lock debe estar desactivado.
-          </Typography>
+          <Alert severity="info" icon={<InfoOutlinedIcon fontSize="small" />} sx={{ borderRadius: 2 }}>
+            <Typography variant="body2" component="span" fontWeight={600}>
+              Precios sin IVA.{' '}
+            </Typography>
+            <Typography variant="body2" component="span">
+              Valores sujetos a auditoría técnica (diagnóstico, bloqueos, piezas). FMI/Activation Lock debe estar desactivado.
+            </Typography>
+          </Alert>
         </Stack>
       </Paper>
     </Box>
