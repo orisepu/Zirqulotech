@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerta de Seguridad - Login desde Ubicación Inusual</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #ff9800;
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .alert-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .alert-message {
+            background-color: #fff3cd;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .alert-message strong {
+            color: #ff9800;
+        }
+        .details-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .details-box h3 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .detail-value {
+            color: #212529;
+            text-align: right;
+        }
+        .current-location {
+            color: #ff9800;
+            font-weight: 600;
+        }
+        .actions {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #007bff;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            margin: 5px;
+        }
+        .button-secondary {
+            background-color: #6c757d;
+        }
+        .security-tips {
+            background-color: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .security-tips h4 {
+            margin-top: 0;
+            color: #007bff;
+            font-size: 14px;
+        }
+        .security-tips ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .security-tips li {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="alert-icon">⚠️</div>
+            <h1>Login desde Ubicación Inusual</h1>
+        </div>
+
+        <div class="content">
+            <div class="greeting">
+                Hola {{ user_name }},
+            </div>
+
+            <div class="alert-message">
+                <strong>Hemos detectado un login en tu cuenta desde una ubicación diferente a la habitual.</strong>
+            </div>
+
+            <p>
+                Tu cuenta de Zirqulo Partners ha sido accedida desde una ubicación que no reconocemos como habitual.
+                Si fuiste tú, puedes ignorar este mensaje. Si no reconoces este acceso, <strong>toma medidas inmediatamente</strong>.
+            </p>
+
+            <div class="details-box">
+                <h3>📍 Detalles del Login Actual</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Ubicación:</span>
+                    <span class="detail-value current-location">{{ current_city }}, {{ current_country }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Dirección IP:</span>
+                    <span class="detail-value current-location">{{ current_ip }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Fecha y hora:</span>
+                    <span class="detail-value current-location">{{ current_time }}</span>
+                </div>
+            </div>
+
+            <div class="details-box">
+                <h3>🕐 Tu Último Login Conocido</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Ubicación anterior:</span>
+                    <span class="detail-value">{{ last_city }}, {{ last_country }}</span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="https://progeek.es/cambiar-password" class="button">Cambiar Contraseña</a>
+                <a href="https://progeek.es/historial-logins" class="button button-secondary">Ver Historial de Logins</a>
+            </div>
+
+            <div class="security-tips">
+                <h4>🔐 ¿No fuiste tú? Actúa inmediatamente:</h4>
+                <ul>
+                    <li><strong>Cambia tu contraseña</strong> ahora mismo usando el botón de arriba</li>
+                    <li><strong>Revisa tu historial de logins</strong> para detectar accesos no autorizados</li>
+                    <li><strong>Invalida todas las sesiones activas</strong> desde el panel de seguridad</li>
+                    <li><strong>Contacta con soporte</strong> en incidentes@zirqulo.com si sospechas que tu cuenta está comprometida</li>
+                    <li><strong>Revisa la actividad reciente</strong> en tu cuenta (clientes, oportunidades, documentos)</li>
+                </ul>
+            </div>
+
+            <div class="security-tips">
+                <h4>✅ ¿Fuiste tú? No hay problema:</h4>
+                <ul>
+                    <li>Si estás de viaje o accediendo desde una ubicación nueva, este mensaje es normal</li>
+                    <li>Puedes ignorar esta alerta si reconoces el acceso</li>
+                    <li>El sistema aprenderá tu nueva ubicación para futuros accesos</li>
+                </ul>
+            </div>
+
+            <p style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+                <strong>¿Por qué recibo este email?</strong><br>
+                Zirqulo Partners utiliza un sistema de seguridad basado en geolocalización (GeoLite2) para proteger tu cuenta.
+                Cuando detectamos un login desde un país diferente al habitual, te enviamos una alerta preventiva.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>
+                Este es un email automático del sistema de seguridad de Zirqulo Partners.<br>
+                Si tienes dudas, contacta con <a href="mailto:seguridad@zirqulo.com">seguridad@zirqulo.com</a>
+            </p>
+            <p>
+                © 2025 Zirqulo Partners. Todos los derechos reservados.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

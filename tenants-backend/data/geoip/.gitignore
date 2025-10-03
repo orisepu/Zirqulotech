@@ -1,0 +1,7 @@
+# GeoIP2 Database (descargada automáticamente)
+*.mmdb
+*.tar.gz
+*.zip
+
+# README para explicar cómo obtener la base de datos
+!README.md
