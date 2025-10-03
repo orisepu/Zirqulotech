@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
+import { usePathname } from 'next/navigation'
 import api from '@/services/api'
 
+// Rutas públicas donde NO se debe verificar autenticación
+const PUBLIC_ROUTES = ['/login', '/gracias']
+
 export default function useUsuarioActual() {
+  const pathname = usePathname()
+  const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+
   const { data } = useQuery({
     queryKey: ['usuario-actual'],
     queryFn: async () => {
@@ -26,6 +33,8 @@ export default function useUsuarioActual() {
           : null,
       }
     },
+    // No ejecutar query en rutas públicas
+    enabled: !isPublicRoute,
   })
 
   return data ?? null

@@ -71,11 +71,14 @@ export default function LoginForm() {
       const { access, refresh, user, schema, tenantAccess } = res.data;
 
       // ✅ Guardar tokens sensibles en secure storage (encriptado + memoria)
-      await setSecureItem("access", access);
-      await setSecureItem("refresh", refresh);
-      await setSecureItem("schema", schema);
-      await setSecureItem("user", JSON.stringify(user));
-      await setSecureItem("tenantAccess", JSON.stringify(tenantAccess));
+      // IMPORTANTE: Esperar a que TODOS los tokens se guarden antes de redirigir
+      await Promise.all([
+        setSecureItem("access", access),
+        setSecureItem("refresh", refresh),
+        setSecureItem("schema", schema),
+        setSecureItem("user", JSON.stringify(user)),
+        setSecureItem("tenantAccess", JSON.stringify(tenantAccess)),
+      ]);
 
       // Empresa recordada puede quedarse en localStorage (no es sensible)
       if (rememberEmpresa) {
@@ -83,6 +86,9 @@ export default function LoginForm() {
       } else {
         localStorage.removeItem("rememberedEmpresa");
       }
+
+      // Pequeño delay para asegurar que los tokens estén disponibles en memoria
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       router.push("/dashboard");
       // Evitamos que Snackbar quede abierto
