@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import IncrementalUpdateControls from './IncrementalUpdateControls'
 import { ValidationTabPanel } from './ValidationTabPanel'
+import { LogViewer } from './LogViewer'
 
 // Types from the original page
 type Cambio = {
@@ -104,7 +105,11 @@ export function EnhancedLikewizePage({
     queryFn: async () => {
       if (!activeTaskId) return null
       const { data } = await api.get(`/api/precios/likewize/tareas/${activeTaskId}/`)
-      return data as { estado: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'ERROR', error_message?: string }
+      return data as {
+        estado: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'ERROR'
+        error_message?: string
+        logs?: Array<{ timestamp: string; level: string; message: string }>
+      }
     },
     enabled: !!activeTaskId,
     refetchInterval: (q) => {
@@ -154,10 +159,19 @@ export function EnhancedLikewizePage({
           </Tabs>
 
           <TabPanel value={tabValue} index={0}>
-            <IncrementalUpdateControls
-              tareaId={tareaId}
-              onUpdate={handleUpdateComplete}
-            />
+            <Stack spacing={3}>
+              <IncrementalUpdateControls
+                tareaId={tareaId}
+                onUpdate={handleUpdateComplete}
+              />
+              {/* Visor de Logs en Tiempo Real */}
+              {activeTaskId && estado.data && (
+                <LogViewer
+                  logs={estado.data.logs || []}
+                  isRunning={estado.data.estado === 'RUNNING'}
+                />
+              )}
+            </Stack>
           </TabPanel>
 
           <TabPanel value={tabValue} index={1}>
