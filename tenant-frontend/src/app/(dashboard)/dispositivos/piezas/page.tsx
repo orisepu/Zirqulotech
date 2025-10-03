@@ -12,7 +12,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SaveIcon from '@mui/icons-material/Save'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import TablaReactiva from '@/shared/components/TablaReactiva2'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -157,7 +157,6 @@ export default function AdminCostesReparacionPorModelo() {
   const { data: modelosData, isFetching: modelosLoading, error: modelosError, refetch: refetchModelos } = useQuery({
     queryKey: ['admin-modelos', params],
     queryFn: () => fetchModelos(params),
-    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   })

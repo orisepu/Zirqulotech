@@ -680,8 +680,14 @@ def resolver_capacidad_id(
     applied_filter = False
 
     if a_number:
-        cand = cand.filter(**{f"{REL_NAME}__icontains": a_number})
+        # A-number es identificador único de Apple: DEBE coincidir exactamente
+        # Buscar SOLO en likewize_modelo (campo dedicado), sin fallback a descripción
+        q_anumber = Q(likewize_modelo__iexact=a_number) | Q(likewize_modelo__icontains=a_number)
+        cand = cand.filter(q_anumber)
         applied_filter = True
+        # Si no hay coincidencias, retornar None (no mapear con A-number incorrecto)
+        if not cand.exists():
+            return None
 
     if pulgadas:
         ptxt = _fmt_pulgadas(int(pulgadas))
@@ -876,7 +882,13 @@ def resolver_capacidad_id(
                 qs = soft_filter(qs, q_any_a)
 
         if a_number:
-            qs = soft_filter(qs, Q(**{f"{REL_NAME}__icontains": a_number}))
+            # A-number es identificador único: filtro DURO (no soft_filter)
+            # Si no coincide el A-number, NO mapear
+            q_anumber = Q(likewize_modelo__iexact=a_number) | Q(likewize_modelo__icontains=a_number)
+            qs = qs.filter(q_anumber)
+            # Si no hay resultados, retornar None inmediatamente
+            if not qs.exists():
+                return None
 
         if pulgadas and fam in {"MacBook Pro", "MacBook Air", "iMac", "iMac Pro"}:
             ptxt = _fmt_pulgadas(int(pulgadas))
@@ -902,10 +914,19 @@ def resolver_capacidad_id(
         want_gpu_cores_lw = gpu_cores or extraer_gpu_cores(modelo_norm or "")
         def mac_score(m, *, src_text: str):
             d = (getattr(m, REL_NAME, "") or "")
+            likewize_field = (getattr(m, "likewize_modelo", "") or "")
             s = 0
             if a_number:
-                if a_number.upper() in d.upper(): s += 10
-                else: s -= 6
+                # A-number es identificador único: DEBE coincidir en likewize_modelo
+                # Coincidencia exacta en campo dedicado
+                if likewize_field.upper() == a_number.upper():
+                    s += 20
+                # Contiene en campo dedicado (ej: "A1419 A1418")
+                elif a_number.upper() in likewize_field.upper():
+                    s += 15
+                # NO coincide en likewize_modelo: DESCALIFICACIÓN TOTAL
+                else:
+                    s -= 10000  # Hace que este modelo nunca sea elegido
             if cpu and (cpu.lower() in (getattr(m, "procesador", "") or "").lower() or cpu.lower() in d.lower()):
                 s += 4
             if gpu_cores and re.search(rf"\b{gpu_cores}\s*core\s*gpu\b", d, re.I):

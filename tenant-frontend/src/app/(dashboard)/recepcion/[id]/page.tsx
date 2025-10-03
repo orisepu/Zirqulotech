@@ -12,7 +12,7 @@ import { Snackbar, Alert } from '@mui/material';
 import type { AlertColor } from '@mui/material';
 import { EtiquetaTerminalPDFDoc } from '@/shared/components/ui/tags/etiqueta-terminal'
 import {  pdf } from '@react-pdf/renderer';
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 type Modelo = { id: number; descripcion: string };
 type Capacidad = { id: number; tamaño: string };
@@ -148,7 +148,6 @@ export default function RecepcionDispositivosPage() {
       return [];
     },
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
   });
   const ensureCapacidades = async (modeloId: number) => {
     const data = await queryClient.ensureQueryData<{ id:number; tamaño:string }[]>({

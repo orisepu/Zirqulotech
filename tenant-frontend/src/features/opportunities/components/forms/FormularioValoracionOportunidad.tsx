@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
 import { useParams } from 'next/navigation'
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DialogTitle, DialogContent, DialogActions, Button, Tooltip, Chip, Stack, IconButton, Typography, Alert } from '@mui/material'
 import api from '@/services/api'
 import { getPrecioFinal, formatoBonito } from '@/context/precios'
@@ -764,7 +764,6 @@ export default function FormularioValoracionOportunidad({
       return postValoracionComercial(tipoDispositivo, payloadIphone!)
     },
     enabled: !!readyForValoracion,
-    placeholderData: keepPreviousData,   // ✅ reemplaza a keepPreviousData: true
     refetchOnWindowFocus: false,
     staleTime: 0,
   })

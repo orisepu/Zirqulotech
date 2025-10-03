@@ -25,8 +25,34 @@ export interface GAEventParams {
   event_label?: string;
   value?: number;
   tenant_schema?: string;
+  tenant_name?: string;
+  user_id?: number;
   user_role?: string;
+  is_demo?: boolean;
   [key: string]: unknown;
+}
+
+/**
+ * Hash de user_id para cumplir con GDPR/privacidad
+ * Usa SHA-256 para crear un identificador pseudónimo determinístico
+ */
+async function hashUserId(userId: number | string): Promise<string> {
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    // Fallback para entornos sin Web Crypto API
+    return `user_${userId.toString().split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)}`;
+  }
+
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(`user_${userId}_${process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'default'}`);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex.substring(0, 16); // Primeros 16 caracteres
+  } catch {
+    // Fallback simple si falla el hashing
+    return `user_${userId.toString().split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)}`;
+  }
 }
 
 /**
@@ -79,22 +105,27 @@ export function gtag(
  * Track page views
  *
  * @param url - URL de la página (ej: '/dashboard')
- * @param tenant - Schema del tenant (opcional, se obtiene automáticamente)
+ * @param params - Parámetros adicionales (user_id, user_role, tenant_name, etc.)
  *
  * @example
  * pageview('/dashboard');
- * pageview('/oportunidades/123', 'progeek');
+ * pageview('/oportunidades/123', { user_id: 42, user_role: 'manager', tenant_name: 'ProGeek' });
  */
-export function pageview(url: string, tenant?: string): void {
+export async function pageview(url: string, params?: GAEventParams): Promise<void> {
   if (!isGAEnabled()) return;
 
-  const tenantSchema = tenant || getCurrentTenant();
+  const tenantSchema = params?.tenant_schema || getCurrentTenant();
+  const hashedUserId = params?.user_id ? await hashUserId(params.user_id) : undefined;
 
   gtag('event', 'page_view', {
     page_path: url,
     page_location: window.location.href,
     page_title: document.title,
     tenant_schema: tenantSchema || 'unknown',
+    tenant_name: params?.tenant_name,
+    user_id: hashedUserId, // ✅ Ahora es un hash, no el ID real
+    user_role: params?.user_role,
+    is_demo: params?.is_demo,
   });
 }
 
@@ -116,6 +147,38 @@ export function event(action: string, params?: GAEventParams): void {
   gtag('event', action, {
     ...params,
     tenant_schema: tenantSchema || 'unknown',
+  });
+}
+
+/**
+ * Configura propiedades persistentes del usuario en GA4
+ *
+ * @param userId - ID del usuario (se hasheará para privacidad)
+ * @param userRole - Rol del usuario (manager/empleado/admin)
+ * @param tenantSchema - Schema del tenant
+ * @param tenantName - Nombre del tenant
+ * @param isDemo - Si es cuenta demo
+ *
+ * @example
+ * setUserProperties(42, 'manager', 'progeek', 'ProGeek', false);
+ */
+export async function setUserProperties(
+  userId?: number,
+  userRole?: string,
+  tenantSchema?: string,
+  tenantName?: string,
+  isDemo?: boolean
+): Promise<void> {
+  if (!isGAEnabled()) return;
+
+  const hashedUserId = userId ? await hashUserId(userId) : undefined;
+
+  gtag('set', 'user_properties', {
+    user_id: hashedUserId, // ✅ Ahora es un hash, no el ID real
+    user_role: userRole,
+    tenant_schema: tenantSchema,
+    tenant_name: tenantName,
+    account_type: isDemo ? 'demo' : 'production',
   });
 }
 

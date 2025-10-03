@@ -36,7 +36,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import SaveIcon from '@mui/icons-material/Save'
 import CloseIcon from '@mui/icons-material/Close'
 
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import debounce from 'lodash.debounce'
 import api from '@/services/api'
 
@@ -228,7 +228,6 @@ export default function AdminPiezasTipo() {
         activo: activoFilter === 'all' ? undefined : activoFilter,
         ordering: 'nombre',
       }),
-    placeholderData: keepPreviousData,
   })
 
   const rows = data ?? []
