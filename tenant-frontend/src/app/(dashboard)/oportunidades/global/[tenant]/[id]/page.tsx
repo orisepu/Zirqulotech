@@ -271,10 +271,21 @@ export default function OportunidadDetallePageGlobal() {
     }
   };
   // Oferta formal - usa el endpoint seguro del backend con dispositivos auditados
-  const verPDFEnNuevaPestana = () => {
+  const verPDFEnNuevaPestana = async () => {
     if (!oportunidad?.id) return
-    // Usar endpoint backend seguro que genera PDF con DispositivoReal
-    window.open(`/api/oportunidades/${oportunidad.id}/generar-pdf-formal/`, '_blank')
+    try {
+      const res = await api.get(`/api/oportunidades/${oportunidad.id}/generar-pdf-formal/`, {
+        responseType: 'blob'
+      })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000)
+      toast.success('✅ PDF formal generado')
+    } catch (error) {
+      console.error('Error generando PDF formal:', error)
+      toast.error('❌ Error al generar el PDF formal')
+    }
   };
 
   const mCambiarEstado = useMutation({

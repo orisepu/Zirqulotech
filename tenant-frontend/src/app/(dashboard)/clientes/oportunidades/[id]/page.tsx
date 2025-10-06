@@ -17,7 +17,7 @@ import TabsOportunidad from '@/features/opportunities/components/TabsOportunidad
 import FormularioValoracionOportunidad from '@/features/opportunities/components/forms/FormularioValoracionOportunidad'
 import DatosRecogidaForm from '@/shared/components/DatosRecogida'
 import { toast } from 'react-toastify'
-
+import api from '@/services/api'
 type Oportunidad = any
 type DatosRecogida = {
   calle: string
@@ -98,10 +98,20 @@ export default function OportunidadDetallePage() {
   }, [modalRecogidaAbierto, opp])
 
   // Oferta formal - usa el endpoint seguro del backend con dispositivos auditados
-  const verPDFEnNuevaPestana = () => {
+  const verPDFEnNuevaPestana = async () => {
     if (!opp) return
-    // Usar endpoint backend seguro que genera PDF con DispositivoReal
-    window.open(`/api/oportunidades/${opp.id}/generar-pdf-formal/`, '_blank')
+    try {
+      const res = await api.get(`/api/oportunidades/${opp.id}/generar-pdf-formal/`, {
+        responseType: 'blob'
+      })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000)
+    } catch (error) {
+      console.error('Error generando PDF formal:', error)
+      toast.error('❌ Error al generar el PDF formal')
+    }
   }
 
   // Handlers simples

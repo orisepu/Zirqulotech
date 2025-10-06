@@ -271,11 +271,9 @@ export default function AuditoriaDispositivosPage() {
             capacidadId={capacidadId ?? undefined}
             tenant={tenant || undefined}
             canal={'B2B'}
-        onClose={cerrarFormulario}
-        onSubmit={onSubmitForm}
-        titulo={`Auditar dispositivo ${actualIndex + 1} / ${dispositivosEditables.length}`}
-          
-        isLaptop={false}               // <-- según el tipo de equipo
+            onClose={cerrarFormulario}
+            onSubmit={onSubmitForm}
+            titulo={`Auditar dispositivo ${actualIndex + 1} / ${dispositivosEditables.length}`}
           />
         )
       })()}
