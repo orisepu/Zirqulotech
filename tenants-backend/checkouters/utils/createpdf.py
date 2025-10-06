@@ -210,6 +210,32 @@ def generar_pdf_oportunidad(oportunidad, tenant=None):
         leading=10,
         alignment=TA_LEFT
     )
+    badge_style = ParagraphStyle(
+        "Badge",
+        parent=styles["Normal"],
+        fontSize=11,
+        leading=14,
+        textColor=BRAND_DARK,
+        alignment=TA_CENTER,
+        fontName="Helvetica-Bold"
+    )
+    header_title = ParagraphStyle(
+        "HeaderTitle",
+        parent=styles["Normal"],
+        fontSize=14,
+        leading=18,
+        textColor=BRAND_DARK,
+        fontName="Helvetica-Bold",
+        spaceBefore=0,
+        spaceAfter=4
+    )
+    header_meta = ParagraphStyle(
+        "HeaderMeta",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=14,
+        textColor=colors.HexColor("#4B5563")
+    )
 
     # Encabezado superior (logo)
     fecha_generacion = datetime.now().strftime("%d/%m/%Y")
@@ -248,21 +274,53 @@ def generar_pdf_oportunidad(oportunidad, tenant=None):
                 )
             )
 
-    # Título + metadatos
-    elements.append(Paragraph("<b>Oferta personalizada</b>", styles["Title"]))
-    meta_table = Table([
-        [
-            Paragraph(f"<b>Fecha de generación:</b> {fecha_generacion}", p_norm),
-            Paragraph(f"<b>Comercial:</b> {comercial}", p_norm),
-        ]
-    ], colWidths=[doc.width/2, doc.width/2])
-    meta_table.setStyle(TableStyle([
+    # Badge de branding Zirqulo
+    elements.append(Spacer(1, 8))
+    badge_bg = colors.HexColor("#E6F5F2")  # Verde muy claro
+    badge_table = Table([
+        [Paragraph("📱 Programa de Recompra · Powered by Zirqulo", badge_style)]
+    ], colWidths=[doc.width])
+    badge_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), badge_bg),
+        ("BOX", (0, 0), (-1, -1), 2, BRAND_PRIMARY),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
     ]))
-    elements.append(meta_table)
+    elements.append(badge_table)
+    elements.append(Spacer(1, 12))
 
-    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=8))
+    # Bloque de información de oferta
+    opp_ref = f"#{getattr(oportunidad, 'hashid', None) or getattr(oportunidad, 'uuid', 'N/A')}"
+    info_data = [
+        [Paragraph("OFERTA DE RECOMPRA", header_title)],
+        [Spacer(1, 4)],
+        [Table([
+            [
+                Paragraph(f"📅 Fecha: {fecha_generacion}", header_meta),
+                Paragraph(f"👤 Comercial: {comercial}", header_meta),
+            ]
+        ], colWidths=[doc.width/2 - 20, doc.width/2 - 20])],
+        [Paragraph(f"📄 Ref: {opp_ref}", header_meta)],
+    ]
+    info_table = Table(info_data, colWidths=[doc.width])
+    info_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), GREY_SOFT),
+        ("BOX", (0, 0), (-1, -1), 1, GREY_BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(info_table)
+
+    # Separador visual mejorado
+    elements.append(Spacer(1, 10))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=BRAND_ACCENT, spaceBefore=0, spaceAfter=0, lineCap='round'))
+    elements.append(Spacer(1, 10))
 
     # Datos del cliente / nuestros datos (2 columnas)
     datos_cliente = [
