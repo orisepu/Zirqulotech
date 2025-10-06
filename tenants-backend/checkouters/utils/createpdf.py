@@ -213,28 +213,28 @@ def generar_pdf_oportunidad(oportunidad, tenant=None):
     badge_style = ParagraphStyle(
         "Badge",
         parent=styles["Normal"],
-        fontSize=11,
-        leading=14,
-        textColor=BRAND_DARK,
-        alignment=TA_CENTER,
-        fontName="Helvetica-Bold"
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#6B7280"),  # Gris medio más sutil
+        alignment=TA_RIGHT,
+        fontName="Helvetica"
     )
     header_title = ParagraphStyle(
         "HeaderTitle",
         parent=styles["Normal"],
-        fontSize=14,
-        leading=18,
+        fontSize=16,
+        leading=20,
         textColor=BRAND_DARK,
         fontName="Helvetica-Bold",
         spaceBefore=0,
-        spaceAfter=4
+        spaceAfter=0
     )
     header_meta = ParagraphStyle(
         "HeaderMeta",
         parent=styles["Normal"],
         fontSize=9,
-        leading=14,
-        textColor=colors.HexColor("#4B5563")
+        leading=12,
+        textColor=colors.HexColor("#6B7280")
     )
 
     # Encabezado superior (logo)
@@ -274,53 +274,40 @@ def generar_pdf_oportunidad(oportunidad, tenant=None):
                 )
             )
 
-    # Badge de branding Zirqulo
+    # Badge de branding Zirqulo (sutil, alineado a la derecha)
+    elements.append(Spacer(1, 4))
+    elements.append(Paragraph("Trade-in powered by Zirqulo", badge_style))
     elements.append(Spacer(1, 8))
-    badge_bg = colors.HexColor("#E6F5F2")  # Verde muy claro
-    badge_table = Table([
-        [Paragraph("📱 Programa de Recompra · Powered by Zirqulo", badge_style)]
-    ], colWidths=[doc.width])
-    badge_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), badge_bg),
-        ("BOX", (0, 0), (-1, -1), 2, BRAND_PRIMARY),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
-    elements.append(badge_table)
-    elements.append(Spacer(1, 12))
 
-    # Bloque de información de oferta
+    # Encabezado de oferta compacto (título + metadatos en una línea)
     opp_ref = f"#{getattr(oportunidad, 'hashid', None) or getattr(oportunidad, 'uuid', 'N/A')}"
-    info_data = [
-        [Paragraph("OFERTA DE RECOMPRA", header_title)],
-        [Spacer(1, 4)],
-        [Table([
-            [
-                Paragraph(f"📅 Fecha: {fecha_generacion}", header_meta),
-                Paragraph(f"👤 Comercial: {comercial}", header_meta),
-            ]
-        ], colWidths=[doc.width/2 - 20, doc.width/2 - 20])],
-        [Paragraph(f"📄 Ref: {opp_ref}", header_meta)],
-    ]
-    info_table = Table(info_data, colWidths=[doc.width])
-    info_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), GREY_SOFT),
-        ("BOX", (0, 0), (-1, -1), 1, GREY_BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    elements.append(info_table)
 
-    # Separador visual mejorado
-    elements.append(Spacer(1, 10))
-    elements.append(HRFlowable(width="100%", thickness=1.5, color=BRAND_ACCENT, spaceBefore=0, spaceAfter=0, lineCap='round'))
-    elements.append(Spacer(1, 10))
+    # Título y metadatos en tabla horizontal compacta
+    header_data = [[
+        Paragraph("<b>OFERTA DE RECOMPRA</b>", header_title),
+        Table([
+            [
+                Paragraph(f"📅 {fecha_generacion}", header_meta),
+                Paragraph(f"👤 {comercial}", header_meta),
+                Paragraph(f"📄 {opp_ref}", header_meta),
+            ]
+        ], colWidths=[90, 140, 100])
+    ]]
+
+    header_table = Table(header_data, colWidths=[180, 340])
+    header_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "LEFT"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    elements.append(header_table)
+
+    # Separador visual sutil
+    elements.append(Spacer(1, 8))
+    elements.append(HRFlowable(width="100%", thickness=1, color=GREY_BORDER, spaceBefore=0, spaceAfter=0, lineCap='round'))
+    elements.append(Spacer(1, 8))
 
     # Datos del cliente / nuestros datos (2 columnas)
     datos_cliente = [
