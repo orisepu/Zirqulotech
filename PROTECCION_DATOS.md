@@ -10,7 +10,7 @@ Como dueño de una tienda de dispositivos, manejas información muy sensible:
 - **Información comercial**: Cuánto pagas por cada dispositivo, tus márgenes, tus estrategias de precios
 - **Tu base de clientes**: El activo más valioso de tu negocio
 
-Esta guía explica cómo Zirqulo Partners protege toda esa información para que:
+Esta guía #explica cómo Zirqulo Partners protege toda esa información para que:
 1. **Tus competidores** no puedan ver tus datos (incluso si también usan Zirqulo)
 2. **Tus clientes** estén protegidos según las leyes europeas (RGPD)
 3. **Tu negocio** esté seguro ante posibles incidentes

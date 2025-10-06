@@ -99,6 +99,7 @@ MIDDLEWARE = [
     #'django_test_app.middleware.public_route_bypass.UnifiedTenantMiddleware',
     "django_test_app.middleware.tenant_logging.RequestLoggingMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Servir archivos estáticos en producción
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -205,6 +206,7 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 ROOT_URLCONF = "django_test_app.urls"
 
 # Media Urls
@@ -306,6 +308,10 @@ LOGGING = {
 # GeoIP2 Database Path
 # Base de datos GeoLite2-City.mmdb para geolocalización de IPs
 GEOIP_PATH = BASE_DIR.parent / 'data' / 'geoip'
+
+# MaxMind License Key para descargar actualizaciones de GeoLite2
+# Obtén tu key gratuita en: https://www.maxmind.com/en/geolite2/signup
+MAXMIND_LICENSE_KEY = config("MAXMIND_LICENSE_KEY", default="")
 
 # Location Security Settings
 # Sistema de detección de logins sospechosos basado en ubicación

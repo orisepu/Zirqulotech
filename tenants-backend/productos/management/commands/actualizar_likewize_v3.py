@@ -503,10 +503,21 @@ class Command(BaseCommand):
         return processed_items
 
     def _extract_price(self, item: Dict) -> Optional[Decimal]:
-        """Extrae precio del item de Likewize"""
+        """
+        Extrae precio del item de Likewize y quita el IVA.
+
+        Likewize devuelve precios CON IVA del 21%, pero el sistema almacena
+        todos los precios B2B SIN IVA. Por tanto, dividimos por 1.21 para
+        obtener el precio neto.
+
+        Ejemplo: 121€ (con IVA) → 100€ (sin IVA)
+        """
         model_value = item.get('ModelValue')
         if model_value and model_value > 0:
-            return Decimal(str(model_value))
+            # Precio con IVA → Precio sin IVA (dividir por 1.21)
+            precio_con_iva = Decimal(str(model_value))
+            precio_sin_iva = precio_con_iva / Decimal('1.21')
+            return precio_sin_iva.quantize(Decimal('0.01'))  # Redondear a 2 decimales
         return None
 
     def _calculate_avg_confidence(self, processed_items: List[Dict]) -> float:

@@ -29,7 +29,8 @@ import {
   Warning,
   ExpandMore,
   ExpandLess,
-  FilterList
+  FilterList,
+  Search
 } from '@mui/icons-material'
 import React from 'react'
 import { useState, useMemo } from 'react'
@@ -201,14 +202,28 @@ export function ValidationTable({
     })
   }, [items, filter, deviceTypeFilter, searchQuery])
 
-  // Selección
+  // Items de la página actual
+  const currentPageItems = useMemo(() => {
+    return filteredItems.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+  }, [filteredItems, page, rowsPerPage])
+
+  // Selección - solo selecciona items de la página actual
   const handleSelectAll = () => {
     if (!onSelectionChange) return
 
-    if (selectedIds.size === filteredItems.length) {
-      onSelectionChange(new Set())
+    // Verificar si todos los items de la página actual están seleccionados
+    const allPageItemsSelected = currentPageItems.every(item => selectedIds.has(item.id))
+
+    if (allPageItemsSelected && currentPageItems.length > 0) {
+      // Deseleccionar solo los items de la página actual
+      const newSelection = new Set(selectedIds)
+      currentPageItems.forEach(item => newSelection.delete(item.id))
+      onSelectionChange(newSelection)
     } else {
-      onSelectionChange(new Set(filteredItems.map(i => i.id)))
+      // Seleccionar todos los items de la página actual
+      const newSelection = new Set(selectedIds)
+      currentPageItems.forEach(item => newSelection.add(item.id))
+      onSelectionChange(newSelection)
     }
   }
 
@@ -264,8 +279,14 @@ export function ValidationTable({
     return algorithmNames[algorithm] || algorithm
   }
 
-  const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length
-  const someSelected = selectedIds.size > 0 && selectedIds.size < filteredItems.length
+  // Estado del checkbox "seleccionar todo" basado en items de la página actual
+  const allPageItemsSelected = currentPageItems.length > 0 &&
+    currentPageItems.every(item => selectedIds.has(item.id))
+  const somePageItemsSelected = currentPageItems.some(item => selectedIds.has(item.id)) &&
+    !allPageItemsSelected
+
+  const allSelected = allPageItemsSelected
+  const someSelected = somePageItemsSelected
 
   return (
     <Box>
@@ -419,9 +440,7 @@ export function ValidationTable({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredItems
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((item) => {
+              currentPageItems.map((item) => {
                 const isExpanded = expandedRows.has(item.id)
                 const isMapped = item.mapping_metadata?.is_mapped ?? false
                 const confidence = item.mapping_metadata?.confidence_score
@@ -524,15 +543,26 @@ export function ValidationTable({
                               </Tooltip>
                             </>
                           ) : (
-                            <Tooltip title="Crear nuevo dispositivo">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => onCreate(item)}
-                              >
-                                <AddCircle fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            <>
+                              <Tooltip title="Mapear manualmente (buscar modelo existente)">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => onCorrect(item)}
+                                >
+                                  <Search fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Crear nuevo dispositivo">
+                                <IconButton
+                                  size="small"
+                                  color="secondary"
+                                  onClick={() => onCreate(item)}
+                                >
+                                  <AddCircle fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
                           )}
                           {needsReview && (
                             <Tooltip title="Requiere revisión">

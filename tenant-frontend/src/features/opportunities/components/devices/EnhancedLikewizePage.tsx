@@ -7,6 +7,7 @@ import api from '@/services/api'
 import IncrementalUpdateControls from './IncrementalUpdateControls'
 import { ValidationTabPanel } from './ValidationTabPanel'
 import { LogViewer } from './LogViewer'
+import { MappingStatsPanel } from './MappingStatsPanel'
 
 // Types from the original page
 type Cambio = {
@@ -156,6 +157,7 @@ export function EnhancedLikewizePage({
             <Tab label="Actualización" />
             <Tab label="Validación" />
             <Tab label="Cambios de Precios" />
+            <Tab label="Mapeo" />
           </Tabs>
 
           <TabPanel value={tabValue} index={0}>
@@ -227,6 +229,16 @@ export function EnhancedLikewizePage({
                 </Alert>
               )}
             </Stack>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={3}>
+            {!activeTaskId ? (
+              <Alert severity="info">
+                Ejecuta una actualización desde la pestaña "Actualización" para ver las estadísticas de mapeo.
+              </Alert>
+            ) : (
+              <MappingStatsPanel tareaId={activeTaskId} />
+            )}
           </TabPanel>
         </Card>
       </Stack>

@@ -889,6 +889,63 @@ class TaskStatusV3View(APIView):
                         except:
                             task_info['log_summary'] = {'error': 'Could not read log file'}
 
+                # Añadir estadísticas de mapeo
+                all_items = LikewizeItemStaging.objects.filter(tarea=tarea)
+                total_items = all_items.count()
+
+                if total_items > 0:
+                    mapped_items = all_items.filter(capacidad_id__isnull=False)
+                    unmapped_items = all_items.filter(capacidad_id__isnull=True)
+
+                    mapped_count = mapped_items.count()
+                    unmapped_count = unmapped_items.count()
+                    mapping_rate = (mapped_count / total_items * 100) if total_items > 0 else 0
+
+                    # Estadísticas por tipo de dispositivo
+                    stats_by_type = []
+                    tipos = all_items.values('tipo').annotate(
+                        total=Count('id'),
+                        mapped=Count('id', filter=Q(capacidad_id__isnull=False))
+                    ).order_by('-total')
+
+                    for tipo_stats in tipos:
+                        tipo = tipo_stats['tipo'] or 'Unknown'
+                        total = tipo_stats['total']
+                        mapped = tipo_stats['mapped']
+                        rate = (mapped / total * 100) if total > 0 else 0
+
+                        stats_by_type.append({
+                            'tipo': tipo,
+                            'total': total,
+                            'mapped': mapped,
+                            'unmapped': total - mapped,
+                            'mapping_rate': f"{rate:.2f}%"
+                        })
+
+                    # A-numbers de items no mapeados
+                    unmapped_anumbers = {}
+                    for item in unmapped_items:
+                        if item.a_number:
+                            unmapped_anumbers[item.a_number] = unmapped_anumbers.get(item.a_number, 0) + 1
+
+                    task_info['mapping_stats'] = {
+                        'total': total_items,
+                        'mapped': mapped_count,
+                        'unmapped': unmapped_count,
+                        'mapping_rate': f"{mapping_rate:.2f}%",
+                        'by_type': stats_by_type,
+                        'unmapped_anumbers': unmapped_anumbers
+                    }
+                else:
+                    task_info['mapping_stats'] = {
+                        'total': 0,
+                        'mapped': 0,
+                        'unmapped': 0,
+                        'mapping_rate': '0.00%',
+                        'by_type': [],
+                        'unmapped_anumbers': {}
+                    }
+
                 return Response({
                     'success': True,
                     'task': task_info
@@ -1340,3 +1397,170 @@ def get_unmapped_items(request, tarea_id):
             'success': False,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RemapearCompletoV3View(APIView):
+    """
+    POST /api/likewize/v3/tareas/<uuid:tarea_id>/remapear-completo/
+
+    Re-mapea TODOS los items de una tarea (incluso los ya mapeados) para ver
+    cómo los cambios en el código de mapeo afectan los resultados.
+
+    Retorna estadísticas antes/después y lista de cambios.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, tarea_id):
+        try:
+            from django.shortcuts import get_object_or_404
+            from productos.services.auto_learning_engine_v3 import AutoLearningEngine
+            from productos.models.autoaprendizaje import LikewizeKnowledgeBase
+
+            tarea = get_object_or_404(TareaActualizacionLikewize, id=tarea_id)
+
+            # Parámetros opcionales
+            clear_knowledge_base = request.data.get('clear_knowledge_base', False)
+            disable_learning = request.data.get('disable_learning', True)  # Por defecto, deshabilitar aprendizaje
+
+            # Obtener todos los items de la tarea
+            all_items = LikewizeItemStaging.objects.filter(tarea=tarea)
+            total_items = all_items.count()
+
+            if total_items == 0:
+                return Response({
+                    'success': False,
+                    'error': 'No hay items en esta tarea'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Guardar estadísticas ANTES del re-mapeo
+            stats_before = {
+                'total': total_items,
+                'mapped': all_items.filter(capacidad_id__isnull=False).count(),
+                'unmapped': all_items.filter(capacidad_id__isnull=True).count()
+            }
+            stats_before['mapping_rate'] = f"{(stats_before['mapped'] / stats_before['total'] * 100):.2f}%"
+
+            # Guardar mapeos anteriores para comparación
+            old_mappings = {}
+            for item in all_items:
+                old_mappings[item.id] = {
+                    'capacidad_id': item.capacidad_id,
+                    'modelo_raw': item.modelo_raw
+                }
+
+            # Limpiar knowledge base si se solicita
+            if clear_knowledge_base:
+                deleted = LikewizeKnowledgeBase.objects.filter(
+                    Q(likewize_model_name__in=[item.modelo_raw for item in all_items])
+                ).delete()
+                kb_cleared = deleted[0]
+            else:
+                kb_cleared = 0
+
+            # Inicializar motor de mapeo
+            engine = AutoLearningEngine()
+
+            # Deshabilitar aprendizaje si se solicita para evitar contaminar KB
+            if disable_learning:
+                original_learn = engine._learn_from_mapping
+                def no_learn(*args, **kwargs):
+                    pass
+                engine._learn_from_mapping = no_learn
+
+            # Re-mapear todos los items
+            changes = []
+            remapped_count = 0
+            improved_count = 0  # no mapeado → mapeado
+            worsened_count = 0  # mapeado → no mapeado
+            changed_mapping_count = 0  # mapeado A → mapeado B
+
+            for item in all_items:
+                # Construir likewize_item dict
+                likewize_item = {
+                    'Brand': item.marca or 'Apple',
+                    'ModelName': item.modelo_raw,
+                    'Model': item.modelo_raw.split('(')[0].strip() if '(' in item.modelo_raw else item.modelo_raw,
+                    'Capacity': f'{item.almacenamiento_gb}GB' if item.almacenamiento_gb else ''
+                }
+
+                # Intentar mapear
+                capacidad, confidence, strategy = engine.predict_mapping(likewize_item)
+
+                old_cap_id = old_mappings[item.id]['capacidad_id']
+                new_cap_id = capacidad.id if capacidad else None
+
+                # Detectar tipo de cambio
+                change_type = None
+                if old_cap_id != new_cap_id:
+                    if old_cap_id is None and new_cap_id is not None:
+                        change_type = 'improved'
+                        improved_count += 1
+                    elif old_cap_id is not None and new_cap_id is None:
+                        change_type = 'worsened'
+                        worsened_count += 1
+                    elif old_cap_id is not None and new_cap_id is not None:
+                        change_type = 'remapped'
+                        changed_mapping_count += 1
+
+                    # Actualizar el item
+                    item.capacidad_id = new_cap_id
+                    item.save(update_fields=['capacidad_id'])
+                    remapped_count += 1
+
+                    # Guardar detalle del cambio
+                    if len(changes) < 100:  # Limitar a 100 cambios en la respuesta
+                        old_desc = None
+                        new_desc = None
+
+                        if old_cap_id:
+                            try:
+                                old_cap = Capacidad.objects.get(id=old_cap_id)
+                                old_desc = f"{old_cap.modelo.descripcion} - {old_cap.tamaño}"
+                            except Capacidad.DoesNotExist:
+                                old_desc = f"ID {old_cap_id} (no encontrado)"
+
+                        if new_cap_id:
+                            new_desc = f"{capacidad.modelo.descripcion} - {capacidad.tamaño}"
+
+                        changes.append({
+                            'modelo_raw': item.modelo_raw,
+                            'before': old_desc,
+                            'after': new_desc,
+                            'change_type': change_type,
+                            'confidence': f"{confidence:.2f}" if capacidad else "0.00",
+                            'strategy': strategy if capacidad else "unmapped"
+                        })
+
+            # Estadísticas DESPUÉS del re-mapeo
+            stats_after = {
+                'total': total_items,
+                'mapped': all_items.filter(capacidad_id__isnull=False).count(),
+                'unmapped': all_items.filter(capacidad_id__isnull=True).count()
+            }
+            stats_after['mapping_rate'] = f"{(stats_after['mapped'] / stats_after['total'] * 100):.2f}%"
+
+            return Response({
+                'success': True,
+                'tarea_id': str(tarea_id),
+                'stats_before': stats_before,
+                'stats_after': stats_after,
+                'changes': {
+                    'total_changed': remapped_count,
+                    'improved': improved_count,
+                    'worsened': worsened_count,
+                    'remapped': changed_mapping_count
+                },
+                'knowledge_base_cleared': kb_cleared,
+                'disable_learning': disable_learning,
+                'details': changes,
+                'total_details_shown': len(changes),
+                'total_details_available': remapped_count
+            })
+
+        except Exception as e:
+            import traceback
+            return Response({
+                'success': False,
+                'error': str(e),
+                'traceback': traceback.format_exc()
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -3,8 +3,7 @@ module.exports = {
     {
       name: 'tenant-frontend',
       cwd: './tenant-frontend',
-      script: './node_modules/next/dist/bin/next',
-      args: 'start',
+      script: './server.js',
       instances: 2,
       exec_mode: 'cluster',
       env_production: {
@@ -21,7 +20,12 @@ module.exports = {
       merge_logs: true,
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G'
+      max_memory_restart: '1G',
+      // Zero downtime deployment config
+      wait_ready: true,              // Espera señal de "ready" antes de considerar la app iniciada
+      listen_timeout: 10000,         // Timeout para esperar señal ready (10s)
+      kill_timeout: 5000,            // Tiempo para graceful shutdown (5s)
+      shutdown_with_message: false   // No esperar mensaje de shutdown
     },
     {
       name: 'tenants-backend',

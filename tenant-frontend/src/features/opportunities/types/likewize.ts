@@ -96,3 +96,92 @@ export type PrecioLikewize = {
   marca?: string
   likewize_model_code?: string | null
 }
+
+/**
+ * Mapping statistics for a Likewize task
+ */
+export type MappingStats = {
+  total: number
+  mapped: number
+  unmapped: number
+  mapping_rate: string
+  by_type: Array<{
+    tipo: string
+    total: number
+    mapped: number
+    unmapped: number
+    mapping_rate: string
+  }>
+  unmapped_anumbers: Record<string, number>
+}
+
+/**
+ * Task status with mapping statistics (V3)
+ */
+export type TaskStatusV3 = {
+  success: boolean
+  task: {
+    tarea_id: string
+    estado: TareaEstado
+    iniciado_en: string
+    finalizado_en?: string
+    mapping_stats?: MappingStats
+  }
+}
+
+/**
+ * Remapping complete result
+ */
+export type RemapCompleteResult = {
+  success: boolean
+  tarea_id: string
+  stats_before: {
+    total: number
+    mapped: number
+    unmapped: number
+    mapping_rate: string
+  }
+  stats_after: {
+    total: number
+    mapped: number
+    unmapped: number
+    mapping_rate: string
+  }
+  changes: {
+    total_changed: number
+    improved: number
+    worsened: number
+    remapped: number
+  }
+  knowledge_base_cleared: number
+  disable_learning: boolean
+  details: Array<{
+    modelo_raw: string
+    before: string | null
+    after: string | null
+    change_type: 'improved' | 'worsened' | 'remapped'
+    confidence?: string
+    strategy?: string
+  }>
+  total_details_shown: number
+  total_details_available: number
+}
+
+/**
+ * Unmapped items response
+ */
+export type UnmappedItemsResponse = {
+  success: boolean
+  tarea_id: string
+  total_unmapped: number
+  items: Array<{
+    id: number
+    modelo_raw: string
+    modelo_norm: string
+    marca: string
+    tipo: string
+    almacenamiento_gb: number | null
+    precio_b2b: string
+    likewize_model_code: string
+  }>
+}

@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 from ..models import TareaActualizacionLikewize, LikewizeItemStaging,LikewizeCazadorTarea
 from ..likewize_config import get_apple_presets, get_extra_presets, list_unique_brands
 from ..serializers import TareaLikewizeSerializer,LikewizeCazadorResultadoSerializer
+from ..services.feedback_system_v3 import FeedbackSystem
 
 
 # ============== Capacidades estándar por tipo de dispositivo ==============
@@ -2130,13 +2131,40 @@ class CorregirMapeoLikewizeView(APIView):
         staging_item.capacidad_id = new_capacidad_id
         staging_item.save(update_fields=['capacidad_id'])
 
+        # 🧠 Registrar corrección en el sistema de aprendizaje
+        try:
+            # Reconstruir dict de Likewize desde staging_item
+            likewize_item = {
+                'ModelName': staging_item.modelo_norm or '',
+                'Capacity': f"{staging_item.almacenamiento_gb}GB" if staging_item.almacenamiento_gb else '',
+                'M_Model': staging_item.likewize_model_code or '',
+                'PhoneModelId': None,
+                'FullName': staging_item.modelo_raw or '',
+                'BrandName': staging_item.marca or 'Apple',
+                'ModelValue': float(staging_item.precio_b2b),
+            }
+
+            # Registrar la corrección para que el sistema aprenda
+            feedback_system = FeedbackSystem()
+            feedback_system.record_manual_correction(
+                likewize_item=likewize_item,
+                capacidad_correcta=nueva_capacidad,
+                user=request.user,
+                correction_reason=reason
+            )
+        except Exception as e:
+            # No fallar la corrección si falla el aprendizaje
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error registrando corrección en sistema de aprendizaje: {e}")
+
         return Response({
             "success": True,
             "staging_item_id": staging_item.id,
             "old_capacidad_id": old_capacidad_id,
             "new_capacidad_id": new_capacidad_id,
             "reason": reason,
-            "message": "Mapeo corregido correctamente"
+            "message": "Mapeo corregido correctamente y registrado en sistema de aprendizaje"
         }, status=200)
 
 
@@ -2181,14 +2209,24 @@ class ValidationItemsLikewizeView(APIView):
                         'needs_review': mapping.needs_review
                     }
 
-        # Query prices
+        # Query prices - solo precios VIGENTES (valid_to IS NULL)
         from productos.models import PrecioRecompra
         precios_map = {}
         if capacidades_ids:
-            precios = PrecioRecompra.objects.filter(
-                capacidad_id__in=capacidades_ids,
-                canal='B2B'
-            ).values('capacidad_id', 'precio_neto')
+            # Filtrar solo precios vigentes, globales y ordenar por más reciente
+            # Si existen múltiples (antes de ejecutar cleanup), toma el más reciente
+            precios = (
+                PrecioRecompra.objects
+                .filter(
+                    capacidad_id__in=capacidades_ids,
+                    canal='B2B',
+                    valid_to__isnull=True,  # Solo precios vigentes
+                    tenant_schema__isnull=True  # Solo precios globales
+                )
+                .order_by('capacidad_id', '-valid_from')  # Más reciente primero
+                .distinct('capacidad_id')  # Solo 1 por capacidad
+                .values('capacidad_id', 'precio_neto')
+            )
 
             for precio in precios:
                 precios_map[precio['capacidad_id']] = float(precio['precio_neto'])

@@ -24,6 +24,14 @@ import { Search, CheckCircle, Warning, AddCircle } from '@mui/icons-material'
 import { useState, useEffect } from 'react'
 import api from '@/services/api'
 
+interface ModeloOption {
+  id: number
+  descripcion: string
+  tipo: string
+  marca: string
+  likewize_modelo?: string
+}
+
 interface CapacidadOption {
   id: number
   tamaño: string
@@ -33,6 +41,12 @@ interface CapacidadOption {
     tipo: string
     marca: string
   }
+  precio_b2b?: number
+}
+
+interface AutoMappedCapacity {
+  capacidad_id: number
+  tamaño: string
   precio_b2b?: number
 }
 
@@ -69,10 +83,24 @@ export function CorrectionModal({
   isLoading = false
 }: CorrectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<CapacidadOption[]>([])
+  const [searchResults, setSearchResults] = useState<ModeloOption[]>([])
   const [searching, setSearching] = useState(false)
-  const [selectedCapacidad, setSelectedCapacidad] = useState<CapacidadOption | null>(null)
+  const [searchingCapacity, setSearchingCapacity] = useState(false)
+  const [selectedModelo, setSelectedModelo] = useState<ModeloOption | null>(null)
+  const [autoMappedCapacity, setAutoMappedCapacity] = useState<AutoMappedCapacity | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Helper para normalizar tamaños (TB → GB)
+  const normalizarTamaño = (tamañoString: string): number => {
+    // "4 TB" → 4096 GB, "512 GB" → 512 GB, "512GB" → 512 GB
+    const match = tamañoString.match(/(\d+)\s*(TB|GB)/i)
+    if (!match) return 0
+
+    const valor = parseInt(match[1])
+    const unidad = match[2].toUpperCase()
+
+    return unidad === 'TB' ? valor * 1024 : valor
+  }
 
   // Auto-buscar cuando se abre el modal
   useEffect(() => {
@@ -86,7 +114,8 @@ export function CorrectionModal({
       // Reset al cerrar
       setSearchQuery('')
       setSearchResults([])
-      setSelectedCapacidad(null)
+      setSelectedModelo(null)
+      setAutoMappedCapacity(null)
       setError(null)
     }
   }, [open, item])
@@ -99,63 +128,110 @@ export function CorrectionModal({
 
     setSearching(true)
     setError(null)
+    // Reset selección previa
+    setSelectedModelo(null)
+    setAutoMappedCapacity(null)
 
     try {
-      const { data } = await api.get('/api/admin/capacidades/', {
+      const { data } = await api.get('/api/admin/modelos/search/', {
         params: {
           q: query,
           limit: 20,
-          tipo: item?.likewize_info.tipo // Filtrar por tipo si está disponible
+          tipo: item?.likewize_info.tipo,
+          marca: item?.likewize_info.marca
         }
       })
 
-      const results = (data.results || []) as CapacidadOption[]
-
-      // Ordenar resultados: primero los que coinciden exactamente en almacenamiento
-      if (item?.likewize_info.almacenamiento_gb) {
-        results.sort((a, b) => {
-          const aMatch = a.tamaño.includes(`${item.likewize_info.almacenamiento_gb}`)
-          const bMatch = b.tamaño.includes(`${item.likewize_info.almacenamiento_gb}`)
-          if (aMatch && !bMatch) return -1
-          if (!aMatch && bMatch) return 1
-          return 0
-        })
-      }
-
+      const results = (data || []) as ModeloOption[]
       setSearchResults(results)
-
-      // Auto-seleccionar el primero si hay match exacto
-      if (results.length > 0 && item?.likewize_info.almacenamiento_gb) {
-        const exactMatch = results.find(r =>
-          r.tamaño.includes(`${item.likewize_info.almacenamiento_gb}`) &&
-          r.modelo.descripcion.toLowerCase().includes(item.likewize_info.modelo_norm.toLowerCase())
-        )
-        if (exactMatch) {
-          setSelectedCapacidad(exactMatch)
-        }
-      }
     } catch (err: any) {
-      console.error('Error buscando capacidades:', err)
-      setError(err.response?.data?.detail || 'Error al buscar capacidades')
+      console.error('Error buscando modelos:', err)
+      setError(err.response?.data?.detail || 'Error al buscar modelos')
       setSearchResults([])
     } finally {
       setSearching(false)
     }
   }
 
+  const handleSelectModelo = async (modelo: ModeloOption) => {
+    setSelectedModelo(modelo)
+    setSearchingCapacity(true)
+    setError(null)
+    setAutoMappedCapacity(null)
+
+    if (!item) return
+
+    try {
+      // Buscar todas las capacidades del modelo seleccionado
+      const { data } = await api.get('/api/admin/capacidades/', {
+        params: {
+          modelo_id: modelo.id,
+          limit: 100
+        }
+      })
+
+      const capacidades = (data.results || []) as CapacidadOption[]
+      const almacenamientoLikewize = item.likewize_info.almacenamiento_gb
+
+      if (!almacenamientoLikewize) {
+        setError('El item de Likewize no tiene almacenamiento especificado')
+        return
+      }
+
+      // Buscar capacidad que coincida con el almacenamiento del item de Likewize
+      const capacidadMatch = capacidades.find(cap => {
+        const tamañoNormalizado = normalizarTamaño(cap.tamaño)
+        return tamañoNormalizado === almacenamientoLikewize
+      })
+
+      if (capacidadMatch) {
+        // ✅ Encontramos la capacidad exacta
+        setAutoMappedCapacity({
+          capacidad_id: capacidadMatch.id,
+          tamaño: capacidadMatch.tamaño,
+          precio_b2b: capacidadMatch.precio_b2b
+        })
+        setError(null)
+      } else {
+        // ❌ No existe esa capacidad para este modelo
+        const capacidadesDisponibles = capacidades.map(c => c.tamaño).join(', ') || 'ninguna'
+        setAutoMappedCapacity(null)
+        setError(
+          `Este modelo no tiene capacidad de ${almacenamientoLikewize}GB disponible. ` +
+          `Capacidades disponibles: ${capacidadesDisponibles}`
+        )
+      }
+    } catch (err: any) {
+      console.error('Error buscando capacidades del modelo:', err)
+      setError(err.response?.data?.detail || 'Error al buscar capacidades del modelo')
+      setAutoMappedCapacity(null)
+    } finally {
+      setSearchingCapacity(false)
+    }
+  }
+
   const handleApplyCorrection = () => {
-    if (!selectedCapacidad) return
-    onApply(selectedCapacidad)
+    if (!selectedModelo || !autoMappedCapacity) return
+
+    // Construir el objeto CapacidadOption compatible con el callback
+    const capacidadToApply: CapacidadOption = {
+      id: autoMappedCapacity.capacidad_id,
+      tamaño: autoMappedCapacity.tamaño,
+      modelo: {
+        id: selectedModelo.id,
+        descripcion: selectedModelo.descripcion,
+        tipo: selectedModelo.tipo,
+        marca: selectedModelo.marca
+      },
+      precio_b2b: autoMappedCapacity.precio_b2b
+    }
+
+    onApply(capacidadToApply)
   }
 
   const formatPrice = (price: number | null | undefined) => {
     if (!price) return ''
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(price)
-  }
-
-  const isCapacityMatch = (capacidad: CapacidadOption) => {
-    if (!item?.likewize_info.almacenamiento_gb) return false
-    return capacidad.tamaño.includes(`${item.likewize_info.almacenamiento_gb}`)
   }
 
   if (!item) return null
@@ -234,52 +310,40 @@ export function CorrectionModal({
             </Alert>
           )}
 
-          {/* Resultados de búsqueda */}
+          {/* Resultados de búsqueda de modelos */}
           {searchResults.length > 0 ? (
             <Box>
               <Typography variant="subtitle2" gutterBottom>
-                Resultados ({searchResults.length}):
+                Modelos encontrados ({searchResults.length}):
               </Typography>
               <List sx={{ maxHeight: 300, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                {searchResults.map((capacidad) => {
-                  const isSelected = selectedCapacidad?.id === capacidad.id
-                  const capacityMatches = isCapacityMatch(capacidad)
+                {searchResults.map((modelo) => {
+                  const isSelected = selectedModelo?.id === modelo.id
 
                   return (
-                    <ListItem key={capacidad.id} disablePadding>
+                    <ListItem key={modelo.id} disablePadding>
                       <ListItemButton
                         selected={isSelected}
-                        onClick={() => setSelectedCapacidad(capacidad)}
-                        sx={{
-                          bgcolor: capacityMatches ? 'success.50' : undefined,
-                          '&:hover': {
-                            bgcolor: capacityMatches ? 'success.100' : undefined
-                          }
-                        }}
+                        onClick={() => handleSelectModelo(modelo)}
+                        disabled={searchingCapacity && selectedModelo?.id === modelo.id}
                       >
                         <ListItemText
                           primary={
                             <Stack direction="row" spacing={1} alignItems="center">
                               <Typography variant="body2" fontWeight={isSelected ? 'bold' : 'normal'}>
-                                {capacidad.modelo.descripcion}
+                                {modelo.descripcion}
                               </Typography>
-                              {capacityMatches && (
-                                <Chip
-                                  label="Match Almacenamiento"
-                                  size="small"
-                                  color="success"
-                                  icon={<CheckCircle />}
-                                />
+                              {searchingCapacity && selectedModelo?.id === modelo.id && (
+                                <CircularProgress size={16} />
                               )}
                             </Stack>
                           }
                           secondary={
                             <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                              <Chip label={capacidad.tamaño} size="small" />
-                              <Chip label={capacidad.modelo.tipo} size="small" variant="outlined" />
-                              <Chip label={capacidad.modelo.marca} size="small" variant="outlined" />
-                              {capacidad.precio_b2b && (
-                                <Chip label={formatPrice(capacidad.precio_b2b)} size="small" color="primary" />
+                              <Chip label={modelo.tipo} size="small" variant="outlined" />
+                              <Chip label={modelo.marca} size="small" variant="outlined" />
+                              {modelo.likewize_modelo && (
+                                <Chip label={`Likewize: ${modelo.likewize_modelo}`} size="small" color="info" variant="outlined" />
                               )}
                             </Stack>
                           }
@@ -319,26 +383,47 @@ export function CorrectionModal({
             </Alert>
           ) : null}
 
-          {/* Capacidad seleccionada */}
-          {selectedCapacidad && (
+          {/* Modelo y capacidad auto-mapeada */}
+          {selectedModelo && (
             <Paper
               variant="outlined"
               sx={{
                 p: 2,
-                bgcolor: (theme) => theme.palette.mode === 'dark'
-                  ? 'rgba(46, 125, 50, 0.15)'
-                  : 'success.50'
+                bgcolor: (theme) => autoMappedCapacity
+                  ? (theme.palette.mode === 'dark' ? 'rgba(46, 125, 50, 0.15)' : 'success.50')
+                  : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.50')
               }}
             >
-              <Typography variant="subtitle2" gutterBottom color="success.main">
-                ✓ Nuevo mapeo seleccionado:
+              <Typography variant="subtitle2" gutterBottom color={autoMappedCapacity ? "success.main" : "text.primary"}>
+                {autoMappedCapacity ? '✅ Modelo y Capacidad Mapeada:' : '📋 Modelo Seleccionado:'}
               </Typography>
-              <Typography variant="body2" color="text.primary">
-                {selectedCapacidad.modelo.descripcion} - {selectedCapacidad.tamaño}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Capacidad ID: {selectedCapacidad.id}
-              </Typography>
+
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.primary">
+                  <strong>Modelo:</strong> {selectedModelo.descripcion}
+                </Typography>
+
+                {autoMappedCapacity && (
+                  <>
+                    <Typography variant="body2" color="text.primary">
+                      <strong>Capacidad:</strong> {autoMappedCapacity.tamaño}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Capacidad ID: {autoMappedCapacity.capacidad_id}
+                      {autoMappedCapacity.precio_b2b && ` • Precio: ${formatPrice(autoMappedCapacity.precio_b2b)}`}
+                    </Typography>
+                  </>
+                )}
+
+                {searchingCapacity && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="caption" color="text.secondary">
+                      Buscando capacidad que coincida con {item.likewize_info.almacenamiento_gb}GB...
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
             </Paper>
           )}
         </Stack>
@@ -363,7 +448,7 @@ export function CorrectionModal({
         <Button
           variant="contained"
           onClick={handleApplyCorrection}
-          disabled={!selectedCapacidad || isLoading}
+          disabled={!autoMappedCapacity || isLoading || searchingCapacity}
           startIcon={isLoading ? <CircularProgress size={16} /> : <CheckCircle />}
         >
           {isLoading ? 'Aplicando...' : 'Aplicar Corrección'}

@@ -20,7 +20,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--license-key',
             type=str,
-            help='License key de MaxMind (opcional, para usar API oficial)',
+            help='License key de MaxMind (opcional, también se puede configurar en .env como MAXMIND_LICENSE_KEY)',
         )
 
     def handle(self, *args, **options):
@@ -31,7 +31,8 @@ class Command(BaseCommand):
         1. Sin licencia: Usa mirror gratuito (puede estar desactualizado)
         2. Con licencia: Usa API oficial de MaxMind (actualizada)
         """
-        license_key = options.get('license_key')
+        # Prioridad: 1) argumento --license-key, 2) variable .env MAXMIND_LICENSE_KEY
+        license_key = options.get('license_key') or getattr(settings, 'MAXMIND_LICENSE_KEY', None)
         geoip_path = Path(settings.GEOIP_PATH)
 
         # Crear directorio si no existe
@@ -45,6 +46,9 @@ class Command(BaseCommand):
 
         try:
             if license_key:
+                # Informar origen de la license key
+                source = "argumento --license-key" if options.get('license_key') else "variable .env MAXMIND_LICENSE_KEY"
+                self.stdout.write(f'🔑 Usando license key desde: {source}')
                 # Usar API oficial de MaxMind
                 self._download_official(license_key, geoip_path, output_file)
             else:
@@ -122,7 +126,10 @@ class Command(BaseCommand):
                 '⚠️  Usando método alternativo sin licencia.\n'
                 '   Para mayor precisión, registra una cuenta gratuita en MaxMind:\n'
                 '   https://www.maxmind.com/en/geolite2/signup\n'
-                '   Y ejecuta: python manage.py download_geoip --license-key=TU_KEY'
+                '   \n'
+                '   Luego configura tu license key:\n'
+                '   - Opción 1: Añadir MAXMIND_LICENSE_KEY=tu-key en .env\n'
+                '   - Opción 2: python manage.py download_geoip --license-key=TU_KEY'
             )
         )
 
@@ -156,5 +163,7 @@ class Command(BaseCommand):
             '1. Regístrate en: https://www.maxmind.com/en/geolite2/signup\n'
             '2. Descarga GeoLite2-City en formato MMDB\n'
             f'3. Coloca el archivo en: {output_file}\n\n'
-            'O ejecuta: python manage.py download_geoip --license-key=TU_KEY'
+            'O configura tu license key:\n'
+            '  - Opción 1: Añadir MAXMIND_LICENSE_KEY=tu-key en .env y ejecutar: python manage.py download_geoip\n'
+            '  - Opción 2: python manage.py download_geoip --license-key=TU_KEY'
         )

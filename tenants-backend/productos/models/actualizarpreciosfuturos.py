@@ -45,13 +45,18 @@ class TareaActualizacionLikewize(models.Model):
 class LikewizeItemStaging(models.Model):
     """
     Lo que trajo la tarea desde Likewize (normalizado por clave).
+
+    IMPORTANTE: Los precios se almacenan SIN IVA.
+    Likewize devuelve precios CON IVA del 21%, pero el sistema los convierte
+    automáticamente a precio neto (sin IVA) dividiendo por 1.21 antes de
+    guardar en staging.
     """
     tarea = models.ForeignKey(TareaActualizacionLikewize, on_delete=models.CASCADE, related_name="staging")
     tipo = models.CharField(max_length=50)                # iPhone / iPad / Mac / SmartPhone
     marca = models.CharField(max_length=100, default='Apple')
     modelo_norm = models.CharField(max_length=255)        # modelo normalizado
     almacenamiento_gb = models.IntegerField(null=True)    # 64,128,256...
-    precio_b2b = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    precio_b2b = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))  # SIN IVA
     capacidad_id = models.IntegerField(null=True, blank=True)
 
     modelo_raw = models.CharField(max_length=512, blank=True, default="")   # texto original de Likewize

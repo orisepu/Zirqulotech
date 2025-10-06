@@ -55,14 +55,17 @@ class ModeloSearchView(APIView):
         qs = base_qs.filter(**filtros) if filtros else base_qs
         qs = qs.filter(
             Q(descripcion__icontains=query)
+            | Q(tipo__icontains=query)  # Permite buscar por tipo (ej: "iMac", "iPhone")
             | Q(likewize_modelo__icontains=query)
             | Q(pantalla__icontains=query)
             | Q(procesador__icontains=query)
         )
 
         if filtros and not qs.exists():
+            # Fallback: si los filtros exactos no encuentran nada, buscar sin filtros
             qs = base_qs.filter(
                 Q(descripcion__icontains=query)
+                | Q(tipo__icontains=query)  # Permite buscar por tipo (ej: "iMac", "iPhone")
                 | Q(likewize_modelo__icontains=query)
                 | Q(pantalla__icontains=query)
                 | Q(procesador__icontains=query)

@@ -35,6 +35,7 @@ from .views.autoaprendizaje_v3 import (
     TaskStatusV3View,
     DiffV3View,
     AplicarCambiosV3View,
+    RemapearCompletoV3View,
     cleanup_knowledge_base,
     export_learning_data,
     get_unmapped_items
@@ -148,6 +149,7 @@ urlpatterns = [
     path("likewize/v3/tareas/<uuid:tarea_id>/diff/", DiffV3View.as_view(), name="likewize-v3-diff"),
     path("likewize/v3/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosV3View.as_view(), name="likewize-v3-aplicar"),
     path("likewize/v3/tareas/<uuid:tarea_id>/no-mapeados/", get_unmapped_items, name="likewize-v3-unmapped"),
+    path("likewize/v3/tareas/<uuid:tarea_id>/remapear-completo/", RemapearCompletoV3View.as_view(), name="likewize-v3-remapear-completo"),
 
     path("", include(router.urls)),
     ]

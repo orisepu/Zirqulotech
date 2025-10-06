@@ -38,11 +38,13 @@ class PrecioRecompra(models.Model):
 
     class Meta:
         constraints = [
-            # Garantiza un único vigente por clave (evita solapes abiertos)
+            # Garantiza un único precio vigente por (capacidad, canal, tenant_schema)
+            # NOTA: 'fuente' NO está en el constraint - es solo metadata informativa
+            # Esto permite que solo exista 1 precio vigente, sin importar la fuente
             models.UniqueConstraint(
-                fields=['capacidad', 'canal', 'fuente', 'tenant_schema'],
+                fields=['capacidad', 'canal', 'tenant_schema'],
                 condition=models.Q(valid_to__isnull=True),
-                name='uniq_precio_recompra_vigente_por_clave'
+                name='uniq_precio_recompra_vigente_simple'
             ),
         ]
         indexes = [

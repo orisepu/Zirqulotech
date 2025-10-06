@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Dict, List, Optional, Tuple, Set
 from django.db.models import Q, F, Avg, Count
 from django.utils import timezone
@@ -107,6 +108,14 @@ class AutoLearningEngine:
             if not kb_entry.features:
                 continue
 
+            # 🔥 VALIDACIÓN ESTRICTA: Si ambos tienen model_variant, deben coincidir exactamente
+            # Esto evita que "iPhone X" coincida con "iPhone XS" o "iPhone XR"
+            current_variant = features.get('model_variant')
+            kb_variant = kb_entry.features.get('model_variant')
+            if current_variant and kb_variant and current_variant != kb_variant:
+                # Variantes diferentes, saltar este candidato
+                continue
+
             similarity = self.feature_extractor.calculate_similarity(
                 features, kb_entry.features
             )
@@ -164,9 +173,29 @@ class AutoLearningEngine:
         # Extraer información del item de Likewize
         model_name = likewize_item.get('ModelName', '')
         m_model = likewize_item.get('M_Model', '')
-        capacity_str = likewize_item.get('Capacity', '')
+        # Likewize NO tiene campo Capacity separado, viene en ModelName
+        capacity_str = self._extract_capacity_from_name(model_name)
 
         features = self.feature_extractor.extract_features(model_name)
+
+        # 🔥 ESTRATEGIA A-NUMBER PRIMERO (Macs)
+        if features.get('a_number'):
+            result = self._match_by_a_number(features, capacity_str, model_name)
+            if result:
+                capacidad, confidence, match_type = result
+
+                # Si encontramos el modelo pero falta la capacidad, NO continuar con otras estrategias
+                if match_type == 'model_found_capacity_missing':
+                    logger.warning(
+                        f"🛑 Mapeo detenido: Modelo correcto encontrado por A-number "
+                        f"pero capacidad '{capacity_str}' no existe. "
+                        "El item quedará sin mapear para permitir creación manual de capacidad."
+                    )
+                    return None  # Retornar None para que quede unmapped
+
+                # Mapeo exitoso
+                self._learn_from_mapping(likewize_item, capacidad, confidence, match_type)
+                return capacidad, confidence
 
         # Estrategias de mapeo en orden de precisión
         strategies = [
@@ -180,6 +209,23 @@ class AutoLearningEngine:
             result = strategy(features, m_model, capacity_str)
             if result:
                 capacidad, confidence, match_type = result
+
+                # 🔥 VALIDACIÓN: Si Likewize envió A-number, verificar que coincida
+                likewize_a_number = features.get('a_number')
+                if likewize_a_number:
+                    # Extraer A-number del modelo mapeado (si existe en descripción)
+                    modelo_descripcion = capacidad.modelo.descripcion
+                    import re
+                    modelo_a_match = re.search(r'A\d{4}', modelo_descripcion, re.I)
+                    modelo_a_number = modelo_a_match.group() if modelo_a_match else None
+
+                    # Si el modelo tiene A-number y NO coincide, rechazar mapeo
+                    if modelo_a_number and modelo_a_number.upper() != likewize_a_number.upper():
+                        logger.warning(
+                            f"Mapeo rechazado: A-number no coincide. "
+                            f"Likewize: {likewize_a_number}, Modelo: {modelo_a_number} ({modelo_descripcion})"
+                        )
+                        continue  # Intentar siguiente estrategia
 
                 # Aprender del mapeo exitoso
                 self._learn_from_mapping(likewize_item, capacidad, confidence, match_type)
@@ -204,6 +250,123 @@ class AutoLearningEngine:
 
         return None
 
+    def _match_by_a_number(self, features: Dict, capacity_str: str, model_name: str = '') -> Optional[Tuple[Capacidad, float, str]]:
+        """Mapeo por A-number (único en Apple, ignora tipo)"""
+        a_number = features.get('a_number')
+        if not a_number:
+            return None
+
+        # A-number es único, buscar en TODAS las descripciones
+        modelos = Modelo.objects.filter(
+            descripcion__icontains=a_number
+        )
+
+        if not modelos.exists():
+            return None
+
+        # 🔥 Refinar por processor variant (M3 Pro vs M3 Max, etc.)
+        if modelos.count() > 1 and features.get('processor_variant'):
+            variant_candidates = modelos.filter(
+                Q(procesador__icontains=features['processor_variant']) |
+                Q(descripcion__icontains=features['processor_variant'])
+            )
+            if variant_candidates.exists():
+                modelos = variant_candidates
+                logger.info(f"Refinado por processor_variant '{features['processor_variant']}': {modelos.count()} modelos")
+
+        # Refinar por GPU cores si hay múltiples
+        if modelos.count() > 1 and features.get('gpu_cores'):
+            gpu_candidates = modelos.filter(
+                Q(descripcion__icontains=f"{features['gpu_cores']}-core GPU") |
+                Q(descripcion__icontains=f"{features['gpu_cores']} core GPU") |
+                Q(descripcion__icontains=f"{features['gpu_cores']} Core GPU")
+            )
+            if gpu_candidates.exists():
+                modelos = gpu_candidates
+                logger.info(f"Refinado por GPU cores '{features['gpu_cores']}': {modelos.count()} modelos")
+
+        # 🔥 Refinar por procesador Intel + frecuencia (Core i7/i9 2.4, etc.) - PRIMERO
+        if modelos.count() > 1 and model_name:
+            import re
+            # Buscar patrón "i9 2.4" o "i7 2.6"
+            intel_freq_match = re.search(r'(i[3579])\s+(\d+\.?\d*)', model_name, re.I)
+            if intel_freq_match:
+                intel_gen = intel_freq_match.group(1).upper()  # i9 -> I9
+                intel_freq = intel_freq_match.group(2)  # 2.4
+                # Buscar Core I9 2.4 en descripción o procesador
+                intel_candidates = modelos.filter(
+                    Q(descripcion__icontains=f"{intel_gen} {intel_freq}") |
+                    Q(procesador__icontains=f"{intel_gen} {intel_freq}")
+                )
+                if intel_candidates.exists():
+                    modelos = intel_candidates
+                    logger.info(f"Refinado por Intel CPU + freq '{intel_gen} {intel_freq}': {modelos.count()} modelos")
+
+        # 🔥 Refinar por CPU cores si aún múltiples (para Mac Pro, Mac Studio, MacBook Pro M-series)
+        if modelos.count() > 1 and model_name:
+            import re
+
+            # Buscar específicamente "X Core CPU" primero (para MacBook Pro M-series)
+            cpu_core_match = re.search(r'(\d+)\s*Core\s*CPU', model_name, re.I)
+            if cpu_core_match:
+                cpu_cores = cpu_core_match.group(1)
+                cpu_candidates = modelos.filter(
+                    Q(descripcion__icontains=f"{cpu_cores} Core CPU") |
+                    Q(descripcion__icontains=f"{cpu_cores} Core Cpu") |
+                    Q(descripcion__icontains=f"{cpu_cores}-Core CPU")
+                )
+                if cpu_candidates.exists():
+                    modelos = cpu_candidates
+                    logger.info(f"Refinado por CPU cores '{cpu_cores}': {modelos.count()} modelos")
+            # Si no encontró "Core CPU", buscar "X Core Y.Z" (para iMac Pro, Mac Pro con Xeon)
+            else:
+                # Buscar patrón "8 Core 3.2" (cores + frecuencia) - DEBE tener decimal en frecuencia
+                cpu_freq_match = re.search(r'(\d+)\s*Core\s+(\d+\.\d+)', model_name, re.I)
+                if cpu_freq_match:
+                    cpu_cores = cpu_freq_match.group(1)
+                    cpu_freq = cpu_freq_match.group(2)
+                    # Intentar primero con cores + frecuencia
+                    cpu_candidates = modelos.filter(
+                        Q(descripcion__icontains=f"{cpu_cores} Core {cpu_freq}") |
+                        Q(procesador__icontains=f"{cpu_cores} Core {cpu_freq}")
+                    )
+                    if cpu_candidates.exists():
+                        modelos = cpu_candidates
+                        logger.info(f"Refinado por CPU cores + freq '{cpu_cores} Core {cpu_freq}': {modelos.count()} modelos")
+
+        # Refinar por processor family si aún múltiples
+        if modelos.count() > 1 and features.get('processor_family'):
+            cpu_candidates = modelos.filter(
+                Q(procesador__icontains=features['processor_family']) |
+                Q(descripcion__icontains=features['processor_family'])
+            )
+            if cpu_candidates.exists():
+                modelos = cpu_candidates
+                logger.info(f"Refinado por processor_family '{features['processor_family']}': {modelos.count()} modelos")
+
+        # Buscar capacidad en el(los) modelo(s) encontrado(s)
+        for modelo in modelos:
+            logger.info(f"Buscando capacidad '{capacity_str}' en modelo: {modelo.descripcion}")
+            capacidad = self._find_matching_capacity(modelo, capacity_str, features)
+            if capacidad:
+                logger.info(f"✅ MATCH encontrado: {modelo.descripcion} - {capacidad.tamaño}")
+                return capacidad, 0.98, 'a_number_match'  # Máxima confianza
+
+        # 🔥 IMPORTANTE: Si encontramos el modelo por A-number (refinado por GPU/CPU) pero no la capacidad,
+        # devolver señal especial para NO continuar con otras estrategias de mapeo.
+        # Esto permite que quede sin mapear para que el usuario cree la capacidad manualmente.
+        if modelos.count() > 0:
+            logger.warning(
+                f"⚠️ Modelo encontrado por A-number ({modelos.first().descripcion}) "
+                f"pero capacidad '{capacity_str}' no existe. "
+                "Se requiere crear la capacidad manualmente."
+            )
+            # Devolver tuple especial que indica "modelo correcto encontrado, capacidad faltante"
+            return None, 0.0, 'model_found_capacity_missing'
+
+        logger.info(f"❌ No se encontró modelo con A-number {a_number}")
+        return None
+
     def _match_by_model_description(self, features: Dict, m_model: str, capacity_str: str) -> Optional[Tuple[Capacidad, float, str]]:
         """Mapeo por descripción del modelo"""
         device_type = features.get('device_type')
@@ -213,19 +376,143 @@ class AutoLearningEngine:
         # Crear consulta base
         queryset = Modelo.objects.filter(tipo__iexact=device_type)
 
-        # Filtrar por características específicas
+        # 🔥 Filtrar por variante especial (XS, SE, etc.)
+        model_variant = features.get('model_variant')
+        generation = features.get('generation')
+        processor_family = features.get('processor_family')
+
+        if model_variant and device_type in ('iPhone', 'iPad'):
+            # Para variantes especiales, buscar la variante exacta con word boundaries (PostgreSQL)
+            # Esto evita que 'X' coincida con 'Max' o 'XR'
+            # Usar [[:<:]] y [[:>:]] para word boundaries en PostgreSQL
+            queryset = queryset.filter(descripcion__iregex=rf'[[:<:]]{re.escape(model_variant)}[[:>:]]')
+
+            # 🔥 EXCLUSIÓN: Si NO tiene Max/Plus en el nombre Likewize, excluir modelos con Max/Plus
+            # Ej: "iPhone XS" (has_max=False) NO debe mapear a "iPhone XS Max"
+            if not features.get('has_max'):
+                queryset = queryset.exclude(descripcion__icontains='max')
+            if not features.get('has_plus'):
+                queryset = queryset.exclude(descripcion__icontains='plus')
+
+            # ADEMÁS, si hay generación, filtrar por ella también (ej: SE 3rd generation)
+            if generation:
+                # Buscar "(3.ª generación)", "(3rd generation)", "SE 3", etc.
+                queryset = queryset.filter(
+                    Q(descripcion__icontains=f'{generation}.ª generación') |
+                    Q(descripcion__icontains=f'{generation}rd generation') |
+                    Q(descripcion__icontains=f'{generation}nd generation') |
+                    Q(descripcion__icontains=f'{generation}th generation') |
+                    Q(descripcion__icontains=f'{generation}st generation') |
+                    Q(descripcion__icontains=f'{model_variant} {generation}')
+                )
+        # 🔥 Si no hay variante especial, filtrar por generación/modelo (iPhone 16, iPad 10, etc.)
+        # PERO solo si NO tenemos procesador (M4, M2, etc.) que ya identifica la generación
+        elif not model_variant and generation and device_type in ('iPhone', 'iPad') and not processor_family:
+            # Buscar "iPhone 16" o "iPad 10" o "(6.ª generación)" en la descripción
+            queryset = queryset.filter(
+                Q(descripcion__icontains=f'{device_type} {generation}') |
+                Q(descripcion__icontains=f'{device_type}{generation}') |
+                Q(descripcion__icontains=f'{generation}.ª generación') |
+                Q(descripcion__icontains=f'{generation}rd generation') |
+                Q(descripcion__icontains=f'{generation}nd generation') |
+                Q(descripcion__icontains=f'{generation}th generation') |
+                Q(descripcion__icontains=f'{generation}st generation')
+            )
+
+        # Filtrar por características específicas (SIEMPRE aplicar estos filtros cuando existan)
+        # Estos son críticos para diferenciar iPad Pro vs iPad Air vs iPad mini vs iPad normal
         if features.get('has_pro'):
             queryset = queryset.filter(descripcion__icontains='pro')
-        if features.get('has_max'):
-            queryset = queryset.filter(descripcion__icontains='max')
-        if features.get('has_air'):
+        elif features.get('has_air'):  # ELIF: si no es Pro, puede ser Air
             queryset = queryset.filter(descripcion__icontains='air')
-        if features.get('has_mini'):
+        elif features.get('has_mini'):  # ELIF: si no es Pro ni Air, puede ser mini
             queryset = queryset.filter(descripcion__icontains='mini')
+        # Si no tiene pro/air/mini, es iPad normal (no filtrar)
+
+        # 🔥 NUEVO: Filtrar por generación para iPad Air/Pro/mini si tiene generación pero NO model_variant
+        # Esto maneja casos como "iPad Air 5" que tienen generación detectada (5) pero no model_variant
+        # Previene que "iPad Air 5 256GB" mapee a "iPad Air 6ª generación" incorrectamente
+        if generation and device_type and device_type.startswith('iPad') and not model_variant:
+            if features.get('has_air') or features.get('has_pro') or features.get('has_mini'):
+                # Filtrar por generación con todos los formatos posibles
+                queryset = queryset.filter(
+                    Q(descripcion__icontains=f'{generation}.ª generación') |
+                    Q(descripcion__icontains=f'({generation}rd generation)') |
+                    Q(descripcion__icontains=f'({generation}th generation)') |
+                    Q(descripcion__icontains=f'({generation}nd generation)') |
+                    Q(descripcion__icontains=f'({generation}st generation)')
+                )
+
+        if features.get('has_max') and model_variant != 'XS Max':
+            queryset = queryset.filter(descripcion__icontains='max')
+        if features.get('has_plus'):
+            queryset = queryset.filter(descripcion__icontains='plus')
+
+        # Filtrar por tamaño de pantalla (iPad Pro 13" vs 12.9" vs 11")
+        screen_size = features.get('screen_size')
+        if screen_size and device_type and device_type.startswith('iPad'):
+            # Normalizar: 11.0 → buscar "11" y "11.0", 12.9 → buscar "12.9"
+            size_int = int(screen_size) if screen_size == int(screen_size) else None
+
+            # Buscar modelos que tengan el tamaño en pantalla o descripción
+            size_filters = Q(pantalla__icontains=f'{screen_size}') | Q(descripcion__icontains=f'{screen_size}')
+            if size_int:
+                # También buscar sin decimal: 11.0 → "11"
+                size_filters |= Q(pantalla__icontains=f'{size_int}') | Q(descripcion__icontains=f'{size_int}')
+
+            queryset = queryset.filter(size_filters)
+
+            # EXCLUIR modelos con tamaños de pantalla diferentes (que no sean "Nan" o null)
+            # Esto previene que iPad Air 11" mapee a iPad Air 10.5" (3ª gen)
+            exclude_filters = Q(pantalla__isnull=False) & ~Q(pantalla='Nan')
+            if size_int:
+                exclude_filters &= ~Q(pantalla__icontains=str(size_int)) & ~Q(pantalla__icontains=f'{screen_size}')
+            else:
+                exclude_filters &= ~Q(pantalla__icontains=f'{screen_size}')
+
+            queryset = queryset.exclude(exclude_filters)
+
+        # Filtrar por procesador (M4, M2, M1, etc.) para iPad Pro
+        processor_family = features.get('processor_family')
+        if processor_family and device_type and device_type.startswith('iPad'):
+            queryset = queryset.filter(
+                Q(procesador__icontains=processor_family) |
+                Q(descripcion__icontains=processor_family)
+            )
+
+        # Filtrar por conectividad WiFi vs Cellular (iPad)
+        if device_type and device_type.startswith('iPad'):
+            has_wifi = features.get('has_wifi', False)
+            has_cellular = features.get('has_cellular', False)
+
+            # Si especifica WiFi explícitamente (y no Cellular), filtrar solo WiFi
+            if has_wifi and not has_cellular:
+                queryset = queryset.filter(
+                    Q(descripcion__icontains='wifi') | Q(descripcion__icontains='wi-fi')
+                ).exclude(descripcion__icontains='cellular')
+            # Si especifica Cellular, filtrar solo Cellular
+            elif has_cellular:
+                queryset = queryset.filter(descripcion__icontains='cellular')
 
         # Filtrar por año si está disponible
         if features.get('year'):
             queryset = queryset.filter(año=features['year'])
+
+        # 🔥 NUEVO: Detectar ambigüedad para iPad/iPhone cuando hay múltiples generaciones
+        # Si hay múltiples modelos y NO tenemos información de año/procesador/generación,
+        # es ambiguo y no deberíamos mapear (evita mapeos incorrectos)
+        if device_type in ('iPhone', 'iPad') and not features.get('year') and not processor_family and not generation:
+            # Verificar si hay múltiples modelos distintos en el queryset
+            modelos_count = queryset.count()
+            if modelos_count > 1:
+                # Hay ambigüedad: múltiples generaciones posibles sin forma de distinguir
+                modelos_list = list(queryset.values_list('descripcion', flat=True)[:5])
+                logger.warning(
+                    f"Ambigüedad detectada para {m_model}: {modelos_count} modelos posibles "
+                    f"({modelos_list}) sin información de generación/procesador/año. "
+                    "No se mapeará para evitar errores."
+                )
+                return None
 
         # Buscar en los modelos filtrados
         for modelo in queryset[:20]:  # Limitar para performance
@@ -243,6 +530,93 @@ class AutoLearningEngine:
             return None
 
         modelos = Modelo.objects.filter(tipo__iexact=device_type)
+
+        # Filtrar por variante especial y generación (igual que en _match_by_model_description)
+        model_variant = features.get('model_variant')
+        generation = features.get('generation')
+        processor_family = features.get('processor_family')
+
+        if model_variant and device_type in ('iPhone', 'iPad'):
+            # Usar regex con word boundaries (PostgreSQL) para evitar que 'X' coincida con 'Max'
+            modelos = modelos.filter(descripcion__iregex=rf'[[:<:]]{re.escape(model_variant)}[[:>:]]')
+
+            # 🔥 EXCLUSIÓN: Si NO tiene Max/Plus en el nombre Likewize, excluir modelos con Max/Plus
+            if not features.get('has_max'):
+                modelos = modelos.exclude(descripcion__icontains='max')
+            if not features.get('has_plus'):
+                modelos = modelos.exclude(descripcion__icontains='plus')
+
+            if generation:
+                modelos = modelos.filter(
+                    Q(descripcion__icontains=f'{generation}.ª generación') |
+                    Q(descripcion__icontains=f'{generation}rd generation') |
+                    Q(descripcion__icontains=f'{generation}nd generation') |
+                    Q(descripcion__icontains=f'{generation}th generation') |
+                    Q(descripcion__icontains=f'{generation}st generation') |
+                    Q(descripcion__icontains=f'{model_variant} {generation}')
+                )
+        elif not model_variant and generation and device_type in ('iPhone', 'iPad') and not processor_family:
+            modelos = modelos.filter(
+                Q(descripcion__icontains=f'{device_type} {generation}') |
+                Q(descripcion__icontains=f'{device_type}{generation}') |
+                Q(descripcion__icontains=f'{generation}.ª generación') |
+                Q(descripcion__icontains=f'{generation}rd generation') |
+                Q(descripcion__icontains=f'{generation}nd generation') |
+                Q(descripcion__icontains=f'{generation}th generation') |
+                Q(descripcion__icontains=f'{generation}st generation')
+            )
+
+        # Filtrar por características específicas (igual que en _match_by_model_description)
+        if features.get('has_pro'):
+            modelos = modelos.filter(descripcion__icontains='pro')
+        elif features.get('has_air'):
+            modelos = modelos.filter(descripcion__icontains='air')
+        elif features.get('has_mini'):
+            modelos = modelos.filter(descripcion__icontains='mini')
+
+        # Filtrar por tamaño de pantalla (igual que en _match_by_model_description)
+        screen_size = features.get('screen_size')
+        if screen_size and device_type and device_type.startswith('iPad'):
+            size_int = int(screen_size) if screen_size == int(screen_size) else None
+
+            size_filters = Q(pantalla__icontains=f'{screen_size}') | Q(descripcion__icontains=f'{screen_size}')
+            if size_int:
+                size_filters |= Q(pantalla__icontains=f'{size_int}') | Q(descripcion__icontains=f'{size_int}')
+
+            modelos = modelos.filter(size_filters)
+
+            exclude_filters = Q(pantalla__isnull=False) & ~Q(pantalla='Nan')
+            if size_int:
+                exclude_filters &= ~Q(pantalla__icontains=str(size_int)) & ~Q(pantalla__icontains=f'{screen_size}')
+            else:
+                exclude_filters &= ~Q(pantalla__icontains=f'{screen_size}')
+
+            modelos = modelos.exclude(exclude_filters)
+
+        # Filtrar por conectividad WiFi vs Cellular (igual que en _match_by_model_description)
+        if device_type and device_type.startswith('iPad'):
+            has_wifi = features.get('has_wifi', False)
+            has_cellular = features.get('has_cellular', False)
+
+            if has_wifi and not has_cellular:
+                modelos = modelos.filter(
+                    Q(descripcion__icontains='wifi') | Q(descripcion__icontains='wi-fi')
+                ).exclude(descripcion__icontains='cellular')
+            elif has_cellular:
+                modelos = modelos.filter(descripcion__icontains='cellular')
+
+        # 🔥 NUEVO: Detectar ambigüedad (igual que en _match_by_model_description)
+        processor_family = features.get('processor_family')
+        if device_type in ('iPhone', 'iPad') and not features.get('year') and not processor_family and not generation:
+            modelos_count = modelos.count()
+            if modelos_count > 1:
+                modelos_list = list(modelos.values_list('descripcion', flat=True)[:5])
+                logger.warning(
+                    f"Ambigüedad detectada en _match_by_features para {m_model}: "
+                    f"{modelos_count} modelos posibles ({modelos_list}) sin información de generación/procesador/año. "
+                    "No se mapeará para evitar errores."
+                )
+                return None
 
         best_match = None
         best_score = 0.0
@@ -279,8 +653,96 @@ class AutoLearningEngine:
         main_tokens = [token for token in tokens if len(token) > 3][:3]
 
         queryset = Modelo.objects.filter(tipo__iexact=device_type)
+
+        # Filtrar por variante especial y generación (igual que en _match_by_model_description)
+        model_variant = features.get('model_variant')
+        generation = features.get('generation')
+        processor_family = features.get('processor_family')
+
+        if model_variant and device_type in ('iPhone', 'iPad'):
+            # Usar regex con word boundaries (PostgreSQL) para evitar que 'X' coincida con 'Max'
+            queryset = queryset.filter(descripcion__iregex=rf'[[:<:]]{re.escape(model_variant)}[[:>:]]')
+
+            # 🔥 EXCLUSIÓN: Si NO tiene Max/Plus en el nombre Likewize, excluir modelos con Max/Plus
+            if not features.get('has_max'):
+                queryset = queryset.exclude(descripcion__icontains='max')
+            if not features.get('has_plus'):
+                queryset = queryset.exclude(descripcion__icontains='plus')
+
+            if generation:
+                queryset = queryset.filter(
+                    Q(descripcion__icontains=f'{generation}.ª generación') |
+                    Q(descripcion__icontains=f'{generation}rd generation') |
+                    Q(descripcion__icontains=f'{generation}nd generation') |
+                    Q(descripcion__icontains=f'{generation}th generation') |
+                    Q(descripcion__icontains=f'{generation}st generation') |
+                    Q(descripcion__icontains=f'{model_variant} {generation}')
+                )
+        elif not model_variant and generation and device_type in ('iPhone', 'iPad') and not processor_family:
+            queryset = queryset.filter(
+                Q(descripcion__icontains=f'{device_type} {generation}') |
+                Q(descripcion__icontains=f'{device_type}{generation}') |
+                Q(descripcion__icontains=f'{generation}.ª generación') |
+                Q(descripcion__icontains=f'{generation}rd generation') |
+                Q(descripcion__icontains=f'{generation}nd generation') |
+                Q(descripcion__icontains=f'{generation}th generation') |
+                Q(descripcion__icontains=f'{generation}st generation')
+            )
+
+        # Filtrar por características específicas (igual que en _match_by_model_description)
+        if features.get('has_pro'):
+            queryset = queryset.filter(descripcion__icontains='pro')
+        elif features.get('has_air'):
+            queryset = queryset.filter(descripcion__icontains='air')
+        elif features.get('has_mini'):
+            queryset = queryset.filter(descripcion__icontains='mini')
+
+        # Filtrar por tamaño de pantalla (igual que en _match_by_model_description)
+        screen_size = features.get('screen_size')
+        if screen_size and device_type and device_type.startswith('iPad'):
+            size_int = int(screen_size) if screen_size == int(screen_size) else None
+
+            size_filters = Q(pantalla__icontains=f'{screen_size}') | Q(descripcion__icontains=f'{screen_size}')
+            if size_int:
+                size_filters |= Q(pantalla__icontains=f'{size_int}') | Q(descripcion__icontains=f'{size_int}')
+
+            queryset = queryset.filter(size_filters)
+
+            exclude_filters = Q(pantalla__isnull=False) & ~Q(pantalla='Nan')
+            if size_int:
+                exclude_filters &= ~Q(pantalla__icontains=str(size_int)) & ~Q(pantalla__icontains=f'{screen_size}')
+            else:
+                exclude_filters &= ~Q(pantalla__icontains=f'{screen_size}')
+
+            queryset = queryset.exclude(exclude_filters)
+
+        # Filtrar por conectividad WiFi vs Cellular (igual que en _match_by_model_description)
+        if device_type and device_type.startswith('iPad'):
+            has_wifi = features.get('has_wifi', False)
+            has_cellular = features.get('has_cellular', False)
+
+            if has_wifi and not has_cellular:
+                queryset = queryset.filter(
+                    Q(descripcion__icontains='wifi') | Q(descripcion__icontains='wi-fi')
+                ).exclude(descripcion__icontains='cellular')
+            elif has_cellular:
+                queryset = queryset.filter(descripcion__icontains='cellular')
+
         for token in main_tokens:
             queryset = queryset.filter(descripcion__icontains=token)
+
+        # 🔥 NUEVO: Detectar ambigüedad (igual que en los otros métodos)
+        processor_family = features.get('processor_family')
+        if device_type in ('iPhone', 'iPad') and not features.get('year') and not processor_family and not generation:
+            modelos_count = queryset.count()
+            if modelos_count > 1:
+                modelos_list = list(queryset.values_list('descripcion', flat=True)[:5])
+                logger.warning(
+                    f"Ambigüedad detectada en _match_by_text_similarity para {m_model}: "
+                    f"{modelos_count} modelos posibles ({modelos_list}) sin información de generación/procesador/año. "
+                    "No se mapeará para evitar errores."
+                )
+                return None
 
         for modelo in queryset[:10]:
             capacidad = self._find_matching_capacity(modelo, capacity_str, features)
@@ -288,6 +750,17 @@ class AutoLearningEngine:
                 return capacidad, self.match_weights['fuzzy'], 'fuzzy_match'
 
         return None
+
+    def _extract_capacity_from_name(self, model_name: str) -> str:
+        """Extrae capacidad del nombre del modelo (ej: '1TB SSD' → '1 TB')"""
+        import re
+        # Buscar patrón de capacidad: 256GB, 1TB, etc.
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(TB|GB)', model_name, re.I)
+        if match:
+            qty = match.group(1)
+            unit = match.group(2).upper()
+            return f"{qty} {unit}"
+        return ""
 
     def _find_matching_capacity(self, modelo: Modelo, capacity_str: str, features: Dict) -> Optional[Capacidad]:
         """Encuentra capacidad coincidente en un modelo"""
@@ -303,14 +776,38 @@ class AutoLearningEngine:
         capacity_patterns = self._get_capacity_patterns(storage_gb)
 
         for pattern in capacity_patterns:
-            capacidad = Capacidad.objects.filter(
+            capacidades = Capacidad.objects.filter(
                 modelo=modelo,
                 tamaño__icontains=pattern,
                 activo=True
-            ).first()
+            )
 
-            if capacidad:
-                return capacidad
+            if capacidades.exists():
+                # Si hay múltiples capacidades (ej: WiFi y Cellular del mismo modelo)
+                # preferir la que coincida con la conectividad detectada
+                if capacidades.count() > 1:
+                    has_wifi = features.get('has_wifi', False)
+                    has_cellular = features.get('has_cellular', False)
+
+                    # Preferir WiFi si se detectó WiFi (sin Cellular)
+                    if has_wifi and not has_cellular:
+                        wifi_cap = capacidades.filter(
+                            Q(modelo__descripcion__icontains='wifi') |
+                            Q(modelo__descripcion__icontains='wi-fi')
+                        ).exclude(modelo__descripcion__icontains='cellular').first()
+                        if wifi_cap:
+                            return wifi_cap
+
+                    # Preferir Cellular si se detectó Cellular
+                    elif has_cellular:
+                        cellular_cap = capacidades.filter(
+                            modelo__descripcion__icontains='cellular'
+                        ).first()
+                        if cellular_cap:
+                            return cellular_cap
+
+                # Si no hay preferencia o solo hay una, devolver la primera
+                return capacidades.first()
 
         return None
 

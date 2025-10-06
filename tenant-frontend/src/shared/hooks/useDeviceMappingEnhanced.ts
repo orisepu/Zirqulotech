@@ -345,6 +345,7 @@ export function useDeviceMappingEnhanced() {
         queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-review'] })
         queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-statistics'] })
         queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
+        queryClient.invalidateQueries({ queryKey: ['validation_items'] })
       }
     })
   }
@@ -370,6 +371,7 @@ export function useDeviceMappingEnhanced() {
         queryClient.invalidateQueries({ queryKey: ['device-mapping-v2-statistics'] })
         queryClient.invalidateQueries({ queryKey: ['likewize_diff'] })
         queryClient.invalidateQueries({ queryKey: ['unmapped_items'] })
+        queryClient.invalidateQueries({ queryKey: ['validation_items'] })
       }
     })
   }

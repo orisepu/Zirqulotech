@@ -171,53 +171,79 @@ class DeviceMappingService:
     def _try_exact_mapping(self, metadata: DeviceMetadata) -> MappingResult:
         """Mapeo exacto basado en códigos específicos y filtros fuertes."""
         candidates = self.ModeloClass.objects.all()
-
-        # Filtrar por códigos Likewize si están disponibles
-        if metadata.likewize_model_code:
-            likewize_candidates = candidates.filter(
-                Q(likewize_modelo__iexact=metadata.likewize_model_code) |
-                Q(likewize_modelo__iendswith=metadata.likewize_model_code)
-            )
-            if likewize_candidates.exists():
-                candidates = likewize_candidates
-
-        # Aplicar filtros de contexto
-        if metadata.device_type:
-            candidates = candidates.filter(tipo__iexact=metadata.device_type)
-
-        if metadata.brand:
-            candidates = candidates.filter(marca__iexact=metadata.brand)
-
-        # Señales fuertes para validación
         strong_signals = 0
+
+        # 🔥 ESTRATEGIA A-NUMBER PRIMERO (Macs)
         if metadata.a_number:
-            a_candidates = candidates.filter(**{f"{self.REL_NAME}__icontains": metadata.a_number})
-            if a_candidates.exists():
-                candidates = a_candidates
-                strong_signals += 2
+            # A-number es único en Apple, ignora tipo/marca
+            candidates = candidates.filter(**{f"{self.REL_NAME}__icontains": metadata.a_number})
+            strong_signals = 2
 
-        if metadata.year:
-            year_candidates = candidates.filter(
-                Q(año=metadata.year) | Q(**{f"{self.REL_NAME}__icontains": str(metadata.year)})
-            )
-            if year_candidates.exists():
-                candidates = year_candidates
-                strong_signals += 1
+            if not candidates.exists():
+                return MappingResult(None, 0, "exact", {"reason": "a_number_not_found"})
 
-        if metadata.screen_size:
-            size_candidates = candidates.filter(
-                Q(pantalla__icontains=f"{metadata.screen_size} pulgadas") |
-                Q(**{f"{self.REL_NAME}__icontains": f"{metadata.screen_size} pulgadas"})
-            )
-            if size_candidates.exists():
-                candidates = size_candidates
-                strong_signals += 1
+            # Refinar por GPU cores (ej: 10-core vs 19-core)
+            if metadata.gpu_cores and candidates.count() > 1:
+                gpu_candidates = candidates.filter(
+                    Q(**{f"{self.REL_NAME}__icontains": f"{metadata.gpu_cores}-core"}) |
+                    Q(**{f"{self.REL_NAME}__icontains": f"{metadata.gpu_cores} core"})
+                )
+                if gpu_candidates.exists():
+                    candidates = gpu_candidates
+                    strong_signals += 1
 
-        # Verificar señales mínimas
-        if strong_signals < self.ALGORITHM_WEIGHTS['exact']['min_signals']:
-            return MappingResult(None, 0, "exact", {"reason": "insufficient_signals", "signals": strong_signals})
+            # Refinar por CPU (ej: M2 vs M2 Pro)
+            if metadata.cpu and candidates.count() > 1:
+                cpu_candidates = candidates.filter(
+                    Q(procesador__icontains=metadata.cpu) |
+                    Q(**{f"{self.REL_NAME}__icontains": metadata.cpu})
+                )
+                if cpu_candidates.exists():
+                    candidates = cpu_candidates
+                    strong_signals += 1
 
-        # Buscar capacidad exacta
+        else:
+            # SIN A-NUMBER (iPhone, iPad) - Lógica tradicional
+
+            # Filtrar por códigos Likewize
+            if metadata.likewize_model_code:
+                likewize_candidates = candidates.filter(
+                    Q(likewize_modelo__iexact=metadata.likewize_model_code) |
+                    Q(likewize_modelo__iendswith=metadata.likewize_model_code)
+                )
+                if likewize_candidates.exists():
+                    candidates = likewize_candidates
+
+            # Filtros de contexto
+            if metadata.device_type:
+                candidates = candidates.filter(tipo__iexact=metadata.device_type)
+
+            if metadata.brand:
+                candidates = candidates.filter(marca__iexact=metadata.brand)
+
+            # Señales adicionales
+            if metadata.year:
+                year_candidates = candidates.filter(
+                    Q(año=metadata.year) | Q(**{f"{self.REL_NAME}__icontains": str(metadata.year)})
+                )
+                if year_candidates.exists():
+                    candidates = year_candidates
+                    strong_signals += 1
+
+            if metadata.screen_size:
+                size_candidates = candidates.filter(
+                    Q(pantalla__icontains=f"{metadata.screen_size} pulgadas") |
+                    Q(**{f"{self.REL_NAME}__icontains": f"{metadata.screen_size} pulgadas"})
+                )
+                if size_candidates.exists():
+                    candidates = size_candidates
+                    strong_signals += 1
+
+            # Verificar señales mínimas para casos sin A-number
+            if strong_signals < self.ALGORITHM_WEIGHTS['exact']['min_signals']:
+                return MappingResult(None, 0, "exact", {"reason": "insufficient_signals", "signals": strong_signals})
+
+        # Buscar capacidad exacta (común para ambos caminos)
         if metadata.capacity_gb:
             capacity_id = self._find_capacity_for_models(candidates, metadata.capacity_gb)
             if capacity_id:

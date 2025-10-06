@@ -53,11 +53,12 @@ class FeatureExtractor:
         text_clean = self._clean_text(text)
 
         features = {
-            # Características numéricas
+            # Características numéricas (algunas usan texto original para preservar paréntesis/comillas)
             'year': self._extract_year(text_clean),
-            'generation': self._extract_generation(text_clean),
-            'screen_size': self._extract_screen_size(text_clean),
+            'generation': self._extract_generation(text),  # Usar texto original para detectar (3rd generation)
+            'screen_size': self._extract_screen_size(text),  # Usar texto original para detectar ''
             'storage_gb': self._extract_storage_gb(text_clean),
+            'gpu_cores': self._extract_gpu_cores(text_clean),
 
             # Características categóricas booleanas
             'has_pro': bool(self.device_variants['pro'].search(text_clean)),
@@ -91,6 +92,7 @@ class FeatureExtractor:
 
             # Características específicas de dispositivo
             'device_type': self._infer_device_type(text_clean),
+            'model_variant': self._extract_model_variant(text),  # Usar texto original
             'color_mentioned': self._has_color_mention(text_clean),
             'capacity_in_name': self._has_capacity_in_name(text_clean),
 
@@ -123,19 +125,86 @@ class FeatureExtractor:
         return int(match.group()) if match else None
 
     def _extract_generation(self, text: str) -> Optional[int]:
-        """Extrae generación del dispositivo"""
-        match = self.generation_pattern.search(text)
+        """Extrae generación del dispositivo (recibe texto original sin limpiar)"""
+        text_lower = text.lower()
+
+        # PRIMERO: Extraer generación de formato "(3rd generation)", "(2nd generation)", etc.
+        generation_parenthesis = re.search(r'\((\d+)(?:st|nd|rd|th)\s+generation\)', text_lower, re.I)
+        if generation_parenthesis:
+            gen = int(generation_parenthesis.group(1))
+            return gen if 1 <= gen <= 20 else None
+
+        # SEGUNDO: Generación en español "1ª generación", "2.ª generación"
+        match = self.generation_pattern.search(text_lower)
         if match:
             gen = int(match.group(1))
             return gen if 1 <= gen <= 15 else None
+
+        # TERCERO: Para iPad Air/Pro/mini, mapear procesador M-series a generación
+        # iPad Air: M2 = 6ª gen (2024), M1 = 5ª gen (2022)
+        # iPad Pro: M4 = 7ª gen (2024), M2 = 6ª gen (2022), M1 = 5ª/3ª gen (2021/2018)
+        # iPad mini: A17 Pro = 7ª gen (2024), A15 = 6ª gen (2021)
+        if 'ipad air' in text_lower:
+            if re.search(r'\(m2\)|\bm2\b', text_lower):
+                return 6  # iPad Air M2 es 6ª generación (2024)
+            elif re.search(r'\(m1\)|\bm1\b', text_lower):
+                return 5  # iPad Air M1 es 5ª generación (2022)
+        elif 'ipad pro' in text_lower:
+            if re.search(r'\(m4\)|\bm4\b', text_lower):
+                return 7  # iPad Pro M4 es 7ª generación (2024)
+            elif re.search(r'\(m2\)|\bm2\b', text_lower):
+                return 6  # iPad Pro M2 es 6ª generación (2022)
+        elif 'ipad mini' in text_lower:
+            if re.search(r'a17\s*pro', text_lower):
+                return 7  # iPad mini A17 Pro es 7ª generación (2024)
+            elif re.search(r'a15', text_lower):
+                return 6  # iPad mini A15 es 6ª generación (2021)
+
+        # CUARTO: Para iPad, detectar generación después de tamaño de pantalla
+        # Ej: "iPad Pro 12.9'' 6" → generación 6
+        ipad_gen_after_screen = re.search(r'ipad\s+(?:pro|air|mini)?\s+\d{1,2}(?:\.\d)?(?:\'\'|"|-inch|inch)\s+(\d{1})(?:\s|$)', text_lower, re.I)
+        if ipad_gen_after_screen:
+            gen = int(ipad_gen_after_screen.group(1))
+            return gen if 1 <= gen <= 10 else None
+
+        # QUINTO: Número de modelo de iPhone/iPad (ej: "iPhone 16 Pro" → 16, "iPad mini 7" → 7)
+        # Pero NO detectar iPhone SE donde el número es tamaño de pantalla
+        if not re.search(r'\biphone\s+se\b', text_lower, re.I):
+            device_model_match = re.search(r'(iphone|ipad(?:\s+(?:air|mini))?)\s+(\d{1,2})(?:\s|$)', text_lower, re.I)
+            if device_model_match:
+                model_num = int(device_model_match.group(2))
+                return model_num if 1 <= model_num <= 20 else None
+
+        return None
+
+    def _extract_model_variant(self, text: str) -> Optional[str]:
+        """Extrae variante de modelo (XS, SE, Plus, etc.) para iPhone/iPad"""
+        # Detectar variantes especiales de iPhone
+        if re.search(r'\biphone\s+xs\s+max\b', text, re.I):
+            return 'XS Max'
+        elif re.search(r'\biphone\s+xs\b', text, re.I):
+            return 'XS'
+        elif re.search(r'\biphone\s+xr\b', text, re.I):
+            return 'XR'
+        elif re.search(r'\biphone\s+x\b', text, re.I):
+            return 'X'
+        elif re.search(r'\biphone\s+se\b', text, re.I):
+            return 'SE'
+        # Plus NO es variante especial - se maneja con generation + has_plus
+
+        # Detectar variantes especiales de iPad
+        # Air y mini ya se detectan con has_air y has_mini, NO son variantes especiales aquí
+
         return None
 
     def _extract_screen_size(self, text: str) -> Optional[float]:
-        """Extrae tamaño de pantalla"""
-        match = self.screen_size_pattern.search(text)
-        if match:
+        """Extrae tamaño de pantalla (recibe texto original sin limpiar)"""
+        text_lower = text.lower()
+        # Buscar tamaño de pantalla con indicadores explícitos: inch, pulgadas, ", ''
+        screen_match = re.search(r'(\d{1,2}(?:[.,]\d)?)\s*(?:"|\'\'|-inch|inch|pulgadas?)', text_lower, re.I)
+        if screen_match:
             try:
-                size = float(match.group(1).replace(',', '.'))
+                size = float(screen_match.group(1).replace(',', '.'))
                 return size if 3.0 <= size <= 32.0 else None
             except ValueError:
                 return None
@@ -179,6 +248,13 @@ class FeatureExtractor:
         match = self.a_number_pattern.search(text)
         return match.group().upper() if match else None
 
+    def _extract_gpu_cores(self, text: str) -> Optional[int]:
+        """Extrae número de núcleos GPU (ej: 10-core GPU, 19 core GPU)"""
+        match = re.search(r'(\d{1,3})\s*[-\s]?core\s+gpu', text, re.I)
+        if match:
+            return int(match.group(1))
+        return None
+
     def _tokenize(self, text: str) -> List[str]:
         """Tokeniza el texto eliminando stop words"""
         words = re.findall(r'\b\w+\b', text.lower())
@@ -214,9 +290,31 @@ class FeatureExtractor:
         """Infiere tipo de dispositivo"""
         if re.search(r'\biphone\b', text):
             return 'iPhone'
+        # Detectar iPad con variantes: iPad Pro, iPad Air, iPad mini (ANTES del genérico)
+        elif re.search(r'(ipad\s*pro|ipadpro)', text, re.I):
+            return 'iPad Pro'
+        elif re.search(r'(ipad\s*air|ipadair)', text, re.I):
+            return 'iPad Air'
+        elif re.search(r'(ipad\s*mini|ipadmini)', text, re.I):
+            return 'iPad mini'
         elif re.search(r'\bipad\b', text):
             return 'iPad'
-        elif re.search(r'\bmac\b', text):
+        # Detectar Mac con variantes: MacBook, MacBookPro, MacBookAir, iMac, Macmini, Mac Pro, Mac Studio
+        elif re.search(r'(macbook\s*pro|macbookpro)', text, re.I):
+            return 'MacBook Pro'
+        elif re.search(r'(macbook\s*air|macbookair)', text, re.I):
+            return 'MacBook Air'
+        elif re.search(r'\bmacbook\b', text, re.I):
+            return 'MacBook'
+        elif re.search(r'\bimac\b', text, re.I):
+            return 'iMac'
+        elif re.search(r'(mac\s*mini|macmini)', text, re.I):
+            return 'Mac mini'
+        elif re.search(r'(mac\s*pro|macpro)', text, re.I):
+            return 'Mac Pro'
+        elif re.search(r'(mac\s*studio|macstudio)', text, re.I):
+            return 'Mac Studio'
+        elif re.search(r'\bmac\b', text, re.I):
             return 'Mac'
         elif re.search(r'\bwatch\b', text):
             return 'Watch'

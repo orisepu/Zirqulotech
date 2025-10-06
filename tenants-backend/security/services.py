@@ -5,6 +5,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.utils import timezone
 from datetime import datetime, timedelta
 import json
 from math import radians, sin, cos, sqrt, atan2
@@ -58,7 +59,7 @@ class LocationSecurityService:
             ip (str): Dirección IP
 
         Returns:
-            dict: Diccionario con country, city, latitude, longitude, ip
+            dict: Diccionario con country, city, region, latitude, longitude, ip
                   None si no se puede obtener la ubicación
         """
         if not self.ENABLED or not self.reader:
@@ -66,9 +67,24 @@ class LocationSecurityService:
 
         try:
             response = self.reader.city(ip)
+
+            # Obtener ciudad con fallback a región/provincia
+            city = response.city.name
+            region = None
+
+            # Si no hay ciudad, intentar obtener región/provincia
+            if not city and response.subdivisions:
+                region = response.subdivisions.most_specific.name
+                logger.info(f"IP {ip}: No city found, using region: {region}")
+
+            # Fallback: si no hay ciudad ni región, usar "Unknown"
+            display_location = city or region or "Unknown"
+
             return {
                 'country': response.country.name or 'Unknown',
-                'city': response.city.name or None,
+                'city': city,
+                'region': region,
+                'display_location': display_location,  # Para mostrar en UI
                 'latitude': response.location.latitude,
                 'longitude': response.location.longitude,
                 'ip': ip
@@ -105,6 +121,8 @@ class LocationSecurityService:
             current_location = {
                 'country': 'Unknown',
                 'city': None,
+                'region': None,
+                'display_location': 'Unknown',
                 'latitude': None,
                 'longitude': None,
                 'ip': current_ip
@@ -136,20 +154,9 @@ class LocationSecurityService:
             return True
 
         # Aquí ya sabemos que AMBOS tienen ubicación válida
-        # Verificar si es país diferente
-        if current_location['country'] != last_login.get('country'):
-            logger.warning(
-                f"User {user.email} login from different country: "
-                f"{last_login.get('country')} → {current_location['country']}"
-            )
-            self.alert_different_country(user, current_location, last_login)
-            self.save_login(
-                user, current_ip, current_location, request,
-                was_blocked=False, block_reason='DIFFERENT_COUNTRY', alert_sent=True
-            )
-            return 'REQUIRE_2FA'
 
-        # Verificar viaje imposible (solo si AMBOS tienen lat/lon)
+        # PRIORIDAD 1: Verificar viaje imposible PRIMERO (más crítico - bloqueo total)
+        # Solo si AMBOS tienen coordenadas
         if (last_login.get('latitude') and last_login.get('longitude') and
             current_location.get('latitude') and current_location.get('longitude')):
 
@@ -158,7 +165,7 @@ class LocationSecurityService:
                 current_location['latitude'], current_location['longitude']
             )
 
-            time_diff = datetime.now() - datetime.fromisoformat(last_login['timestamp'])
+            time_diff = timezone.now() - datetime.fromisoformat(last_login['timestamp'])
             hours_diff = time_diff.total_seconds() / 3600
 
             if distance_km > self.ALERT_THRESHOLD_KM and hours_diff < self.ALERT_THRESHOLD_HOURS:
@@ -173,7 +180,20 @@ class LocationSecurityService:
                 )
                 return 'BLOCK'
 
-        # Login parece legítimo
+        # PRIORIDAD 2: Verificar país diferente (menos crítico - solo alerta)
+        if current_location['country'] != last_login.get('country'):
+            logger.warning(
+                f"User {user.email} login from different country: "
+                f"{last_login.get('country')} → {current_location['country']}"
+            )
+            self.alert_different_country(user, current_location, last_login)
+            self.save_login(
+                user, current_ip, current_location, request,
+                was_blocked=False, block_reason='DIFFERENT_COUNTRY', alert_sent=True
+            )
+            return 'REQUIRE_2FA'
+
+        # PRIORIDAD 3: Login parece legítimo
         self.save_login(user, current_ip, current_location, request)
         return True
 
@@ -210,7 +230,7 @@ class LocationSecurityService:
         Args:
             user: Usuario
             ip: IP de origen
-            location: Diccionario con ubicación
+            location: Diccionario con ubicación (incluye city, region, display_location)
             request: HttpRequest object
             was_blocked: Si el login fue bloqueado
             block_reason: Razón del bloqueo
@@ -224,6 +244,7 @@ class LocationSecurityService:
             ip=ip,
             country=location.get('country'),
             city=location.get('city'),
+            region=location.get('region'),  # Nuevo campo
             latitude=location.get('latitude'),
             longitude=location.get('longitude'),
             was_blocked=was_blocked,
@@ -236,25 +257,31 @@ class LocationSecurityService:
         if not was_blocked:
             login_data = {
                 **location,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': timezone.now().isoformat()
             }
             cache.set(f'last_login:{user.id}', json.dumps(login_data), timeout=86400 * 30)  # 30 días
 
+        # Usar display_location (ciudad o región o "Unknown")
+        display = location.get('display_location') or location.get('city') or location.get('region') or 'Unknown'
         logger.info(
-            f"Login saved for {user.email} from {location.get('city', 'Unknown')}, "
+            f"Login saved for {user.email} from {display}, "
             f"{location.get('country', 'Unknown')} (blocked: {was_blocked})"
         )
 
     def alert_different_country(self, user, current, last):
         """Envía alerta de login desde país diferente"""
         try:
+            # Usar display_location (ciudad o región) para mejor precisión
+            current_display = current.get('display_location') or current.get('city') or current.get('region') or 'Ubicación desconocida'
+            last_display = last.get('city') or last.get('region') or 'Ubicación desconocida'
+
             context = {
                 'user_name': user.name or user.email,
-                'current_city': current.get('city', 'Desconocida'),
+                'current_city': current_display,
                 'current_country': current.get('country', 'Desconocido'),
                 'current_ip': current['ip'],
-                'current_time': datetime.now().strftime('%d/%m/%Y %H:%M'),
-                'last_city': last.get('city', 'Desconocida'),
+                'current_time': timezone.now().strftime('%d/%m/%Y %H:%M'),
+                'last_city': last_display,
                 'last_country': last.get('country', 'Desconocido')
             }
 
@@ -278,14 +305,18 @@ class LocationSecurityService:
     def alert_impossible_travel(self, user, current, last, distance, hours):
         """Bloquea y alerta de viaje imposible"""
         try:
+            # Usar display_location (ciudad o región) para mejor precisión
+            current_display = current.get('display_location') or current.get('city') or current.get('region') or 'Ubicación desconocida'
+            last_display = last.get('city') or last.get('region') or 'Ubicación desconocida'
+
             context = {
                 'user_name': user.name or user.email,
-                'current_city': current.get('city', 'Desconocida'),
+                'current_city': current_display,
                 'current_country': current.get('country', 'Desconocido'),
                 'current_ip': current['ip'],
                 'distance_km': f"{distance:.0f}",
                 'hours': f"{hours:.1f}",
-                'last_city': last.get('city', 'Desconocida'),
+                'last_city': last_display,
                 'last_country': last.get('country', 'Desconocido')
             }
 

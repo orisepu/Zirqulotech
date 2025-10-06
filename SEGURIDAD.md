@@ -131,7 +131,7 @@ RESULTADO:
 📝 Login registrado con alerta
 ```
 
-#### Escenario 3: Viaje Imposible 🚨
+#### Escenario 3: Viaje Imposible 🚨 (PRIORIDAD MÁXIMA)
 
 ```
 JUEVES 09:00 AM
@@ -152,12 +152,72 @@ Umbrales configurados:
   - Conclusión: VIAJE IMPOSIBLE
 
 RESULTADO:
-🚨 LOGIN BLOQUEADO
+🚨 LOGIN BLOQUEADO (prioridad sobre "país diferente")
 📧 Email urgente a Ana:
    "Tu cuenta ha sido bloqueada por razones de seguridad.
     Se detectó un acceso desde Tokio, Japón.
     Contacta con soporte si necesitas ayuda."
 📞 Notificación al administrador del partner
+```
+
+#### Escenario 4: Viaje Imposible entre Países 🚨🚨
+
+```
+CASO REAL: Barcelona → Dallas
+Ana hace login desde:
+  📍 Dallas, United States (IP: 95.173.xxx.xxx) a las 13:02
+
+Último login de Ana:
+  📍 Barcelona, Spain (IP: 162.120.xxx.xxx) a las 12:58
+
+ANÁLISIS DEL SISTEMA (ORDEN DE VERIFICACIÓN):
+
+1️⃣ VERIFICACIÓN PRIORITARIA: ¿Viaje imposible?
+    📏 Distancia: 8,000 km
+    ⏱️ Tiempo: 4 minutos (0.067 horas)
+    🚫 Velocidad: 120,000 km/h (IMPOSIBLE)
+    ✅ Cumple criterio: >500km en <4 horas
+
+2️⃣ VERIFICACIÓN SECUNDARIA: ¿País diferente?
+    ⚠️ Spain → United States (SÍ, diferente)
+    ❌ PERO no se evalúa porque ya fue bloqueado en paso 1
+
+RESULTADO:
+🚨 LOGIN BLOQUEADO POR VIAJE IMPOSIBLE
+📧 Email urgente + bloqueo de cuenta
+📝 Registrado como: block_reason='IMPOSSIBLE_TRAVEL'
+
+IMPORTANTE: Aunque también es "país diferente", el sistema
+bloquea por "viaje imposible" porque es más crítico.
+```
+
+### Orden de Prioridad de Verificaciones
+
+El sistema evalúa cada login en este orden (de más crítico a menos crítico):
+
+```
+🔍 FLUJO DE VERIFICACIÓN:
+
+1️⃣ PRIORIDAD MÁXIMA: Viaje Imposible
+   └─ Condición: >500 km en <4 horas
+   └─ Acción: BLOQUEO TOTAL + Email urgente
+   └─ Código: block_reason='IMPOSSIBLE_TRAVEL'
+
+   ↓ Si NO es viaje imposible, continúa ↓
+
+2️⃣ PRIORIDAD MEDIA: País Diferente
+   └─ Condición: Login desde otro país
+   └─ Acción: ALERTA + Requiere 2FA
+   └─ Código: block_reason='DIFFERENT_COUNTRY'
+
+   ↓ Si es mismo país, continúa ↓
+
+3️⃣ PRIORIDAD BAJA: Login Normal
+   └─ Acción: PERMITIR + Actualizar historial
+   └─ Sin restricciones
+
+NOTA IMPORTANTE: Un viaje imposible SIEMPRE bloquea,
+incluso si también es un país diferente.
 ```
 
 ### Configuración del Sistema
@@ -197,6 +257,48 @@ $ python manage.py download_geoip
   → Se puede ejecutar mensualmente para actualizar
 ```
 
+### Precisión de Geolocalización
+
+**GeoLite2 es gratuito pero tiene limitaciones de precisión:**
+
+```
+PRECISIÓN POR NIVEL:
+🟢 País: ~95-99% de precisión (casi siempre correcto)
+🟡 Región/Provincia: ~80-85% de precisión
+🟠 Ciudad: ~70% de precisión (puede fallar en algunas IPs)
+🔴 Coordenadas exactas: ±50-100 km de error
+
+SISTEMA DE FALLBACK INTELIGENTE:
+1️⃣ Si detecta ciudad → Muestra "Barcelona, Spain"
+2️⃣ Si NO detecta ciudad → Muestra "Cataluña, Spain" (región/provincia)
+3️⃣ Si NO detecta región → Muestra "Spain (ubicación aproximada)"
+4️⃣ Si NO detecta país → Muestra "IP: xxx.xxx.xxx.xxx" (IP privada/VPN)
+```
+
+**Ejemplo real:**
+
+```
+LOGIN 1: IP Pública (88.29.190.119)
+Resultado: "Spain" (país) + Coordenadas (41.38, 2.16)
+Sin ciudad exacta → Sistema muestra: "Cataluña, Spain"
+
+LOGIN 2: IP Privada (192.168.1.211)
+Resultado: No se puede geolocalizar
+Sistema muestra: "IP: 192.168.1.211"
+
+LOGIN 3: IP Conocida (8.8.8.8 - Google DNS)
+Resultado: "Mountain View, United States"
+Sistema muestra: "Mountain View, United States"
+```
+
+**¿Necesitas mayor precisión?**
+
+Para producción con alta precisión (99% a nivel ciudad), considera actualizar a **GeoIP2 Precision** (de pago):
+- Visita: https://www.maxmind.com/en/geoip2-precision-services
+- Precisión comercial: ~99% a nivel ciudad
+- Actualización en tiempo real
+- Coste: ~0.0005€ por consulta (500 consultas = 0.25€)
+
 ### Historial de Logins
 
 Todos los logins quedan registrados en la tabla `LoginHistory`:
@@ -206,7 +308,8 @@ LoginHistory:
 ├── user: Ana López
 ├── ip: 185.43.xxx.xxx
 ├── country: España
-├── city: Madrid
+├── city: Madrid (puede ser NULL si GeoLite2 no puede determinarlo)
+├── region: Comunidad de Madrid (fallback cuando city es NULL)
 ├── latitude: 40.4168
 ├── longitude: -3.7038
 ├── timestamp: 2025-10-03 10:15:23
@@ -214,6 +317,13 @@ LoginHistory:
 ├── block_reason: NULL
 ├── alert_sent: False
 └── user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)...
+```
+
+**Campos de ubicación con fallback:**
+- `city`: Ciudad específica (precisión alta) - Puede ser NULL
+- `region`: Región/provincia (precisión media) - Se usa cuando city es NULL
+- `country`: País (precisión muy alta) - Casi siempre presente
+- `latitude/longitude`: Coordenadas aproximadas (±50-100 km de error)
 ```
 
 Este historial permite:

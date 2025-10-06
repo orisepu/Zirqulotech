@@ -2320,14 +2320,11 @@ packages:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
 
-<<<<<<< HEAD
-=======
   chromium-bidi@9.1.0:
     resolution: {integrity: sha512-rlUzQ4WzIAWdIbY/viPShhZU2n21CxDUgazXVbw4Hu1MwaeUSEksSeM6DqPgpRjCLXRk702AVRxJxoOz0dw4OA==}
     peerDependencies:
       devtools-protocol: '*'
 
->>>>>>> 82b852b462b1eb0a346c7559b041d0a2726eaa5d
   ci-info@3.9.0:
     resolution: {integrity: sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==}
     engines: {node: '>=8'}
@@ -5741,6 +5738,8 @@ snapshots:
       '@ckeditor/ckeditor5-ui': 46.0.1
       '@ckeditor/ckeditor5-utils': 46.0.1
       ckeditor5: 46.0.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@ckeditor/ckeditor5-heading@46.0.1':
     dependencies:
@@ -5819,6 +5818,8 @@ snapshots:
       '@ckeditor/ckeditor5-widget': 46.0.1
       ckeditor5: 46.0.1
       es-toolkit: 1.39.5
+    transitivePeerDependencies:
+      - supports-color
 
   '@ckeditor/ckeditor5-indent@46.0.1':
     dependencies:
@@ -5964,8 +5965,6 @@ snapshots:
       '@ckeditor/ckeditor5-core': 46.0.1
       '@ckeditor/ckeditor5-engine': 46.0.1
       ckeditor5: 46.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@ckeditor/ckeditor5-react@11.0.0(ckeditor5@46.0.1)(react@19.1.1)':
     dependencies:
@@ -5997,8 +5996,6 @@ snapshots:
       '@ckeditor/ckeditor5-icons': 46.0.1
       '@ckeditor/ckeditor5-ui': 46.0.1
       '@ckeditor/ckeditor5-utils': 46.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@ckeditor/ckeditor5-show-blocks@46.0.1':
     dependencies:
@@ -8008,6 +8005,12 @@ snapshots:
   character-reference-invalid@2.0.1: {}
 
   chownr@3.0.0: {}
+
+  chromium-bidi@9.1.0(devtools-protocol@0.0.1495869):
+    dependencies:
+      devtools-protocol: 0.0.1495869
+      mitt: 3.0.1
+      zod: 3.25.76
 
   ci-info@3.9.0: {}
 

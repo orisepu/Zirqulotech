@@ -14,6 +14,8 @@ PUBLIC_ROUTES = [
     "/api/login/",
     "/api/token/",
     "/api/token/refresh/",
+    "/admin/",
+    "/static/",
 ]
 
 class HeaderTenantMiddleware(TenantMainMiddleware):
