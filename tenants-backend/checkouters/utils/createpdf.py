@@ -488,67 +488,71 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
 
     # ==========================
     # Tabla de precios por grado
+    # Solo en ofertas temporales (dispositivos declarados)
     # ==========================
-    elements.append(Paragraph("<b>Precios por grado del dispositivo (sin IVA)</b>", h3))
+    es_oferta_formal = dispositivos_override is not None
 
-    precios_headers = [
-        Paragraph("<b>Modelo</b>", cell_center),
-        Paragraph("<b>Capacidad</b>", cell_center),
-        Paragraph(f"<b>{format_grade_full('A+')}</b>", cell_center),
-        Paragraph(f"<b>{format_grade_full('A')}</b>", cell_center),
-        Paragraph(f"<b>{format_grade_full('B')}</b>", cell_center),
-        Paragraph(f"<b>{format_grade_full('C')}</b>", cell_center),
-    ]
+    if not es_oferta_formal:
+        elements.append(Paragraph("<b>Precios por grado del dispositivo (sin IVA)</b>", h3))
 
-    precios_data = [precios_headers]
-    canal_pdf = _canal_from_oportunidad(oportunidad)
-    _cache_precios = {}
+        precios_headers = [
+            Paragraph("<b>Modelo</b>", cell_center),
+            Paragraph("<b>Capacidad</b>", cell_center),
+            Paragraph(f"<b>{format_grade_full('A+')}</b>", cell_center),
+            Paragraph(f"<b>{format_grade_full('A')}</b>", cell_center),
+            Paragraph(f"<b>{format_grade_full('B')}</b>", cell_center),
+            Paragraph(f"<b>{format_grade_full('C')}</b>", cell_center),
+        ]
 
-    elementos_mostrados = set()
-    for d in dispositivos:
-        key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
-        if key in elementos_mostrados:
-            continue
-        elementos_mostrados.add(key)
+        precios_data = [precios_headers]
+        canal_pdf = _canal_from_oportunidad(oportunidad)
+        _cache_precios = {}
 
-        cap_id = getattr(d.capacidad, 'id', None)
-        base = _precio_recompra_vigente(cap_id, canal_pdf, cache=_cache_precios)
-        precio_base = Decimal(str(base)) if base is not None else Decimal("0.00")
+        elementos_mostrados = set()
+        for d in dispositivos:
+            key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
+            if key in elementos_mostrados:
+                continue
+            elementos_mostrados.add(key)
 
-        # Calcular precios por grado: A+ (base), A, B, C
-        factor = Decimal(str(get_factor(float(precio_base))))
-        precio_a_plus = precio_base  # A+ = Como nuevo (precio base)
-        precio_a = (precio_a_plus * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # A = Excelente
-        precio_b = (precio_a * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # B = Muy bueno
-        precio_c = (precio_b * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # C = Correcto
+            cap_id = getattr(d.capacidad, 'id', None)
+            base = _precio_recompra_vigente(cap_id, canal_pdf, cache=_cache_precios)
+            precio_base = Decimal(str(base)) if base is not None else Decimal("0.00")
 
-        precios_data.append([
-            Paragraph(key[0], cell_left),
-            Paragraph(str(key[1]), cell_center),
-            Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-            Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-            Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-            Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-        ])
+            # Calcular precios por grado: A+ (base), A, B, C
+            factor = Decimal(str(get_factor(float(precio_base))))
+            precio_a_plus = precio_base  # A+ = Como nuevo (precio base)
+            precio_a = (precio_a_plus * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # A = Excelente
+            precio_b = (precio_a * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # B = Muy bueno
+            precio_c = (precio_b * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # C = Correcto
 
-    precios_table = Table(precios_data, repeatRows=1, colWidths=[150, 60, 75, 75, 75, 75])
-    precios_table.setStyle(TableStyle([
-        # Encabezado sutil
-        ("BACKGROUND", (0, 0), (-1, 0), colors.white),
-        ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
+            precios_data.append([
+                Paragraph(key[0], cell_left),
+                Paragraph(str(key[1]), cell_center),
+                Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+            ])
 
-        # Cuerpo
-        ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
-    ]))
-    elements.append(precios_table)
+        precios_table = Table(precios_data, repeatRows=1, colWidths=[150, 60, 75, 75, 75, 75])
+        precios_table.setStyle(TableStyle([
+            # Encabezado sutil
+            ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+            ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
 
-    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
+            # Cuerpo
+            ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
+        ]))
+        elements.append(precios_table)
+
+        elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
 
     # ==========================
     # Descripción de estados
@@ -561,7 +565,7 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         desc = GRADE_DESCRIPTIONS[grade]
         label = desc['label']
         short = desc['short']
-        desc_lines.append(f"<b>{label} ({grade}):</b> {short}")
+        desc_lines.append(f"<b>{label}:</b> {short}")
 
     desc_text = "<br/>".join(desc_lines)
 
