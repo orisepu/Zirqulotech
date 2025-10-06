@@ -47,7 +47,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
                 if security_check == 'BLOCK':
                     logger.warning(
-                        f"Login BLOCKED for {user.username} due to impossible travel"
+                        f"Login BLOCKED for {user.email} due to impossible travel"
                     )
                     return Response(
                         {
@@ -59,7 +59,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
                 elif security_check == 'REQUIRE_2FA':
                     logger.info(
-                        f"Login from unusual location for {user.username}, requiring additional verification"
+                        f"Login from unusual location for {user.email}, requiring additional verification"
                     )
                     return Response(
                         {
@@ -71,7 +71,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     )
 
                 # Login exitoso y ubicación verificada
-                logger.info(f"Successful login for {user.username}")
+                logger.info(f"Successful login for {user.email}")
 
             except Exception as e:
                 # Si hay error en la verificación de ubicación, permitir login

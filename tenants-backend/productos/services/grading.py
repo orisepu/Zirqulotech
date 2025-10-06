@@ -39,8 +39,66 @@ def topes(V_Aplus:int, ppA:float, ppB:float, ppC:float):
     C = round(B*(1-ppC))
     return A,B,C
 
+def detectar_reciclaje(params: Params, i: dict) -> bool:
+    """
+    Detecta si un dispositivo debe clasificarse como grado R (Reciclaje).
+    Criterios: ≥3 fallos críticos simultáneos.
+    """
+    fallos_criticos = []
+
+    # 1. No enciende
+    if i.get('enciende') is False:
+        fallos_criticos.append(True)
+
+    # 2. No carga (si tiene batería)
+    if params.has_battery and i.get('carga') is False:
+        fallos_criticos.append(True)
+
+    # 3. Display dañado (si tiene pantalla)
+    if params.has_display and i.get('display_image_status') and i['display_image_status'] != 'OK':
+        fallos_criticos.append(True)
+
+    # 4. Cristal agrietado severo (si tiene pantalla)
+    if params.has_display and i.get('glass_status') == 'CRACK':
+        fallos_criticos.append(True)
+
+    # 5. Chasis doblado
+    if i.get('housing_status') == 'DOBLADO':
+        fallos_criticos.append(True)
+
+    # 6. Fallo funcional básico
+    if i.get('funcional_basico_ok') is False:
+        fallos_criticos.append(True)
+
+    return sum(fallos_criticos) >= 3
+
+
 def calcular(params: Params, i: dict):
-    # Gates (configurables según tipo de dispositivo)
+    # 1. VERIFICAR RECICLAJE (≥3 fallos críticos) - prioridad alta
+    es_reciclaje = detectar_reciclaje(params, i)
+    if es_reciclaje:
+        # Grado R: valor de suelo (solo componentes)
+        return {
+            "oferta": params.V_suelo,
+            "gate": "RECICLAJE",
+            "grado_estetico": "R",
+            "V_Aplus": params.V_Aplus,
+            "V_A": 0,
+            "V_B": 0,
+            "V_C": 0,
+            "V_tope": params.V_suelo,
+            "deducciones": {"pr_bat": 0, "pr_pant": 0, "pr_chas": 0, "pp_func": 0},
+            "calculo": {
+                "V1": params.V_suelo,
+                "aplica_pp_func": False,
+                "V2": params.V_suelo,
+                "redondeo5": params.V_suelo,
+                "suelo": params.V_suelo,
+                "oferta_final": params.V_suelo,
+            },
+        }
+
+    # 2. Gates normales (configurables según tipo de dispositivo)
     gate = 'OK'
 
     # Gate básico: enciende y carga (solo si tiene batería para dispositivos portátiles)

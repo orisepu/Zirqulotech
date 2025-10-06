@@ -18,6 +18,7 @@ from markdown import markdown
 from django.template import engines
 from reportlab.lib.enums import TA_RIGHT
 from xml.sax.saxutils import escape as xesc
+from productos.services.grade_mapping import GRADE_LABELS, legacy_to_grade
 
 logger = logging.getLogger(__name__)
 ALLOWED_TAGS = {"b","i","u","br","font","a"}
@@ -488,10 +489,25 @@ def generar_pdf_contrato(contrato, preview: bool = False, override_cuerpo_html: 
             for d in dispositivos:
                 desc = d.get("descripcion") or d.get("modelo") or "—"
                 imei = d.get("imei") or d.get("serie") or "—"
+
+                # Mapear estado legacy a grado oficial
                 if es_acta:
-                    est_txt = d.get("estado") or d.get("estado_funcional") or d.get("estado_fisico") or "—"
+                    est_raw = d.get("estado") or d.get("estado_funcional") or d.get("estado_fisico")
                 else:
-                    est_txt = d.get("estado_declarado") or d.get("estado_funcional") or d.get("estado_fisico") or "—"
+                    est_raw = d.get("estado_declarado") or d.get("estado_funcional") or d.get("estado_fisico")
+
+                # Si es un estado legacy, convertir a grado oficial
+                if est_raw:
+                    estado_fisico = d.get("estado_fisico")
+                    estado_funcional = d.get("estado_funcional")
+                    if estado_fisico or estado_funcional:
+                        grado = legacy_to_grade(estado_fisico, estado_funcional)
+                        est_txt = GRADE_LABELS.get(grado, est_raw)
+                    else:
+                        est_txt = est_raw
+                else:
+                    est_txt = "—"
+
                 precio = _precio_linea(d)
                 total += precio
                 
@@ -625,7 +641,7 @@ def generar_pdf_condiciones_b2c(contrato, version: str = "v1.3"):
             "Borrado de datos, desvinculación de cuentas y retirada de SIM/microSD."
         ]),
         ("5. Estados y exclusiones", [
-            "Casi nuevo / Usado / Dañado / Reciclable (ver Anexo II).",
+            "Grados comerciales: Como nuevo (A+) / Excelente (A) / Muy bueno (B) / Correcto (C) / Defectuoso (D) / Reciclaje (R) (ver Anexo II).",
             "Exclusiones: robado, falsificado, bloqueado, FMI activo, piezas críticas no originales no declaradas, daños estructurales graves."
         ]),
         ("6. Envío y riesgo", [

@@ -375,7 +375,7 @@ def add_knowledge_base_entry(request):
             confidence_level=data.get('confidence_level', 'needs_verification'),
             source=data.get('source', 'manual'),
             verification_notes=data.get('verification_notes', ''),
-            created_by=str(request.user.username)
+            created_by=str(request.user.email)
         )
 
         return Response({
