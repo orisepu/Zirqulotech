@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes, renderer_cla
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
+from django.db import connection
 from ..models.oportunidad import Oportunidad
 from checkouters.utils.createpdf import generar_pdf_oportunidad
 from django.http import HttpResponse,JsonResponse
@@ -22,8 +23,11 @@ def generar_pdf_view(request, pk):
         logger.error(f"❌ Oportunidad con ID {pk} no encontrada")
         raise Http404("Oportunidad no encontrada")
 
+    # Obtener el tenant actual para usar su logo en el PDF
+    tenant = connection.tenant
+
     try:
-        pdf_buffer = generar_pdf_oportunidad(oportunidad)
+        pdf_buffer = generar_pdf_oportunidad(oportunidad, tenant=tenant)
         logger.info(f"✅ PDF generado correctamente para oportunidad {pk}")
     except Exception as e:
         logger.exception(f"❌ Error al generar el PDF para oportunidad {pk}: {e}")
