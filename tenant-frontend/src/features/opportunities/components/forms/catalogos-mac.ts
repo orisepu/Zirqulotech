@@ -11,14 +11,14 @@ function buildMacCatalog(prefix: string, hasScreen: boolean): CatalogoValoracion
     ],
     funcPantalla: hasScreen
       ? [
-          { value: 'puntos',  label: 'Puntos brillantes', desc: 'Manchas de luz visibles en fondos oscuros.' },
-          { value: 'pixeles', label: 'Píxeles muertos',   desc: 'Puntos fijos apagados/encendidos.' },
-          { value: 'lineas',  label: 'Líneas/quemaduras', desc: 'Bandas, retenciones o decoloración.' },
+          { value: 'puntos_brillantes',  label: 'Puntos brillantes', desc: 'Manchas de luz visibles en fondos oscuros.' },
+          { value: 'pixeles_muertos', label: 'Píxeles muertos',   desc: 'Puntos fijos apagados/encendidos.' },
+          { value: 'lineas_quemaduras',  label: 'Líneas/quemaduras', desc: 'Bandas, retenciones o decoloración.' },
         ]
       : [
-          { value: 'puntos',  label: noScreenTitle, desc: 'No aplica.' },
-          { value: 'pixeles', label: noScreenTitle, desc: 'No aplica.' },
-          { value: 'lineas',  label: noScreenTitle, desc: 'No aplica.' },
+          { value: 'puntos_brillantes',  label: noScreenTitle, desc: 'No aplica.' },
+          { value: 'pixeles_muertos', label: noScreenTitle, desc: 'No aplica.' },
+          { value: 'lineas_quemaduras',  label: noScreenTitle, desc: 'No aplica.' },
         ],
     esteticaPantalla: hasScreen
       ? [
@@ -49,14 +49,14 @@ function buildMacCatalog(prefix: string, hasScreen: boolean): CatalogoValoracion
     ],
     demoFuncPantalla: hasScreen
       ? {
-          puntos:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes' },
-          pixeles: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos' },
-          lineas:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas/quemaduras' },
+          puntos_brillantes:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes' },
+          pixeles_muertos: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos' },
+          lineas_quemaduras:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas/quemaduras' },
         }
       : {
-          puntos:  { src: noScreenImg, title: noScreenTitle },
-          pixeles: { src: noScreenImg, title: noScreenTitle },
-          lineas:  { src: noScreenImg, title: noScreenTitle },
+          puntos_brillantes:  { src: noScreenImg, title: noScreenTitle },
+          pixeles_muertos: { src: noScreenImg, title: noScreenTitle },
+          lineas_quemaduras:  { src: noScreenImg, title: noScreenTitle },
         },
     demoEsteticaPantalla: hasScreen
       ? {

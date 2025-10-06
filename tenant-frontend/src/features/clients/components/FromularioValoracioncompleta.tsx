@@ -200,9 +200,9 @@ export default function FormularioValoracionOportunidad({
 
     // convertir booleans previos a array de issues
     const issues: string[] = []
-    if (item?.pantalla_funcional_puntos_bril) issues.push('puntos')
-    if (item?.pantalla_funcional_pixeles_muertos) issues.push('pixeles')
-    if (item?.pantalla_funcional_lineas_quemaduras) issues.push('lineas')
+    if (item?.pantalla_funcional_puntos_bril) issues.push('puntos_brillantes')
+    if (item?.pantalla_funcional_pixeles_muertos) issues.push('pixeles_muertos')
+    if (item?.pantalla_funcional_lineas_quemaduras) issues.push('lineas_quemaduras')
     setPantallaIssues(issues)
 
     if (item?.estado_pantalla) setEstadoPantalla(item.estado_pantalla)
@@ -255,7 +255,7 @@ export default function FormularioValoracionOportunidad({
 
   // Valoración derivada
   function derivarValoracion() {
-    const hasLineas = pantallaIssues.includes('lineas')
+    const hasLineas = pantallaIssues.includes('lineas_quemaduras')
     const hasIncidenciasPantalla = pantallaIssues.length > 0
     const incidenciasFunc = funcBasica === 'parcial' || hasIncidenciasPantalla
     const hayDanioGrave = estadoLados === 'agrietado_roto' || estadoEspalda === 'agrietado_roto' || hasLineas
@@ -319,9 +319,9 @@ export default function FormularioValoracionOportunidad({
       salud_bateria_pct: saludBateria === '' ? null : Number(saludBateria),
       ciclos_bateria: ciclosBateria === '' ? null : Number(ciclosBateria),
       funcionalidad_basica: funcBasica || null,
-      pantalla_funcional_puntos_bril: pantallaIssues.includes('puntos'),
-      pantalla_funcional_pixeles_muertos: pantallaIssues.includes('pixeles'),
-      pantalla_funcional_lineas_quemaduras: pantallaIssues.includes('lineas'),
+      pantalla_funcional_puntos_bril: pantallaIssues.includes('puntos_brillantes'),
+      pantalla_funcional_pixeles_muertos: pantallaIssues.includes('pixeles_muertos'),
+      pantalla_funcional_lineas_quemaduras: pantallaIssues.includes('lineas_quemaduras'),
       estado_pantalla: estadoPantalla || null,
       estado_lados: estadoLados || null,
       estado_espalda: estadoEspalda || null,
@@ -356,10 +356,10 @@ export default function FormularioValoracionOportunidad({
   }
 
   // IMÁGENES DEMO
-  const DEMO_IMG: Record<'puntos' | 'pixeles' | 'lineas', { src: string; title: string }> = {
-    puntos:  { src: '/demo/pantalla-puntos-brillantes.webp',  title: 'Puntos brillantes' },
-    pixeles: { src: '/demo/pantalla-pixeles-muertos.webp',    title: 'Píxeles muertos' },
-    lineas:  { src: '/demo/pantalla-lineas-quemaduras.webp',  title: 'Líneas / quemaduras' },
+  const DEMO_IMG: Record<'puntos_brillantes' | 'pixeles_muertos' | 'lineas_quemaduras', { src: string; title: string }> = {
+    puntos_brillantes:  { src: '/demo/pantalla-puntos-brillantes.webp',  title: 'Puntos brillantes' },
+    pixeles_muertos: { src: '/demo/pantalla-pixeles-muertos.webp',    title: 'Píxeles muertos' },
+    lineas_quemaduras:  { src: '/demo/pantalla-lineas-quemaduras.webp',  title: 'Líneas / quemaduras' },
   }
 
   const ESTETICA_IMG: Record<'lados' | 'espalda', Record<EsteticaKey, string>> = {
@@ -395,7 +395,7 @@ export default function FormularioValoracionOportunidad({
   const [demoOpen, setDemoOpen] = useState(false)
   const [demo, setDemo] = useState<{ src: string; title: string } | null>(null)
 
-  const openDemo = (key: 'puntos' | 'pixeles' | 'lineas') => {
+  const openDemo = (key: 'puntos_brillantes' | 'pixeles_muertos' | 'lineas_quemaduras') => {
     setDemo(DEMO_IMG[key])
     setDemoOpen(true)
   }
@@ -665,7 +665,7 @@ export default function FormularioValoracionOportunidad({
                   }}
                 >
                   {CAT.funcPantalla.map((o) => {
-                    const demo = DEMO_IMG[o.value as 'puntos' | 'pixeles' | 'lineas']
+                    const demo = DEMO_IMG[o.value as 'puntos_brillantes' | 'pixeles_muertos' | 'lineas_quemaduras']
                     return (
                       <ToggleButton
                         key={o.value}

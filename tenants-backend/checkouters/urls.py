@@ -45,7 +45,7 @@ from .views import (
     ObjetivoViewSet,
     ObjetivoResumenAPIView,
 )
-from .views.contrato import generar_pdf_view, enviar_correo_oferta
+from .views.contrato import generar_pdf_view, generar_pdf_oferta_formal, enviar_correo_oferta
 
 from .views.dispositivo import (
     capacidades_por_modelo
@@ -83,6 +83,7 @@ urlpatterns = [
     path("oportunidades/<uuid:id>/enviar-correo-oferta/", enviar_correo_oferta, name="enviar_correo_oferta"),
     path("oportunidades/<str:oportunidad_id>/historial/", HistorialOportunidadViewSet.as_view({'get': 'list'})),
     path("oportunidades/<int:pk>/generar-pdf/", generar_pdf_view),
+    path("oportunidades/<int:pk>/generar-pdf-formal/", generar_pdf_oferta_formal),
     path("oportunidades/<str:oportunidad_id>/dispositivos-reales/", DispositivosRealesDeOportunidadView.as_view(), name="dispositivos-reales-de-oportunidad"),
     path("oportunidades-globales/<str:schema>/<uuid:oportunidad_id>/confirmar-recepcion/", ConfirmarRecepcionGlobalView.as_view()),
     path("dashboard/valor-por-tienda/", ValorPorTiendaAPIView.as_view()),

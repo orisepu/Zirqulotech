@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Box, Grid, Paper, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button,
 } from '@mui/material'
-import { pdf } from '@react-pdf/renderer'
 
 import { useOportunidadData, toastApiError } from '@/shared/hooks/useOportunidadData'
 import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
@@ -17,7 +16,6 @@ import TabsOportunidad from '@/features/opportunities/components/TabsOportunidad
 
 import FormularioValoracionOportunidad from '@/features/opportunities/components/forms/FormularioValoracionOportunidad'
 import DatosRecogidaForm from '@/shared/components/DatosRecogida'
-import OfertaPDFDocument from '@/features/contracts/components/pdf/OfertaPDFDocument'
 import { toast } from 'react-toastify'
 
 type Oportunidad = any
@@ -99,30 +97,11 @@ export default function OportunidadDetallePage() {
     }
   }, [modalRecogidaAbierto, opp])
 
-  // Oferta formal (React-PDF en nueva pestaña) — usa los reales auditados
-  const verPDFEnNuevaPestana = async () => {
+  // Oferta formal - usa el endpoint seguro del backend con dispositivos auditados
+  const verPDFEnNuevaPestana = () => {
     if (!opp) return
-    const blob = await pdf(
-      <OfertaPDFDocument
-dispositivos={dispositivosReales.map((d: any) => ({
-          modelo: d.modelo || '',
-          capacidad: d.capacidad || '',
-          estado: d.estado_valoracion || '',
-          imei: d.imei || '',
-          numero_serie: d.numero_serie || '',
-          precio: Number(d.precio_final) || 0,
-        }))}
-        total={dispositivosReales.reduce((acc: number, d: any) => acc + (Number(d.precio_final) || 0), 0)}
-        nombre={String(opp?.hashid ?? opp?.id)}
-        oportunidad={opp}                 // ✅ nombre de prop correcto
-        cif={opp?.cliente?.cif}
-        calle={opp?.calle ?? opp?.cliente?.direccion_calle ?? ''}  // ✅ string
-        tienda={opp?.tienda}
-        logoUrl="/logo-progeek.png"
-      />
-    ).toBlob()
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
+    // Usar endpoint backend seguro que genera PDF con DispositivoReal
+    window.open(`/api/oportunidades/${opp.id}/generar-pdf-formal/`, '_blank')
   }
 
   // Handlers simples

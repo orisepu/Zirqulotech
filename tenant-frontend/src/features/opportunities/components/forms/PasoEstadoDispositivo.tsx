@@ -318,7 +318,7 @@ export default function PasoEstadoDispositivo({
             }}
           >
             {catalog.funcPantalla.map((o) => {
-              const demo = catalog.demoFuncPantalla[o.value as 'puntos' | 'pixeles' | 'lineas']
+              const demo = catalog.demoFuncPantalla[o.value as 'puntos_brillantes' | 'pixeles_muertos' | 'lineas_quemaduras']
               return (
                 <Tooltip key={o.value} title={o.desc} arrow placement="top">
                   <ToggleButton value={o.value} sx={{ display: 'flex', flexDirection: 'column', p: 0 }}>

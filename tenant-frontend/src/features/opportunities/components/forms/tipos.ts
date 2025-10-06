@@ -27,15 +27,15 @@ export type EsteticaPantallaKey = 'sin_signos' | 'minimos' | 'algunos' | 'desgas
 // Catálogo completo parametrizable por producto
 export interface CatalogoValoracion {
   funcBasica: OpcionCatalogo<'ok' | 'parcial'>[]
-  funcPantalla: OpcionCatalogo<'puntos' | 'pixeles' | 'lineas'>[]
+  funcPantalla: OpcionCatalogo<FuncPantallaValue>[]
   esteticaPantalla: OpcionCatalogo<EsteticaPantallaKey>[]
   esteticaLados: OpcionCatalogo<EsteticaKey>[]
   esteticaEspalda: OpcionCatalogo<EsteticaKey>[]
 
   demoFuncPantalla: {
-    puntos: { src: string; title: string }
-    pixeles: { src: string; title: string }
-    lineas: { src: string; title: string }
+    puntos_brillantes: { src: string; title: string }
+    pixeles_muertos: { src: string; title: string }
+    lineas_quemaduras: { src: string; title: string }
   }
 
   demoEsteticaPantalla: Record<EsteticaPantallaKey, { src: string; title: string }>
@@ -50,5 +50,6 @@ export interface ValoracionDerivada {
   estado_funcional: 'ok' | 'con_incidencias'
 }
 
-export type FuncPantallaValue = 'puntos' | 'pixeles' | 'lineas'
+// Valores de issues funcionales de pantalla (imagen, no cristal)
+export type FuncPantallaValue = 'puntos_brillantes' | 'pixeles_muertos' | 'lineas_quemaduras'
 

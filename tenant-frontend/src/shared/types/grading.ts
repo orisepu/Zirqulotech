@@ -1,6 +1,11 @@
 // Tipos para la página de Lógica del cuestionario comercial (iPhone)
 
-export type Grade = 'A+' | 'A' | 'B' | 'C' | 'D'
+export type Grade = 'A+' | 'A' | 'B' | 'C' | 'D' | 'R'
+
+// Resultado de grading: puede ser un grado válido o un rechazo (fuera de grading)
+export type GradingOutcome =
+  | { status: 'GRADED'; grade: Grade; oferta: number; telemetria?: any }
+  | { status: 'REJECTED'; reason: 'FMI_ON' | 'BLACKLIST' | 'SIM_LOCKED' | 'MDM_ACTIVE'; mensaje?: string }
 
 // Imagen del panel (no cristal)
 export enum DisplayImageStatus {
@@ -78,4 +83,66 @@ export interface ResultadoValoracion {
     pp_func: number
   }
   oferta: number
+}
+
+// Descripción y criterios de cada grado (según documento oficial v1)
+export const GRADE_DESCRIPTIONS: Record<Grade, { label: string; criteria: string[] }> = {
+  'A+': {
+    label: 'Como nuevo',
+    criteria: [
+      '100% funcional',
+      'Sin marcas en la pantalla',
+      'Sin marcas en chasis/trasera',
+      'Piezas originales / servicio oficial sin avisos',
+      'Aspecto "nuevo"',
+    ],
+  },
+  A: {
+    label: 'Excelente',
+    criteria: [
+      '100% funcional',
+      'Sin marcas en la pantalla',
+      'Micro-marcas leves en chasis',
+      'Piezas originales / servicio oficial sin avisos',
+    ],
+  },
+  B: {
+    label: 'Muy bueno',
+    criteria: [
+      '100% funcional',
+      'Micro-arañazos/marcas en la pantalla',
+      'Marcas visibles leves-moderadas o 1 pequeño picotazo en chasis/trasera',
+      'Piezas originales / servicio oficial sin avisos',
+    ],
+  },
+  C: {
+    label: 'Correcto',
+    criteria: [
+      '100% funcional',
+      'Arañazos evidentes en la pantalla (sin roturas)',
+      'Arañazos notables y/o pequeños abollones en chasis/trasera',
+      'Piezas originales / servicio oficial sin avisos',
+    ],
+  },
+  D: {
+    label: 'Defectuoso',
+    criteria: [
+      'No cumple 100% funcional O presenta:',
+      '- Pantalla rota o LCD dañado (líneas, manchas, quemados severos)',
+      '- Trasera de vidrio rota',
+      '- Chasis doblado',
+      '- No enciende/no carga',
+      '- Fallos críticos (biometría, SIM, llamadas, mic, altavoz, cámara principal)',
+      '- Humedad severa',
+      '- Piezas no originales/no oficiales con avisos',
+    ],
+  },
+  R: {
+    label: 'Reciclaje',
+    criteria: [
+      'Múltiples fallos críticos simultáneos (≥3)',
+      'Daños severos irreparables',
+      'Solo valor de componentes para reciclaje',
+    ],
+  },
 }

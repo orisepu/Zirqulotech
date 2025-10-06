@@ -9,9 +9,9 @@ export function buildIPadCatalog(): CatalogoValoracion {
       { value: 'parcial', label: 'No totalmente funcional',  desc: 'Presenta uno o más fallos.' },
     ],
     funcPantalla: [
-      { value: 'puntos',  label: 'Puntos brillantes', desc: 'Manchas de luz (más visibles en fondos oscuros).' },
-      { value: 'pixeles', label: 'Píxeles muertos',   desc: 'Puntos fijos apagados/encendidos en la pantalla.' },
-      { value: 'lineas',  label: 'Líneas/quemaduras', desc: 'Bandas, retenciones o decoloración persistente.' },
+      { value: 'puntos_brillantes',  label: 'Puntos brillantes', desc: 'Manchas de luz (más visibles en fondos oscuros).' },
+      { value: 'pixeles_muertos', label: 'Píxeles muertos',   desc: 'Puntos fijos apagados/encendidos en la pantalla.' },
+      { value: 'lineas_quemaduras',  label: 'Líneas/quemaduras', desc: 'Bandas, retenciones o decoloración persistente.' },
     ],
     esteticaPantalla: [
       { value: 'sin_signos',       label: 'Sin signos de uso',  desc: 'Aspecto como nuevo.' },
@@ -35,9 +35,9 @@ export function buildIPadCatalog(): CatalogoValoracion {
       { value: 'agrietado_roto',   label: 'Agrietado/roto',     desc: 'Grietas o aluminio muy golpeado.' },
     ],
     demoFuncPantalla: {
-      puntos:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes (iPad)' },
-      pixeles: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos (iPad)' },
-      lineas:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas/quemaduras (iPad)' },
+      puntos_brillantes:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes (iPad)' },
+      pixeles_muertos: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos (iPad)' },
+      lineas_quemaduras:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas/quemaduras (iPad)' },
     },
     demoEsteticaPantalla: {
       sin_signos:       { src: `${prefix}/pantalla-marcas-perfectas.webp`,  title: 'Pantalla sin signos (iPad)' },

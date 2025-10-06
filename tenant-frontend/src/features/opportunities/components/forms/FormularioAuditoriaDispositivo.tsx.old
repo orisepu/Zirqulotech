@@ -16,7 +16,8 @@ import {
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
-import { calcularEstadoDetallado, EstadoFisico, EstadoFuncional, NivelDesgaste } from '@/shared/utils/gradingCalcs';
+import { calcularEstadoDetallado, EstadoFisico, EstadoFuncional, NivelDesgaste, gradoEsteticoDesdeTabla } from '@/shared/utils/gradingCalcs';
+import { GRADE_DESCRIPTIONS, type Grade, GlassStatus, HousingStatus } from '@/shared/types/grading';
 
 // 🔁 Ajusta estas rutas a tu estructura real:
 import PasoEstadoDispositivo from './PasoEstadoDispositivo';
@@ -36,10 +37,24 @@ import { postValoracionIphoneAuditoria, type ValoracionTecnicaResponse } from '@
 import api from '@/services/api'
 // util formato moneda (solo local a este componente)
 const fmtEUR = (n: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n || 0)
+
+// Helper: mapear Grade a clave legacy de precio_por_estado (el backend devuelve claves legacy)
+const gradeToPrecioKey = (grade: Grade): string => {
+  const mapping: Record<Grade, string> = {
+    'A+': 'excelente',
+    'A': 'excelente',
+    'B': 'muy_bueno',
+    'C': 'bueno',
+    'D': 'a_revision',
+    'R': 'a_revision',
+  }
+  return mapping[grade]
+}
+
 export type ValoresAuditoria = {
   id: number;
   // calculado
-  estado_valoracion?: 'excelente' | 'muy_bueno' | 'bueno' | 'a_revision';
+  estado_valoracion?: Grade;
 
   // batería
   salud_bateria_pct?: number | null;
@@ -235,6 +250,23 @@ const MAP_ESTETICA_TO_NIVEL: Record<EsteticaKey, NivelDesgaste> = {
   agrietado_roto: 'alto',
 };
 
+// Mapeo de estados UI a enums oficiales de grading (para usar gradoEsteticoDesdeTabla)
+const MAP_ESTETICA_TO_GLASS: Record<EsteticaKey, GlassStatus> = {
+  sin_signos: GlassStatus.NONE,
+  minimos: GlassStatus.MICRO,
+  algunos: GlassStatus.VISIBLE,
+  desgaste_visible: GlassStatus.VISIBLE,
+  agrietado_roto: GlassStatus.CRACK,
+};
+
+const MAP_ESTETICA_TO_HOUSING: Record<EsteticaKey, HousingStatus> = {
+  sin_signos: HousingStatus.SIN_SIGNOS,
+  minimos: HousingStatus.MINIMOS,
+  algunos: HousingStatus.ALGUNOS,
+  desgaste_visible: HousingStatus.DESGASTE_VISIBLE,
+  agrietado_roto: HousingStatus.DOBLADO,
+};
+
 function buildDetalladoFromUI(params: {
   // Batería
   saludBateria: number | '';
@@ -263,11 +295,11 @@ function buildDetalladoFromUI(params: {
       ? params.ciclosBateria
       : null;
 
-  const pantalla_funcional_puntos_bril = params.pantallaIssues.includes('puntos');
-  const pantalla_funcional_pixeles_muertos = params.pantallaIssues.includes('pixeles');
+  const pantalla_funcional_puntos_bril = params.pantallaIssues.includes('puntos_brillantes');
+  const pantalla_funcional_pixeles_muertos = params.pantallaIssues.includes('pixeles_muertos');
   // tratamos "líneas" funcionales como crítico
   const pantalla_funcional_lineas_quemaduras =
-    params.pantallaIssues.includes('lineas') || params.estadoPantalla === ('agrietado_roto' as EsteticaKey);
+    params.pantallaIssues.includes('lineas_quemaduras') || params.estadoPantalla === ('agrietado_roto' as EsteticaKey);
 
   const desgaste_lateral =
     params.estadoLados ? MAP_ESTETICA_TO_NIVEL[params.estadoLados] : ('ninguno' as NivelDesgaste);
@@ -305,6 +337,24 @@ function buildDetalladoFromUI(params: {
   else if (params.estadoPantalla === 'agrietado_roto') estado_funcional = 'pantalla_rota';
   else if (anyFuncKO) estado_funcional = 'otros';
 
+  // Determinar glass_status y housing_status para usar gradoEsteticoDesdeTabla
+  const glass_status = params.estadoPantalla
+    ? MAP_ESTETICA_TO_GLASS[params.estadoPantalla]
+    : GlassStatus.NONE
+
+  // Housing status = peor entre laterales y trasera
+  const worstHousing = (() => {
+    const lados = params.estadoLados ? MAP_ESTETICA_TO_HOUSING[params.estadoLados] : HousingStatus.SIN_SIGNOS
+    const espalda = params.estadoEspalda ? MAP_ESTETICA_TO_HOUSING[params.estadoEspalda] : HousingStatus.SIN_SIGNOS
+
+    // Orden de severidad: DOBLADO > DESGASTE_VISIBLE > ALGUNOS > MINIMOS > SIN_SIGNOS
+    const orden = [HousingStatus.DOBLADO, HousingStatus.DESGASTE_VISIBLE, HousingStatus.ALGUNOS, HousingStatus.MINIMOS, HousingStatus.SIN_SIGNOS]
+    for (const nivel of orden) {
+      if (lados === nivel || espalda === nivel) return nivel
+    }
+    return HousingStatus.SIN_SIGNOS
+  })()
+
   return {
     estado_fisico,
     estado_funcional,
@@ -315,6 +365,8 @@ function buildDetalladoFromUI(params: {
     pantalla_funcional_lineas_quemaduras,
     desgaste_lateral,
     desgaste_trasero,
+    glass_status,
+    housing_status: worstHousing,
   };
 }
 
@@ -406,7 +458,7 @@ export default function FormularioAuditoriaDispositivo({
 
     // Mapeos a enums del endpoint técnico (idénticos a comercial)
     const toDisplayImageStatusApi = (issues: FuncPantallaValue[]) =>
-      issues.includes('lineas') ? 'LINES' : (issues.includes('pixeles') || issues.includes('puntos')) ? 'PIX' : 'OK'
+      issues.includes('lineas_quemaduras') ? 'LINES' : (issues.includes('pixeles_muertos') || issues.includes('puntos_brillantes')) ? 'PIX' : 'OK'
 
     const toGlassStatusApi = (k: EsteticaKey | '') => {
       switch (k) {
@@ -826,9 +878,9 @@ export default function FormularioAuditoriaDispositivo({
 
     // Recomputar valoración y sugerido cada vez que cambien los bloques (batería, pantalla, exterior)
     const recomputar = useCallback((draft: ValoresAuditoria, fromUI: ReturnType<typeof buildDetalladoFromUI>, rawUI?: { estadoPantalla: EsteticaKey | ''; estadoLados: EsteticaKey | ''; estadoEspalda: EsteticaKey | ''; pantallaIssues: FuncPantallaValue[] }) => {
-        // Si falla seguridad, rechazo inmediato: estado "a_revision" y precio 0
+        // Si falla seguridad, rechazo inmediato: estado "D" (defectuoso) y precio 0
         if (isSecurityKO) {
-          draft.estado_valoracion = 'a_revision'
+          draft.estado_valoracion = 'D'
           if (!draft.editado_por_usuario) draft.precio_final = 0
           Object.assign(draft, {
             estado_fisico: fromUI.estado_fisico,
@@ -848,20 +900,34 @@ export default function FormularioAuditoriaDispositivo({
           const g = valoracionTecnica?.grado_estetico
           const gate = valoracionTecnica?.gate
           if (!g) return null
-          if (gate && gate !== 'OK') return 'a_revision'
-          return g === 'A+' ? 'excelente' : g === 'A' ? 'muy_bueno' : g === 'B' ? 'bueno' : 'a_revision'
+          // Mapeo correcto de grados backend → Grade
+          if (gate && gate !== 'OK') return 'D'
+          if (g === 'A+') return 'A+'
+          if (g === 'A') return 'A'
+          if (g === 'B') return 'B'
+          if (g === 'C') return 'C'
+          if (g === 'D') return 'D'
+          if (g === 'R') return 'R'
+          return 'D'  // fallback
         })()
-        const valoracion = estadoDesdeBackend ?? calcularEstadoDetallado({
-          estado_fisico: fromUI.estado_fisico,
-          estado_funcional: fromUI.estado_funcional,
-          salud_bateria_pct: fromUI.salud_bateria_pct,
-          ciclos_bateria: fromUI.ciclos_bateria,
-          pantalla_funcional_puntos_bril: fromUI.pantalla_funcional_puntos_bril,
-          pantalla_funcional_pixeles_muertos: fromUI.pantalla_funcional_pixeles_muertos,
-          pantalla_funcional_lineas_quemaduras: fromUI.pantalla_funcional_lineas_quemaduras,
-          desgaste_lateral: fromUI.desgaste_lateral,
-          desgaste_trasero: fromUI.desgaste_trasero,
-          });
+
+        // Usar tabla oficial de grados en lugar de calcularEstadoDetallado
+        const gradoEsteticoLocal = fromUI.glass_status && fromUI.housing_status
+          ? gradoEsteticoDesdeTabla(fromUI.glass_status, fromUI.housing_status)
+          : 'C'  // fallback conservador
+
+        // Verificar gates funcionales/pantalla para determinar si es D (defectuoso)
+        const esDefectuoso =
+          fromUI.estado_funcional !== 'funciona' ||
+          fromUI.pantalla_funcional_lineas_quemaduras ||
+          fromUI.glass_status === GlassStatus.CRACK ||
+          fromUI.glass_status === GlassStatus.DEEP ||
+          fromUI.glass_status === GlassStatus.CHIP ||
+          fromUI.housing_status === HousingStatus.DOBLADO
+
+        const valoracionFromLocal: Grade = esDefectuoso ? 'D' : gradoEsteticoLocal
+
+        const valoracion = estadoDesdeBackend ?? valoracionFromLocal;
         draft.estado_valoracion = valoracion;
 
         // Deducciones: si tenemos respuesta del backend usamos sus costes exactos
@@ -889,23 +955,23 @@ export default function FormularioAuditoriaDispositivo({
         // Base (V_tope aproximado) desde precio_por_estado
         let base: number | undefined = undefined
         if (draft.precio_por_estado) {
-          if (valoracion !== 'a_revision') {
-            base = draft.precio_por_estado[valoracion]
+          if (valoracion !== 'D') {
+            base = draft.precio_por_estado[gradeToPrecioKey(valoracion)]
           } else {
-            // Si está en revisión, aproximar V_tope según reglas espejo simplificadas
+            // Si está en D (defectuoso), aproximar V_tope según reglas espejo simplificadas
             // D por pantalla => base por exterior; D por chasis => base por pantalla; otro => mínimo entre ambos
-            const gradeFromEst = (k: EsteticaKey | ''): 'excelente' | 'muy_bueno' | 'bueno' => (
-              k === 'desgaste_visible' ? 'bueno' : k === 'algunos' ? 'muy_bueno' : 'excelente'
+            const gradeFromEst = (k: EsteticaKey | ''): Grade => (
+              k === 'desgaste_visible' ? 'C' : k === 'algunos' ? 'B' : 'A+'
             )
             const estPant = gradeFromEst(rawUI?.estadoPantalla || '')
             const estExt = gradeFromEst(worstExt)
             const dByPantalla = hasPantIssue || rawUI?.estadoPantalla === ('agrietado_roto' as EsteticaKey)
             const dByChasis = worstExt === 'desgaste_visible' || worstExt === ('agrietado_roto' as EsteticaKey)
-            let pick: 'excelente' | 'muy_bueno' | 'bueno'
+            let pick: Grade
             if (dByPantalla && !dByChasis) pick = estExt
             else if (!dByPantalla && dByChasis) pick = estPant
-            else pick = [estPant, estExt].includes('bueno') ? 'bueno' : (estPant === 'muy_bueno' || estExt === 'muy_bueno' ? 'muy_bueno' : 'excelente')
-            base = draft.precio_por_estado[pick]
+            else pick = [estPant, estExt].includes('C') ? 'C' : ([estPant, estExt].includes('B') ? 'B' : 'A+')
+            base = draft.precio_por_estado[gradeToPrecioKey(pick)]
           }
         }
 
@@ -995,9 +1061,9 @@ export default function FormularioAuditoriaDispositivo({
 
         // reconstruye issues de pantalla desde flags (si vienen)
         const issues: FuncPantallaValue[] = [];
-        if (dispositivo.pantalla_funcional_puntos_bril) issues.push('puntos');
-        if (dispositivo.pantalla_funcional_pixeles_muertos) issues.push('pixeles');
-        if (dispositivo.pantalla_funcional_lineas_quemaduras) issues.push('lineas');
+        if (dispositivo.pantalla_funcional_puntos_bril) issues.push('puntos_brillantes');
+        if (dispositivo.pantalla_funcional_pixeles_muertos) issues.push('pixeles_muertos');
+        if (dispositivo.pantalla_funcional_lineas_quemaduras) issues.push('lineas_quemaduras');
         setPantallaIssues(issues);
 
         // si viene estética previa, mapea al enum UI (no siempre disponible: dejamos vacío si no llega)
@@ -1043,13 +1109,10 @@ export default function FormularioAuditoriaDispositivo({
 
     // Ya no auto-avanzamos; el usuario decide con "Siguiente".
 
-    // Normalización para backend: mapear alias "defectuoso" -> 'a_revision'
+    // Normalización para backend: ya no es necesaria con Grade
     const normalizeForServer = useCallback((v: ValoresAuditoria): ValoresAuditoria => {
-      const out: ValoresAuditoria = { ...v };
-      if ((out as unknown as { estado_valoracion?: string }).estado_valoracion === 'defectuoso') {
-        (out as unknown as { estado_valoracion?: string }).estado_valoracion = 'a_revision';
-      }
-      return out;
+      // Con Grade (A+, A, B, C, D, R) no necesitamos normalización legacy
+      return { ...v };
     }, [isSecurityKO])
     
     useEffect(() => {
@@ -1072,20 +1135,14 @@ export default function FormularioAuditoriaDispositivo({
             <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="body2" color="text.secondary">Estado calculado</Typography>
               <Chip
-                label={(form.estado_valoracion === 'excelente'
-                  ? 'Excelente'
-                  : form.estado_valoracion === 'muy_bueno'
-                    ? 'Muy bueno'
-                    : form.estado_valoracion === 'bueno'
-                      ? 'Bueno'
-                      : form.estado_valoracion === 'a_revision'
-                        ? 'Defectuoso'
-                        : '—')}
+                label={form.estado_valoracion ? GRADE_DESCRIPTIONS[form.estado_valoracion].label : '—'}
                 color={
-                  form.estado_valoracion === 'excelente' ? 'success'
-                    : form.estado_valoracion === 'muy_bueno' ? 'primary'
-                    : form.estado_valoracion === 'bueno' ? 'warning'
-                    : form.estado_valoracion === 'a_revision' ? 'error'
+                  form.estado_valoracion === 'A+' ? 'success'
+                    : form.estado_valoracion === 'A' ? 'success'
+                    : form.estado_valoracion === 'B' ? 'primary'
+                    : form.estado_valoracion === 'C' ? 'warning'
+                    : form.estado_valoracion === 'D' ? 'error'
+                    : form.estado_valoracion === 'R' ? 'default'
                     : 'default'
                 }
                 variant="filled"
@@ -1095,8 +1152,8 @@ export default function FormularioAuditoriaDispositivo({
             <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="body2" color="text.secondary">Precio sugerido</Typography>
               <Typography variant="h6" sx={{ mt: 0.5 }}>
-                {form.estado_valoracion && form.precio_por_estado?.[form.estado_valoracion] != null
-                  ? `${form.precio_por_estado?.[form.estado_valoracion]} €`
+                {form.estado_valoracion && form.precio_por_estado?.[gradeToPrecioKey(form.estado_valoracion)] != null
+                  ? `${form.precio_por_estado?.[gradeToPrecioKey(form.estado_valoracion)]} €`
                   : '—'}
               </Typography>
             </Grid>
@@ -1651,8 +1708,8 @@ export default function FormularioAuditoriaDispositivo({
               />
               <Typography variant="caption" color="text.secondary">
                 Sugerido por estado:&nbsp;
-                {form.estado_valoracion && form.precio_por_estado?.[form.estado_valoracion] != null
-                  ? `${form.precio_por_estado?.[form.estado_valoracion]} €`
+                {form.estado_valoracion && form.precio_por_estado?.[gradeToPrecioKey(form.estado_valoracion)] != null
+                  ? `${form.precio_por_estado?.[gradeToPrecioKey(form.estado_valoracion)]} €`
                   : '—'}
               </Typography>
               
@@ -1734,7 +1791,7 @@ export default function FormularioAuditoriaDispositivo({
                     // Si seguridad KO, fuerza precio 0 y estado a revisión
                     if (isSecurityKO) {
                       final.precio_final = 0
-                      final.estado_valoracion = 'a_revision'
+                      final.estado_valoracion = 'D'
                     }
                     const normalized = normalizeForServer(final);
                     setForm(normalized);           // opcional

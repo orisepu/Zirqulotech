@@ -13,9 +13,9 @@ export function buildCatalogFor(tipo: string): CatalogoValoracion {
       { value: 'parcial', label: 'No totalmente funcional', desc: 'Tiene uno o más problemas.' },
     ],
     funcPantalla: [
-      { value: 'puntos', label: 'Puntos brillantes', desc: 'Subpíxeles encendidos permanentemente.' },
-      { value: 'pixeles', label: 'Píxeles muertos', desc: 'Puntos que permanecen apagados en todos los fondos.' },
-      { value: 'lineas', label: 'Líneas/quemaduras', desc: 'Líneas/sombras permanentes (retenciones o burn‑in).' },
+      { value: 'puntos_brillantes', label: 'Puntos brillantes', desc: 'Subpíxeles encendidos permanentemente.' },
+      { value: 'pixeles_muertos', label: 'Píxeles muertos', desc: 'Puntos que permanecen apagados en todos los fondos.' },
+      { value: 'lineas_quemaduras', label: 'Líneas/quemaduras', desc: 'Líneas/sombras permanentes (retenciones o burn‑in).' },
     ],
     esteticaPantalla: [
       { value: 'sin_signos', label: 'Sin signos de uso', desc: 'La pantalla parece nueva. Sin signos de desgaste. No existen arañazos visibles que puedan apreciarse bajo una fuente de luz.' },
@@ -40,9 +40,9 @@ export function buildCatalogFor(tipo: string): CatalogoValoracion {
       { value: 'agrietado_roto', label: 'Agrietado/roto', desc: 'Trasera de vidrio rota o chasis roto/doblado' },
     ],
     demoFuncPantalla: {
-      puntos:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes' },
-      pixeles: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos' },
-      lineas:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas / quemaduras' },
+      puntos_brillantes:  { src: `${prefix}/pantalla-puntos-brillantes.webp`,  title: 'Puntos brillantes' },
+      pixeles_muertos: { src: `${prefix}/pantalla-pixeles-muertos.webp`,    title: 'Píxeles muertos' },
+      lineas_quemaduras:  { src: `${prefix}/pantalla-lineas-quemaduras.webp`,  title: 'Líneas / quemaduras' },
     },
     demoEsteticaPantalla: {
       sin_signos:       { src: `${prefix}/pantalla-marcas-perfectas.webp`,  title: 'Sin signos de uso' },

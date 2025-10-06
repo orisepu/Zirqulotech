@@ -148,9 +148,23 @@ def _section_divider(color=GREY_BORDER, thickness=0.8, space=6):
 # ==========================
 # Generación del PDF
 # ==========================
-def generar_pdf_oportunidad(oportunidad, tenant=None):
+def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None):
+    """
+    Genera PDF de oportunidad.
+
+    Args:
+        oportunidad: Instancia de Oportunidad
+        tenant: Tenant actual (para logo personalizado)
+        dispositivos_override: Lista de dispositivos a usar (puede ser Dispositivo o DispositivoReal).
+                              Si None, usa Dispositivo.objects.filter(oportunidad=oportunidad)
+    """
     cliente = oportunidad.cliente
-    dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
+
+    # Usar dispositivos override si se proporciona, sino usar los declarados (Dispositivo)
+    if dispositivos_override is not None:
+        dispositivos = dispositivos_override
+    else:
+        dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -360,7 +374,10 @@ def generar_pdf_oportunidad(oportunidad, tenant=None):
         capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_center)
         estado_valoracion = Paragraph((d.estado_valoracion or "—").replace("_", " ").capitalize(), cell_center)
         cantidad = getattr(d, "cantidad", 1)
-        precio_unitario = d.precio_orientativo or 0
+
+        # Soportar tanto Dispositivo (precio_orientativo) como DispositivoReal (precio_final)
+        precio_unitario = getattr(d, "precio_final", None) or getattr(d, "precio_orientativo", None) or 0
+
         total_linea = float(precio_unitario) * cantidad
         total_general += total_linea
 

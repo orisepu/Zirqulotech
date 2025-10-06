@@ -25,8 +25,6 @@ import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArro
 import useUsuarioActual from "@/shared/hooks/useUsuarioActual";
 import EstadoChipSelector from '@/shared/components/cambiosestadochipselector'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { pdf } from '@react-pdf/renderer'                // // quitar en producción si solo usas PDF backend
-import OfertaPDFDocument from '@/features/contracts/components/pdf/OfertaPDFDocument'
 import { ColoredPaper } from '@/context/ThemeContext'
 import { ESTADOS_META } from '@/context/estados'
 import TabsOportunidad from '@/features/opportunities/components/TabsOportunidad'
@@ -203,20 +201,6 @@ export default function OportunidadDetallePageGlobal() {
   const isCanalB2B = oportunidad?.cliente?.canal === 'b2b'
   const isCanalB2C = oportunidad?.cliente?.canal === 'b2c'
   const totalFacturas = facturas.length
-  const dispositivosPdf = useMemo(() => (
-    dispositivosReales.map((d: DispositivoReal) => ({
-      modelo: d.modelo || '',
-      capacidad: d.capacidad || '',
-      estado: d.estado_valoracion || '',
-      imei: d.imei || '',
-      numero_serie: d.numero_serie || '',
-      precio: Number(d.precio_final) || 0,
-    }))
-  ), [dispositivosReales])
-  const totalOfertaPdf = useMemo(
-    () => dispositivosReales.reduce((acc: number, d: DispositivoReal) => acc + (Number(d.precio_final) || 0), 0),
-    [dispositivosReales]
-  )
   const pickupFormValues = useMemo<RecogidaForm>(() => ({
     calle: oportunidad?.calle || '',
     numero: oportunidad?.numero || '',
@@ -286,22 +270,11 @@ export default function OportunidadDetallePageGlobal() {
       toast.error("❌ Error al generar el PDF");
     }
   };
-  const verPDFEnNuevaPestana = async () => {
-    const blob = await pdf(
-      <OfertaPDFDocument
-        dispositivos={dispositivosPdf}
-        total={totalOfertaPdf}
-        nombre={String(oportunidad?.hashid ?? oportunidad?.id ?? '')}
-        oportunidad={oportunidad}
-        cif={oportunidad?.cliente?.cif}
-        calle={oportunidad?.calle ?? oportunidad?.cliente?.direccion_calle ?? ''}
-        tienda={oportunidad?.tienda}
-        logoUrl="/logo-progeek.png"
-      />
-    ).toBlob();
-
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+  // Oferta formal - usa el endpoint seguro del backend con dispositivos auditados
+  const verPDFEnNuevaPestana = () => {
+    if (!oportunidad?.id) return
+    // Usar endpoint backend seguro que genera PDF con DispositivoReal
+    window.open(`/api/oportunidades/${oportunidad.id}/generar-pdf-formal/`, '_blank')
   };
 
   const mCambiarEstado = useMutation({

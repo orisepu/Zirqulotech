@@ -26,7 +26,7 @@ import {
   buildMacBookProCatalog,
   buildIMacCatalog,
 } from './catalogos-mac'
-import { STEPS, FormStep, ValoracionDerivada, CatalogoValoracion, FuncPantallaValue, EsteticaKey } from './tipos'
+import { STEPS, FormStep, ValoracionDerivada, CatalogoValoracion, FuncPantallaValue, EsteticaKey, EsteticaPantallaKey } from './tipos'
 import { Stepper, Step, StepLabel, Box } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import BoltIcon from '@mui/icons-material/Bolt'
@@ -97,7 +97,7 @@ export default function FormularioValoracionOportunidad({
   const [cargaOk, setCargaOk] = useState<boolean | null>(null)
   const [pantallaIssues, setPantallaIssues] = useState<FuncPantallaValue[]>([])
 
-  const [estadoPantalla, setEstadoPantalla] = useState<'' | EsteticaKey>('')
+  const [estadoPantalla, setEstadoPantalla] = useState<'' | EsteticaPantallaKey>('')
   const [estadoLados, setEstadoLados] = useState<'' | EsteticaKey>('')
   const [estadoEspalda, setEstadoEspalda] = useState<'' | EsteticaKey>('')
 
@@ -360,9 +360,9 @@ export default function FormularioValoracionOportunidad({
     if (item?.funcionalidad_basica) setFuncBasica(item.funcionalidad_basica)
 
     const issues: FuncPantallaValue[] = []
-    if (item?.pantalla_funcional_puntos_bril) issues.push('puntos')
-    if (item?.pantalla_funcional_pixeles_muertos) issues.push('pixeles')
-    if (item?.pantalla_funcional_lineas_quemaduras) issues.push('lineas')
+    if (item?.pantalla_funcional_puntos_bril) issues.push('puntos_brillantes')
+    if (item?.pantalla_funcional_pixeles_muertos) issues.push('pixeles_muertos')
+    if (item?.pantalla_funcional_lineas_quemaduras) issues.push('lineas_quemaduras')
     setPantallaIssues(issues)
 
     if (item?.estado_pantalla) setEstadoPantalla(item.estado_pantalla)
@@ -574,7 +574,7 @@ export default function FormularioValoracionOportunidad({
   }, [modoCompleto])
 
   function derivarValoracion(): ValoracionDerivada {
-    const hasLineas = pantallaIssues.includes('lineas')
+    const hasLineas = pantallaIssues.includes('lineas_quemaduras')
     const incidenciasFunc = funcBasica === 'parcial' || pantallaIssues.length > 0
     const hayDanioGrave = estadoPantalla === 'agrietado_roto' || estadoLados === 'agrietado_roto' || estadoEspalda === 'agrietado_roto' || hasLineas
 
@@ -676,15 +676,16 @@ export default function FormularioValoracionOportunidad({
 
   /** Mapeos a enums del endpoint **/
   const toDisplayImageStatusApi = (issues: FuncPantallaValue[]) =>
-    issues.includes('lineas') ? 'LINES' : (issues.includes('pixeles') || issues.includes('puntos')) ? 'PIX' : 'OK'
+    issues.includes('lineas_quemaduras') ? 'LINES' : (issues.includes('pixeles_muertos') || issues.includes('puntos_brillantes')) ? 'PIX' : 'OK'
 
-  const toGlassStatusApi = (k: EsteticaKey | '') => {
+  const toGlassStatusApi = (k: EsteticaPantallaKey | '') => {
     switch (k) {
       case 'sin_signos': return 'NONE'
       case 'minimos': return 'MICRO'
       case 'algunos': return 'VISIBLE'
       case 'desgaste_visible': return 'DEEP'
       case 'agrietado_roto': return 'CRACK'
+      case 'astillado': return 'CHIP'
       default: return 'NONE'
     }
   }
@@ -870,9 +871,9 @@ export default function FormularioValoracionOportunidad({
       salud_bateria_pct: hasBattery ? (saludBateria === '' ? null : Number(saludBateria)) : null,
       ciclos_bateria: hasBattery ? (ciclosBateria === '' ? null : Number(ciclosBateria)) : null,
       funcionalidad_basica: funcBasica || null,
-      pantalla_funcional_puntos_bril: hasScreen && pantallaIssues.includes('puntos'),
-      pantalla_funcional_pixeles_muertos: hasScreen && pantallaIssues.includes('pixeles'),
-      pantalla_funcional_lineas_quemaduras: hasScreen && pantallaIssues.includes('lineas'),
+      pantalla_funcional_puntos_bril: hasScreen && pantallaIssues.includes('puntos_brillantes'),
+      pantalla_funcional_pixeles_muertos: hasScreen && pantallaIssues.includes('pixeles_muertos'),
+      pantalla_funcional_lineas_quemaduras: hasScreen && pantallaIssues.includes('lineas_quemaduras'),
       estado_pantalla: hasScreen ? (estadoPantalla || null) : null,
       estado_lados: estadoLados || null,
       estado_espalda: estadoEspalda || null,

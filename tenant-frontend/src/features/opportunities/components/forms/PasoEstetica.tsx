@@ -24,8 +24,8 @@ export default function PasoEstetica({
   mode = 'all',
 }: {
   catalog: CatalogoValoracion
-  estadoPantalla: EsteticaKey | ''
-  setEstadoPantalla: Setter<EsteticaKey | ''>
+  estadoPantalla: EsteticaPantallaKey | ''
+  setEstadoPantalla: Setter<EsteticaPantallaKey | ''>
   estadoLados: EsteticaKey | ''
   setEstadoLados: Setter<EsteticaKey | ''>
   estadoEspalda: EsteticaKey | ''

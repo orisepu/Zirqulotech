@@ -1,4 +1,101 @@
-import { CuestionarioComercialInput, DisplayImageStatus, GlassStatus, HousingStatus, GradingParamsPorModelo, ResultadoValoracion } from '@/shared/types/grading'
+import {
+  CuestionarioComercialInput,
+  DisplayImageStatus,
+  GlassStatus,
+  HousingStatus,
+  GradingParamsPorModelo,
+  ResultadoValoracion,
+  GradingOutcome,
+  FMIStatus,
+  SimLockStatus,
+  BlacklistStatus,
+  type Grade,
+} from '@/shared/types/grading'
+
+/**
+ * Detecta si un dispositivo debe ser RECHAZADO (fuera de grading) por motivos legales/seguridad
+ * según documento oficial (línea 27, 194, 362)
+ */
+export function detectarRechazo(input: {
+  fmi_status?: FMIStatus
+  sim_lock?: SimLockStatus
+  blacklist?: BlacklistStatus
+  mdm_active?: boolean
+}): GradingOutcome | null {
+  if (input.fmi_status === FMIStatus.ON) {
+    return {
+      status: 'REJECTED',
+      reason: 'FMI_ON',
+      mensaje: 'Bloqueo de activación (FMI) activo. Activar protocolo de desactivación remota.',
+    }
+  }
+  if (input.blacklist === BlacklistStatus.REPORTADO) {
+    return {
+      status: 'REJECTED',
+      reason: 'BLACKLIST',
+      mensaje: 'IMEI/serie reportado/robado o con deuda. No se procesa.',
+    }
+  }
+  if (input.sim_lock === SimLockStatus.BLOQUEADO) {
+    return {
+      status: 'REJECTED',
+      reason: 'SIM_LOCKED',
+      mensaje: 'SIM bloqueado por operador. Requiere desbloqueo.',
+    }
+  }
+  if (input.mdm_active === true) {
+    return {
+      status: 'REJECTED',
+      reason: 'MDM_ACTIVE',
+      mensaje: 'MDM/Supervisión activo. Requiere desbloqueo corporativo.',
+    }
+  }
+  return null // No rechazado
+}
+
+/**
+ * Detecta si un dispositivo debe clasificarse como grado R (Reciclaje)
+ * según documento oficial (línea 49, 357, 370)
+ *
+ * Criterios:
+ * - Múltiples fallos críticos simultáneos (≥3)
+ * - Daños severos irreparables
+ * - Solo valor de componentes para reciclaje
+ */
+export function detectarReciclaje(
+  input: CuestionarioComercialInput,
+  tipo?: string
+): boolean {
+  const capabilities = getDeviceCapabilities(tipo)
+
+  // Conteo de fallos críticos
+  const fallosCriticos: boolean[] = []
+
+  // 1. No enciende (siempre crítico)
+  if (input.enciende === false) fallosCriticos.push(true)
+
+  // 2. No carga (crítico si tiene batería)
+  if (capabilities.hasBattery && input.carga === false) fallosCriticos.push(true)
+
+  // 3. Display dañado (crítico si tiene pantalla)
+  if (capabilities.hasDisplay && input.display_image_status && input.display_image_status !== DisplayImageStatus.OK) {
+    fallosCriticos.push(true)
+  }
+
+  // 4. Cristal agrietado severo (crítico si tiene pantalla)
+  if (capabilities.hasDisplay && input.glass_status === GlassStatus.CRACK) {
+    fallosCriticos.push(true)
+  }
+
+  // 5. Chasis doblado (siempre crítico)
+  if (input.housing_status === HousingStatus.DOBLADO) fallosCriticos.push(true)
+
+  // 6. Fallo funcional básico (siempre crítico)
+  if (input.funcional_basico_ok === false) fallosCriticos.push(true)
+
+  // Si tiene ≥3 fallos críticos → Reciclaje
+  return fallosCriticos.filter(Boolean).length >= 3
+}
 
 /**
  * Configuración de capacidades por tipo de dispositivo
@@ -72,13 +169,64 @@ export function topesDesdeV(V_Aplus: number, pp_A: number, pp_B: number, pp_C: n
   return { V_A, V_B, V_C }
 }
 
+// Interfaz extendida para incluir parámetros de seguridad (auditoría técnica)
+export interface CuestionarioConSeguridad extends CuestionarioComercialInput {
+  fmi_status?: FMIStatus
+  blacklist?: BlacklistStatus
+  sim_lock?: SimLockStatus
+  mdm_active?: boolean
+}
+
 export function calcularOferta(
-  input: CuestionarioComercialInput,
+  input: CuestionarioComercialInput | CuestionarioConSeguridad,
   params: GradingParamsPorModelo,
   pp_func: number, // % único por fallo funcional declarado en comercial (si lo hubiera)
   tipo?: string // Tipo de dispositivo para determinar capacidades
-): ResultadoValoracion {
+): ResultadoValoracion & { rechazo?: GradingOutcome; esReciclaje?: boolean } {
   const capabilities = getDeviceCapabilities(tipo)
+
+  // 1. VERIFICAR RECHAZO (legal/seguridad) - prioridad máxima
+  const inputConSeguridad = input as CuestionarioConSeguridad
+  const rechazo = detectarRechazo({
+    fmi_status: inputConSeguridad.fmi_status,
+    blacklist: inputConSeguridad.blacklist,
+    sim_lock: inputConSeguridad.sim_lock,
+    mdm_active: inputConSeguridad.mdm_active,
+  })
+
+  if (rechazo) {
+    // Dispositivo RECHAZADO (fuera de grading): devolver con oferta 0
+    return {
+      gate: 'DEFECTUOSO',
+      grado_estetico: 'D',
+      V_A: 0,
+      V_B: 0,
+      V_C: 0,
+      V_tope: 0,
+      deducciones: { pr_bat: 0, pr_pant: 0, pr_chas: 0, pp_func: 0 },
+      oferta: 0,
+      rechazo, // Información del rechazo
+    }
+  }
+
+  // 2. VERIFICAR RECICLAJE (≥3 fallos críticos)
+  const esReciclaje = detectarReciclaje(input, tipo)
+  if (esReciclaje) {
+    // Grado R: valor de suelo (solo componentes)
+    return {
+      gate: 'DEFECTUOSO',
+      grado_estetico: 'R',
+      V_A: 0,
+      V_B: 0,
+      V_C: 0,
+      V_tope: params.V_suelo,
+      deducciones: { pr_bat: 0, pr_pant: 0, pr_chas: 0, pp_func: 0 },
+      oferta: params.V_suelo,
+      esReciclaje: true,
+    }
+  }
+
+  // 3. LÓGICA NORMAL (A+, A, B, C, D)
   const { gate } = pasaGatesComercial(input, tipo)
   const { V_A, V_B, V_C } = topesDesdeV(params.V_Aplus, params.pp_A, params.pp_B, params.pp_C)
 
@@ -92,7 +240,10 @@ export function calcularOferta(
     grado_estetico = gradoEsteticoDesdeTabla(glass, housing)
     V_tope = grado_estetico === 'A+' ? params.V_Aplus : grado_estetico === 'A' ? V_A : grado_estetico === 'B' ? V_B : V_C
   } else {
-    // Lógica de grado D: evaluar dimensiones sanas
+    // Gate DEFECTUOSO: asignar grado D explícitamente
+    grado_estetico = 'D'
+
+    // Lógica de grado D: evaluar dimensiones sanas para calcular V_tope
     const pantallaOk = capabilities.hasDisplay
       ? (input.glass_status && [GlassStatus.NONE, GlassStatus.MICRO, GlassStatus.VISIBLE].includes(input.glass_status) &&
          input.display_image_status === DisplayImageStatus.OK)
@@ -200,4 +351,50 @@ export function calcularEstadoDetallado(input: BaseValoracionInput): 'excelente'
   if (score >= 80) return 'muy_bueno';
   if (score >= 65) return 'bueno';
   return 'a_revision';
+}
+
+// ===== Funciones de mapeo: Grados Comerciales ↔ Estados Legacy =====
+
+/**
+ * Convierte estados legacy (perfecto/bueno/regular/dañado + funciona/no_enciende/etc)
+ * a grados comerciales (A+/A/B/C/D/R)
+ *
+ * Basado en el mapeo del documento oficial y la lógica de precios.ts
+ */
+export function legacyToGrade(fisico: string, funcional: string): Grade {
+  const criticos = ['no_enciende', 'pantalla_rota', 'error_hardware']
+
+  // Fallos críticos → D (Defectuoso)
+  if (fisico === 'dañado' || criticos.includes(funcional)) return 'D'
+
+  // Estados funcionales completos → grados por estética
+  if (funcional === 'funciona') {
+    if (fisico === 'perfecto') return 'A+' // Como nuevo
+    if (fisico === 'bueno') return 'A' // Excelente
+    if (fisico === 'regular') return 'B' // Muy bueno
+    // Si no es ninguno de los anteriores, es 'aceptable' o similar → C
+    return 'C' // Correcto
+  }
+
+  // Otros casos → C (Correcto) o D si hay problemas
+  return 'C'
+}
+
+/**
+ * Convierte grados comerciales (A+/A/B/C/D/R) a estados legacy
+ * (perfecto/bueno/regular/dañado + funciona/no_enciende/etc)
+ *
+ * Nota: Esta conversión es aproximada porque los grados comerciales son más específicos.
+ * Se pierde información en la conversión.
+ */
+export function gradeToLegacy(grade: Grade): { fisico: string; funcional: string } {
+  const map: Record<Grade, { fisico: string; funcional: string }> = {
+    'A+': { fisico: 'perfecto', funcional: 'funciona' },
+    A: { fisico: 'bueno', funcional: 'funciona' },
+    B: { fisico: 'regular', funcional: 'funciona' },
+    C: { fisico: 'regular', funcional: 'funciona' },
+    D: { fisico: 'dañado', funcional: 'no_enciende' },
+    R: { fisico: 'dañado', funcional: 'no_enciende' },
+  }
+  return map[grade]
 }

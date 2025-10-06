@@ -11,6 +11,7 @@ import BoltIcon from '@mui/icons-material/Bolt'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { CatalogoValoracion, FuncPantallaValue } from './tipos'
 import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
+import { GRADE_DESCRIPTIONS, type Grade } from '@/shared/types/grading'
 
 function Row({
   icon, label, value, clamp = false,
@@ -122,9 +123,15 @@ export default function PasoValoracion({
 
   const mapEtiqueta = (raw: string) => {
     const normalized = raw.trim().toUpperCase()
-    if (normalized === 'A' || normalized === 'A+') return 'Muy bueno'
-    if (normalized === 'B') return 'Bueno'
-    if (normalized === 'C') return 'Correcto'
+
+    // Mapeo según documento oficial (grading_i_phone_v_1_trade_x.md líneas 14-20)
+    if (normalized === 'A+') return GRADE_DESCRIPTIONS['A+'].label  // 'Como nuevo'
+    if (normalized === 'A') return GRADE_DESCRIPTIONS.A.label       // 'Excelente'
+    if (normalized === 'B') return GRADE_DESCRIPTIONS.B.label       // 'Muy bueno'
+    if (normalized === 'C') return GRADE_DESCRIPTIONS.C.label       // 'Correcto'
+    if (normalized === 'D') return GRADE_DESCRIPTIONS.D.label       // 'Defectuoso'
+    if (normalized === 'R') return GRADE_DESCRIPTIONS.R.label       // 'Reciclaje'
+
     return formatoBonito(raw)
   }
 
@@ -257,7 +264,7 @@ export default function PasoValoracion({
                     gap: 0.5,
                   }}
                 >
-                  <Typography variant="overline" color="text.secondary">Comparativa de estados</Typography>
+                  <Typography variant="overline" color="text.secondary">Comparativa de grados</Typography>
                   <Typography variant="caption" color="text.secondary">
                     Valores orientativos del mismo modelo en cada nivel de conservación.
                   </Typography>
@@ -269,7 +276,7 @@ export default function PasoValoracion({
                       mt: 1,
                     }}
                   >
-                    {[{ etiqueta: 'Excelente', valor: precioMaximo }, ...otrosPrecios.map((p) => ({
+                    {[{ etiqueta: GRADE_DESCRIPTIONS['A+'].label, valor: precioMaximo }, ...otrosPrecios.map((p) => ({
                       etiqueta: mapEtiqueta(p.etiqueta),
                       valor: p.valor,
                     }))].map((item, idx) => (
