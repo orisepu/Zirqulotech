@@ -10,7 +10,7 @@ import TablaReactiva from '@/shared/components/TablaReactiva2';
 import { getColumnasAuditoria } from '@/shared/components/TablaColumnas2';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import FormularioAuditoriaDispositivo, { ValoresAuditoria } from '@/features/opportunities/components/forms/FormularioAuditoriaDispositivo';
+import { FormularioAuditoriaDispositivoV2, type ValoresAuditoria } from '@/features/opportunities/components/forms/auditoria';
 import { calcularEstadoDetallado } from '@/features/opportunities/components/forms/valoracion';
 
 type DispositivoEditable = ValoresAuditoria & {
@@ -264,18 +264,16 @@ export default function AuditoriaDispositivosPage() {
         ) : null
         console.log({ modeloId, capacidadId, current })
         return (
-          <FormularioAuditoriaDispositivo
+          <FormularioAuditoriaDispositivoV2
             open={openForm}
             dispositivo={current}
             modeloId={modeloId ?? undefined}
             capacidadId={capacidadId ?? undefined}
             tenant={tenant || undefined}
             canal={'B2B'}
-        onClose={cerrarFormulario}
-        onSubmit={onSubmitForm}
-        titulo={`Auditar dispositivo ${actualIndex + 1} / ${dispositivosEditables.length}`}
-          
-        isLaptop={false}               // <-- según el tipo de equipo
+            onClose={cerrarFormulario}
+            onSubmit={onSubmitForm}
+            titulo={`Auditar dispositivo ${actualIndex + 1} / ${dispositivosEditables.length}`}
           />
         )
       })()}
