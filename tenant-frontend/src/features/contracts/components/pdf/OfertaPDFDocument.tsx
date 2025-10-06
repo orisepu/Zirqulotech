@@ -4,23 +4,52 @@ import {
 
 const styles = StyleSheet.create({
   page: { padding: 30, fontSize: 10, fontFamily: 'Helvetica' },
-  logo: { width: 100, marginBottom: 10, alignSelf: 'center' },
-  title: { fontSize: 16, marginBottom: 12, fontWeight: 'bold', textAlign: 'center' },
+  logo: { width: 100, marginBottom: 4, alignSelf: 'flex-start' },
+  badge: {
+    fontSize: 8,
+    color: '#6B7280',
+    textAlign: 'right',
+    marginBottom: 8,
+    fontFamily: 'Helvetica'
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0B3D3A',
+    fontFamily: 'Helvetica-Bold',
+  },
+  headerMeta: {
+    fontSize: 9,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  separator: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    borderBottomStyle: 'solid',
+    marginBottom: 8,
+  },
   subinfo: { fontSize: 10, marginBottom: 2 },
   sectionHeader: { fontSize: 12, fontWeight: 'bold', marginTop: 20, marginBottom: 6 },
   twoColumns: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 0.8,
+    borderBottomColor: '#E5E7EB',
     borderBottomStyle: 'solid',
     paddingVertical: 5,
   },
   tableRow: {
     flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
+    borderBottomWidth: 0.25,
+    borderBottomColor: '#E5E7EB',
     borderBottomStyle: 'solid',
     paddingVertical: 4,
   },
@@ -33,7 +62,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'right',
     fontWeight: 'bold',
-    backgroundColor: '#f6f6f6',
+    backgroundColor: '#F5F7FA',
     padding: 4,
   },
   footer: {
@@ -132,9 +161,21 @@ export default function OfertaPDFDocument({
         <Page key={idx} style={styles.page}>
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           {logoUrl && <Image src={logoUrl} style={styles.logo} />}
-          <Text style={styles.title}>Oferta formal</Text>
-          <Text style={styles.subinfo}>Fecha: {fechaTexto}</Text>
-          {nombre && <Text style={styles.subinfo}>Oportunidad: {nombre}</Text>}
+
+          {/* Badge sutil de Zirqulo */}
+          <Text style={styles.badge}>Trade-in powered by Zirqulo</Text>
+
+          {/* Encabezado compacto en una línea */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.headerTitle}>OFERTA DE RECOMPRA</Text>
+            <View>
+              <Text style={styles.headerMeta}>📅 {fechaTexto}</Text>
+              {nombre && <Text style={styles.headerMeta}>📄 {nombre}</Text>}
+            </View>
+          </View>
+
+          {/* Separador visual sutil */}
+          <View style={styles.separator} />
 
           <View style={styles.twoColumns}>
             <View>
