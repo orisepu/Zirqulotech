@@ -39,7 +39,7 @@ class HistorialOportunidadSerializer(serializers.ModelSerializer):
 
     def get_usuario_nombre(self, obj):
         if obj.usuario:
-            return f"{obj.usuario.name} ".strip() or obj.usuario.username
+            return f"{obj.usuario.name} ".strip() or obj.usuario.email
         return "Sistema"
 
 

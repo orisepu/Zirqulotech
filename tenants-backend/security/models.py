@@ -124,7 +124,7 @@ class LoginHistory(models.Model):
         display_location = self.city or self.region or self.ip
         location = f"{display_location}, {self.country}" if self.country else display_location
         status = " (BLOQUEADO)" if self.was_blocked else ""
-        return f"{self.user.username} desde {location} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}{status}"
+        return f"{self.user.email} desde {location} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}{status}"
 
     def get_location_display(self):
         """

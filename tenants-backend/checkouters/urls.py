@@ -76,15 +76,20 @@ router.register(r"b2c/contratos", B2CContratoViewSet, basename="b2c-contratos")
 router.register(r"objetivos", ObjetivoViewSet, basename="objetivo")
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('mi-dashboard/', mi_dashboard, name='mi-dashboard'),
-    path('cambiar-contraseña/', cambiar_contraseña, name='cambiar-contraseña'),
-    path('cambiar-password/', cambiar_contraseña_usuario),
+    # Rutas específicas de oportunidades ANTES del router para que tengan prioridad
     path("oportunidades/<uuid:id>/enviar-correo-oferta/", enviar_correo_oferta, name="enviar_correo_oferta"),
     path("oportunidades/<str:oportunidad_id>/historial/", HistorialOportunidadViewSet.as_view({'get': 'list'})),
     path("oportunidades/<int:pk>/generar-pdf/", generar_pdf_view),
     path("oportunidades/<int:pk>/generar-pdf-formal/", generar_pdf_oferta_formal),
     path("oportunidades/<str:oportunidad_id>/dispositivos-reales/", DispositivosRealesDeOportunidadView.as_view(), name="dispositivos-reales-de-oportunidad"),
+
+    # Router (incluye oportunidades viewset)
+    path('', include(router.urls)),
+
+    # Otras rutas
+    path('mi-dashboard/', mi_dashboard, name='mi-dashboard'),
+    path('cambiar-contraseña/', cambiar_contraseña, name='cambiar-contraseña'),
+    path('cambiar-password/', cambiar_contraseña_usuario),
     path("oportunidades-globales/<str:schema>/<uuid:oportunidad_id>/confirmar-recepcion/", ConfirmarRecepcionGlobalView.as_view()),
     path("dashboard/valor-por-tienda/", ValorPorTiendaAPIView.as_view()),
     path("dashboard/valor-por-tienda-manager/", ValorPorTiendaManagerAPIView.as_view()),
