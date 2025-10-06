@@ -93,6 +93,13 @@ def _serialize_tenant_detail(tenant) -> dict:
         acuerdo_pdf_nombre = os.path.basename(archivo_acuerdo.name)
         acuerdo_pdf_url = f"/api/tenants/{tenant.id}/agreement/download/"
 
+    logo_nombre = None
+    logo_url = None
+    archivo_logo = getattr(tenant, "logo", None)
+    if getattr(archivo_logo, "name", None):
+        logo_nombre = os.path.basename(archivo_logo.name)
+        logo_url = f"/api/tenants/{tenant.id}/logo/download/"
+
     return {
         "id": tenant.id,
         "nombre": tenant.name,
@@ -129,6 +136,8 @@ def _serialize_tenant_detail(tenant) -> dict:
         "acuerdo_empresas": getattr(tenant, "acuerdo_empresas", None),
         "acuerdo_empresas_pdf_nombre": acuerdo_pdf_nombre,
         "acuerdo_empresas_pdf_url": acuerdo_pdf_url,
+        "logo_nombre": logo_nombre,
+        "logo_url": logo_url,
         "management_mode": getattr(tenant, "management_mode", None),
         "legal_namespace": getattr(tenant, "legal_namespace", None),
         "legal_slug": getattr(tenant, "legal_slug", None),
@@ -1025,6 +1034,64 @@ def tenant_agreement_download(request, id):
     )
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def tenant_logo_upload(request, id):
+    TenantModel = get_tenant_model()
+    with transaction.atomic():
+        tenant = get_object_or_404(TenantModel.objects.select_for_update(), id=id)
+
+        uploaded = request.FILES.get('logo') or request.FILES.get('file')
+        if not uploaded:
+            return Response({"error": "Se requiere un archivo de imagen."}, status=status.HTTP_400_BAD_REQUEST)
+
+        content_type = (uploaded.content_type or '').lower()
+        valid_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+        valid_extensions = ['.png', '.jpg', '.jpeg', '.svg']
+
+        is_valid_type = any(vt in content_type for vt in valid_types)
+        is_valid_ext = any(uploaded.name.lower().endswith(ext) for ext in valid_extensions)
+
+        if not is_valid_type and not is_valid_ext:
+            return Response({"error": "El archivo debe ser una imagen (PNG, JPG, JPEG o SVG)."}, status=status.HTTP_400_BAD_REQUEST)
+
+        max_size_bytes = 5 * 1024 * 1024  # 5 MB
+        if uploaded.size and uploaded.size > max_size_bytes:
+            return Response({"error": "La imagen no puede superar los 5 MB."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_name, ext = os.path.splitext(uploaded.name or 'logo.png')
+        ext = ext.lower() if ext else '.png'
+        safe_base = slugify(base_name) or f'logo-{tenant.id}'
+        upload_path = f"logos/tenant-{tenant.id}/{safe_base}{ext}"
+
+        if getattr(tenant, 'logo', None):
+            tenant.logo.delete(save=False)
+
+        tenant.logo.save(upload_path, uploaded, save=True)
+
+    return Response({
+        "logo_url": f"/api/tenants/{tenant.id}/logo/download/",
+        "logo_nombre": os.path.basename(tenant.logo.name),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tenant_logo_download(request, id):
+    TenantModel = get_tenant_model()
+    tenant = get_object_or_404(TenantModel, id=id)
+    archivo = getattr(tenant, 'logo', None)
+    if not getattr(archivo, 'name', None):
+        raise Http404("El partner no tiene un logo subido.")
+
+    return FileResponse(
+        archivo.open('rb'),
+        as_attachment=False,  # Para que se muestre en el navegador en lugar de descargarse
+        filename=os.path.basename(archivo.name)
+    )
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def tenant_detail_by_schema(request, schema):
@@ -1248,11 +1315,15 @@ def generar_pdf_oportunidad_global(request, tenant, pk):
     logger.info(f"➡️ [PDF] Generando PDF para oportunidad {pk} del tenant '{tenant}'...")
 
     try:
+        # Obtener el objeto Company para acceder al logo
+        TenantModel = get_tenant_model()
+        tenant_obj = get_object_or_404(TenantModel, schema_name__iexact=tenant)
+
         with schema_context(tenant):
             oportunidad = Oportunidad.objects.select_related('cliente')\
                 .prefetch_related('dispositivos').get(uuid=pk)
 
-            pdf_buffer = generar_pdf_oportunidad(oportunidad)
+            pdf_buffer = generar_pdf_oportunidad(oportunidad, tenant=tenant_obj)
     except Oportunidad.DoesNotExist:
         logger.error(f"❌ Oportunidad con ID {pk} no encontrada en schema '{tenant}'")
         raise Http404("Oportunidad no encontrada")

@@ -74,6 +74,10 @@ export default function PartnerDetailPage() {
   const acuerdoFileInputRef = useRef<HTMLInputElement | null>(null)
   const [subiendoAcuerdo, setSubiendoAcuerdo] = useState(false)
   const [descargandoAcuerdo, setDescargandoAcuerdo] = useState(false)
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [subiendoLogo, setSubiendoLogo] = useState(false)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const [cargandoLogo, setCargandoLogo] = useState(false)
 
   const { data: partner, isLoading: loading, error } = useQuery({
     queryKey: ['partner', idStr],
@@ -188,6 +192,85 @@ export default function PartnerDetailPage() {
       setDescargandoAcuerdo(false)
     }
   }
+
+  const subirLogoImagen = async (file: File) => {
+    if (!partner?.id) return
+    const formDataUpload = new FormData()
+    formDataUpload.append('logo', file)
+    setSubiendoLogo(true)
+    try {
+      const { data } = await api.post(`/api/tenants/${partner.id}/logo/`, formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      queryClient.setQueryData(['partner', idStr], (prev: any) => (
+        prev ? { ...prev, ...data } : prev
+      ))
+      await queryClient.invalidateQueries({ queryKey: ['partner', idStr] })
+      toast.success('Logo actualizado')
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo subir el logo')
+    } finally {
+      setSubiendoLogo(false)
+      if (logoFileInputRef.current) {
+        logoFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const onLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(png|jpe?g|svg)$/i)) {
+      toast.error('El archivo debe ser una imagen (PNG, JPG o SVG)')
+      return
+    }
+    const maxBytes = 5 * 1024 * 1024
+    if (file.size > maxBytes) {
+      toast.error('La imagen no puede superar los 5 MB')
+      return
+    }
+    void subirLogoImagen(file)
+  }
+
+  const cargarLogoPreview = async (logoUrl: string) => {
+    setCargandoLogo(true)
+    try {
+      const response = await api.get(logoUrl, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'image/jpeg',
+      })
+      const objectUrl = window.URL.createObjectURL(blob)
+      setLogoPreviewUrl(objectUrl)
+    } catch (err) {
+      console.error('Error cargando preview del logo:', err)
+      setLogoPreviewUrl(null)
+    } finally {
+      setCargandoLogo(false)
+    }
+  }
+
+  // Cargar logo preview cuando cambie partner.logo_url
+  React.useEffect(() => {
+    let objectUrl: string | null = null
+
+    if (partner?.logo_url) {
+      void cargarLogoPreview(partner.logo_url)
+    } else {
+      setLogoPreviewUrl(null)
+    }
+
+    // Cleanup al desmontar o cuando cambie logo_url
+    return () => {
+      if (logoPreviewUrl) {
+        window.URL.revokeObjectURL(logoPreviewUrl)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partner?.logo_url])
 
   const handleSave = async () => {
     const payload = { ...formData }
@@ -435,6 +518,70 @@ export default function PartnerDetailPage() {
                 {partner.acuerdo_empresas?.trim()
                   || (acuerdoPdfUrl ? 'Consulta el PDF del acuerdo.' : 'No hay un acuerdo registrado.')}
               </Typography>
+            </ModernSection>
+          </Grid>
+          {/* Logo del Tenant - Para PDFs */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ModernSection title="Logo del Partner (PDFs)" icon={<BusinessIcon />} onEdit={() => {}} editMode={false}>
+              <Box>
+                {cargandoLogo ? (
+                  <Box sx={{ mb: 2, textAlign: 'center', py: 3 }}>
+                    <CircularProgress size={40} />
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Cargando logo...
+                    </Typography>
+                  </Box>
+                ) : logoPreviewUrl ? (
+                  <Box sx={{ mb: 2, textAlign: 'center' }}>
+                    <img
+                      src={logoPreviewUrl}
+                      alt="Logo del partner"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '120px',
+                        objectFit: 'contain',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '4px',
+                        padding: '8px',
+                        backgroundColor: '#fafafa'
+                      }}
+                    />
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    No hay un logo configurado. Este logo se usará en los PDFs generados.
+                  </Typography>
+                )}
+                {editMode && (
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+                    <input
+                      ref={logoFileInputRef}
+                      hidden
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml"
+                      onChange={onLogoFileChange}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => logoFileInputRef.current?.click()}
+                      startIcon={<CloudUploadIcon />}
+                      disabled={subiendoLogo}
+                      size="small"
+                    >
+                      {subiendoLogo
+                        ? 'Subiendo...'
+                        : partner.logo_url
+                        ? 'Cambiar logo'
+                        : 'Subir logo'}
+                    </Button>
+                    {partner.logo_nombre && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                        Archivo: {partner.logo_nombre}
+                      </Typography>
+                    )}
+                  </Stack>
+                )}
+              </Box>
             </ModernSection>
           </Grid>
         </Grid>
