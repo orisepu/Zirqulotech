@@ -6,6 +6,7 @@ from .views import (
     DispositivoAuditadoViewSet,OportunidadesGlobalesView,YoAPIView,ResumenGlobalOportunidadesAPIView,UserListAPIView,crear_dispositivo_global,cambiar_estado_oportunidad_global,
     verificar_credenciales, detalle_oportunidad_global,historial_oportunidad_global,listar_tenants,tenant_detail,tenant_detail_by_schema,descargar_documento_global,
     tenant_agreement_upload, tenant_agreement_download,
+    tenant_logo_upload, tenant_logo_download,
     AdminB2CContratoViewSet,
 )
 from progeek.views_kyc import KycPdfPreviewView
@@ -58,6 +59,8 @@ urlpatterns = router.urls + [
     path("tenants/<int:id>/", tenant_detail, name="tenant_detail"),
     path("tenants/<int:id>/agreement/", tenant_agreement_upload, name="tenant_agreement_upload"),
     path("tenants/<int:id>/agreement/download/", tenant_agreement_download, name="tenant_agreement_download"),
+    path("tenants/<int:id>/logo/", tenant_logo_upload, name="tenant_logo_upload"),
+    path("tenants/<int:id>/logo/download/", tenant_logo_download, name="tenant_logo_download"),
     path("tenants/by-schema/<slug:schema>/", tenant_detail_by_schema, name="tenant_detail_by_schema"),
     path("crear-company/", CrearCompanyAPIView.as_view(), name="crear-company"),
 

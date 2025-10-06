@@ -28,6 +28,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
     management_mode = serializers.ChoiceField(choices=[("default","default"),("autoadmin","autoadmin")], required=False)
     legal_overrides = FlexibleJSONField(required=False)
     acuerdo_empresas_pdf = serializers.FileField(required=False, allow_null=True)
+    logo = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = get_tenant_model()
@@ -39,7 +40,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             'numero_empleados', 'vertical', 'vertical_secundaria',
             'web_corporativa', 'facturacion_anual', 'numero_tiendas_oficiales',
             'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'cif', 'management_mode', 'legal_namespace', 'legal_slug',
-            'legal_overrides', 'comision_pct', 'solo_empresas', 'es_demo',
+            'legal_overrides', 'comision_pct', 'solo_empresas', 'es_demo', 'logo',
         ]
         extra_kwargs = {f: {"required": False} for f in fields}
 

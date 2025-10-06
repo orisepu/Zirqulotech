@@ -23,6 +23,13 @@ def agreement_upload_path(instance, filename: str) -> str:
     tenant_id = instance.pk or "temp"
     return f"acuerdos/tenant-{tenant_id}/{safe_base}{ext}"
 
+def logo_upload_path(instance, filename: str) -> str:
+    """Guarda los logos directamente en carpeta logos con ID del tenant."""
+    _, ext = os.path.splitext(filename or "")
+    ext = ext.lower() if ext else ".png"
+    tenant_id = instance.pk or "temp"
+    return f"logos/tenant-{tenant_id}{ext}"
+
 def _deepmerge(a, b):
     out = dict(a or {})
     for k, v in dict(b or {}).items():
@@ -98,7 +105,13 @@ class Company(TenantBase):
     )
 
     # Logo opcional
-    logo = models.ImageField(upload_to="logos/", blank=True, null=True)
+    logo = models.ImageField(
+        upload_to=logo_upload_path,
+        storage=PrivateDocumentStorage(),
+        blank=True,
+        null=True,
+        help_text="Logo del partner usado en PDFs y documentación."
+    )
 
     MANAGEMENT_CHOICES = [
         ("default", "Gestionado por Progeek y plantillas globales"),

@@ -148,7 +148,7 @@ def _section_divider(color=GREY_BORDER, thickness=0.8, space=6):
 # ==========================
 # Generación del PDF
 # ==========================
-def generar_pdf_oportunidad(oportunidad):
+def generar_pdf_oportunidad(oportunidad, tenant=None):
     cliente = oportunidad.cliente
     dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
 
@@ -215,20 +215,34 @@ def generar_pdf_oportunidad(oportunidad):
     fecha_generacion = datetime.now().strftime("%d/%m/%Y")
     comercial = oportunidad.usuario.get_full_name() if hasattr(oportunidad, "usuario") else "—"
 
-    if LOGO_PATH:
+    # Determinar qué logo usar: primero el del tenant, luego el default
+    logo_path = LOGO_PATH
+    if tenant:
+        tenant_logo = getattr(tenant, 'logo', None)
+        if tenant_logo and getattr(tenant_logo, 'path', None):
+            try:
+                if os.path.exists(tenant_logo.path):
+                    logo_path = tenant_logo.path
+                    logger.info(f"✅ Usando logo del tenant: {logo_path}")
+                else:
+                    logger.warning(f"⚠️ Logo del tenant no existe en disco: {tenant_logo.path}")
+            except Exception as e:
+                logger.warning(f"⚠️ Error verificando logo del tenant: {e}")
+
+    if logo_path:
         try:
-            im = Image(LOGO_PATH)
+            im = Image(logo_path)
             im.hAlign = 'LEFT'
             im._restrictSize(220, 72)  # tamaño máximo
             elements.append(im)
         except Exception as e:
             diag = _logo_diagnostics_text()
             logger.warning("No se pudo cargar el logo desde %s: %s\nCandidatos:\n%s",
-                           LOGO_PATH, e, diag.replace("<br/>", "\n"))
+                           logo_path, e, diag.replace("<br/>", "\n"))
             elements.append(
                 Paragraph(
                     f"<font color='red'><b>Advertencia:</b> no se pudo cargar el logo.</font><br/>"
-                    f"<b>Ruta seleccionada:</b> {os.path.abspath(LOGO_PATH) if LOGO_PATH else '(vacía)'}<br/>"
+                    f"<b>Ruta seleccionada:</b> {os.path.abspath(logo_path) if logo_path else '(vacía)'}<br/>"
                     f"<b>Rutas probadas:</b><br/>{diag}",
                     p_norm
                 )
