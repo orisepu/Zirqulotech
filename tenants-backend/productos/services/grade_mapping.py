@@ -203,7 +203,7 @@ def format_grade_full(grade: str) -> str:
         str: Texto formateado
     """
     label = GRADE_LABELS.get(grade, grade)
-    return f"{label} ({grade})"
+    return f"{label}"
 
 
 def get_grade_description_short(grade: str) -> str:

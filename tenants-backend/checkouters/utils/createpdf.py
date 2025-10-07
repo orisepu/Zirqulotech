@@ -160,10 +160,28 @@ def _draw_footer(canvas, doc):
     canvas.restoreState()
 
 
-def _section_divider(color=GREY_BORDER, thickness=0.8, space=6):
+def _section_divider(width=None, color=GREY_BORDER, thickness=0.8, space=10):
+    """
+    Crea un separador de sección con espaciado uniforme.
+    
+    Args:
+        width: Ancho de la línea. Si es None, usa "100%" para ocupar todo el ancho
+        color: Color de la línea
+        thickness: Grosor de la línea
+        space: Espaciado antes y después
+    """
+    line_width = width if width is not None else "100%"
+    
     return KeepTogether([
         Spacer(1, space),
-        HRFlowable(width="100%", thickness=thickness, color=color, spaceBefore=0, spaceAfter=0, lineCap='round'),
+        HRFlowable(
+            width=line_width,
+            thickness=thickness, 
+            color=color, 
+            spaceBefore=0, 
+            spaceAfter=0, 
+            lineCap='round'
+        ),
         Spacer(1, space),
     ])
 
@@ -325,35 +343,59 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         elements.append(logo_img)
         elements.append(Spacer(1, 8))
 
+    # Determinar tipo de oferta (formal vs temporal)
+    es_oferta_formal = dispositivos_override is not None
+    titulo_oferta = "OFERTA RECOMPRA" if es_oferta_formal else "OFERTA ORIENTATIVA"
+
     # Encabezado de oferta compacto (título + metadatos en una línea)
     opp_ref = f"#{getattr(oportunidad, 'hashid', None) or getattr(oportunidad, 'uuid', 'N/A')}"
 
     # Título y metadatos en tabla horizontal compacta
-    header_data = [[
-        Paragraph("<b>OFERTA DE RECOMPRA</b>", header_title),
-        Table([
-            [
-                Paragraph(f"📅 {fecha_generacion}", header_meta),
-                Paragraph(f"👤 {comercial}", header_meta),
-                Paragraph(f"📄 {opp_ref}", header_meta),
-            ]
-        ], colWidths=[90, 140, 100])
+    metadata_table_data = [[
+    Paragraph(f"📅 {fecha_generacion}", header_meta),
+    Paragraph(f"👤 {comercial}", header_meta),
+    Paragraph(f"📄 {opp_ref}", header_meta),
     ]]
 
-    header_table = Table(header_data, colWidths=[180, 340])
+    metadata_table = Table(metadata_table_data, colWidths=[90, 140, 100])
+    metadata_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    # Ahora crear la tabla principal del header
+    header_data = [[
+        Paragraph(f"<b>{titulo_oferta}</b>", header_title),
+        metadata_table
+    ]]
+
+    header_table = Table(header_data, colWidths=[doc.width * 0.35, doc.width * 0.65])
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (0, 0), "LEFT"),
         ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),   # ← Añadido: eliminar padding izquierdo
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),  # ← Añadido: eliminar padding derecho
         ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
     elements.append(header_table)
 
     # Separador visual sutil
-    elements.append(Spacer(1, 8))
-    elements.append(HRFlowable(width="100%", thickness=1, color=GREY_BORDER, spaceBefore=0, spaceAfter=0, lineCap='round'))
-    elements.append(Spacer(1, 8))
+    elements.append(Spacer(1, 10))  # Espaciado uniforme
+    elements.append(HRFlowable(
+        width=doc.width, 
+        thickness=1, 
+        color=GREY_BORDER, 
+        spaceBefore=0, 
+        spaceAfter=0, 
+        lineCap='round'
+    ))
+    elements.append(Spacer(1, 10))
 
     # Datos del cliente / nuestros datos (2 columnas)
     datos_cliente = [
@@ -368,35 +410,55 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         Paragraph("<b>Nuestros datos</b>", h4),
         Paragraph("Zirqulo S.L.", p_norm),
         Paragraph("CIF: B12345678", p_norm),
-        Paragraph("Santa María, 153, 5º 4ª", p_norm),
-        Paragraph("08340 Vilassar de Mar", p_norm),
+        Paragraph("C. de la Industria, 114", p_norm),
+        Paragraph("08912 Badalona", p_norm),
         Paragraph("Email: info@zirqulo.com", p_norm),
     ]
 
-    tabla_datos = Table([[datos_cliente, datos_nuestros]], colWidths=[doc.width * 0.55, doc.width * 0.45])
+    tabla_datos = Table([[datos_cliente, datos_nuestros]], colWidths=[doc.width * 0.50, doc.width * 0.50])
     tabla_datos.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        # Columna izquierda (Datos del cliente) sin padding
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 0),
+        # Columna derecha (Nuestros datos) con padding izquierdo para desplazar a la derecha
+        ("LEFTPADDING", (1, 0), (1, 0), 130),  # ← Añade espacio a la izquierda
+        ("RIGHTPADDING", (1, 0), (1, 0), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
     elements.append(tabla_datos)
 
-    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=8))
+    elements.append(_section_divider( color=GREY_BORDER, thickness=0.8, space=8))
 
     # ==========================
     # Tabla principal (líneas)
     # ==========================
-    elements.append(Paragraph("<b>Valoración máxima</b>", h3))
+    # Solo mostrar "Valoración máxima" en ofertas temporales
+    if not es_oferta_formal:
+        elements.append(Paragraph("<b>Valoración máxima</b>", h3))
 
-    headers = [
-        Paragraph("<b>Modelo</b>", cell_center),
-        Paragraph("<b>Capacidad</b>", cell_center),
-        Paragraph("<b>Grado</b>", cell_center),
-        Paragraph("<b>Cantidad</b>", cell_center),
-        Paragraph("<b>Precio sin IVA (€)</b>", cell_center),
-        Paragraph("<b>Total sin IVA (€)</b>", cell_center),
-    ]
+    # Headers dinámicos: agregar IMEI/SN en ofertas formales
+    if es_oferta_formal:
+        headers = [
+            Paragraph("<b>Modelo</b>", cell_center),
+            Paragraph("<b>Cap.</b>", cell_center),
+            Paragraph("<b>IMEI / SN</b>", cell_center),
+            Paragraph("<b>Grado</b>", cell_center),
+            Paragraph("<b>Cant.</b>", cell_center),
+            Paragraph("<b>Precio sin IVA</b>", cell_center),
+            Paragraph("<b>Total sin IVA</b>", cell_center),
+        ]
+    else:
+        headers = [
+            Paragraph("<b>Modelo</b>", cell_center),
+            Paragraph("<b>Cap.</b>", cell_center),
+            Paragraph("<b>Grado</b>", cell_center),
+            Paragraph("<b>Cant.</b>", cell_center),
+            Paragraph("<b>Precio sin IVA</b>", cell_center),
+            Paragraph("<b>Total sin IVA</b>", cell_center),
+        ]
 
     data = [headers]
     total_general = 0
@@ -427,14 +489,39 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         total_linea = float(precio_unitario) * cantidad
         total_general += total_linea
 
-        data.append([
-            modelo,
-            capacidad,
-            estado_valoracion,
-            Paragraph(str(cantidad), cell_center),
-            Paragraph(euros(precio_unitario), cell_right),
-            Paragraph(euros(total_linea), cell_right),
-        ])
+        # Construir fila con o sin IMEI/SN según tipo de oferta
+        if es_oferta_formal:
+            imei = getattr(d, "imei", None) or ""
+            numero_serie = getattr(d, "numero_serie", None) or ""
+
+            # Construir texto combinado IMEI / SN
+            if imei and numero_serie:
+                imei_sn_text = f"{imei} / {numero_serie}"
+            elif imei:
+                imei_sn_text = imei
+            elif numero_serie:
+                imei_sn_text = numero_serie
+            else:
+                imei_sn_text = "—"
+
+            data.append([
+                modelo,
+                capacidad,
+                Paragraph(str(imei_sn_text), cell_center),
+                estado_valoracion,
+                Paragraph(str(cantidad), cell_center),
+                Paragraph(euros(precio_unitario), cell_right),
+                Paragraph(euros(total_linea), cell_right),
+            ])
+        else:
+            data.append([
+                modelo,
+                capacidad,
+                estado_valoracion,
+                Paragraph(str(cantidad), cell_center),
+                Paragraph(euros(precio_unitario), cell_right),
+                Paragraph(euros(total_linea), cell_right),
+            ])
 
     # Filas de totales con IVA desglosado
     iva_rate = Decimal("0.21")  # 21% IVA
@@ -442,23 +529,31 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     iva_amount = (subtotal * iva_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     total_con_iva = subtotal + iva_amount
 
-    data.append([
-        "", "", "", "",
+    # Ajustar columnas vacías según tipo de oferta
+    empty_cols = ["", "", "", "", ""] if es_oferta_formal else ["", "", "", ""]
+
+    data.append(empty_cols + [
         Paragraph("<b>SUBTOTAL (sin IVA)</b>", cell_right),
         Paragraph(f"<b>{euros(total_general)}</b>", cell_right),
     ])
-    data.append([
-        "", "", "", "",
+    data.append(empty_cols + [
         Paragraph("<b>IVA (21%)</b>", cell_right),
         Paragraph(f"<b>{euros(iva_amount)}</b>", cell_right),
     ])
-    data.append([
-        "", "", "", "",
+    data.append(empty_cols + [
         Paragraph("<b>TOTAL (con IVA)</b>", cell_right),
         Paragraph(f"<b>{euros(total_con_iva)}</b>", cell_right),
     ])
 
-    table = Table(data, repeatRows=1, colWidths=[160, 60, 80, 60, 90, 90])
+    # Anchos de columna dinámicos según tipo de oferta
+    if es_oferta_formal:
+        # 7 columnas: Modelo | Capacidad | IMEI | Grado | Cantidad | Precio | Total
+        colWidths = [130, 50, 90, 70, 45, 70, 70]
+    else:
+        # 6 columnas: Modelo | Capacidad | Grado | Cantidad | Precio | Total
+        colWidths = [150, 50, 80, 50, 80, 80]
+
+    table = Table(data, repeatRows=1, colWidths=colWidths)
     # Estilos con filas alternas y caja de totales resaltada
     ts = [
     # Encabezado sutil
@@ -484,14 +579,12 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     table.setStyle(TableStyle(ts))
     elements.append(table)
 
-    elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
+    elements.append(_section_divider(doc.width, color=GREY_BORDER, thickness=0.8, space=10))
 
     # ==========================
     # Tabla de precios por grado
     # Solo en ofertas temporales (dispositivos declarados)
     # ==========================
-    es_oferta_formal = dispositivos_override is not None
-
     if not es_oferta_formal:
         elements.append(Paragraph("<b>Precios por grado del dispositivo (sin IVA)</b>", h3))
 
@@ -552,7 +645,7 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         ]))
         elements.append(precios_table)
 
-        elements.append(_section_divider(color=GREY_BORDER, thickness=0.8, space=10))
+        elements.append(_section_divider(doc.width, color=GREY_BORDER, thickness=0.8, space=10))
 
     # ==========================
     # Descripción de estados
