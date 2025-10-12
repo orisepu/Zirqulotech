@@ -92,6 +92,18 @@ export type ValidationItem = {
     mapping_algorithm: string | null
     needs_review: boolean
     is_mapped: boolean
+    // Campos de enriquecimiento de capacidades (desde v4)
+    needs_capacity_creation?: boolean
+    suggested_capacity?: {
+      device_type?: string
+      storage_gb?: number
+      existing_capacities?: number[]
+      likewize_capacities?: number[]  // Capacidades que existen en Likewize
+      missing_capacities?: number[]
+      model_ids?: number[]
+      model_found?: boolean
+      modelo_descripcion?: string
+    }
   }
 }
 

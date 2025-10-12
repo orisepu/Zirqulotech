@@ -22,7 +22,7 @@ from .views.costespiezas import (
 from productos.views import (LanzarActualizacionLikewizeView, EstadoTareaLikewizeView,
   DiffLikewizeView, AplicarCambiosLikewizeView,LogTailLikewizeView,IphoneComercialValoracionView,
   IphoneAuditoriaValoracionView,
-  LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView,
+  LikewizeCazadorResultadoView,ListarTareasLikewizeView,UltimaTareaLikewizeView,CrearDesdeNoMapeadoLikewizeView,MapearItemLikewizeView,RemapearTareaLikewizeView,LanzarActualizacionB2CView,DiffB2CView,AplicarCambiosB2CView,UltimaTareaB2CView,LanzarActualizacionBackmarketView,DiffBackmarketView,AplicarCambiosBackmarketView,UltimaTareaBackmarketView,LikewizePresetsView,
   ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView,
   ValidarMapeoLikewizeView, CorregirMapeoLikewizeView, ValidationItemsLikewizeView
 )
@@ -87,6 +87,7 @@ urlpatterns = [
     path("precios/likewize/tareas/<uuid:tarea_id>/aplicar/", AplicarCambiosLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/log/", LogTailLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/crear-capacidad/", CrearDesdeNoMapeadoLikewizeView.as_view()),
+    path("precios/likewize/mapear-item/<int:staging_id>/", MapearItemLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/remapear/", RemapearTareaLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/validar-mapeo/", ValidarMapeoLikewizeView.as_view()),
     path("precios/likewize/tareas/<uuid:tarea_id>/corregir-mapeo/", CorregirMapeoLikewizeView.as_view()),

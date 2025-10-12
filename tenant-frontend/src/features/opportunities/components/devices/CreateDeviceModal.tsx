@@ -20,10 +20,12 @@ import {
   Divider,
   Paper,
   MenuItem,
-  CircularProgress
+  CircularProgress,
+  Autocomplete
 } from '@mui/material'
-import { AddCircle, Warning } from '@mui/icons-material'
+import { AddCircle, Warning, CheckCircle, Search } from '@mui/icons-material'
 import { useState, useEffect, useMemo } from 'react'
+import api from '@/services/api'
 
 // Tipos de dispositivo comunes
 const DEVICE_TYPES = [
@@ -70,6 +72,20 @@ interface CreateDeviceModalProps {
       tipo: string
     }
   }>
+  // Resultado del mapeo v4 con información enriquecida
+  mappingResult?: {
+    needs_capacity_creation?: boolean
+    suggested_capacity?: {
+      device_type?: string
+      storage_gb?: number
+      existing_capacities?: number[]
+      likewize_capacities?: number[]  // Capacidades que existen en Likewize
+      missing_capacities?: number[]
+      model_ids?: number[]
+      model_found?: boolean
+      modelo_descripcion?: string
+    }
+  }
   onCreate: (deviceData: {
     staging_id: string | number
     tipo: string
@@ -87,6 +103,7 @@ export function CreateDeviceModal({
   onClose,
   item,
   allLikewizeItems = [],
+  mappingResult,
   onCreate,
   isLoading = false
 }: CreateDeviceModalProps) {
@@ -101,6 +118,19 @@ export function CreateDeviceModal({
   const [selectedCapacities, setSelectedCapacities] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
+  // Estado para buscador de modelos
+  type ModelSearchResult = {
+    id: number
+    descripcion: string
+    tipo: string
+    procesador: string
+  }
+
+  const [modelSearchQuery, setModelSearchQuery] = useState('')
+  const [modelSearchResults, setModelSearchResults] = useState<ModelSearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [selectedModelFromSearch, setSelectedModelFromSearch] = useState<ModelSearchResult | null>(null)
+
   // Función para limpiar y enriquecer el nombre del modelo
   const cleanModelName = (rawName: string, additionalInfo?: { cpu?: string, a_number?: string, year?: number }): string => {
     if (!rawName) return ''
@@ -111,10 +141,9 @@ export function CreateDeviceModal({
     const screenSizeMatch = cleaned.match(/(\d+(?:\.\d+)?)\s*inch/i)
     const screenSize = screenSizeMatch ? `${screenSizeMatch[1]}"` : ''
 
-    // 2. Extraer información de cores antes de procesar
+    // 2. Extraer información de cores antes de procesar (sin guiones)
     const coresMatch = cleaned.match(/(\d+)\s*Core\s+CPU\s+(\d+)\s*Core\s+GPU/i)
-    const cores = coresMatch ? `${coresMatch[1]}-Core CPU ${coresMatch[2]}-Core GPU` :
-                  cleaned.match(/(\d+)\s*Core\s+(CPU|GPU)/gi)?.map(c => c.replace(/(\d+)\s*Core\s+(CPU|GPU)/i, '$1-Core $2')).join(' ') || ''
+    const cores = coresMatch ? `${coresMatch[1]} Core CPU ${coresMatch[2]} Core GPU` : ''
 
     // 3. Remover M-chips del texto (M1, M2, M3, M4 Pro, M4 Max, etc.) - los añadiremos desde additionalInfo.cpu
     cleaned = cleaned.replace(/\s*M\d+\s*(Pro|Max|Ultra)?/gi, '')
@@ -135,11 +164,15 @@ export function CreateDeviceModal({
     cleaned = cleaned.replace(/\b\d{1,2}\/\d{4}\b/g, '')
 
     // 9. Normalizar nombres base de modelos (eliminando códigos internos)
-    cleaned = cleaned.replace(/iMac\d+\s*\d+/gi, 'iMac')
+    cleaned = cleaned.replace(/iMac(?:Pro)?\d+\s*\d+/gi, 'iMac')
     cleaned = cleaned.replace(/MacBook\s*Pro\d+\s*\d+/gi, 'MacBook Pro')
     cleaned = cleaned.replace(/MacBookPro\d+\s*\d+/gi, 'MacBook Pro')
     cleaned = cleaned.replace(/MacBook\s*Air\d+\s*\d+/gi, 'MacBook Air')
     cleaned = cleaned.replace(/MacBookAir\d+\s*\d+/gi, 'MacBook Air')
+    cleaned = cleaned.replace(/Macmini\d+\s*\d+/gi, 'Mac mini')
+    cleaned = cleaned.replace(/Mac\s*mini\d+\s*\d+/gi, 'Mac mini')
+    cleaned = cleaned.replace(/MacStudio\d+\s*\d+/gi, 'Mac Studio')
+    cleaned = cleaned.replace(/MacPro\d+\s*\d+/gi, 'Mac Pro')
     cleaned = cleaned.replace(/iPhone\d+,\d+/gi, (match) => {
       const num = match.match(/\d+/)
       return num ? `iPhone ${num[0]}` : 'iPhone'
@@ -148,14 +181,15 @@ export function CreateDeviceModal({
     // 10. Limpiar espacios múltiples
     cleaned = cleaned.replace(/\s+/g, ' ').trim()
 
-    // 11. Construir nombre completo con toda la información disponible
+    // 11. Construir nombre completo con formato: [base] [(año)] [A-number] [cpu] [cores] [screen]
     const parts = [cleaned]
 
-    if (screenSize) parts.push(screenSize)
+    // Orden correcto: Mac mini (2023) A2816 M2 Pro 12 Core CPU 19 Core GPU
+    if (additionalInfo?.year) parts.push(`(${additionalInfo.year})`)
+    if (additionalInfo?.a_number) parts.push(additionalInfo.a_number)
     if (additionalInfo?.cpu) parts.push(additionalInfo.cpu)
     if (cores) parts.push(cores)
-    if (additionalInfo?.a_number) parts.push(additionalInfo.a_number)
-    if (additionalInfo?.year) parts.push(`(${additionalInfo.year})`)
+    if (screenSize) parts.push(screenSize)
 
     return parts.join(' ').replace(/\s+/g, ' ').trim()
   }
@@ -187,6 +221,54 @@ export function CreateDeviceModal({
     if (lower.includes('mac studio') || lower.includes('macstudio')) return 'Mac Studio'
 
     return 'Mac'
+  }
+
+  // Función para buscar modelos en la BD
+  const searchModels = async (query: string) => {
+    if (query.length < 2) {
+      setModelSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await api.get('/api/admin/modelos/search/', {
+        params: {
+          q: query,
+          tipo: formData.tipo || undefined,
+          marca: formData.marca || undefined,
+          limit: 10
+        }
+      })
+      setModelSearchResults(response.data || [])
+    } catch (error) {
+      console.error('Error buscando modelos:', error)
+      setModelSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Debounce para búsqueda de modelos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (modelSearchQuery) {
+        searchModels(modelSearchQuery)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [modelSearchQuery, formData.tipo, formData.marca])
+
+  // Función para obtener capacidades de un modelo seleccionado manualmente
+  const fetchModelCapacities = async (modeloId: number) => {
+    try {
+      const response = await api.get(`/api/capacidades-por-modelo/?modelo_id=${modeloId}`)
+      return response.data || []
+    } catch (error) {
+      console.error('Error obteniendo capacidades del modelo:', error)
+      return []
+    }
   }
 
   // Auto-rellenar formulario cuando se abre el modal
@@ -246,13 +328,42 @@ export function CreateDeviceModal({
     return normalized
   }
 
-  // Detectar capacidades reales desde Likewize
-  const availableCapacities = useMemo(() => {
-    if (!item || !formData.modelo) return []
+  // Detectar capacidades usando información enriquecida del backend (prioridad 1) o Likewize (prioridad 2)
+  const capacitiesInfo = useMemo(() => {
+    // PRIORIDAD 1: Usar información enriquecida del backend SOLO si el modelo fue encontrado
+    if (mappingResult?.needs_capacity_creation &&
+        mappingResult?.suggested_capacity &&
+        mappingResult?.suggested_capacity.model_found) {
+      const suggested = mappingResult.suggested_capacity
+
+      return {
+        source: 'backend' as const,
+        existing: suggested.existing_capacities || [],
+        missing: suggested.missing_capacities || [],
+        likewize: suggested.likewize_capacities || [],  // Capacidades que existen en Likewize
+        all: [
+          ...(suggested.existing_capacities || []),
+          ...(suggested.missing_capacities || [])
+        ].sort((a, b) => a - b),
+        modelFound: suggested.model_found || false,
+        modelDescription: suggested.modelo_descripcion
+      }
+    }
+
+    // PRIORIDAD 2 (FALLBACK): Detectar desde Likewize
+    if (!item || !formData.modelo) {
+      return {
+        source: 'likewize' as const,
+        existing: [],
+        missing: [],
+        likewize: [],
+        all: [],
+        modelFound: false
+      }
+    }
 
     // Normalizar el nombre del modelo para buscar variantes
     const baseModelName = normalizeModelForComparison(formData.modelo)
-
     const capacitiesFromLikewize = new Set<number>()
 
     allLikewizeItems.forEach(likewizeItem => {
@@ -274,16 +385,31 @@ export function CreateDeviceModal({
       capacitiesFromLikewize.add(item.likewize_info.almacenamiento_gb)
     }
 
-    return Array.from(capacitiesFromLikewize).sort((a, b) => a - b)
-  }, [formData.modelo, formData.tipo, item, allLikewizeItems])
+    const allCapacities = Array.from(capacitiesFromLikewize).sort((a, b) => a - b)
+
+    return {
+      source: 'likewize' as const,
+      existing: [],
+      missing: allCapacities, // Asumimos que todas son para crear cuando no hay info del backend
+      likewize: allCapacities,
+      all: allCapacities,
+      modelFound: false
+    }
+  }, [formData.modelo, formData.tipo, item, allLikewizeItems, mappingResult])
+
+  // Compatibilidad: availableCapacities como alias de capacitiesInfo.all
+  const availableCapacities = capacitiesInfo.all
 
   // Actualizar capacidades seleccionadas cuando cambian las disponibles
   useEffect(() => {
-    if (availableCapacities.length > 0) {
-      // Auto-seleccionar todas las capacidades encontradas
+    if (capacitiesInfo.source === 'backend' && capacitiesInfo.missing.length > 0) {
+      // Con info del backend: auto-seleccionar solo las FALTANTES
+      setSelectedCapacities(new Set(capacitiesInfo.missing))
+    } else if (capacitiesInfo.source === 'likewize' && availableCapacities.length > 0) {
+      // Sin info del backend: auto-seleccionar todas las encontradas en Likewize
       setSelectedCapacities(new Set(availableCapacities))
     }
-  }, [availableCapacities])
+  }, [capacitiesInfo, availableCapacities])
 
   const handleCapacityToggle = (capacity: number) => {
     const newSelection = new Set(selectedCapacities)
@@ -470,11 +596,11 @@ export function CreateDeviceModal({
 
           <Divider />
 
-          {/* Selector de capacidades desde Likewize */}
+          {/* Selector de capacidades con información enriquecida */}
           <FormControl component="fieldset">
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
               <FormLabel component="legend">
-                Capacidades Detectadas en Likewize:
+                {capacitiesInfo.source === 'backend' ? 'Análisis de Capacidades:' : 'Capacidades Detectadas en Likewize:'}
               </FormLabel>
               <Stack direction="row" spacing={1}>
                 <Button size="small" onClick={handleSelectAllCapacities}>
@@ -486,7 +612,109 @@ export function CreateDeviceModal({
               </Stack>
             </Stack>
 
-            {availableCapacities.length > 0 ? (
+            {/* Alert informativo según la fuente */}
+            {capacitiesInfo.source === 'backend' && capacitiesInfo.modelFound ? (
+              <>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Modelo encontrado en BD:</strong> {capacitiesInfo.modelDescription || 'Sin descripción'}
+                  </Typography>
+                  <Typography variant="caption" component="div">
+                    • <strong>En Likewize:</strong> {capacitiesInfo.likewize?.length || 0} capacidad{(capacitiesInfo.likewize?.length || 0) !== 1 ? 'es' : ''} detectada{(capacitiesInfo.likewize?.length || 0) !== 1 ? 's' : ''}
+                    ({capacitiesInfo.likewize?.map(formatCapacity).join(', ') || 'ninguna'})<br />
+                    • <strong>En BD:</strong> {capacitiesInfo.existing.length} ya existe{capacitiesInfo.existing.length === 1 ? '' : 'n'}
+                    ({capacitiesInfo.existing.map(formatCapacity).join(', ') || 'ninguna'})<br />
+                    • <strong>Faltantes:</strong> {capacitiesInfo.missing.length} por crear
+                    ({capacitiesInfo.missing.map(formatCapacity).join(', ') || 'ninguna'})
+                  </Typography>
+                </Alert>
+
+                {/* Buscador de modelos - permitir cambiar el modelo detectado automáticamente */}
+                <Box sx={{ mb: 2 }}>
+                  <Autocomplete<ModelSearchResult, false, false, true>
+                    freeSolo
+                    options={modelSearchResults}
+                    getOptionLabel={(option: ModelSearchResult | string) =>
+                      typeof option === 'string' ? option : `${option.descripcion} (${option.procesador || option.tipo})`
+                    }
+                    loading={isSearching}
+                    value={selectedModelFromSearch}
+                    onChange={async (event, newValue) => {
+                      if (newValue && typeof newValue !== 'string') {
+                        setSelectedModelFromSearch(newValue)
+
+                        // Obtener capacidades del modelo seleccionado
+                        const capacidades = await fetchModelCapacities(newValue.id)
+
+                        // Convertir capacidades a GB
+                        const capacidadesGB = capacidades.map((cap: any) => {
+                          const tamaño = cap.tamaño || cap.tamano || ''
+                          const match = tamaño.match(/(\d+)\s*(TB|GB)/i)
+                          if (!match) return null
+                          const value = parseInt(match[1])
+                          const unit = match[2].toUpperCase()
+                          return unit === 'TB' ? value * 1024 : value
+                        }).filter((gb: number | null) => gb !== null)
+
+                        // Detectar capacidades faltantes comparando con Likewize
+                        const likewizeCapacitiesSet = new Set<number>()
+                        const baseModelName = normalizeModelForComparison(newValue.descripcion)
+
+                        allLikewizeItems.forEach(likewizeItem => {
+                          const itemRawName = likewizeItem.likewize_info.modelo_raw || likewizeItem.likewize_info.modelo_norm || ''
+                          const itemNormalizedName = normalizeModelForComparison(itemRawName)
+                          const itemType = likewizeItem.likewize_info.tipo
+
+                          const nameMatch = itemNormalizedName.includes(baseModelName) || baseModelName.includes(itemNormalizedName)
+                          const typeMatch = !formData.tipo || itemType === formData.tipo || itemType.includes(formData.tipo)
+
+                          if (nameMatch && typeMatch && likewizeItem.likewize_info.almacenamiento_gb) {
+                            likewizeCapacitiesSet.add(likewizeItem.likewize_info.almacenamiento_gb)
+                          }
+                        })
+
+                        const likewizeCapacities = Array.from(likewizeCapacitiesSet)
+                        const missing = likewizeCapacities.filter(cap => !capacidadesGB.includes(cap))
+
+                        // Auto-seleccionar capacidades faltantes
+                        setSelectedCapacities(new Set(missing.length > 0 ? missing : likewizeCapacities))
+                      }
+                    }}
+                    onInputChange={(event, newInputValue) => {
+                      setModelSearchQuery(newInputValue)
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="¿Modelo incorrecto? Busca el correcto"
+                        placeholder="Buscar modelo en BD..."
+                        helperText="Si el modelo detectado es incorrecto, búscalo aquí"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: <Search color="action" sx={{ mr: 1 }} />,
+                          endAdornment: (
+                            <>
+                              {isSearching ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id}>
+                        <Box>
+                          <Typography variant="body2">{option.descripcion}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.procesador && `${option.procesador} • `}{option.tipo}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                  />
+                </Box>
+              </>
+            ) : availableCapacities.length > 0 ? (
               <Alert severity="success" sx={{ mb: 2 }}>
                 <Typography variant="body2">
                   Se encontraron <strong>{availableCapacities.length} capacidades</strong> en los datos de Likewize para este modelo.
@@ -501,31 +729,86 @@ export function CreateDeviceModal({
               </Alert>
             )}
 
-            <FormGroup row>
-              {availableCapacities.map((capacity) => (
-                <FormControlLabel
-                  key={capacity}
-                  control={
-                    <Checkbox
-                      checked={selectedCapacities.has(capacity)}
-                      onChange={() => handleCapacityToggle(capacity)}
-                      disabled={capacity === currentCapacity} // La capacidad actual siempre debe estar
+            {/* Capacidades existentes (solo con info del backend) */}
+            {capacitiesInfo.source === 'backend' && capacitiesInfo.existing.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                  Capacidades que YA EXISTEN en BD:
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {capacitiesInfo.existing.map((capacity) => (
+                    <Chip
+                      key={`existing-${capacity}`}
+                      label={formatCapacity(capacity)}
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      icon={<CheckCircle fontSize="small" />}
                     />
-                  }
-                  label={
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <span>{formatCapacity(capacity)}</span>
-                      {capacity === currentCapacity && (
-                        <Chip label="Actual" size="small" color="primary" />
-                      )}
-                    </Stack>
-                  }
-                />
-              ))}
-            </FormGroup>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {/* Capacidades faltantes (seleccionables) */}
+            {capacitiesInfo.source === 'backend' && capacitiesInfo.missing.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                  Capacidades FALTANTES (selecciona cuáles crear):
+                </Typography>
+                <FormGroup row>
+                  {capacitiesInfo.missing.map((capacity) => (
+                    <FormControlLabel
+                      key={`missing-${capacity}`}
+                      control={
+                        <Checkbox
+                          checked={selectedCapacities.has(capacity)}
+                          onChange={() => handleCapacityToggle(capacity)}
+                          disabled={capacity === currentCapacity}
+                        />
+                      }
+                      label={
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <span>{formatCapacity(capacity)}</span>
+                          {capacity === currentCapacity && (
+                            <Chip label="Actual" size="small" color="primary" />
+                          )}
+                        </Stack>
+                      }
+                    />
+                  ))}
+                </FormGroup>
+              </Box>
+            )}
+
+            {/* Capacidades detectadas (cuando no hay info del backend) */}
+            {capacitiesInfo.source === 'likewize' && availableCapacities.length > 0 && (
+              <FormGroup row>
+                {availableCapacities.map((capacity) => (
+                  <FormControlLabel
+                    key={`likewize-${capacity}`}
+                    control={
+                      <Checkbox
+                        checked={selectedCapacities.has(capacity)}
+                        onChange={() => handleCapacityToggle(capacity)}
+                        disabled={capacity === currentCapacity}
+                      />
+                    }
+                    label={
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <span>{formatCapacity(capacity)}</span>
+                        {capacity === currentCapacity && (
+                          <Chip label="Actual" size="small" color="primary" />
+                        )}
+                      </Stack>
+                    }
+                  />
+                ))}
+              </FormGroup>
+            )}
 
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-              {selectedCapacities.size} capacidad{selectedCapacities.size !== 1 ? 'es' : ''} seleccionada{selectedCapacities.size !== 1 ? 's' : ''}
+              {selectedCapacities.size} capacidad{selectedCapacities.size !== 1 ? 'es' : ''} seleccionada{selectedCapacities.size !== 1 ? 's' : ''} para crear
             </Typography>
           </FormControl>
 

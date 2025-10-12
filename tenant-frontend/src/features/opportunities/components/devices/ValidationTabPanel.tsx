@@ -28,6 +28,7 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
   const [selectedItem, setSelectedItem] = useState<ValidationItem | null>(null)
   const [isTransitioningToCreate, setIsTransitioningToCreate] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState<string | null>(null)
+  const [mappingResult, setMappingResult] = useState<any>(null)
 
   // Resetear flag de transición cuando el modal de creación se abre
   useEffect(() => {
@@ -98,8 +99,29 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
     })
   }
 
-  const handleCreate = (item: ValidationItem) => {
+  const handleCreate = async (item: ValidationItem) => {
     setSelectedItem(item)
+
+    // Obtener mapeo actualizado del backend con capacidades de Likewize
+    try {
+      const stagingId = item.staging_item_id || item.id
+      const api = (await import('@/services/api')).default
+      const response = await api.get(`/api/precios/likewize/mapear-item/${stagingId}/`)
+
+      // El backend devuelve el resultado del mapeo v4 actualizado con capacidades de Likewize
+      setMappingResult(response.data)
+    } catch (error) {
+      console.error('Error obteniendo mapeo actualizado:', error)
+
+      // Fallback: usar metadata del item si falla la llamada
+      const metadata = (item.mapping_metadata || {}) as any
+      const result = {
+        needs_capacity_creation: metadata.needs_capacity_creation || false,
+        suggested_capacity: metadata.suggested_capacity || null
+      }
+      setMappingResult(result)
+    }
+
     setCreateModalOpen(true)
   }
 
@@ -225,10 +247,33 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
         }}
         item={selectedItem}
         onApply={handleApplyCorrection}
-        onCreateNew={() => {
+        onCreateNew={async () => {
           // Marcar que estamos transicionando para evitar reset de selectedItem
           setIsTransitioningToCreate(true)
           setCorrectionModalOpen(false)
+
+          // Obtener mapeo actualizado del backend con capacidades de Likewize
+          if (selectedItem) {
+            try {
+              const stagingId = selectedItem.staging_item_id || selectedItem.id
+              const api = (await import('@/services/api')).default
+              const response = await api.get(`/api/precios/likewize/mapear-item/${stagingId}/`)
+
+              // El backend devuelve el resultado del mapeo v4 actualizado
+              setMappingResult(response.data)
+            } catch (error) {
+              console.error('Error obteniendo mapeo actualizado:', error)
+
+              // Fallback: usar metadata del item si falla la llamada
+              const metadata = (selectedItem.mapping_metadata || {}) as any
+              const result = {
+                needs_capacity_creation: metadata.needs_capacity_creation || false,
+                suggested_capacity: metadata.suggested_capacity || null
+              }
+              setMappingResult(result)
+            }
+          }
+
           setCreateModalOpen(true)
         }}
         isLoading={correctMutation.isPending}
@@ -240,10 +285,12 @@ export function ValidationTabPanel({ tareaId }: ValidationTabPanelProps) {
         onClose={() => {
           setCreateModalOpen(false)
           setSelectedItem(null)
+          setMappingResult(null)
           setIsTransitioningToCreate(false) // Resetear flag
         }}
         item={selectedItem}
         allLikewizeItems={validationItems}
+        mappingResult={mappingResult}
         onCreate={handleApplyCreate}
         isLoading={createMutation.isPending}
       />

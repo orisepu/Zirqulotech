@@ -177,11 +177,11 @@ class LanzarActualizacionLikewizeView(APIView):
         mode = (request.data.get("mode") or request.query_params.get("mode") or "apple").lower()
         
         # Check if mapping system is specified
-        mapping_system = (request.data.get("mapping_system") or request.query_params.get("mapping_system") or "v1").lower()
-        if mapping_system not in ["v1", "v2"]:
+        mapping_system = (request.data.get("mapping_system") or request.query_params.get("mapping_system") or "auto").lower()
+        if mapping_system not in ["v1", "v2", "v3", "v4", "auto"]:
             return Response({
-                "detail": "El sistema de mapeo debe ser 'v1' o 'v2'.",
-                "disponibles": ["v1", "v2"],
+                "detail": "El sistema de mapeo debe ser 'v1', 'v2', 'v3', 'v4', o 'auto'.",
+                "disponibles": ["v1", "v2", "v3", "v4", "auto"],
             }, status=status.HTTP_400_BAD_REQUEST)
 
         body_brands = request.data.get("brands")
@@ -254,7 +254,13 @@ class LanzarActualizacionLikewizeView(APIView):
         def _runner():
             try:
                 # ejecuta el management command en este mismo proceso/venv
-                call_command('actualizar_likewize_v3', tarea=str(tarea.id), mode=mode, brands=canonical_brands)
+                call_command(
+                    'actualizar_likewize_v3',
+                    tarea=str(tarea.id),
+                    mode=mode,
+                    brands=canonical_brands,
+                    mapping_system=mapping_system  # Pasar sistema de mapeo
+                )
             except Exception as e:
                 tarea.add_log(f"❌ Error ejecutando comando: {str(e)}", "ERROR")
                 tarea.estado = "ERROR"
@@ -949,9 +955,27 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
 
         s = get_object_or_404(LikewizeItemStaging, pk=sid, tarea_id=tarea_id)
 
-        # Si ya está mapeado, devolver directamente
-        if s.capacidad_id:
+        print(f"🔍 DEBUG INICIO: Item staging_id={sid}, tarea_id={tarea_id}")
+        print(f"🔍 DEBUG: capacidad_id actual = {s.capacidad_id}")
+        print(f"🔍 DEBUG: Request data = {request.data}")
+
+        # Verificar si hay capacidades pendientes por crear
+        capacidades_a_crear = request.data.get("capacidades_a_crear", [])
+        print(f"🔍 DEBUG: capacidades_a_crear del request = {capacidades_a_crear}")
+
+        # Si ya está mapeado Y no hay capacidades pendientes, devolver directamente
+        if s.capacidad_id and not capacidades_a_crear:
+            print(f"⚠️  DEBUG: Item YA MAPEADO y sin capacidades pendientes - Saliendo con capacidad_id={s.capacidad_id}")
             return Response({"capacidad_id": s.capacidad_id, "created": False}, status=200)
+
+        # Si ya está mapeado PERO hay capacidades pendientes, crear las capacidades faltantes
+        if s.capacidad_id and capacidades_a_crear:
+            print(f"✅ DEBUG: Item YA MAPEADO pero hay capacidades pendientes por crear: {capacidades_a_crear}")
+            # Continuar para crear capacidades faltantes (no re-mapear el item)
+            skip_item_mapping = True
+        else:
+            print(f"✅ DEBUG: Item NO mapeado, continuando con creación completa...")
+            skip_item_mapping = False
 
         override_tipo = (request.data.get("tipo") or "").strip()
         override_marca = (request.data.get("marca") or "").strip()
@@ -1020,6 +1044,8 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
         pantalla_val = f"{s.pulgadas}\"" if getattr(s, "pulgadas", None) else ""
         any_val = getattr(s, "any", None)
         cpu_val = getattr(s, "cpu", "") or ""
+        a_number_val = getattr(s, "a_number", "") or ""
+
         if hasattr(ModeloModel, "pantalla"):
             filtros["pantalla"] = pantalla_val
         if hasattr(ModeloModel, "año"):
@@ -1027,7 +1053,33 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
         if hasattr(ModeloModel, "procesador"):
             filtros["procesador"] = cpu_val
 
-        modelo, _ = ModeloModel.objects.get_or_create(**filtros)
+        # IMPORTANTE: Si tenemos A-number, debemos asegurarnos de encontrar/crear
+        # el modelo correcto con ese A-number específico
+        # El A-number está en la descripción del modelo (ej: "Mac mini (2023) A2816 M2 Pro...")
+        if a_number_val:
+            # Buscar modelo existente que contenga el A-number en la descripción
+            modelo_query = ModeloModel.objects.filter(**filtros)
+            modelo_con_a_number = None
+
+            for m in modelo_query:
+                desc = getattr(m, rel_name, "")
+                if a_number_val.upper() in desc.upper():
+                    modelo_con_a_number = m
+                    break
+
+            if modelo_con_a_number:
+                modelo = modelo_con_a_number
+                created = False
+                print(f"🔍 DEBUG: Modelo existente encontrado con A-number {a_number_val}: {modelo.id}")
+            else:
+                # No existe, crear nuevo modelo
+                modelo = ModeloModel.objects.create(**filtros)
+                created = True
+                print(f"✨ DEBUG: Modelo nuevo creado con A-number {a_number_val}: {modelo.id}")
+        else:
+            # Sin A-number, usar comportamiento original
+            modelo, created = ModeloModel.objects.get_or_create(**filtros)
+            print(f"🔍 DEBUG: Modelo {'creado' if created else 'encontrado'} sin A-number: {modelo.id}")
 
         modelo_update_fields = []
         if hasattr(modelo, "likewize_modelo"):
@@ -1041,7 +1093,7 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
         # Crear/obtener Capacidades (todas las estándar del tipo)
         cap_qs = CapacidadModel.objects.filter(**{rel_field: modelo})
 
-        # Buscar si ya existe la capacidad específica
+        # Buscar si ya existe la capacidad específica para este item
         cap = cap_qs.filter(**{f"{gb_field}__iexact": tamaño_txt}).first()
         if not cap:
             for existing in cap_qs:
@@ -1055,68 +1107,124 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
                     tamaño_txt = existing_txt or tamaño_txt
                     break
 
-        # Si no existe la capacidad, crear TODAS las capacidades estándar para este tipo
-        if not cap:
-            # Obtener capacidades estándar para este tipo de dispositivo
-            standard_capacities = STANDARD_CAPACITIES.get(tipo_val, [256, 512, 1024, 2048])
+        # Siempre procesar capacidades_a_crear si fueron enviadas
+        # Esto permite crear capacidades faltantes incluso si el item ya está mapeado
+        created_capacities = []
+        if capacidades_a_crear:
+            print(f"🔍 DEBUG: Procesando capacidades pendientes: {capacidades_a_crear}")
+            print(f"🔍 DEBUG: Capacidad actual del item: {gb_value} GB")
 
             # Defaults para capacidades nuevas
             cap_defaults = {}
             if hasattr(CapacidadModel, "precio_b2b"):
                 cap_defaults["precio_b2b"] = None
 
-            # Crear todas las capacidades estándar
-            created_capacities = []
-            for gb in standard_capacities:
+            # Crear todas las capacidades enviadas que no existan
+            for gb in capacidades_a_crear:
                 capacity_txt = f"{gb // 1024} TB" if gb >= 1024 else f"{gb} GB"
 
                 # Verificar si ya existe esta capacidad
                 existing_cap = cap_qs.filter(**{f"{gb_field}__iexact": capacity_txt}).first()
+
                 if existing_cap:
-                    if gb == gb_value:
+                    print(f"   ⏭️  Capacidad {capacity_txt} ya existe (id={existing_cap.id})")
+                    # Si es la capacidad del item actual y no teníamos cap, usarla
+                    if gb == gb_value and not cap:
                         cap = existing_cap
                         tamaño_txt = capacity_txt
                     continue
 
                 # Crear nueva capacidad
+                print(f"   ✨ Creando capacidad {capacity_txt}...")
                 new_cap = CapacidadModel.objects.create(
                     **{rel_field: modelo, gb_field: capacity_txt},
                     **cap_defaults
                 )
                 created_capacities.append(new_cap)
+                print(f"   ✅ Capacidad creada: {capacity_txt} (id={new_cap.id})")
 
-                # Si es la capacidad que necesitamos, guardarla
-                if gb == gb_value:
+                # Si es la capacidad del item actual y no teníamos cap, usarla
+                if gb == gb_value and not cap:
                     cap = new_cap
                     tamaño_txt = capacity_txt
 
-            # Si aún no tenemos cap, crear la específica que necesitamos
-            if not cap:
-                cap = CapacidadModel.objects.create(
-                    **{rel_field: modelo, gb_field: tamaño_txt},
-                    **cap_defaults
-                )
+        # Si aún no tenemos cap para el item actual (y no estamos en skip mode), crearla
+        if not cap and not skip_item_mapping:
+            print(f"⚠️  Capacidad específica {tamaño_txt} no existe, creando...")
+            cap_defaults = {}
+            if hasattr(CapacidadModel, "precio_b2b"):
+                cap_defaults["precio_b2b"] = None
+            cap = CapacidadModel.objects.create(
+                **{rel_field: modelo, gb_field: tamaño_txt},
+                **cap_defaults
+            )
+            created_capacities.append(cap)
+            print(f"✅ Capacidad específica creada: {tamaño_txt} (id={cap.id})")
 
-        s.capacidad_id = cap.id
-        fields_to_update.add("capacidad_id")
-        if fields_to_update:
-            s.save(update_fields=list(fields_to_update))
+        # Solo actualizar capacidad_id si el item NO estaba previamente mapeado
+        if not skip_item_mapping and cap:
+            s.capacidad_id = cap.id
+            fields_to_update.add("capacidad_id")
+            if fields_to_update:
+                s.save(update_fields=list(fields_to_update))
+                print(f"✅ DEBUG: Item actualizado con capacidad_id={cap.id}")
+        else:
+            print(f"✅ DEBUG: Item ya estaba mapeado, no se actualiza capacidad_id")
+            # Aún guardamos otros campos si fueron modificados
+            if fields_to_update:
+                s.save(update_fields=list(fields_to_update))
+
+        # Si estamos en skip mode, recuperar la capacidad actual del item para la respuesta
+        if skip_item_mapping:
+            if s.capacidad_id:
+                cap = CapacidadModel.objects.filter(id=s.capacidad_id).first()
+                if cap:
+                    tamaño_txt = getattr(cap, gb_field, "") or ""
 
         # IMPORTANTE: Mapear automáticamente otros items de staging con el mismo modelo
-        # que acabamos de crear/actualizar
+        # Usar criterios robustos (A-number, CPU, pantalla, año) en lugar de modelo_norm exacto
         auto_mapped_count = 0
+        auto_mapped_by_capacity = {}  # Contador por capacidad
+
         try:
-            # Buscar otros items sin mapear de la misma tarea con modelo similar
+            print(f"🔄 DEBUG AUTO-MAPEO: Iniciando auto-mapeo para modelo {modelo.id}")
+
+            # Buscar items sin mapear con criterios robustos
             unmapped_items = LikewizeItemStaging.objects.filter(
                 tarea_id=tarea_id,
-                capacidad_id__isnull=True,
-                modelo_norm=modelo_nombre
+                capacidad_id__isnull=True
             )
 
-            # Obtener todas las capacidades del modelo recién creado
-            all_capacities = CapacidadModel.objects.filter(**{rel_field: modelo})
+            print(f"   📊 Total items sin mapear en tarea: {unmapped_items.count()}")
 
-            for unmapped_item in unmapped_items:
+            # Filtrar por criterios robustos (prioridad: A-number > CPU+pantalla+año)
+            if hasattr(s, 'a_number') and s.a_number:
+                # MEJOR: Filtrar por A-number (más preciso)
+                unmapped_items = unmapped_items.filter(a_number=s.a_number)
+                print(f"   🔍 Filtrando por A-number: {s.a_number} → {unmapped_items.count()} items")
+            elif hasattr(s, 'cpu') and s.cpu:
+                # FALLBACK: Filtrar por CPU + pantalla + año
+                unmapped_items = unmapped_items.filter(cpu=s.cpu)
+                if hasattr(s, 'pulgadas') and s.pulgadas:
+                    unmapped_items = unmapped_items.filter(pulgadas=s.pulgadas)
+                if hasattr(s, 'any') and s.any:
+                    unmapped_items = unmapped_items.filter(any=s.any)
+                print(f"   🔍 Filtrando por CPU/pantalla/año → {unmapped_items.count()} items")
+            else:
+                # Si no hay criterios robustos, usar modelo_norm como último recurso
+                unmapped_items = unmapped_items.filter(modelo_norm=modelo_nombre)
+                print(f"   🔍 Filtrando por modelo_norm → {unmapped_items.count()} items")
+
+            # Obtener todas las capacidades del modelo (incluyendo las recién creadas)
+            all_capacities = CapacidadModel.objects.filter(**{rel_field: modelo})
+            capacities_list = list(all_capacities.values_list(gb_field, flat=True))
+            print(f"   📦 Capacidades disponibles del modelo: {capacities_list}")
+
+            # Limitar a 100 items para evitar timeout
+            items_to_process = unmapped_items[:100]
+            print(f"   🔄 Procesando {len(items_to_process)} items...")
+
+            for unmapped_item in items_to_process:
                 if not unmapped_item.almacenamiento_gb:
                     continue
 
@@ -1131,33 +1239,113 @@ class CrearDesdeNoMapeadoLikewizeView(APIView):
                     unmapped_item.capacidad_id = matching_cap.id
                     unmapped_item.save(update_fields=['capacidad_id'])
                     auto_mapped_count += 1
+
+                    # Contar por capacidad
+                    if item_capacity_txt not in auto_mapped_by_capacity:
+                        auto_mapped_by_capacity[item_capacity_txt] = 0
+                    auto_mapped_by_capacity[item_capacity_txt] += 1
+
+                    print(f"      ✅ Item {unmapped_item.id}: {item_capacity_txt} → capacidad_id={matching_cap.id}")
+                else:
+                    print(f"      ⏭️  Item {unmapped_item.id}: {item_capacity_txt} sin capacidad correspondiente")
+
+            print(f"   🎯 Auto-mapeo completado: {auto_mapped_count} items mapeados")
+            if auto_mapped_by_capacity:
+                for cap_txt, count in auto_mapped_by_capacity.items():
+                    print(f"      • {cap_txt}: {count} items")
+
         except Exception as e:
             # No fallar si el auto-mapeo falla, solo registrar
-            pass
+            print(f"   ❌ Error en auto-mapeo: {e}")
+            import traceback
+            traceback.print_exc()
 
-        return Response({
+        # Construir lista de capacidades creadas con su representación textual
+        capacidades_creadas_info = []
+        for created_cap in created_capacities:
+            cap_text = getattr(created_cap, gb_field, "") or ""
+            capacidades_creadas_info.append({
+                "id": created_cap.id,
+                "text": cap_text
+            })
+
+        response_data = {
             "created": True,
             "modelo_id": getattr(modelo, "id", None),
-            "capacidad_id": cap.id,
-            "capacidad_text": tamaño_txt,
             "modelo_norm": modelo_nombre,
             "tipo": tipo_val,
             "marca": marca_val,
+            "capacidades_creadas": len(created_capacities),
+            "capacidades_creadas_info": capacidades_creadas_info,
             "auto_mapped_count": auto_mapped_count,
-        }, status=201)
+            "auto_mapped_by_capacity": auto_mapped_by_capacity,
+            "item_was_already_mapped": skip_item_mapping,
+        }
+
+        # Solo incluir capacidad_id si tenemos un cap válido
+        if cap:
+            response_data["capacidad_id"] = cap.id
+            response_data["capacidad_text"] = tamaño_txt
+
+        return Response(response_data, status=201)
+
+
+class MapearItemLikewizeView(APIView):
+    """
+    GET /api/precios/likewize/mapear-item/<int:staging_id>/
+    Obtiene el resultado del mapeo v4 para un item específico sin guardarlo.
+
+    Útil para obtener información actualizada de capacidades antes de crear un dispositivo.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, staging_id):
+        from productos.mapping.adapters.v3_compatibility import map_device_v4
+
+        try:
+            staging_item = LikewizeItemStaging.objects.get(id=staging_id)
+        except LikewizeItemStaging.DoesNotExist:
+            return Response({"error": "Item no encontrado"}, status=404)
+
+        # Construir dict compatible con v4
+        item_dict = {
+            'FullName': staging_item.modelo_norm or staging_item.modelo_raw,
+            'Capacity': f'{staging_item.almacenamiento_gb}GB' if staging_item.almacenamiento_gb else '',
+            'DevicePrice': str(staging_item.precio_b2b) if staging_item.precio_b2b else '0',
+            'MModel': staging_item.likewize_model_code or '',
+        }
+
+        # Mapear con v4
+        result = map_device_v4(item_dict)
+
+        # Retornar solo la información relevante para el frontend
+        return Response({
+            'needs_capacity_creation': result.get('needs_capacity_creation', False),
+            'suggested_capacity': result.get('suggested_capacity'),
+            'success': result.get('success', False),
+            'error_message': result.get('error_message'),
+        })
 
 
 class RemapearTareaLikewizeView(APIView):
     """
     POST /api/precios/likewize/tareas/<uuid:tarea_id>/remapear/
-    Remapea automáticamente todos los dispositivos sin mapear de una tarea,
-    buscando modelos y capacidades existentes en la BD (NO crea nada nuevo).
+    Remapea automáticamente todos los dispositivos sin mapear de una tarea usando v4.
+    Usa el sistema de mapeo v4 mejorado (iPhone, iPad, Mac con CPU/GPU cores).
     Los dispositivos que no encuentren match quedarán sin mapear para "No Encontrados".
+
+    Query params:
+    - system: 'v4' (default), 'v3', 'auto' - Sistema de mapeo a usar
     """
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, tarea_id):
+        from productos.mapping import map_device
+
         tarea = get_object_or_404(TareaActualizacionLikewize, pk=tarea_id)
+
+        # Permitir especificar el sistema de mapeo
+        mapping_system = request.data.get('system', 'v4')
 
         unmapped_items = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=True)
         total_unmapped = unmapped_items.count()
@@ -1175,63 +1363,78 @@ class RemapearTareaLikewizeView(APIView):
                 }
             })
 
-        # Obtener modelos configurables
-        CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
-        rel_field = getattr(settings, 'CAPACIDAD_REL_MODEL_FIELD', 'modelo')
-        rel_name = getattr(settings, 'REL_MODELO_NAME_FIELD', 'descripcion')
-        gb_field = getattr(settings, 'CAPACIDAD_GB_FIELD', 'tamaño')
-        ModeloModel = CapacidadModel._meta.get_field(rel_field).related_model
-
-        created_count = 0
+        mapped_count = 0
         failed_count = 0
 
         for item in unmapped_items:
             try:
-                modelo_nombre = (item.modelo_norm or "").strip()
-                if not modelo_nombre or not item.almacenamiento_gb:
+                # Preparar datos para v4
+                full_name = item.modelo_raw or item.modelo_norm or ""
+                if not full_name:
                     failed_count += 1
                     continue
 
-                # SOLO buscar modelo existente (NO crear)
-                try:
-                    modelo = ModeloModel.objects.get(**{rel_name: modelo_nombre})
-                except ModeloModel.DoesNotExist:
-                    # No existe el modelo, dejar sin mapear para que vaya a "No Encontrados"
+                # Usar sistema de mapeo v4
+                result = map_device(
+                    {'FullName': full_name},
+                    system=mapping_system
+                )
+
+                if result.get('success') and result.get('capacidad_id'):
+                    # Actualizar staging con el mapeo exitoso
+                    item.capacidad_id = result['capacidad_id']
+
+                    # Guardar metadatos del mapeo v4
+                    item.mapping_metadata = {
+                        'confidence_score': result.get('confidence', 0) * 100,  # 0-100
+                        'mapping_algorithm': result.get('strategy', 'unknown'),
+                        'needs_review': result.get('confidence', 0) < 0.85,
+                        'is_mapped': True
+                    }
+
+                    item.save(update_fields=['capacidad_id', 'mapping_metadata'])
+                    mapped_count += 1
+                else:
+                    # No encontró match, pero puede haber sugerencia de crear capacidad
+                    # Guardar metadata incluso si no hubo match exitoso
+                    metadata = {
+                        'confidence_score': result.get('confidence', 0) * 100 if result.get('confidence') else None,
+                        'mapping_algorithm': result.get('strategy'),
+                        'needs_review': True,
+                        'is_mapped': False,
+                        'needs_capacity_creation': result.get('needs_capacity_creation', False)
+                    }
+
+                    # Incluir información adicional si v4 sugiere crear capacidad
+                    if result.get('suggested_capacity'):
+                        metadata['suggested_capacity'] = result['suggested_capacity']
+                    if result.get('v3_skipped'):
+                        metadata['v3_skipped'] = result['v3_skipped']
+                        metadata['v3_skip_reason'] = result.get('v3_skip_reason')
+
+                    item.mapping_metadata = metadata
+                    item.save(update_fields=['mapping_metadata'])
+
                     failed_count += 1
-                    continue
 
-                # Formatear capacidad
-                gb = item.almacenamiento_gb
-                tamaño_txt = f"{gb // 1024} TB" if gb >= 1024 else f"{gb} GB"
-
-                # SOLO buscar capacidad existente (NO crear)
-                try:
-                    cap = CapacidadModel.objects.get(**{rel_field: modelo, gb_field: tamaño_txt})
-                except CapacidadModel.DoesNotExist:
-                    # No existe la capacidad, dejar sin mapear
-                    failed_count += 1
-                    continue
-
-                # Actualizar staging solo si encontró match
-                item.capacidad_id = cap.id
-                item.save(update_fields=['capacidad_id'])
-                created_count += 1
-
-            except Exception:
+            except Exception as e:
+                # Error en el mapeo, dejar sin mapear
                 failed_count += 1
+                continue
 
         final_mapped = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=False).count()
         final_unmapped = LikewizeItemStaging.objects.filter(tarea=tarea, capacidad_id__isnull=True).count()
 
         return Response({
             "success": final_unmapped == 0,
-            "message": f"Remapeo completado: {created_count} dispositivos procesados",
+            "message": f"Remapeo v4 completado: {mapped_count} dispositivos procesados",
             "stats": {
                 "total": LikewizeItemStaging.objects.filter(tarea=tarea).count(),
                 "mapped": final_mapped,
                 "unmapped": final_unmapped,
-                "processed": created_count,
-                "failed": failed_count
+                "processed": mapped_count,
+                "failed": failed_count,
+                "system": mapping_system
             }
         }, status=200)
 
@@ -2189,25 +2392,6 @@ class ValidationItemsLikewizeView(APIView):
 
         capacidades_ids = [item.capacidad_id for item in staging_items if item.capacidad_id]
         capacidades_map = {}
-        mapping_metadata_map = {}
-
-        # Query DeviceMappingV2 for metadata
-        from productos.models import DeviceMappingV2
-        if capacidades_ids:
-            mappings_v2 = DeviceMappingV2.objects.filter(
-                mapped_capacity_id__in=capacidades_ids
-            ).order_by('-created_at')
-
-            # Build mapping metadata map (latest mapping per capacity)
-            for mapping in mappings_v2:
-                cap_id = mapping.mapped_capacity_id
-                if cap_id not in mapping_metadata_map:
-                    mapping_metadata_map[cap_id] = {
-                        'confidence_score': mapping.confidence_score,
-                        'mapping_algorithm': mapping.mapping_algorithm,
-                        'validated_by_user': mapping.validated_by_user,
-                        'needs_review': mapping.needs_review
-                    }
 
         # Query prices - solo precios VIGENTES (valid_to IS NULL)
         from productos.models import PrecioRecompra
@@ -2265,8 +2449,9 @@ class ValidationItemsLikewizeView(APIView):
         for staging_item in staging_items:
             is_mapped = staging_item.capacidad_id is not None
 
-            # Get mapping metadata if available
-            metadata = mapping_metadata_map.get(staging_item.capacidad_id, {}) if is_mapped else {}
+            # Usar mapping_metadata del campo JSONField (nuevo sistema)
+            # Si no existe (items antiguos), crear estructura vacía
+            metadata = staging_item.mapping_metadata or {}
 
             item_data = {
                 'id': staging_item.id,
@@ -2287,9 +2472,10 @@ class ValidationItemsLikewizeView(APIView):
                 'mapping_metadata': {
                     'confidence_score': metadata.get('confidence_score'),
                     'mapping_algorithm': metadata.get('mapping_algorithm'),
-                    'validated_by_user': metadata.get('validated_by_user', False),
                     'needs_review': metadata.get('needs_review', not is_mapped),
-                    'is_mapped': is_mapped
+                    'is_mapped': metadata.get('is_mapped', is_mapped),
+                    'needs_capacity_creation': metadata.get('needs_capacity_creation', False),
+                    'suggested_capacity': metadata.get('suggested_capacity')
                 }
             }
 
