@@ -1,6 +1,9 @@
 """
 Servicio especializado para mapeo de dispositivos Mac.
 Estrategia A-number First aprovechando la información rica de Likewize Mac.
+
+NOTA: Todos los Macs (MacBook, Mac mini, iMac, Mac Studio, Mac Pro) ahora usan v4 MacEngine.
+Este servicio v2/v3 se mantiene como fallback legacy.
 """
 
 import re
@@ -102,7 +105,10 @@ class MacMappingService:
 
     def map_mac_device(self, likewize_data: dict, tarea_id: str = "") -> Optional[DeviceMappingV2]:
         """
-        Mapea un dispositivo Mac usando estrategia A-number First.
+        Mapea un dispositivo Mac usando la estrategia apropiada.
+
+        - MacBook Air/Pro: Delega a v4 MacBookEngine (más preciso)
+        - Otros Macs: Usa estrategia A-number First (v2/v3)
 
         Args:
             likewize_data: Datos completos de Likewize
@@ -117,10 +123,18 @@ class MacMappingService:
             # 1. Extraer información del dispositivo
             device_info = self._extract_device_info(likewize_data)
 
-            # 2. Crear signature único
+            # 2. Detectar si es Mac → usar v4 engine (todos los tipos ahora soportados)
+            if device_info.device_family in ["MacBook Pro", "MacBook Air", "Mac mini", "iMac", "Mac Studio", "Mac Pro"]:
+                logger.info(f"Mac detectado ({device_info.device_family}), usando v4 MacEngine")
+                return self._map_macbook_with_v4(likewize_data, device_info, tarea_id, start_time)
+
+            # 3. Para Macs sin soporte v4, continuar con lógica v2/v3 (legacy fallback)
+            logger.info(f"Mac sin soporte v4 detectado ({device_info.device_family}), usando v2/v3 A-number First")
+
+            # 4. Crear signature único
             device_signature = self._create_device_signature(device_info)
 
-            # 3. Verificar si ya existe mapeo para este dispositivo
+            # 5. Verificar si ya existe mapeo para este dispositivo
             existing_mapping = DeviceMappingV2.objects.filter(
                 device_signature=device_signature
             ).first()
@@ -129,14 +143,14 @@ class MacMappingService:
                 logger.info(f"Mapeo existente encontrado para {device_signature}")
                 return existing_mapping
 
-            # 4. Ejecutar estrategias de mapeo en orden de prioridad
+            # 6. Ejecutar estrategias de mapeo en orden de prioridad
             mapping_result = self._execute_mapping_strategies(device_info)
 
             if not mapping_result:
                 logger.warning(f"No se pudo mapear dispositivo: {device_info.model_name}")
                 return None
 
-            # 5. Crear registro de mapeo V2
+            # 7. Crear registro de mapeo V2
             processing_time = int((time.time() - start_time) * 1000)
 
             mapping_v2 = DeviceMappingV2.objects.create(
@@ -175,6 +189,159 @@ class MacMappingService:
         except Exception as e:
             logger.error(f"Error mapeando dispositivo Mac: {str(e)}", exc_info=True)
             return None
+
+    def _map_macbook_with_v4(
+        self,
+        likewize_data: dict,
+        device_info: MacDeviceInfo,
+        tarea_id: str,
+        start_time: float
+    ) -> Optional[DeviceMappingV2]:
+        """
+        Mapea cualquier Mac usando v4 MacEngine.
+
+        Soporta: MacBook (Air/Pro), Mac mini, iMac, Mac Studio, Mac Pro.
+
+        Args:
+            likewize_data: Datos de Likewize
+            device_info: Información extraída del dispositivo
+            tarea_id: ID de la tarea
+            start_time: Tiempo de inicio del mapeo
+
+        Returns:
+            DeviceMappingV2 object o None si falla
+        """
+        try:
+            # Crear signature único
+            device_signature = self._create_device_signature(device_info)
+
+            # Verificar si ya existe mapeo para este dispositivo
+            existing_mapping = DeviceMappingV2.objects.filter(
+                device_signature=device_signature
+            ).first()
+
+            if existing_mapping:
+                logger.info(f"v4: Mapeo existente encontrado para {device_signature}")
+                return existing_mapping
+
+            # Importar v4 components
+            from productos.mapping.services.device_mapper_service import DeviceMapperService
+            from productos.mapping.core.types import LikewizeInput
+
+            # Preparar input para v4 (usar FullName que tiene toda la info)
+            full_name = likewize_data.get('FullName', '') or likewize_data.get('ModelName', '')
+
+            if not full_name:
+                logger.warning("No hay FullName/ModelName para v4 MacEngine, usando fallback v2/v3")
+                return None
+
+            # Crear input para v4
+            v4_input = LikewizeInput(model_name=full_name)
+
+            # Ejecutar v4 engine
+            v4_service = DeviceMapperService()
+            v4_result = v4_service.map(v4_input)
+
+            # Si v4 falló, retornar None para que se use fallback v2/v3
+            if not v4_result.success:
+                logger.warning(f"v4 MacEngine falló: {v4_result.error_message}, usando fallback v2/v3")
+                return None
+
+            # Convertir resultado v4 a formato v2
+            processing_time = int((time.time() - start_time) * 1000)
+
+            # Crear DeviceMappingV2 usando resultado de v4
+            mapping_v2 = DeviceMappingV2.objects.create(
+                device_signature=device_signature,
+                source_data=likewize_data,
+                source_type='mac',
+                extracted_a_number=device_info.a_number,
+                extracted_model_name=device_info.model_name,
+                extracted_cpu=device_info.cpu_info,
+                extracted_year=device_info.year,
+                extracted_month=device_info.month,
+                extracted_capacity_gb=device_info.capacity_gb,
+                extracted_screen_size=device_info.screen_size,
+                mapped_capacity_id=v4_result.matched_capacidad_id,
+                confidence_score=int(v4_result.match_score * 100),  # v4 usa 0-1, v2 usa 0-100
+                mapping_algorithm=f"v4_{v4_result.match_strategy.value}" if v4_result.match_strategy else "v4_mac",
+                decision_path=[{
+                    "strategy": "v4_mac_engine",
+                    "executed_at": timezone.now().isoformat(),
+                    "success": True,
+                    "confidence": int(v4_result.match_score * 100),
+                    "match_strategy": v4_result.match_strategy.value if v4_result.match_strategy else "unknown"
+                }],
+                candidates_considered=[{
+                    "capacity_id": v4_result.matched_capacidad_id,
+                    "model_description": v4_result.matched_modelo_descripcion,
+                    "confidence_score": int(v4_result.match_score * 100)
+                }],
+                rejection_reasons=[],
+                processing_time_ms=processing_time,
+                needs_review=v4_result.match_score < 0.60  # < 60% confianza
+            )
+
+            # Crear log de auditoría
+            self._create_audit_log_for_v4(
+                tarea_id=tarea_id,
+                device_info=device_info,
+                mapping_v2=mapping_v2,
+                v4_result=v4_result,
+                processing_time_ms=processing_time
+            )
+
+            logger.info(
+                f"v4 Mac mapping exitoso: {device_info.model_name} -> "
+                f"{v4_result.matched_capacidad_id} (confianza: {v4_result.match_score:.2f})"
+            )
+
+            return mapping_v2
+
+        except Exception as e:
+            logger.error(f"Error usando v4 engine: {str(e)}", exc_info=True)
+            # Retornar None para que se use fallback v2/v3
+            return None
+
+    def _create_audit_log_for_v4(
+        self,
+        tarea_id: str,
+        device_info: MacDeviceInfo,
+        mapping_v2: DeviceMappingV2,
+        v4_result,
+        processing_time_ms: int
+    ):
+        """Crea registro de auditoría para mapeo v4."""
+        try:
+            MappingAuditLog.objects.create(
+                tarea_id=tarea_id,
+                device_signature=mapping_v2.device_signature,
+                mapping_v2=mapping_v2,
+                algorithm_used=mapping_v2.mapping_algorithm,
+                confidence_score=mapping_v2.confidence_score,
+                mapping_result_id=v4_result.matched_capacidad_id,
+                available_candidates=[{
+                    "capacity_id": v4_result.matched_capacidad_id,
+                    "model_description": v4_result.matched_modelo_descripcion,
+                    "match_score": v4_result.match_score
+                }],
+                decision_factors={
+                    "engine": "v4_mac",
+                    "a_number_available": bool(device_info.a_number),
+                    "extraction_confidence": device_info.extraction_confidence,
+                    "device_family": device_info.device_family,
+                    "cpu_info": device_info.cpu_info,
+                    "capacity_gb": device_info.capacity_gb,
+                    "v4_match_strategy": v4_result.match_strategy.value if v4_result.match_strategy else "unknown"
+                },
+                rejected_candidates=[],
+                algorithm_chain=mapping_v2.decision_path,
+                processing_time_ms=processing_time_ms,
+                automatic_quality_score=int(v4_result.match_score * 100),
+                needs_review=v4_result.match_score < 0.60
+            )
+        except Exception as e:
+            logger.error(f"Error creando audit log para v4: {str(e)}")
 
     def _extract_device_info(self, data: dict) -> MacDeviceInfo:
         """Extrae información estructurada de los datos de Likewize."""

@@ -33,13 +33,17 @@ def set_precio_recompra(*, capacidad_id: int, canal: str, precio_neto, effective
     """
     Cierra el vigente (si lo hay) y crea un nuevo precio con la fecha de efecto indicada.
     Soporta cambio inmediato (effective_at=None -> ahora) y cambio programado (effective_at futuro).
+
+    IMPORTANTE: Cierra el precio vigente sin importar su fuente, ya que el constraint
+    de la DB solo permite 1 precio vigente por (capacidad, canal, tenant_schema).
     """
     now = timezone.now()
     if effective_at is None:
         effective_at = now
 
-    # Cerrar vigente en el momento del cambio
-    vigente = get_precio_vigente(capacidad_id, canal, fecha=effective_at, fuente=fuente, tenant_schema=tenant_schema)
+    # Cerrar vigente en el momento del cambio (sin filtrar por fuente)
+    # Esto previene duplicados cuando diferentes fuentes actualizan la misma capacidad
+    vigente = get_precio_vigente(capacidad_id, canal, fecha=effective_at, tenant_schema=tenant_schema)
     if vigente and vigente.valid_from < effective_at and (vigente.valid_to is None or vigente.valid_to > effective_at):
         vigente.valid_to = effective_at
         vigente.changed_by = changed_by

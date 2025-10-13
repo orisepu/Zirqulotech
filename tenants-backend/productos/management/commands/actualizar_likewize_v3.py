@@ -17,21 +17,18 @@ from asgiref.sync import sync_to_async
 
 from productos.models import TareaActualizacionLikewize, LikewizeItemStaging
 from productos.models.autoaprendizaje import LearningSession
-from productos.services.auto_learning_engine_v3 import AutoLearningEngine
-from productos.services.feedback_system_v3 import FeedbackSystem
 from productos.services.metadata_extractors import (
     AppleMetadataExtractor,
     GoogleMetadataExtractor,
     SamsungMetadataExtractor
 )
 from productos.likewize_config import get_apple_presets, get_extra_presets
-from productos.management.commands.actualizar_likewize import resolver_capacidad_id
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Actualización V3 de precios Likewize con sistema de autoaprendizaje'
+    help = 'Actualización de precios Likewize usando sistema de mapeo v4'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -73,6 +70,13 @@ class Command(BaseCommand):
             action='store_true',
             help='Ejecutar sin guardar cambios'
         )
+        parser.add_argument(
+            '--mapping-system',
+            type=str,
+            default='v4',
+            choices=['v4'],
+            help='Sistema de mapeo (v4 únicamente)'
+        )
 
     def handle(self, *args, **options):
         start_time = time.time()
@@ -92,11 +96,7 @@ class Command(BaseCommand):
                 tarea = self._create_task(options)
                 self.stdout.write(f"Nueva tarea creada: {tarea.id}")
 
-            # Inicializar sistemas
-            learning_engine = AutoLearningEngine()
-            feedback_system = FeedbackSystem()
-
-            # Crear sesión de aprendizaje
+            # Crear sesión de aprendizaje (solo para métricas)
             learning_session = LearningSession.objects.create(
                 tarea=tarea,
                 session_metadata={
@@ -109,7 +109,7 @@ class Command(BaseCommand):
 
             # Ejecutar actualización (síncrona con async donde sea necesario)
             self._run_update(
-                tarea, learning_engine, learning_session, options
+                tarea, learning_session, options
             )
 
             # Calcular métricas finales
@@ -159,7 +159,6 @@ class Command(BaseCommand):
     def _run_update(
         self,
         tarea: TareaActualizacionLikewize,
-        learning_engine: AutoLearningEngine,
         learning_session: LearningSession,
         options: Dict
     ):
@@ -189,13 +188,13 @@ class Command(BaseCommand):
         tarea.add_log(f"✅ Descargados {len(likewize_data)} items de Likewize", "SUCCESS")
         self.stdout.write(f"Descargados {len(likewize_data)} items de Likewize")
 
-        # 3. Procesar con autoaprendizaje (síncrono)
-        tarea.subestado = "Procesando con autoaprendizaje"
-        tarea.add_log(f"🤖 Procesando {len(likewize_data)} items con autoaprendizaje...", "INFO")
+        # 3. Procesar con v4 (síncrono)
+        tarea.subestado = "Procesando con v4"
+        tarea.add_log(f"🤖 Procesando {len(likewize_data)} items con v4...", "INFO")
         tarea.save()
 
-        processed_items = self._process_with_learning(
-            likewize_data, learning_engine, learning_session, options, tarea
+        processed_items = self._process_with_v4(
+            likewize_data, learning_session, options, tarea
         )
 
         # 4. Guardar en staging (síncrono)
@@ -208,7 +207,7 @@ class Command(BaseCommand):
             tarea.add_log(f"✅ Items guardados en staging correctamente", "SUCCESS")
 
         tarea.subestado = "Completado"
-        tarea.add_log("🎉 Actualización V3 completada exitosamente", "SUCCESS")
+        tarea.add_log(f"🎉 Actualización completada exitosamente (sistema: V4)", "SUCCESS")
         tarea.save()
 
     async def _get_cookies(self) -> Dict[str, str]:
@@ -389,15 +388,14 @@ class Command(BaseCommand):
             logger.error(f"Error en fetch_model_capacities para {master_model_id}: {e}")
             return []
 
-    def _process_with_learning(
+    def _process_with_v4(
         self,
         likewize_data: List[Dict],
-        learning_engine: AutoLearningEngine,
         learning_session: LearningSession,
         options: Dict,
         tarea: TareaActualizacionLikewize
     ) -> List[Dict]:
-        """Procesa los datos con el sistema de autoaprendizaje"""
+        """Procesa los datos usando SOLO el sistema v4"""
 
         processed_items = []
         confidence_threshold = options['confidence_threshold']
@@ -406,19 +404,13 @@ class Command(BaseCommand):
         learning_session.total_items_processed = total_items
 
         processed_count = 0
-        learned_count = 0
-        predicted_count = 0
+        mapped_count = 0
 
-        # Obtener modelos para mapeo tradicional
+        # Obtener modelo de capacidades
         CapacidadModel = apps.get_model(settings.CAPACIDAD_MODEL)
-        equivalencias = {}  # Puede poblarse desde la BD si existe tabla de equivalencias
 
-        # Inicializar extractores de metadatos
-        extractors = {
-            'apple': AppleMetadataExtractor(),
-            'google': GoogleMetadataExtractor(),
-            'samsung': SamsungMetadataExtractor(),
-        }
+        # Import de v4
+        from productos.mapping import map_device
 
         for item in likewize_data:
             try:
@@ -427,34 +419,21 @@ class Command(BaseCommand):
                 if not precio:
                     continue
 
-                # Intentar mapeo con autoaprendizaje
-                capacidad, confidence, match_type = learning_engine.predict_mapping(item)
+                # ============================================
+                # SOLO V4 - Sin fallbacks
+                # ============================================
+                result_v4 = map_device(item, system='v4')
 
-                # Si no encontró mapeo, usar sistema tradicional como fallback
-                if not capacidad:
-                    # Seleccionar extractor apropiado
-                    brand = (item.get('BrandName') or 'Apple').lower()
-                    extractor = extractors.get(brand, extractors['apple'])
-                    metadata = extractor.extract_metadata(item)
+                capacidad = None
+                confidence = 0.0
+                match_type = None
 
-                    capacidad_id = resolver_capacidad_id(
-                        modelo_norm=metadata.model_normalized or '',
-                        almacenamiento_gb=metadata.capacity_gb,
-                        equivalencias=equivalencias,
-                        a_number=metadata.a_number,
-                        pulgadas=metadata.screen_size,
-                        anio=metadata.year,
-                        cpu=metadata.cpu or '',
-                        tipo=metadata.device_type,
-                        marca=metadata.brand,
-                        likewize_code=metadata.likewize_model_code,
-                        likewize_code_raw=item.get('M_Model')
-                    )
-
-                    if capacidad_id:
-                        capacidad = CapacidadModel.objects.filter(id=capacidad_id).first()
-                        confidence = 0.85  # Confianza alta para mapeo tradicional
-                        match_type = 'traditional_fallback'
+                if result_v4['success']:
+                    capacidad_id = result_v4['capacidad_id']
+                    capacidad = CapacidadModel.objects.filter(id=capacidad_id).first()
+                    confidence = result_v4.get('confidence', 0.0)
+                    match_type = f"v4_{result_v4.get('strategy', 'unknown')}"
+                    mapped_count += 1
 
                 processed_item = {
                     'likewize_item': item,
@@ -462,14 +441,9 @@ class Command(BaseCommand):
                     'confidence': confidence,
                     'match_type': match_type,
                     'precio': precio,
-                    'needs_review': confidence < confidence_threshold
+                    'needs_review': confidence < confidence_threshold,
+                    'result_v4': result_v4  # Incluir resultado completo para metadata
                 }
-
-                if capacidad:
-                    if match_type.endswith('knowledge'):
-                        predicted_count += 1
-                    else:
-                        learned_count += 1
 
                 processed_items.append(processed_item)
                 processed_count += 1
@@ -477,16 +451,15 @@ class Command(BaseCommand):
                 # Mostrar progreso cada 100 items
                 if processed_count % 100 == 0:
                     progress_pct = int((processed_count / total_items) * 100)
-                    mapped_total = predicted_count + learned_count
                     avg_conf = self._calculate_avg_confidence(processed_items)
                     tarea.add_log(
                         f"🔄 Procesados {processed_count}/{total_items} items ({progress_pct}%) - "
-                        f"Mapeados: {mapped_total}, Confianza: {avg_conf:.2f}",
+                        f"Mapeados: {mapped_count}, Confianza: {avg_conf:.2f}",
                         "INFO"
                     )
                     self.stdout.write(
                         f"Procesados {processed_count}/{total_items} items. "
-                        f"Mapeados: {mapped_total}, "
+                        f"Mapeados: {mapped_count}, "
                         f"Confianza promedio: {avg_conf:.3f}"
                     )
 
@@ -496,8 +469,7 @@ class Command(BaseCommand):
                 continue
 
         # Actualizar métricas de sesión
-        learning_session.items_learned = learned_count
-        learning_session.items_predicted = predicted_count
+        learning_session.items_predicted = mapped_count
         learning_session.save()
 
         return processed_items
@@ -548,6 +520,7 @@ class Command(BaseCommand):
         for item_data in processed_items:
             likewize_item = item_data['likewize_item']
             capacidad = item_data['capacidad']
+            result_v4 = item_data.get('result_v4')  # Resultado completo de v4
 
             # Determinar marca y seleccionar extractor apropiado
             brand = likewize_item.get('BrandName') or 'Apple'
@@ -556,6 +529,25 @@ class Command(BaseCommand):
 
             # Extraer metadatos usando el extractor apropiado
             metadata = extractor.extract_metadata(likewize_item)
+
+            # Construir mapping_metadata basado en el resultado
+            mapping_metadata = None
+            if capacidad is not None or result_v4:
+                mapping_metadata = {
+                    'confidence_score': item_data['confidence'] * 100 if capacidad else None,  # 0-100
+                    'mapping_algorithm': item_data['match_type'] if capacidad else None,
+                    'needs_review': item_data['needs_review'] if capacidad else False,
+                    'is_mapped': capacidad is not None
+                }
+
+                # Si hay resultado de v4, incluir campos adicionales
+                if result_v4:
+                    mapping_metadata['needs_capacity_creation'] = result_v4.get('needs_capacity_creation', False)
+                    if result_v4.get('suggested_capacity'):
+                        mapping_metadata['suggested_capacity'] = result_v4['suggested_capacity']
+                    if result_v4.get('v3_skipped'):
+                        mapping_metadata['v3_skipped'] = result_v4['v3_skipped']
+                        mapping_metadata['v3_skip_reason'] = result_v4.get('v3_skip_reason')
 
             # Crear staging item con metadatos correctos
             staging_item = LikewizeItemStaging(
@@ -571,7 +563,9 @@ class Command(BaseCommand):
                 pulgadas=metadata.screen_size,
                 any=metadata.year,
                 a_number=metadata.a_number,
-                cpu=metadata.cpu
+                cpu=metadata.cpu,
+                # Metadatos del sistema de mapeo
+                mapping_metadata=mapping_metadata
             )
 
             staging_items.append(staging_item)
@@ -617,7 +611,7 @@ class Command(BaseCommand):
         )
 
         self.stdout.write("\n" + "="*60)
-        self.stdout.write(self.style.SUCCESS("RESUMEN DE ACTUALIZACIÓN V3"))
+        self.stdout.write(self.style.SUCCESS("RESUMEN DE ACTUALIZACIÓN (V4)"))
         self.stdout.write("="*60)
 
         self.stdout.write(f"Tarea ID: {tarea.id}")
@@ -630,9 +624,8 @@ class Command(BaseCommand):
             tasa_mapeo = staging_stats['mapped'] / staging_stats['total'] * 100
             self.stdout.write(f"Tasa de mapeo: {tasa_mapeo:.1f}%")
 
-        self.stdout.write("\nMÉTRICAS DE AUTOAPRENDIZAJE:")
-        self.stdout.write(f"Items aprendidos: {learning_session.items_learned or 0}")
-        self.stdout.write(f"Items predichos: {learning_session.items_predicted or 0}")
+        self.stdout.write("\nMÉTRICAS DE MAPEO:")
+        self.stdout.write(f"Items mapeados con v4: {learning_session.items_predicted or 0}")
 
         avg_conf = learning_session.avg_confidence
         if avg_conf is not None:
@@ -651,5 +644,5 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(
-            self.style.SUCCESS("✅ Actualización V3 completada exitosamente")
+            self.style.SUCCESS("✅ Actualización completada exitosamente (sistema V4)")
         )

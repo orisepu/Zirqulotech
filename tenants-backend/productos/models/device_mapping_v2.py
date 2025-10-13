@@ -98,6 +98,12 @@ class DeviceMappingV2(models.Model):
             ('ml_prediction', 'Predicción por ML'),
             ('heuristic_rules', 'Reglas heurísticas'),
             ('manual_override', 'Mapeo manual'),
+            # v4 TDD-based engine choices
+            ('v4_generation', 'v4 - Matching por generación'),
+            ('v4_a_number', 'v4 - Matching por A-number'),
+            ('v4_exact', 'v4 - Matching exacto'),
+            ('v4_fuzzy', 'v4 - Matching difuso'),
+            ('v4', 'v4 - Motor TDD'),
         ]
     )
 

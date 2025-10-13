@@ -1166,7 +1166,99 @@ class Command(BaseCommand):
         parser.add_argument("--tarea", type=str, required=True)
         parser.add_argument("--mode", type=str, default="apple")
         parser.add_argument("--brands", nargs="*", type=str, default=None)
-        parser.add_argument("--mapping_system", type=str, default="v1", choices=["v1", "v2"])
+        parser.add_argument("--mapping_system", type=str, default="auto", choices=["v1", "v2", "v3", "v4", "auto"])
+
+    @staticmethod
+    def _map_with_v4_engine(device_data: dict, tarea_id: str = "") -> Optional[int]:
+        """
+        Intenta mapear dispositivo usando v4 engine (TDD-based system).
+
+        Args:
+            device_data: Diccionario con datos del dispositivo
+            tarea_id: ID de la tarea de actualización
+
+        Returns:
+            capacidad_id si tiene éxito, None si falla
+        """
+        try:
+            from productos.mapping.services.device_mapper_service import DeviceMapperService
+            from productos.mapping.core.types import LikewizeInput
+            from productos.models import DeviceMappingV2
+
+            # Usar FullName como input principal (contiene toda la información)
+            full_name = device_data.get('FullName', '') or device_data.get('ModelName', '')
+
+            if not full_name:
+                logger.warning("No hay FullName/ModelName para v4 engine")
+                return None
+
+            # Crear input para v4
+            v4_input = LikewizeInput(
+                model_name=full_name,
+                m_model=device_data.get('M_Model', ''),
+                full_name=full_name,
+                capacity=device_data.get('Capacity', ''),
+                device_price=None,
+                brand_name=device_data.get('BrandName', 'Apple')
+            )
+
+            # Ejecutar v4 engine
+            v4_service = DeviceMapperService()
+            v4_result = v4_service.map(v4_input)
+
+            if not v4_result.success:
+                logger.debug(f"v4 engine no encontró match: {v4_result.error_message}")
+                return None
+
+            # Crear DeviceMappingV2 para auditoría
+            device_signature = f"{full_name}|{device_data.get('Capacity_GB', 0)}"
+            import hashlib
+            device_signature = hashlib.md5(device_signature.encode()).hexdigest()
+
+            try:
+                DeviceMappingV2.objects.create(
+                    device_signature=device_signature,
+                    source_data=device_data,
+                    source_type='mac' if 'mac' in full_name.lower() else 'ios',
+                    extracted_a_number=device_data.get('A_Number', ''),
+                    extracted_model_name=full_name,
+                    extracted_cpu=device_data.get('CPU', ''),
+                    extracted_year=device_data.get('Year'),
+                    extracted_capacity_gb=device_data.get('Capacity_GB'),
+                    extracted_screen_size=device_data.get('ScreenSize'),
+                    mapped_capacity_id=v4_result.matched_capacidad_id,
+                    confidence_score=int(v4_result.match_score * 100),
+                    mapping_algorithm=f"v4_{v4_result.match_strategy.value}" if v4_result.match_strategy else "v4",
+                    decision_path=[{
+                        "strategy": "v4_engine",
+                        "success": True,
+                        "confidence": int(v4_result.match_score * 100)
+                    }],
+                    candidates_considered=[{
+                        "capacity_id": v4_result.matched_capacidad_id,
+                        "model_description": v4_result.matched_modelo_descripcion
+                    }],
+                    rejection_reasons=[],
+                    processing_time_ms=0,
+                    needs_review=v4_result.match_score < 0.60
+                )
+            except Exception as e:
+                # Si falla crear el mapping record, continuar (no crítico)
+                logger.debug(f"No se pudo crear DeviceMappingV2: {str(e)}")
+
+            logger.info(
+                f"v4 mapping exitoso: {full_name} -> "
+                f"{v4_result.matched_capacidad_id} (confianza: {v4_result.match_score:.2f})"
+            )
+
+            return v4_result.matched_capacidad_id
+
+        except ImportError as e:
+            logger.warning(f"v4 engine no disponible: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error usando v4 engine: {str(e)}", exc_info=True)
+            return None
 
     @staticmethod
     def _format_capacity_for_v2(gb_value):
@@ -1491,111 +1583,81 @@ class Command(BaseCommand):
             # Llenar staging (con capacidad_id resuelta)
             LikewizeItemStaging.objects.filter(tarea=tarea).delete()
 
-            # Determine if using V2 mapping system
-            # Check settings first, then command argument
-            mapping_v2_enabled = getattr(settings, 'MAPPING_V2_ENABLED', False)
-            requested_v2 = opts.get("mapping_system") == "v2"
+            # Determine mapping system to use
+            mapping_system = opts.get("mapping_system", "auto")
+            logger.info(f"Sistema de mapeo seleccionado: {mapping_system}")
 
-            # Only use V2 if both enabled in settings and requested
-            use_v2_mapping = mapping_v2_enabled and requested_v2
+            # Initialize services based on selected system
+            v2_service = None
+            v3_service = None
+            use_v4_mapping = False
 
-            if requested_v2 and not mapping_v2_enabled:
-                logger.warning("V2 mapping requested but MAPPING_V2_ENABLED=False in settings, using V1")
-            elif mapping_v2_enabled and not requested_v2:
-                logger.info("V2 mapping available but V1 explicitly requested")
-            
+            if mapping_system in ["v2", "auto"]:
+                mapping_v2_enabled = getattr(settings, 'MAPPING_V2_ENABLED', False)
+                if mapping_v2_enabled:
+                    try:
+                        from productos.services.device_mapping_v2_service import DeviceMappingV2Service
+                        v2_service = DeviceMappingV2Service()
+                        logger.info("V2 mapping service disponible")
+                    except ImportError:
+                        logger.warning("DeviceMappingV2Service no disponible")
+
+            if mapping_system in ["v3", "auto"]:
+                try:
+                    from productos.services.auto_learning_engine_v3 import AutoLearningEngineV3
+                    v3_service = AutoLearningEngineV3()
+                    logger.info("V3 mapping service disponible")
+                except ImportError:
+                    logger.warning("AutoLearningEngineV3 no disponible")
+
+            if mapping_system in ["v4", "auto"]:
+                # v4 se maneja directamente con _map_with_v4_engine
+                use_v4_mapping = True
+                logger.info("V4 mapping engine habilitado")
+
             objs = []
             no_mapeados = 0
-
-            # Initialize V2 service if using V2 mapping
-            v2_service = None
-            if use_v2_mapping:
-                try:
-                    from productos.services.device_mapping_v2_service import DeviceMappingV2Service
-                    v2_service = DeviceMappingV2Service()
-
-                    # Get additional V2 settings
-                    mapping_v2_percentage = getattr(settings, 'MAPPING_V2_PERCENTAGE', 100)
-                    mapping_v2_device_types = getattr(settings, 'MAPPING_V2_DEVICE_TYPES', ['mac', 'iphone', 'ipad'])
-
-                    logger.info(f"V2 mapping enabled: {mapping_v2_percentage}% of devices, types: {mapping_v2_device_types}")
-                except ImportError:
-                    logger.warning("DeviceMappingV2Service not available, falling back to V1")
-                    use_v2_mapping = False
-
-            # Counter for percentage-based gradual migration
-            v2_device_count = 0
-            total_device_count = 0
+            mapping_stats = {
+                "v4_success": 0,
+                "v3_success": 0,
+                "v2_success": 0,
+                "v1_success": 0,
+                "failed": 0
+            }
 
             for x in modelos_totales:
-                total_device_count += 1
+                cap_id = None
+                used_system = None
 
-                # Determine if this specific device should use V2 mapping
-                should_use_v2_for_device = False
-                if use_v2_mapping and v2_service:
-                    # Check device type filter
-                    device_type = (x.get("tipo", "").lower())
-                    device_type_allowed = any(allowed_type.lower() in device_type for allowed_type in mapping_v2_device_types)
+                # Prepare device data for all systems
+                device_data = {
+                    'M_Model': x["modelo_norm"],
+                    'MasterModelName': x["modelo_norm"],
+                    'ModelName': x.get("modelo_norm", ""),
+                    'FullName': x.get("modelo_raw", ""),
+                    'Capacity': self._format_capacity_for_v2(x.get("almacenamiento_gb", 0)),
+                    'BrandName': x.get("marca", "Apple"),
+                    'ProductCategoryName': x.get("tipo", ""),
+                    'ModelValue': str(x.get("precio_b2b", "0")),
+                }
 
-                    # Check percentage filter (gradual migration)
-                    percentage_allows = (v2_device_count * 100 / max(total_device_count, 1)) < mapping_v2_percentage
+                # Add extracted information to device_data
+                if x.get("a_number"):
+                    device_data['A_Number'] = x["a_number"]
+                if x.get("pulgadas"):
+                    device_data['ScreenSize'] = x["pulgadas"]
+                if x.get("any"):
+                    device_data['Year'] = x["any"]
+                if x.get("cpu"):
+                    device_data['CPU'] = x["cpu"]
+                if x.get("gpu_cores"):
+                    device_data['GPU_Cores'] = x["gpu_cores"]
+                if x.get("almacenamiento_gb"):
+                    device_data['Capacity_GB'] = x["almacenamiento_gb"]
 
-                    should_use_v2_for_device = device_type_allowed and percentage_allows
-
-                    if should_use_v2_for_device:
-                        v2_device_count += 1
-
-                # Use V2 mapping system if conditions are met
-                if should_use_v2_for_device and v2_service:
-                    # Create a device data structure that the V2 service expects
-                    device_data = {
-                        'M_Model': x["modelo_norm"],
-                        'MasterModelName': x["modelo_norm"],
-                        'ModelName': x.get("modelo_norm", ""),
-                        'FullName': x.get("modelo_raw", ""),
-                        'Capacity': self._format_capacity_for_v2(x.get("almacenamiento_gb", 0)),
-                        'BrandName': x.get("marca", "Apple"),
-                        'ProductCategoryName': x.get("tipo", ""),
-                        'ModelValue': str(x.get("precio_b2b", "0")),
-                    }
-                    
-                    # Add extracted information to device_data
-                    if x.get("a_number"):
-                        device_data['A_Number'] = x["a_number"]
-                    if x.get("pulgadas"):
-                        device_data['ScreenSize'] = x["pulgadas"]
-                    if x.get("any"):
-                        device_data['Year'] = x["any"]
-                    if x.get("cpu"):
-                        device_data['CPU'] = x["cpu"]
-                    if x.get("gpu_cores"):
-                        device_data['GPU_Cores'] = x["gpu_cores"]
-                    if x.get("almacenamiento_gb"):
-                        device_data['Capacity_GB'] = x["almacenamiento_gb"]
-                        
-                    try:
-                        # Attempt to map using V2 service
-                        mapping_result = v2_service.map_single_device(device_data, str(tarea.id))
-                        cap_id = mapping_result.mapped_capacity_id if mapping_result else None
-                    except Exception as e:
-                        logger.error(f"Error using V2 mapping: {str(e)}")
-                        # Fallback to V1 mapping
-                        cap_id = resolver_capacidad_id(
-                            modelo_norm=x["modelo_norm"],
-                            almacenamiento_gb=x["almacenamiento_gb"],
-                            equivalencias=equivalencias,
-                            a_number=(x["a_number"] or None),
-                            pulgadas=x["pulgadas"],
-                            anio=x["any"],
-                            cpu=x["cpu"] or "",
-                            gpu_cores=x.get("gpu_cores"),
-                            tipo=x["tipo"],
-                            marca=x.get("marca"),
-                            likewize_code=x.get("likewize_model_code"),
-                            likewize_code_raw=x.get("likewize_modelo") or x.get("likewize_model_code_raw"),
-                        )
-                else:
-                    # Use V1 mapping system (current implementation)
+                # Cascading fallback strategy: v4 → v3 → v2 → v1
+                if mapping_system == "v1":
+                    # Explicit v1 only
                     cap_id = resolver_capacidad_id(
                         modelo_norm=x["modelo_norm"],
                         almacenamiento_gb=x["almacenamiento_gb"],
@@ -1610,6 +1672,97 @@ class Command(BaseCommand):
                         likewize_code=x.get("likewize_model_code"),
                         likewize_code_raw=x.get("likewize_modelo") or x.get("likewize_model_code_raw"),
                     )
+                    used_system = "v1" if cap_id else None
+
+                elif mapping_system == "v2":
+                    # Explicit v2 only
+                    if v2_service:
+                        try:
+                            mapping_result = v2_service.map_single_device(device_data, str(tarea.id))
+                            cap_id = mapping_result.mapped_capacity_id if mapping_result else None
+                            used_system = "v2" if cap_id else None
+                        except Exception as e:
+                            logger.error(f"Error using V2 mapping: {str(e)}")
+
+                elif mapping_system == "v3":
+                    # Explicit v3 only
+                    if v3_service:
+                        try:
+                            cap_id = v3_service.mapear_dispositivo(
+                                modelo_likewize=x["modelo_raw"],
+                                almacenamiento_gb=x["almacenamiento_gb"]
+                            )
+                            used_system = "v3" if cap_id else None
+                        except Exception as e:
+                            logger.error(f"Error using V3 mapping: {str(e)}")
+
+                elif mapping_system == "v4":
+                    # Explicit v4 only
+                    if use_v4_mapping:
+                        try:
+                            cap_id = self._map_with_v4_engine(device_data, str(tarea.id))
+                            used_system = "v4" if cap_id else None
+                        except Exception as e:
+                            logger.error(f"Error using V4 mapping: {str(e)}")
+
+                elif mapping_system == "auto":
+                    # Auto: Try v4 → v3 → v2 → v1 with fallback
+
+                    # Try v4 first
+                    if use_v4_mapping and not cap_id:
+                        try:
+                            cap_id = self._map_with_v4_engine(device_data, str(tarea.id))
+                            if cap_id:
+                                used_system = "v4"
+                        except Exception as e:
+                            logger.debug(f"V4 failed, trying v3: {str(e)}")
+
+                    # Try v3 fallback
+                    if v3_service and not cap_id:
+                        try:
+                            cap_id = v3_service.mapear_dispositivo(
+                                modelo_likewize=x["modelo_raw"],
+                                almacenamiento_gb=x["almacenamiento_gb"]
+                            )
+                            if cap_id:
+                                used_system = "v3"
+                        except Exception as e:
+                            logger.debug(f"V3 failed, trying v2: {str(e)}")
+
+                    # Try v2 fallback
+                    if v2_service and not cap_id:
+                        try:
+                            mapping_result = v2_service.map_single_device(device_data, str(tarea.id))
+                            cap_id = mapping_result.mapped_capacity_id if mapping_result else None
+                            if cap_id:
+                                used_system = "v2"
+                        except Exception as e:
+                            logger.debug(f"V2 failed, trying v1: {str(e)}")
+
+                    # Try v1 fallback
+                    if not cap_id:
+                        cap_id = resolver_capacidad_id(
+                            modelo_norm=x["modelo_norm"],
+                            almacenamiento_gb=x["almacenamiento_gb"],
+                            equivalencias=equivalencias,
+                            a_number=(x["a_number"] or None),
+                            pulgadas=x["pulgadas"],
+                            anio=x["any"],
+                            cpu=x["cpu"] or "",
+                            gpu_cores=x.get("gpu_cores"),
+                            tipo=x["tipo"],
+                            marca=x.get("marca"),
+                            likewize_code=x.get("likewize_model_code"),
+                            likewize_code_raw=x.get("likewize_modelo") or x.get("likewize_model_code_raw"),
+                        )
+                        if cap_id:
+                            used_system = "v1"
+
+                # Track statistics
+                if used_system:
+                    mapping_stats[f"{used_system}_success"] += 1
+                else:
+                    mapping_stats["failed"] += 1
                     
                 if not cap_id:
                     no_mapeados += 1
@@ -1790,6 +1943,14 @@ class Command(BaseCommand):
             set_progress(tarea, 100, "Listo para revisar cambios")
             tarea.save()
 
+            # Log mapping statistics
+            total_mapped = sum(mapping_stats[k] for k in ["v4_success", "v3_success", "v2_success", "v1_success"])
+            log(f"📊 Estadísticas de mapeo (sistema: {mapping_system}):")
+            log(f"   ✅ V4: {mapping_stats['v4_success']} dispositivos")
+            log(f"   ✅ V3: {mapping_stats['v3_success']} dispositivos")
+            log(f"   ✅ V2: {mapping_stats['v2_success']} dispositivos")
+            log(f"   ✅ V1: {mapping_stats['v1_success']} dispositivos")
+            log(f"   Total mapeados: {total_mapped}/{len(modelos_totales)}")
             log(f"ℹ️ Items no mapeados a capacidad_id: {no_mapeados}")
             log("✅ Staging completado. Listo para comparar y aplicar desde UI.")
             st_rows = list(
