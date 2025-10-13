@@ -21,6 +21,7 @@ from productos.mapping.engines.iphone_engine import iPhoneEngine
 from productos.mapping.engines.ipad_engine import iPadEngine
 from productos.mapping.engines.macbook_engine import MacEngine
 from productos.mapping.engines.pixel_engine import PixelEngine
+from productos.mapping.engines.samsung_engine import SamsungEngine
 
 
 class DeviceMapperService(IDeviceMapper):
@@ -56,6 +57,7 @@ class DeviceMapperService(IDeviceMapper):
         self.register_engine(iPadEngine())
         self.register_engine(MacEngine())
         self.register_engine(PixelEngine())
+        self.register_engine(SamsungEngine())
 
     def register_engine(self, engine: IMappingEngine):
         """
@@ -165,6 +167,6 @@ class DeviceMapperService(IDeviceMapper):
         Retorna los tipos de dispositivos soportados.
 
         Returns:
-            Lista de tipos (ej: ["iPhone", "iPad", "MacBook", "Pixel"])
+            Lista de tipos (ej: ["iPhone", "iPad", "MacBook", "Pixel", "Samsung"])
         """
-        return ["iPhone", "iPad", "MacBook", "Pixel"]
+        return ["iPhone", "iPad", "MacBook", "Pixel", "Samsung"]

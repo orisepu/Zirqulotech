@@ -25,6 +25,7 @@ class DeviceType(str, Enum):
     MAC_PRO = "Mac Pro"
     MAC_STUDIO = "Mac Studio"
     PIXEL = "Google Pixel"
+    SAMSUNG = "Samsung Galaxy"
 
 
 class MatchStrategy(str, Enum):
@@ -85,6 +86,7 @@ class ExtractedFeatures:
 
     # Características numéricas
     generation: Optional[int] = None     # 13, 15, 16 para iPhones
+    series: Optional[str] = None         # "S21", "Note20", "Z Fold5" para Samsung
     year: Optional[int] = None           # 2021, 2023, 2024
     storage_gb: Optional[int] = None     # 128, 256, 512, 1024
     screen_size: Optional[float] = None  # 6.1, 12.9 (en pulgadas)
@@ -97,6 +99,7 @@ class ExtractedFeatures:
     has_mini: bool = False
     has_air: bool = False
     has_fold: bool = False               # Pixel Fold
+    has_5g: bool = False                 # Samsung 5G (SM-X976, SM-X971, etc.)
 
     # Hardware
     cpu: Optional[str] = None            # "A15 Bionic", "M2", "Core i7"
@@ -105,9 +108,10 @@ class ExtractedFeatures:
     cpu_cores: Optional[int] = None      # 8, 10, 12, 14, 16 (MacBook Pro M-series)
     gpu_cores: Optional[int] = None      # 10, 16, 19
 
-    # Conectividad (iPads)
+    # Conectividad (iPads, Samsung)
     has_wifi: bool = False
     has_cellular: bool = False
+    has_dual_sim: bool = False           # Samsung Dual SIM (DS)
 
     # Texto original para referencia
     original_text: str = ""
@@ -125,13 +129,17 @@ class ExtractedFeatures:
         return {
             "device_type": self.device_type.value if self.device_type else None,
             "generation": self.generation,
+            "series": self.series,  # Samsung series (S21, Note20, Z Fold5)
             "year": self.year,
             "storage_gb": self.storage_gb,
             "variant": self.variant,
+            "has_5g": self.has_5g,  # Samsung 5G detection
+            "has_dual_sim": self.has_dual_sim,  # Samsung Dual SIM detection
             "cpu": self.cpu,
             "cpu_cores": self.cpu_cores,  # ← AGREGADO
             "gpu_cores": self.gpu_cores,  # ← AGREGADO
             "a_number": self.a_number,
+            "model_code": self.model_code,  # Pixel/Samsung model codes
             "screen_size": self.screen_size,  # También agregar screen_size
             "confidence": self.extraction_confidence,
         }

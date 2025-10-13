@@ -116,6 +116,11 @@ class VariantFilter(BaseRule):
         - "Fold": solo Fold, sin Pro
         - "a": patrón como "7a", "8a"
 
+        Samsung Galaxy:
+        - "Ultra": debe tener "Ultra" (más específico que Plus)
+        - "Plus": debe tener "Plus" pero NO "Ultra"
+        - "FE": debe tener "FE" (Fan Edition)
+
         Args:
             expected_variant: Variante esperada
             descripcion: Descripción del modelo
@@ -127,6 +132,27 @@ class VariantFilter(BaseRule):
 
         # Comparación case-insensitive
         desc_lower = descripcion.lower()
+
+        # === VARIANTES DE SAMSUNG GALAXY ===
+        # Detectar si es Samsung por la descripción
+        is_samsung = "galaxy" in desc_lower
+
+        if is_samsung:
+            # Samsung-specific: Ultra (debe estar solo)
+            if expected_variant == "Ultra":
+                return "ultra" in desc_lower
+
+            # Samsung-specific: Plus (debe tener Plus pero NO Ultra)
+            elif expected_variant == "Plus":
+                return "plus" in desc_lower and "ultra" not in desc_lower
+
+            # Samsung-specific: FE (Fan Edition)
+            elif expected_variant == "FE":
+                return "fe" in desc_lower or "fan edition" in desc_lower
+
+            # Sin variante: Samsung regular (no debe tener Ultra, Plus, FE)
+            elif not expected_variant:
+                return not any(v in desc_lower for v in ["ultra", "plus", "fe", "fan edition"])
 
         # === VARIANTES DE GOOGLE PIXEL ===
         # Detectar si es Pixel por la descripción (más seguro que depender de features)
@@ -193,6 +219,11 @@ class VariantFilter(BaseRule):
         """
         Verifica si la descripción tiene alguna variante.
 
+        Detecta variantes de Apple, Pixel, y Samsung:
+        - Apple: Pro, Plus, mini, SE, XR, XS
+        - Pixel: Pro, XL, Fold, a
+        - Samsung: Ultra, Plus, FE
+
         Args:
             descripcion: Descripción del modelo
 
@@ -200,5 +231,8 @@ class VariantFilter(BaseRule):
             True si tiene variante
         """
         desc_lower = descripcion.lower()
-        variants = ["pro", "plus", "mini", "se", "xr", "xs"]
+
+        # Variantes comunes entre marcas
+        # Note: "Pro" y "Plus" son comunes, pero "Ultra" y "FE" son solo Samsung
+        variants = ["pro", "plus", "mini", "se", "xr", "xs", "ultra", "fe", "xl", "fold"]
         return any(v in desc_lower for v in variants)

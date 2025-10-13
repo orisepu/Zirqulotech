@@ -84,6 +84,11 @@ class NameMatcher(BaseMatcher):
             tipo_para_filtro = "SmartPhone"
             context.debug(f"Google Pixel detectado, usando tipo: {tipo_para_filtro}")
 
+        # Para Samsung Galaxy, el tipo en BD es "SmartPhone", no "Samsung Galaxy"
+        if "Samsung" in tipo_para_filtro or tipo_para_filtro == "Samsung Galaxy":
+            tipo_para_filtro = "SmartPhone"
+            context.debug(f"Samsung Galaxy detectado, usando tipo: {tipo_para_filtro}")
+
         # Query base: filtrar por tipo de dispositivo
         queryset = Modelo.objects.filter(tipo__iexact=tipo_para_filtro)
 
@@ -97,6 +102,32 @@ class NameMatcher(BaseMatcher):
         # Si tenemos variante, asegurarnos de que la descripción la incluya
         if features.variant:
             queryset = self._filter_by_variant(queryset, features, context)
+
+        # Filtrar por 5G (Samsung): si has_5g=False, excluir modelos con "5G"
+        if hasattr(features, 'has_5g'):
+            if features.has_5g:
+                # Buscamos 5G: solo modelos con "5G" en descripción
+                queryset = queryset.filter(descripcion__icontains="5G")
+                context.debug("Filtrando: solo modelos 5G")
+            else:
+                # NO buscamos 5G: excluir modelos con "5G"
+                queryset = queryset.exclude(descripcion__icontains="5G")
+                context.debug("Filtrando: excluir modelos 5G (buscando 4G)")
+
+        # Filtrar por Dual SIM (Samsung)
+        if hasattr(features, 'has_dual_sim'):
+            if features.has_dual_sim:
+                # Buscamos Dual SIM: filtrar por "Dual Sim" o "Dual SIM" en descripción
+                queryset = queryset.filter(
+                    Q(descripcion__icontains="Dual Sim") |
+                    Q(descripcion__icontains="Dual SIM")
+                )
+                context.debug("Filtrando: solo modelos Dual SIM")
+            else:
+                # NO buscamos Dual SIM: excluir modelos con "Dual Sim"/"Dual SIM"
+                queryset = queryset.exclude(descripcion__icontains="Dual Sim")
+                queryset = queryset.exclude(descripcion__icontains="Dual SIM")
+                context.debug("Filtrando: excluir modelos Dual SIM")
 
         context.info(f"Queryset filtrado: {queryset.count()} modelos encontrados")
         return queryset
@@ -121,13 +152,17 @@ class NameMatcher(BaseMatcher):
         parts = []
         variant_already_in_type = False
 
-        # Tipo de dispositivo (iPhone, iPad, iPad Pro, iPad Air, iPad mini, Pixel)
+        # Tipo de dispositivo (iPhone, iPad, iPad Pro, iPad Air, iPad mini, Pixel, Galaxy)
         if features.device_type:
             device_type_str = features.device_type.value
 
             # Caso especial: Google Pixel → Pixel (en BD están como "Pixel 6", no "Google Pixel 6")
             if "Google Pixel" in device_type_str:
                 device_type_str = "Pixel"
+
+            # Caso especial: Samsung Galaxy → Galaxy (en BD están como "Galaxy S21", no "Samsung Galaxy S21")
+            if "Samsung Galaxy" in device_type_str:
+                device_type_str = "Galaxy"
 
             parts.append(device_type_str)
 
@@ -136,8 +171,13 @@ class NameMatcher(BaseMatcher):
             if features.variant:
                 variant_already_in_type = features.variant.lower() in device_type_str.lower()
 
-        # Generación (si está disponible)
-        if features.generation:
+        # Serie o Generación (si está disponible)
+        # Samsung usa series (S21, Note20, Z Fold5), Apple/Pixel usan generation (13, 7)
+        if features.series:
+            # Samsung: usar serie directamente (S21, Note20, Z Fold5, Z Flip4)
+            parts.append(features.series)
+        elif features.generation:
+            # Apple/Pixel: usar generación numérica
             # Caso especial: Pixel "a" variant (7a, 8a) - combinar generación con "a" sin espacio
             if features.variant == "a":
                 parts.append(f"{features.generation}a")
@@ -149,6 +189,10 @@ class NameMatcher(BaseMatcher):
         # Saltar "a" porque ya se agregó con la generación arriba
         if features.variant and not variant_already_in_type and features.variant != "a":
             parts.append(features.variant)
+
+        # 5G (para Samsung): agregar al final si es detectado
+        if features.has_5g:
+            parts.append("5G")
 
         # Si no tenemos suficiente info, retornar None
         if len(parts) < 2:
@@ -284,6 +328,9 @@ class NameMatcher(BaseMatcher):
             expected_tipo = features.device_type.value
             # Pixel special case: BD tiene "SmartPhone" no "Google Pixel"
             if "Pixel" in expected_tipo:
+                expected_tipo = "SmartPhone"
+            # Samsung special case: BD tiene "SmartPhone" no "Samsung Galaxy"
+            if "Samsung" in expected_tipo:
                 expected_tipo = "SmartPhone"
 
             if modelo.tipo == expected_tipo:
