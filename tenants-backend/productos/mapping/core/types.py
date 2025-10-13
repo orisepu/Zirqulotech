@@ -24,6 +24,7 @@ class DeviceType(str, Enum):
     MAC_MINI = "Mac mini"
     MAC_PRO = "Mac Pro"
     MAC_STUDIO = "Mac Studio"
+    PIXEL = "Google Pixel"
 
 
 class MatchStrategy(str, Enum):
@@ -95,10 +96,12 @@ class ExtractedFeatures:
     has_plus: bool = False
     has_mini: bool = False
     has_air: bool = False
+    has_fold: bool = False               # Pixel Fold
 
     # Hardware
     cpu: Optional[str] = None            # "A15 Bionic", "M2", "Core i7"
-    a_number: Optional[str] = None       # "A2337" (único en Macs)
+    a_number: Optional[str] = None       # "A2337" (único en Macs/iPhones/iPads)
+    model_code: Optional[str] = None     # "G9S9B", "G03Z5" (Pixel model codes)
     cpu_cores: Optional[int] = None      # 8, 10, 12, 14, 16 (MacBook Pro M-series)
     gpu_cores: Optional[int] = None      # 10, 16, 19
 

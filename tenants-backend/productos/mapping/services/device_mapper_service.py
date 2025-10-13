@@ -20,6 +20,7 @@ from productos.mapping.core.types import (
 from productos.mapping.engines.iphone_engine import iPhoneEngine
 from productos.mapping.engines.ipad_engine import iPadEngine
 from productos.mapping.engines.macbook_engine import MacEngine
+from productos.mapping.engines.pixel_engine import PixelEngine
 
 
 class DeviceMapperService(IDeviceMapper):
@@ -54,6 +55,7 @@ class DeviceMapperService(IDeviceMapper):
         self.register_engine(iPhoneEngine())
         self.register_engine(iPadEngine())
         self.register_engine(MacEngine())
+        self.register_engine(PixelEngine())
 
     def register_engine(self, engine: IMappingEngine):
         """
@@ -141,7 +143,7 @@ class DeviceMapperService(IDeviceMapper):
             error_message=(
                 f"No se encontró un engine capaz de procesar el dispositivo: "
                 f"{input_data.model_name}. "
-                f"Tipos soportados: iPhone, iPad, MacBook"
+                f"Tipos soportados: iPhone, iPad, MacBook, Pixel"
             ),
             error_code="NO_ENGINE_AVAILABLE",
             context=context
@@ -163,6 +165,6 @@ class DeviceMapperService(IDeviceMapper):
         Retorna los tipos de dispositivos soportados.
 
         Returns:
-            Lista de tipos (ej: ["iPhone", "iPad", "MacBook"])
+            Lista de tipos (ej: ["iPhone", "iPad", "MacBook", "Pixel"])
         """
-        return ["iPhone", "iPad", "MacBook"]
+        return ["iPhone", "iPad", "MacBook", "Pixel"]

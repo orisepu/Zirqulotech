@@ -79,6 +79,11 @@ class NameMatcher(BaseMatcher):
             tipo_para_filtro = "iPad"
             context.debug(f"iPad Pro/Air/mini detectado, usando tipo base: {tipo_para_filtro}")
 
+        # Para Pixels, el tipo en BD es "SmartPhone", no "Google Pixel" o "Pixel"
+        if "Pixel" in tipo_para_filtro or tipo_para_filtro == "Google Pixel":
+            tipo_para_filtro = "SmartPhone"
+            context.debug(f"Google Pixel detectado, usando tipo: {tipo_para_filtro}")
+
         # Query base: filtrar por tipo de dispositivo
         queryset = Modelo.objects.filter(tipo__iexact=tipo_para_filtro)
 
@@ -116,9 +121,14 @@ class NameMatcher(BaseMatcher):
         parts = []
         variant_already_in_type = False
 
-        # Tipo de dispositivo (iPhone, iPad, iPad Pro, iPad Air, iPad mini)
+        # Tipo de dispositivo (iPhone, iPad, iPad Pro, iPad Air, iPad mini, Pixel)
         if features.device_type:
             device_type_str = features.device_type.value
+
+            # Caso especial: Google Pixel → Pixel (en BD están como "Pixel 6", no "Google Pixel 6")
+            if "Google Pixel" in device_type_str:
+                device_type_str = "Pixel"
+
             parts.append(device_type_str)
 
             # Para iPad Pro/Air/mini, el device_type YA incluye la variante
@@ -128,11 +138,16 @@ class NameMatcher(BaseMatcher):
 
         # Generación (si está disponible)
         if features.generation:
-            parts.append(str(features.generation))
+            # Caso especial: Pixel "a" variant (7a, 8a) - combinar generación con "a" sin espacio
+            if features.variant == "a":
+                parts.append(f"{features.generation}a")
+            else:
+                parts.append(str(features.generation))
 
         # Variante (Pro, Max, Plus, mini, etc.)
         # Solo agregar si NO está ya incluida en device_type
-        if features.variant and not variant_already_in_type:
+        # Saltar "a" porque ya se agregó con la generación arriba
+        if features.variant and not variant_already_in_type and features.variant != "a":
             parts.append(features.variant)
 
         # Si no tenemos suficiente info, retornar None
@@ -198,6 +213,35 @@ class NameMatcher(BaseMatcher):
             queryset = queryset.filter(descripcion__icontains="SE")
             context.debug("Filtrando por variante: SE")
 
+        # Pixel-specific variants
+        elif variant == "Pro Fold":
+            # Pro Fold: debe tener "Pro" y "Fold" en la descripción
+            queryset = queryset.filter(
+                Q(descripcion__icontains="Pro") &
+                Q(descripcion__icontains="Fold")
+            )
+            context.debug("Filtrando por variante: Pro Fold")
+
+        elif variant == "Pro XL":
+            # Pro XL: debe tener "Pro" y "XL" en la descripción
+            queryset = queryset.filter(
+                Q(descripcion__icontains="Pro") &
+                Q(descripcion__icontains="XL")
+            )
+            context.debug("Filtrando por variante: Pro XL")
+
+        elif variant == "Fold":
+            # Fold solo (sin Pro)
+            queryset = queryset.filter(descripcion__icontains="Fold").exclude(
+                descripcion__icontains="Pro"
+            )
+            context.debug("Filtrando por variante: Fold")
+
+        elif variant == "a":
+            # Pixel a (7a, 8a, etc.)
+            queryset = queryset.filter(descripcion__iregex=r'\d+a')
+            context.debug("Filtrando por variante: a")
+
         else:
             # Si no hay variante específica, filtrar modelos SIN variante
             # (excluir Pro, Max, Plus, mini, SE)
@@ -236,8 +280,14 @@ class NameMatcher(BaseMatcher):
         score = 0.0
 
         # 1. Tipo de dispositivo coincide (+0.20)
-        if features.device_type and modelo.tipo == features.device_type.value:
-            score += 0.20
+        if features.device_type:
+            expected_tipo = features.device_type.value
+            # Pixel special case: BD tiene "SmartPhone" no "Google Pixel"
+            if "Pixel" in expected_tipo:
+                expected_tipo = "SmartPhone"
+
+            if modelo.tipo == expected_tipo:
+                score += 0.20
 
         # 2. Nombre del modelo en descripción (+0.50)
         model_name = self._build_model_name(features)
@@ -282,8 +332,18 @@ class NameMatcher(BaseMatcher):
         # Casos especiales
         if variant == "Pro Max":
             return "Pro" in descripcion and "Max" in descripcion
+        elif variant == "Pro XL":
+            return "Pro" in descripcion and "XL" in descripcion
+        elif variant == "Pro Fold":
+            return "Pro" in descripcion and "Fold" in descripcion
         elif variant == "Pro":
-            return "Pro" in descripcion and "Max" not in descripcion
+            return "Pro" in descripcion and "Max" not in descripcion and "XL" not in descripcion and "Fold" not in descripcion
+        elif variant == "Fold":
+            return "Fold" in descripcion and "Pro" not in descripcion
+        elif variant == "a":
+            # Pixel a: verifica patrón como "7a", "8a"
+            import re
+            return bool(re.search(r'\d+a', descripcion))
         else:
             return variant in descripcion
 
