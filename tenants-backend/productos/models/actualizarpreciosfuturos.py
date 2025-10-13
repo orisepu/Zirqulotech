@@ -59,6 +59,14 @@ class LikewizeItemStaging(models.Model):
     precio_b2b = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))  # SIN IVA
     capacidad_id = models.IntegerField(null=True, blank=True)
 
+    # Metadatos del sistema de mapeo (v3, v4, confidence, algorithm, etc.)
+    mapping_metadata = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Metadatos del sistema de mapeo: confidence_score, mapping_algorithm, needs_review, is_mapped"
+    )
+
     modelo_raw = models.CharField(max_length=512, blank=True, default="")   # texto original de Likewize
     likewize_model_code = models.CharField(max_length=64, blank=True, default="")
     pulgadas = models.IntegerField(null=True, blank=True)                   # 27, 24, 13...
