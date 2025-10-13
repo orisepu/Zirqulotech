@@ -196,11 +196,12 @@ export function useDeviceMappingEnhanced() {
         brands?: string[]
         incremental?: boolean
         force_full?: boolean
+        mapping_system?: 'v1' | 'v2' | 'v3' | 'v4' | 'auto'
       }) => {
         const { data } = await api.post('/api/precios/likewize/actualizar/', {
           mode: options.mode,
           brands: options.brands,
-          mapping_system: 'v2',
+          mapping_system: options.mapping_system ?? 'auto',
           incremental: options.incremental ?? false,
           force_full: options.force_full ?? false
         })

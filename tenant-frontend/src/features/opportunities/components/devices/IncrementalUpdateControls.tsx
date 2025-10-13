@@ -28,6 +28,7 @@ export default function IncrementalUpdateControls({
   const [incrementalMode, setIncrementalMode] = useState(true)
   const [forceFullUpdate, setForceFullUpdate] = useState(false)
   const [selectedBrands, setSelectedBrands] = useState<string[]>(['Apple']) // Pre-seleccionar Apple
+  const [mappingSystem, setMappingSystem] = useState<'v1' | 'v2' | 'v3' | 'v4' | 'auto'>('auto') // Sistema de mapeo
 
   const {
     useEnhancedLikewizeUpdate,
@@ -72,7 +73,8 @@ export default function IncrementalUpdateControls({
         mode,
         brands,
         incremental: incrementalMode,
-        force_full: forceFullUpdate
+        force_full: forceFullUpdate,
+        mapping_system: mappingSystem // Incluir sistema de mapeo
       })
 
       onUpdate?.(result)
@@ -197,6 +199,44 @@ export default function IncrementalUpdateControls({
                 sx={{ cursor: 'pointer' }}
               />
             </Stack>
+          </Box>
+
+          {/* Selector de Sistema de Mapeo */}
+          <Box>
+            <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+              Sistema de Mapeo
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip
+                label="Auto (Recomendado)"
+                clickable
+                color={mappingSystem === 'auto' ? 'success' : 'default'}
+                variant={mappingSystem === 'auto' ? 'filled' : 'outlined'}
+                onClick={() => setMappingSystem('auto')}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="v4 (Nuevo)"
+                clickable
+                color={mappingSystem === 'v4' ? 'primary' : 'default'}
+                variant={mappingSystem === 'v4' ? 'filled' : 'outlined'}
+                onClick={() => setMappingSystem('v4')}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="v3 (Legacy)"
+                clickable
+                color={mappingSystem === 'v3' ? 'warning' : 'default'}
+                variant={mappingSystem === 'v3' ? 'filled' : 'outlined'}
+                onClick={() => setMappingSystem('v3')}
+                sx={{ cursor: 'pointer' }}
+              />
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {mappingSystem === 'auto' && '⚡ Usa v4 primero, fallback a v3 si falla (más seguro)'}
+              {mappingSystem === 'v4' && '🚀 Sistema nuevo con TDD y 155 tests (más preciso)'}
+              {mappingSystem === 'v3' && '🔧 Sistema anterior con autoaprendizaje'}
+            </Typography>
           </Box>
 
           {/* Botones de Actualización */}
