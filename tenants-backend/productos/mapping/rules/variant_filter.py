@@ -102,13 +102,19 @@ class VariantFilter(BaseRule):
         """
         Verifica si la variante coincide con la descripción.
 
-        Casos especiales:
+        Soporta variantes específicas por fabricante:
+
+        Apple:
         - "Pro Max": debe tener "Pro" Y "Max"
         - "Pro": debe tener "Pro" pero NO "Max"
-        - "Plus": debe tener "Plus"
-        - "mini": debe tener "mini"
-        - "SE": debe tener "SE"
+        - "Plus", "mini", "SE"
         - Variantes gen 10: "X", "XR", "XS", "XS Max"
+
+        Google Pixel:
+        - "Pro XL": debe tener "Pro" Y "XL"
+        - "Pro Fold": debe tener "Pro" Y "Fold"
+        - "Fold": solo Fold, sin Pro
+        - "a": patrón como "7a", "8a"
 
         Args:
             expected_variant: Variante esperada
@@ -117,33 +123,71 @@ class VariantFilter(BaseRule):
         Returns:
             True si la variante coincide
         """
+        import re  # Import at function start to avoid UnboundLocalError
+
         # Comparación case-insensitive
         desc_lower = descripcion.lower()
 
-        # Caso 1: Pro Max (debe tener ambos)
-        if expected_variant == "Pro Max":
-            return "pro" in desc_lower and "max" in desc_lower
+        # === VARIANTES DE GOOGLE PIXEL ===
+        # Detectar si es Pixel por la descripción (más seguro que depender de features)
+        is_pixel = "pixel" in desc_lower
 
-        # Caso 2: Pro (debe tener Pro pero NO Max)
-        elif expected_variant == "Pro":
-            return "pro" in desc_lower and "max" not in desc_lower
+        if is_pixel:
+            # Pixel-specific: Pro Fold (debe tener ambos)
+            if expected_variant == "Pro Fold":
+                return "pro" in desc_lower and "fold" in desc_lower
 
-        # Caso 3: Variantes gen 10 (XS Max es especial)
-        elif expected_variant == "XS Max":
-            return "xs" in desc_lower and "max" in desc_lower
+            # Pixel-specific: Pro XL (debe tener ambos)
+            elif expected_variant == "Pro XL":
+                return "pro" in desc_lower and "xl" in desc_lower
 
-        elif expected_variant in ("XS", "XR", "X"):
-            # XS sin Max, XR, X
-            return expected_variant.lower() in desc_lower
+            # Pixel-specific: Pro (debe tener Pro pero NO XL, Fold)
+            elif expected_variant == "Pro":
+                return ("pro" in desc_lower and
+                        "xl" not in desc_lower and
+                        "fold" not in desc_lower)
 
-        # Caso 4: Otras variantes (Plus, mini, SE)
-        elif expected_variant in ("Plus", "mini", "SE"):
-            return expected_variant.lower() in desc_lower
+            # Pixel-specific: Fold (sin Pro)
+            elif expected_variant == "Fold":
+                return "fold" in desc_lower and "pro" not in desc_lower
 
-        # Caso 5: Sin variante (regular)
-        # Si buscamos regular, NO debe tener variantes
+            # Pixel-specific: a (7a, 8a, etc.)
+            elif expected_variant == "a":
+                return bool(re.search(r'\d+a', desc_lower))
+
+            # Sin variante: Pixel regular (no debe tener Pro, XL, Fold, a)
+            elif not expected_variant:
+                return not any(v in desc_lower for v in ["pro", "xl", "fold"]) and not bool(re.search(r'\d+a', desc_lower))
+
+        # === VARIANTES DE APPLE (iPhone, iPad, Mac) ===
         else:
+            # Apple: Pro Max (debe tener ambos)
+            if expected_variant == "Pro Max":
+                return "pro" in desc_lower and "max" in desc_lower
+
+            # Apple: Pro (debe tener Pro pero NO Max)
+            elif expected_variant == "Pro":
+                return "pro" in desc_lower and "max" not in desc_lower
+
+            # Variantes gen 10 (XS Max es especial)
+            elif expected_variant == "XS Max":
+                return "xs" in desc_lower and "max" in desc_lower
+
+            elif expected_variant in ("XS", "XR", "X"):
+                # XS sin Max, XR, X
+                return expected_variant.lower() in desc_lower
+
+            # Otras variantes (Plus, mini, SE)
+            elif expected_variant in ("Plus", "mini", "SE"):
+                return expected_variant.lower() in desc_lower
+
+        # Caso genérico: Sin variante (regular)
+        # Si buscamos regular, NO debe tener variantes
+        if not expected_variant:
             return not self._has_any_variant(descripcion)
+
+        # Si llegamos aquí, no coincide
+        return False
 
     def _has_any_variant(self, descripcion: str) -> bool:
         """
