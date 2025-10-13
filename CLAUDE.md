@@ -12,6 +12,48 @@ checkouters/Partners/
 └── tenants-backend/       # Django 5 + DRF backend with django-tenants
 ```
 
+## Architecture: Scope Rule
+
+**Critical**: All new code must follow the Scope Rule for maintainability and reusability.
+
+### Scope Definitions
+- **Global Scope**: Code used by **2+ features** or shared across modules
+  - Location: `src/shared/`, `src/lib/`, `src/utils/`, `src/types/`
+  - Examples: API client, validators, auth hooks, theme context
+
+- **Local Scope**: Code used by **1 feature only**
+  - Location: `src/features/<feature-name>/`
+  - Examples: Feature-specific components, hooks, types, utilities
+
+### Feature-Based Organization
+```
+src/
+├── shared/                    # Global: Used by 2+ features
+│   ├── components/           # Reusable UI components (MUI wrappers)
+│   ├── hooks/                # Shared hooks (useUsuarioActual, useBreadcrumbs)
+│   ├── contexts/             # Global contexts (Theme, User, ReactQuery)
+│   └── services/             # API client, external integrations
+├── features/                 # Local: Feature-specific code
+│   ├── opportunities/        # Opportunity management feature
+│   │   ├── components/      # Feature-specific components
+│   │   ├── hooks/           # Feature-specific hooks
+│   │   ├── types/           # Feature-specific types
+│   │   └── utils/           # Feature-specific utilities
+│   ├── clients/             # CRM feature
+│   ├── dashboards/          # Analytics feature
+│   └── chat/                # Real-time chat feature
+├── lib/                     # Global: Core utilities (validators, formatters)
+├── utils/                   # Global: Shared utilities
+└── types/                   # Global: Shared TypeScript types
+```
+
+### Migration Strategy
+When code becomes global (used by 2+ features):
+1. Move from `features/<feature>/` to appropriate `shared/` or `lib/` directory
+2. Update imports across codebase
+3. Add to shared type definitions if applicable
+4. Document in commit message: `refactor: move <component> to shared (used by <feature1>, <feature2>)`
+
 ## Development Commands
 
 ### Frontend (tenant-frontend)
@@ -55,7 +97,7 @@ pytest                         # Run pytest tests (configured in pytest.ini)
 - **Backend**: Uses `django-tenants` with schema separation per partner
 - **Frontend**: Sends `X-Tenant` header for tenant identification
 - **Authentication**: JWT tokens with axios interceptors
-- **API Base URL**: https://progeek.es (configured in api.ts)
+- **API Base URL**: https://zirqulotech.com (configured in api.ts)
 
 ### Frontend Architecture
 - **Framework**: Next.js 15 with App Router and Turbopack
@@ -479,3 +521,315 @@ Device condition assessment with:
 - **Type Safety**: Strict TypeScript configuration with comprehensive type coverage
 - **Code Quality**: Enhanced ESLint rules with TanStack Query specific linting
 - **Documentation**: Updated developer documentation with latest architectural decisions and testing practices
+
+## TDD Development Workflow
+
+**Mandatory**: All new features MUST follow the Test-Driven Development workflow.
+
+### Tech Stack for TDD
+- **Frontend**: React 19 + TypeScript + Next.js 15
+- **State Management**: TanStack Query (server state) + Context API (global state)
+- **UI Framework**: MUI 7 (Material-UI)
+- **Testing**: Jest + React Testing Library + axios-mock-adapter
+- **Code Quality**: ESLint + Prettier (auto-applied on save)
+
+### Phase 1: Architecture & Planning
+**Before writing any code**, plan the architecture:
+
+1. **Determine Scope**: Is this code global (2+ features) or local (1 feature)?
+2. **Design Structure**: Plan file organization following Scope Rule
+3. **Define Interfaces**: Create TypeScript types/interfaces first
+4. **Plan Testing Strategy**: Identify what needs testing (API, logic, UI)
+
+**Commit Strategy**:
+```bash
+git commit -m "feat: add [feature-name] architecture and types"
+```
+
+### Phase 2: Test-Driven Development (RED → GREEN → REFACTOR)
+
+#### Step 1: Write Failing Tests (RED Phase)
+**NEVER write implementation code without failing tests first.**
+
+For each functionality:
+- Write test cases that describe expected behavior
+- Tests should fail initially (RED state)
+- Cover edge cases and error scenarios
+- Use descriptive test names
+
+**Test Types**:
+- **API Tests**: Mock endpoints with axios-mock-adapter
+- **Logic Tests**: Pure functions, calculations, validators
+- **Hook Tests**: Custom hooks with TanStack Query mocking
+- **Component Tests**: React components with RTL
+
+**Example Test Structure**:
+```typescript
+describe('Feature: Device Grading', () => {
+  describe('calculateGrade', () => {
+    it('should return A+ grade for excellent condition', () => {
+      // RED: This test fails because calculateGrade doesn't exist yet
+      const result = calculateGrade({ display: 'OK', glass: 'NONE', housing: 'SIN_SIGNOS' });
+      expect(result).toBe('A+');
+    });
+  });
+});
+```
+
+**Commit Strategy** (RED Phase):
+```bash
+pnpm test              # Verify tests fail
+git add .
+git commit -m "test: add [feature-name] tests (RED phase)"
+```
+
+#### Step 2: Implement Minimum Code (GREEN Phase)
+**Only write enough code to make tests pass.**
+
+- Implement the simplest solution that satisfies tests
+- Follow TypeScript strict mode (no `any` types)
+- Use ESLint + Prettier (auto-fix on save)
+- Keep functions pure and testable
+
+**Implementation Guidelines**:
+- Prefer functional components with hooks
+- Use `useMemo` and `useCallback` for optimization
+- Follow Scope Rule for file placement
+- Extract reusable logic to utilities/hooks
+
+**Commit Strategy** (GREEN Phase):
+```bash
+pnpm test              # Verify tests pass
+pnpm eslint:fix        # Auto-fix code style
+pnpm typecheck         # Verify TypeScript
+git add .
+git commit -m "feat: implement [feature-name] (GREEN phase)"
+```
+
+#### Step 3: Refactor (Optional)
+**Improve code quality without changing behavior.**
+
+- Extract duplicated code
+- Optimize performance
+- Improve readability
+- Maintain test coverage
+
+**Commit Strategy** (REFACTOR Phase):
+```bash
+pnpm test              # Ensure tests still pass
+git add .
+git commit -m "refactor: optimize [feature-name] implementation"
+```
+
+### Phase 3: Quality Assurance
+
+#### Step 1: Security Audit
+**Before merging to main**, verify security:
+
+- No hardcoded secrets or credentials
+- Proper input validation (use lib/validators.ts)
+- Secure API calls with authentication
+- CSRF protection for mutations
+
+**Commit Strategy**:
+```bash
+git commit -m "fix: address security concerns in [feature-name]"
+```
+
+#### Step 2: Accessibility Audit (UI Only)
+**After UI implementation**, verify WCAG compliance:
+
+- Semantic HTML elements
+- ARIA labels for interactive elements
+- Keyboard navigation support
+- Sufficient color contrast (MUI theme handles this)
+
+**Commit Strategy**:
+```bash
+git commit -m "feat: improve accessibility in [feature-name]"
+```
+
+### Pre-Commit Checklist
+Before committing, ensure:
+- [ ] Tests pass (`pnpm test:critical` for API, `pnpm test:frontend` for logic)
+- [ ] TypeScript compiles (`pnpm typecheck`)
+- [ ] ESLint passes (`pnpm eslint`)
+- [ ] No console errors in dev mode
+- [ ] Code follows Scope Rule
+- [ ] Commit message follows convention
+
+### CI/CD Integration
+**Automated checks on push**:
+1. `pnpm test:full` - Run all tests (API + Frontend)
+2. `pnpm typecheck` - TypeScript validation
+3. `pnpm eslint` - Code style validation
+4. `pnpm build` - Production build verification
+
+## Git Commit Strategy
+
+**CRITICAL**: Never mention "Claude", "AI", or automated tools in commit messages.
+
+### Commit Message Format
+Follow Conventional Commits specification:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Commit Types
+- `feat`: New feature or functionality
+- `fix`: Bug fix
+- `refactor`: Code restructuring without behavior change
+- `test`: Adding or updating tests
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, missing semicolons)
+- `perf`: Performance improvements
+- `chore`: Maintenance tasks (deps, config)
+
+### Scope Examples
+- `opportunities`: Opportunity management feature
+- `crm`: Client management
+- `dashboard`: Analytics dashboards
+- `auth`: Authentication and authorization
+- `api`: API client and integrations
+- `ui`: UI components
+- `types`: TypeScript type definitions
+
+### Commit Message Examples
+
+**Architecture Phase**:
+```bash
+git commit -m "feat(opportunities): add device grading architecture and types"
+```
+
+**RED Phase**:
+```bash
+git commit -m "test(opportunities): add device grading calculation tests (RED)"
+```
+
+**GREEN Phase**:
+```bash
+git commit -m "feat(opportunities): implement device grading calculation (GREEN)"
+```
+
+**Refactor Phase**:
+```bash
+git commit -m "refactor(opportunities): extract grading logic to utils"
+git commit -m "refactor(ui): move Button component to shared (used by CRM, opportunities)"
+```
+
+**Security Fix**:
+```bash
+git commit -m "fix(auth): add input validation for login credentials"
+```
+
+**Accessibility Improvement**:
+```bash
+git commit -m "feat(dashboard): improve keyboard navigation in data tables"
+```
+
+**Bug Fix**:
+```bash
+git commit -m "fix(api): handle token refresh race condition"
+```
+
+### Branch Strategy
+- `main`: Production-ready code
+- `feature/<feature-name>`: Feature development
+- `fix/<bug-description>`: Bug fixes
+- `refactor/<area>`: Code refactoring
+
+### Merge Strategy
+1. Create feature branch from `main`
+2. Follow TDD workflow (RED → GREEN → REFACTOR)
+3. Run full test suite before merging
+4. Squash commits if needed for clean history
+5. Merge to `main` via pull request
+
+## Development Rules (MANDATORY)
+
+### Code Writing Rules
+1. **NEVER write code without concrete functionality** - No placeholder or "example" code
+2. **NEVER implement without failing tests first** - TDD is mandatory
+3. **ALWAYS run ESLint + Prettier before committing** - Code style must be consistent
+4. **ALWAYS follow TypeScript strict mode** - No `any` types unless absolutely necessary
+5. **ALWAYS follow Scope Rule** - Code placement must be intentional (global vs local)
+
+### Testing Rules
+1. **NEVER skip test writing** - Every feature needs tests
+2. **NEVER commit with failing tests** - All tests must pass
+3. **ALWAYS write tests before implementation** - RED → GREEN → REFACTOR
+4. **ALWAYS test edge cases** - Happy path is not enough
+5. **ALWAYS mock external dependencies** - Tests should be isolated
+
+### Git Rules
+1. **NEVER mention Claude, AI, or automated tools** - Commits must appear human-written
+2. **NEVER commit directly to main** - Use feature branches
+3. **ALWAYS write descriptive commit messages** - Follow Conventional Commits
+4. **ALWAYS verify tests pass before pushing** - CI/CD should never fail
+5. **ALWAYS squash WIP commits** - Keep history clean
+
+### Architecture Rules
+1. **ALWAYS determine scope first** - Global (2+ features) vs Local (1 feature)
+2. **ALWAYS plan before coding** - Architecture before implementation
+3. **ALWAYS extract reusable code** - DRY principle (Don't Repeat Yourself)
+4. **ALWAYS use TypeScript types** - No implicit `any`
+5. **ALWAYS document complex logic** - Code comments for non-obvious behavior
+
+## Quick Reference
+
+### Development Cycle
+```bash
+# 1. Plan Architecture
+# Determine scope, design structure, create types
+
+# 2. Write Tests (RED)
+pnpm test:watch       # Start watch mode
+# Write failing tests
+pnpm test             # Verify tests fail
+git commit -m "test: add [feature] tests (RED)"
+
+# 3. Implement Code (GREEN)
+# Write minimum code to pass tests
+pnpm eslint:fix       # Auto-fix style
+pnpm typecheck        # Check TypeScript
+pnpm test             # Verify tests pass
+git commit -m "feat: implement [feature] (GREEN)"
+
+# 4. Refactor (Optional)
+# Improve code quality
+pnpm test             # Ensure tests still pass
+git commit -m "refactor: optimize [feature]"
+
+# 5. Quality Assurance
+# Security audit, accessibility check
+git commit -m "fix: security improvements"
+git commit -m "feat: improve accessibility"
+
+# 6. Push & CI/CD
+git push origin feature/my-feature
+# CI/CD runs pnpm test:full + typecheck + eslint + build
+```
+
+### Common Commands
+```bash
+# Development
+pnpm dev              # Start dev server
+pnpm test:watch       # Watch mode for TDD
+pnpm eslint:fix       # Auto-fix code style
+pnpm typecheck        # TypeScript validation
+
+# Testing
+pnpm test:critical    # Pre-commit API tests (2 min)
+pnpm test:frontend    # Frontend logic tests (1 min)
+pnpm test:full        # Complete test suite (5 min)
+pnpm test:coverage    # Coverage report
+
+# Quality
+pnpm eslint           # Check code style
+pnpm build            # Production build test
+```
