@@ -2,6 +2,7 @@ import axios from "axios";
 import { navigateToLogin } from "@/shared/utils/navigation";
 import { API_BASE_URL } from "@/shared/config/env";
 import { getSecureItem, setSecureItem, removeSecureItem, secureTokens } from "@/shared/lib/secureStorage";
+import { logger } from "@/shared/lib/logger";
 
 export const BASE_URL = API_BASE_URL;
 
@@ -34,7 +35,7 @@ api.interceptors.request.use(async (config) => {
 
     return config;
   } catch (error) {
-    console.error("⚠️ Error leyendo tokens del secure storage:", error);
+    logger.error("⚠️ Error leyendo tokens del secure storage:", error);
     return config;
   }
 });

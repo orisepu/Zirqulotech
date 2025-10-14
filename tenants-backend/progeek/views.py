@@ -825,6 +825,17 @@ class YoAPIView(APIView):
         tenant_obj = getattr(request, 'tenant', None)
         tenant_slug = getattr(tenant_obj, 'schema_name', None)
 
+        # Si estamos en public schema, intentar leer X-Tenant del header
+        if tenant_slug == get_public_schema_name() or tenant_slug == 'public':
+            x_tenant = request.headers.get('X-Tenant') or request.headers.get('x-tenant')
+            if x_tenant:
+                try:
+                    TenantModel = get_tenant_model()
+                    tenant_obj = TenantModel.objects.get(schema_name=x_tenant)
+                    tenant_slug = tenant_obj.schema_name
+                except TenantModel.DoesNotExist:
+                    pass
+
         data = {
             'id': user.id,
             'name': getattr(user, 'name', ''),
@@ -1565,6 +1576,10 @@ class PipelineOportunidadesPublicAPIView(APIView):
         paginator = self.Pagination()
         results = []
         total_count = 0
+
+        # CRÍTICO: Cerrar conexión actual para permitir schema_context() funcionar
+        from django.db import connection
+        connection.close()
 
         tenants = Company.objects.exclude(schema_name="public")
         for tenant in tenants:

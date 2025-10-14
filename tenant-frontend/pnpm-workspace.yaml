@@ -3,5 +3,6 @@ minimumReleaseAge: 2880
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - msw
+  - puppeteer
   - sharp
   - unrs-resolver

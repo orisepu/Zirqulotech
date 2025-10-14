@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import json
 import logging
+import re
 import time
 from decimal import Decimal
 from typing import Dict, List, Optional
@@ -300,7 +301,12 @@ class Command(BaseCommand):
         session: aiohttp.ClientSession,
         preset: Dict
     ) -> List[Dict]:
-        """Obtiene datos para un preset específico"""
+        """
+        Obtiene datos para un preset específico.
+
+        ACTUALIZADO: 2025-10-14 - Filtro mejorado para Samsung NO europeos
+        incluye sufijos J (Japón), C/E/D (China), SC-/SCV/SCG (códigos japoneses)
+        """
 
         data = []
 
@@ -353,15 +359,95 @@ class Command(BaseCommand):
 
         # Filtrar modelos excluidos (variantes regionales no europeas)
         exclude_list = preset.get('exclude_m_models', [])
-        if exclude_list:
+        if exclude_list or preset.get('marca') == 'Samsung':
             original_count = len(data)
-            data = [
-                item for item in data
-                if item.get('M_Model') not in exclude_list
-            ]
+
+            # Patrones regex para detectar variantes regionales no europeas de Samsung
+            # Sufijos: U/U1 (USA), W (Canada), N (Korea), Q (China), V (Verizon), J (Japón)
+            # Códigos especiales japoneses: SC-, SCV, SCG
+            # Sufijos China: C, E, D
+            NON_EUROPEAN_SAMSUNG_PATTERN = re.compile(
+                r'(?:SM-[A-Z]\d+[NUWVQJCED](?:1)?|SC-[A-Z0-9]+|SCV\d+|SCG\d+)\b',
+                re.IGNORECASE
+            )
+
+            # Función auxiliar para verificar si un item debe ser excluido
+            def should_exclude_item(item):
+                """
+                Verifica si el item debe ser excluido basándose en la lista de exclusión
+                y patrones regex de variantes regionales.
+
+                Para Samsung, detecta automáticamente variantes no europeas por sufijos:
+                - U/U1: Estados Unidos
+                - W: Canadá
+                - N: Corea del Sur
+                - Q: China (Qualcomm)
+                - V: Verizon (USA)
+                - J: Japón
+                - C/E/D: China y otros mercados asiáticos
+                - SC-/SCV/SCG: Códigos especiales japoneses
+
+                Busca el código de modelo en los campos M_Model, ModelName y FullName.
+                Los códigos excluidos suelen aparecer dentro de strings más largos
+                (ej: "Galaxy Note10 Plus 5G SM-N976U" contiene "SM-N976U").
+                """
+                m_model = item.get('M_Model', '')
+                model_name = item.get('ModelName', '')
+                full_name = item.get('FullName', '')
+
+                # Concatenar todos los campos para búsqueda
+                all_fields = f"{m_model} {model_name} {full_name}"
+
+                # 1. Buscar por lista explícita de exclusión
+                if exclude_list:
+                    for excluded_code in exclude_list:
+                        if (excluded_code in m_model or
+                            excluded_code in model_name or
+                            excluded_code in full_name):
+                            return True
+
+                # 2. Filtro adicional por patrón regex para Samsung
+                if preset.get('marca') == 'Samsung':
+                    if NON_EUROPEAN_SAMSUNG_PATTERN.search(all_fields):
+                        return True
+
+                return False
+
+            # Filtrar items
+            data_before_filter = data
+            data = [item for item in data if not should_exclude_item(item)]
+
             filtered_count = original_count - len(data)
             if filtered_count > 0:
                 logger.info(f"Filtrados {filtered_count} modelos excluidos de {preset.get('marca', 'Unknown')}")
+
+                # Log adicional para Samsung con detalles de filtrado regex
+                if preset.get('marca') == 'Samsung' and filtered_count > 0:
+                    # Contar cuántos fueron por lista explícita vs patrón regex
+                    explicit_filtered = 0
+                    pattern_filtered = 0
+                    for item in data_before_filter:
+                        if item not in data:
+                            m_model = item.get('M_Model', '')
+                            model_name = item.get('ModelName', '')
+                            full_name = item.get('FullName', '')
+                            all_fields = f"{m_model} {model_name} {full_name}"
+
+                            # Verificar si fue por lista explícita
+                            explicit_match = any(
+                                code in m_model or code in model_name or code in full_name
+                                for code in exclude_list
+                            )
+
+                            if explicit_match:
+                                explicit_filtered += 1
+                            elif NON_EUROPEAN_SAMSUNG_PATTERN.search(all_fields):
+                                pattern_filtered += 1
+
+                    logger.info(
+                        f"Samsung: {explicit_filtered} filtrados por lista explícita, "
+                        f"{pattern_filtered} por patrón regex (variantes regionales)"
+                    )
 
         return data
 

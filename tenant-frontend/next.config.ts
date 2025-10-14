@@ -6,10 +6,17 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   // Performance optimizations
-  
+
 
   // CKEditor 5 aggregated necesita transpilarse
   transpilePackages: ["ckeditor5"],
+
+  // Remove console.log/warn/info/debug in production (keep console.error)
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error'], // Keep console.error for critical errors
+    } : false,
+  },
 
   // Webpack optimizations for development
   webpack: (config, { dev, isServer }) => {

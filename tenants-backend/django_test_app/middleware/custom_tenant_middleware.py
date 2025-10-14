@@ -14,6 +14,9 @@ PUBLIC_ROUTES = [
     "/api/login/",
     "/api/token/",
     "/api/token/refresh/",
+    "/api/yo/",
+    "/api/pipeline-oportunidades/",
+    "/api/resumen-global/",
     "/admin/",
     "/static/",
 ]
@@ -27,12 +30,18 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
     def process_request(self, request):
         self.request = request
 
-        # Bypass para rutas públicas - establecer schema público directamente
+        # Bypass para rutas públicas - establecer schema público como base
+        # El view puede usar schema_context() para cambiar temporalmente
         if any(request.path.startswith(route) for route in PUBLIC_ROUTES):
-            logger.info("🌐 Ruta pública detectada: %s → usando esquema público", request.path)
+            logger.info("🌐 Ruta pública detectada: %s → estableciendo base en schema público", request.path)
             connection.set_schema_to_public()
-            # No necesitamos establecer request.tenant para rutas públicas
-            # El view las manejará internamente
+            # Establecer un tenant público mínimo para evitar errores
+            from django_tenants.utils import get_tenant_model, get_public_schema_name
+            TenantModel = get_tenant_model()
+            try:
+                request.tenant = TenantModel.objects.get(schema_name=get_public_schema_name())
+            except TenantModel.DoesNotExist:
+                pass
             return None
 
         response = super().process_request(request)

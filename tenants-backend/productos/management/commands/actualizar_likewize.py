@@ -1404,6 +1404,25 @@ class Command(BaseCommand):
                         excluded_m_model_patterns.append(re.compile(raw))
                     except re.error as exc:
                         log(f"⚠️ Patrón exclude M_MODEL inválido '{raw}': {exc}")
+
+                # Patrón regex adicional para Samsung: detectar variantes regionales NO europeas
+                # Sufijos: U/U1 (USA), W (Canada), N (Korea), Q (China Qualcomm), V (Verizon), J (Japón)
+                # Este patrón se agrega automáticamente para Samsung sin necesidad de configuración
+                # Pattern actualizado para detectar sufijos NO europeos en cualquier parte del string
+                if marca_por_defecto == 'Samsung':
+                    try:
+                        # Patrón mejorado que detecta SM-{SERIE}{MODELO}{SUFIJO_NO_EUROPEO}
+                        # Sufijos NO europeos: U, U1, W, N, Q, V, J
+                        # Sufijos europeos (NO filtrados): F, B, DS, FD, Y (dual SIM)
+                        samsung_non_eu_pattern = re.compile(
+                            r'SM-[A-Z]\d+[NUWVQJ](?:1)?\b',  # \b = word boundary, más robusto que (?:\s|$)
+                            re.IGNORECASE
+                        )
+                        excluded_m_model_patterns.append(samsung_non_eu_pattern)
+                        log(f"✅ Patrón regex Samsung NO europeo agregado automáticamente (sufijos: U/U1/W/N/Q/V/J)")
+                    except re.error as exc:
+                        log(f"⚠️ Error agregando patrón Samsung NO europeo: {exc}")
+
                 allowed_model_name_patterns: list[re.Pattern] = []
                 for raw in preset.get("allowed_model_name_regex") or []:
                     try:
@@ -1495,7 +1514,24 @@ class Command(BaseCommand):
                         continue
                     if allowed_m_model_patterns and not any(pattern.search(m_model_raw) for pattern in allowed_m_model_patterns):
                         continue
-                    if excluded_m_models and (m_model_upper in excluded_m_models or m_model_suffix in excluded_m_models or m_model_suffix in excluded_m_model_suffixes):
+                    # Verificar exclusión por substring matching (fix para Samsung y otras marcas)
+                    # El problema original era que buscaba coincidencia exacta en el set,
+                    # pero M_Model contiene el nombre completo: "Galaxy Note10 Plus 5G SM-N976U"
+                    # mientras que excluded_m_models contiene solo: "SM-N976U"
+                    should_exclude = False
+                    if excluded_m_models:
+                        for excluded_code in excluded_m_models:
+                            # Buscar el código excluido como substring en m_model_upper
+                            if excluded_code in m_model_upper:
+                                should_exclude = True
+                                break
+                        # También verificar sufijos por compatibilidad con lógica anterior
+                        if not should_exclude and m_model_suffix in excluded_m_models:
+                            should_exclude = True
+                        if not should_exclude and m_model_suffix in excluded_m_model_suffixes:
+                            should_exclude = True
+
+                    if should_exclude:
                         continue
                     if excluded_m_model_patterns and any(pattern.search(m_model_raw) for pattern in excluded_m_model_patterns):
                         continue

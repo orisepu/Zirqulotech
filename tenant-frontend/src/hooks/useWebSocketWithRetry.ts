@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { logger } from '@/shared/lib/logger';
 
 interface UseWebSocketWithRetryOptions {
   url: string;
@@ -72,13 +73,13 @@ export function useWebSocketWithRetry({
     if (!enabled || !mountedRef.current) return;
 
     if (!url || url.trim() === '') {
-      console.warn('⚠️ useWebSocketWithRetry: URL vacía');
+      logger.warn('⚠️ useWebSocketWithRetry: URL vacía');
       return;
     }
 
     // Si ya hay una conexión ABIERTA con la misma URL, no hacer nada
     if (socketRef.current?.readyState === WebSocket.OPEN && currentUrlRef.current === url) {
-      console.log('✅ WebSocket ya conectado a esta URL, no se reconecta');
+      logger.log('✅ WebSocket ya conectado a esta URL, no se reconecta');
       return;
     }
 
@@ -93,7 +94,7 @@ export function useWebSocketWithRetry({
     setEstado(esReintento ? 'reconectando' : 'conectando');
 
     try {
-      console.log(`🔌 Conectando WebSocket [intento ${retryCountRef.current + 1}/${maxRetries + 1}]: ${url.substring(0, 60)}...`);
+      logger.log(`🔌 Conectando WebSocket [intento ${retryCountRef.current + 1}/${maxRetries + 1}]: ${url.substring(0, 60)}...`);
 
       const ws = new WebSocket(url);
       socketRef.current = ws;
@@ -104,7 +105,7 @@ export function useWebSocketWithRetry({
           return;
         }
 
-        console.log('✅ WebSocket conectado exitosamente');
+        logger.log('✅ WebSocket conectado exitosamente');
         setEstado('conectado');
         retryCountRef.current = 0;
         onOpen?.();
@@ -117,14 +118,14 @@ export function useWebSocketWithRetry({
           const data = JSON.parse(e.data);
           onMessage?.(data);
         } catch (error) {
-          console.error('❌ Error parseando mensaje WebSocket:', error);
+          logger.error('❌ Error parseando mensaje WebSocket:', error);
         }
       };
 
       ws.onerror = (error) => {
         if (!mountedRef.current) return;
 
-        console.error('❌ Error en WebSocket:', {
+        logger.error('❌ Error en WebSocket:', {
           url: url.substring(0, 60) + '...',
           readyState: ws.readyState,
           retryCount: retryCountRef.current,
@@ -139,7 +140,7 @@ export function useWebSocketWithRetry({
         const isTokenExpired = event.code === 4401 || event.code === 4403;
         const isAbnormal = event.code === 1006;
 
-        console.warn('🔌 WebSocket cerrado:', {
+        logger.warn('🔌 WebSocket cerrado:', {
           code: event.code,
           reason: event.reason || 'Sin razón',
           wasClean: event.wasClean,
@@ -152,7 +153,7 @@ export function useWebSocketWithRetry({
 
         // Si es por token expirado, notificar inmediatamente sin reintentos
         if (isTokenExpired) {
-          console.warn('🔐 Token expirado detectado (código 4401/4403), notificando al componente');
+          logger.warn('🔐 Token expirado detectado (código 4401/4403), notificando al componente');
           retryCountRef.current = 0; // Reset para la próxima URL con token fresco
           onClose?.();
           return;
@@ -162,7 +163,7 @@ export function useWebSocketWithRetry({
         if (retryCountRef.current < maxRetries) {
           const delay = calcularRetryDelay(retryCountRef.current);
 
-          console.log(`🔄 Programando reintento en ${Math.round(delay / 1000)}s...`);
+          logger.log(`🔄 Programando reintento en ${Math.round(delay / 1000)}s...`);
 
           retryTimeoutRef.current = setTimeout(() => {
             retryCountRef.current++;
@@ -170,21 +171,21 @@ export function useWebSocketWithRetry({
           }, delay);
         } else {
           // Alcanzado el límite de reintentos
-          console.error('❌ Límite de reintentos alcanzado');
+          logger.error('❌ Límite de reintentos alcanzado');
           setEstado('error');
           onClose?.();
         }
       };
 
     } catch (error) {
-      console.error('❌ Error creando WebSocket:', error);
+      logger.error('❌ Error creando WebSocket:', error);
       setEstado('error');
     }
   }, [url, enabled, maxRetries, calcularRetryDelay, limpiarRetryTimeout, cerrarSocketActual, onMessage, onOpen, onError, onClose]);
 
   // Desconectar limpiamente
   const desconectar = useCallback(() => {
-    console.log('🛑 Desconectando WebSocket');
+    logger.log('🛑 Desconectando WebSocket');
     limpiarRetryTimeout();
     cerrarSocketActual();
     setEstado('desconectado');
@@ -198,7 +199,7 @@ export function useWebSocketWithRetry({
       socketRef.current.send(JSON.stringify(data));
       return true;
     }
-    console.warn('⚠️ No se puede enviar: WebSocket no está conectado');
+    logger.warn('⚠️ No se puede enviar: WebSocket no está conectado');
     return false;
   }, []);
 
@@ -209,7 +210,7 @@ export function useWebSocketWithRetry({
     if (enabled && url) {
       // Reset retry count cuando cambia la URL (probablemente un token nuevo)
       if (currentUrlRef.current !== url) {
-        console.log('🔄 URL cambió, reseteando contador de reintentos');
+        logger.log('🔄 URL cambió, reseteando contador de reintentos');
         retryCountRef.current = 0;
       }
 
