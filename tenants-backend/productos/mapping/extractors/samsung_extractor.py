@@ -57,7 +57,8 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
 
         # Patrones para series
         # S series: S10, S20, S21, S22, S23, S24, S25
-        self.s_series_pattern = re.compile(r'\bS\s*(\d{2})', re.I)
+        # También captura sufijo 'e' para S10e, S20e
+        self.s_series_pattern = re.compile(r'\bS\s*(\d{2})(e)?\b', re.I)
 
         # Note series: Note9, Note10, Note20
         self.note_series_pattern = re.compile(r'\bNote\s*(\d{1,2})', re.I)
@@ -68,10 +69,15 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
         # Z Flip series: Flip3, Flip4, Flip5
         self.flip_series_pattern = re.compile(r'\b(?:Z\s*)?Flip\s*(\d)', re.I)
 
+        # Z Flip primera generación (sin número, solo "5G")
+        # Ej: "Galaxy Z Flip 5G" (2020) - NO confundir con "Z Flip5" (2023)
+        self.flip_5g_pattern = re.compile(r'\b(?:Z\s*)?Flip\s+5G\b(?!\d)', re.I)
+
         # Patrones para variantes (orden importa: más específico primero)
         self.variant_ultra_pattern = re.compile(r'\bultra\b', re.I)
         self.variant_plus_pattern = re.compile(r'\bplus\b', re.I)
         self.variant_fe_pattern = re.compile(r'\bFE\b', re.I)
+        self.variant_lite_pattern = re.compile(r'\blite\b', re.I)
 
         # Patrón para región España-compatible (F o B, con o sin DS)
         # Ejemplos: SM-G991B, SM-S921F, SM-G991B/DS, SM-S921F/DS
@@ -145,6 +151,12 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
             features.series = series
             features.add_note(f"Serie detectada: {series}")
             context.info(f"Serie: {series}")
+
+            # Si la serie incluye "5G" explícitamente (ej: "Z Flip 5G"), marcar como 5G
+            if "5G" in series and not features.has_5g:
+                features.has_5g = True
+                features.add_note("5G detectado desde nombre de serie")
+                context.info("Modelo 5G detectado desde serie")
 
         # 4. Extraer variante (Ultra, Plus, FE)
         variant = self._extract_variant(text, context)
@@ -280,7 +292,15 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
             context.debug(f"Serie Z Fold detectada: {series}")
             return series
 
-        # Intentar Z Flip
+        # Intentar Z Flip primera generación (sin número, solo "5G") PRIMERO
+        # Esto debe ir antes del patrón numerado para evitar confusión
+        match = self.flip_5g_pattern.search(text)
+        if match:
+            series = "Z Flip 5G"
+            context.debug(f"Serie Z Flip 5G (primera generación 2020) detectada: {series}")
+            return series
+
+        # Intentar Z Flip numerado (Flip3, Flip4, Flip5)
         match = self.flip_series_pattern.search(text)
         if match:
             num = match.group(1)
@@ -300,7 +320,8 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
         match = self.s_series_pattern.search(text)
         if match:
             num = match.group(1)
-            series = f"S{num}"
+            has_e = match.group(2)  # Captura el sufijo 'e' si existe
+            series = f"S{num}{'e' if has_e else ''}"
             context.debug(f"Serie S detectada: {series}")
             return series
 
@@ -315,12 +336,15 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
         - Ultra (S21 Ultra, S22 Ultra, S23 Ultra, S24 Ultra)
         - Plus (S21 Plus, S22 Plus, S23 Plus)
         - FE (Fan Edition - S20 FE, S21 FE, S23 FE, S24 FE)
+        - Lite (S10 Lite, S20 Lite)
+        - e (S10e, S20 FE - detectado en serie)
 
         Orden de prioridad:
         1. Ultra (más específico)
         2. Plus
-        3. FE
-        4. None (modelo regular)
+        3. Lite
+        4. FE
+        5. None (modelo regular)
 
         Args:
             text: Texto normalizado
@@ -338,6 +362,11 @@ class SamsungFeatureExtractor(BaseFeatureExtractor):
         if self.variant_plus_pattern.search(text):
             context.debug("Variante Plus detectada")
             return "Plus"
+
+        # Lite (detectar antes que FE para evitar confusión)
+        if self.variant_lite_pattern.search(text):
+            context.debug("Variante Lite detectada")
+            return "Lite"
 
         # FE (Fan Edition)
         if self.variant_fe_pattern.search(text):

@@ -175,6 +175,8 @@ class NameMatcher(BaseMatcher):
         # Samsung usa series (S21, Note20, Z Fold5), Apple/Pixel usan generation (13, 7)
         if features.series:
             # Samsung: usar serie directamente (S21, Note20, Z Fold5, Z Flip4)
+            # IMPORTANTE: La serie YA incluye el sufijo "e" si aplica (S10e, S20e)
+            # El samsung_extractor.py lo detecta y lo incluye en features.series
             parts.append(features.series)
         elif features.generation:
             # Apple/Pixel: usar generación numérica
@@ -184,15 +186,20 @@ class NameMatcher(BaseMatcher):
             else:
                 parts.append(str(features.generation))
 
-        # Variante (Pro, Max, Plus, mini, etc.)
+        # Variante (Pro, Max, Plus, mini, Lite, etc.)
         # Solo agregar si NO está ya incluida en device_type
         # Saltar "a" porque ya se agregó con la generación arriba
+        # IMPORTANTE para Samsung: "Lite" es una variante (S10 Lite, S20 Lite, Note10 Lite)
         if features.variant and not variant_already_in_type and features.variant != "a":
             parts.append(features.variant)
 
         # 5G (para Samsung): agregar al final si es detectado
+        # IMPORTANTE: No agregar si "5G" ya está en la serie (ej: "Z Flip 5G")
         if features.has_5g:
-            parts.append("5G")
+            # Verificar si "5G" ya está en alguna parte (series, variant, etc.)
+            model_name_so_far = " ".join(parts)
+            if "5G" not in model_name_so_far:
+                parts.append("5G")
 
         # Si no tenemos suficiente info, retornar None
         if len(parts) < 2:
@@ -286,14 +293,30 @@ class NameMatcher(BaseMatcher):
             queryset = queryset.filter(descripcion__iregex=r'\d+a')
             context.debug("Filtrando por variante: a")
 
+        # Samsung-specific variants
+        elif variant == "Ultra":
+            queryset = queryset.filter(descripcion__icontains="Ultra")
+            context.debug("Filtrando por variante: Ultra (Samsung)")
+
+        elif variant == "Lite":
+            queryset = queryset.filter(descripcion__icontains="Lite")
+            context.debug("Filtrando por variante: Lite (Samsung)")
+
+        elif variant == "FE":
+            queryset = queryset.filter(descripcion__icontains="FE")
+            context.debug("Filtrando por variante: FE (Samsung)")
+
         else:
             # Si no hay variante específica, filtrar modelos SIN variante
-            # (excluir Pro, Max, Plus, mini, SE)
+            # (excluir Pro, Max, Plus, mini, SE, Ultra, Lite, FE)
             queryset = queryset.exclude(
                 Q(descripcion__icontains="Pro") |
                 Q(descripcion__icontains="Plus") |
                 Q(descripcion__icontains="mini") |
-                Q(descripcion__icontains="SE")
+                Q(descripcion__icontains="SE") |
+                Q(descripcion__icontains="Ultra") |
+                Q(descripcion__icontains="Lite") |
+                Q(descripcion__icontains="FE")
             )
             context.debug("Filtrando: modelo regular (sin variante)")
 
@@ -391,6 +414,13 @@ class NameMatcher(BaseMatcher):
             # Pixel a: verifica patrón como "7a", "8a"
             import re
             return bool(re.search(r'\d+a', descripcion))
+        # Samsung-specific variants
+        elif variant == "Ultra":
+            return "Ultra" in descripcion
+        elif variant == "Lite":
+            return "Lite" in descripcion
+        elif variant == "FE":
+            return "FE" in descripcion
         else:
             return variant in descripcion
 
@@ -402,9 +432,9 @@ class NameMatcher(BaseMatcher):
             descripcion: Descripción del modelo
 
         Returns:
-            True si tiene variante (Pro, Max, Plus, mini, SE)
+            True si tiene variante (Pro, Max, Plus, mini, SE, Ultra, Lite, FE)
         """
-        variants = ["Pro", "Plus", "mini", "SE", "XR", "XS"]
+        variants = ["Pro", "Plus", "mini", "SE", "XR", "XS", "Ultra", "Lite", "FE"]
         return any(v in descripcion for v in variants)
 
     def _has_ordinal_generation(self, generation: int, descripcion: str) -> bool:
