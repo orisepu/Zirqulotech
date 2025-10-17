@@ -236,6 +236,9 @@ PRIVATE_MEDIA_ROOT = MEDIA_ROOT / "media_private"
 OTP_TTL_MINUTES = config("OTP_TTL_MINUTES", default=10, cast=int)
 OTP_COOLDOWN_SECONDS = config("OTP_COOLDOWN_SECONDS", default=60, cast=int)
 
+# SECURITY FIX (MED-03): Password Reset Configuration
+PASSWORD_RESET_TIMEOUT_HOURS = config("PASSWORD_RESET_TIMEOUT_HOURS", default=1, cast=int)  # 1 hora por defecto
+
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="https://zirqulotech.com")
 LEGAL_DEFAULT_OVERRIDES = {
     "operador": {
