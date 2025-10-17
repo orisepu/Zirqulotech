@@ -147,9 +147,8 @@ describe('LoginForm Component', () => {
       expect(submitButton).toBeDisabled()
     })
 
-    test('should accept password with exactly 4 characters', async () => {
-      // NOTE: This tests current behavior (4 chars min)
-      // Will need to update when we change to 8 chars min
+    test('should reject password with less than 8 characters', async () => {
+      // SECURITY FIX (CRIT-01): Now requires minimum 8 characters
       render(<LoginForm />)
 
       const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
@@ -159,7 +158,25 @@ describe('LoginForm Component', () => {
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
       fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: '1234' } }) // Exactly 4 chars
+      fireEvent.change(passwordInput, { target: { value: '1234567' } }) // 7 chars - should be invalid
+
+      await waitFor(() => {
+        expect(submitButton).toBeDisabled()
+      })
+    })
+
+    test('should accept password with exactly 8 characters', async () => {
+      // SECURITY FIX (CRIT-01): Minimum 8 characters required
+      render(<LoginForm />)
+
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
+      const submitButton = screen.getByRole('button', { name: /entrar/i })
+
+      fireEvent.change(empresaInput, { target: { value: 'test-company' } })
+      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
+      fireEvent.change(passwordInput, { target: { value: '12345678' } }) // Exactly 8 chars
 
       await waitFor(() => {
         expect(submitButton).not.toBeDisabled()
