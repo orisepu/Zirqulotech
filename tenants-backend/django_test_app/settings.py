@@ -203,16 +203,21 @@ USE_L10N = True
 USE_TZ = True
 
 # Email Configuration
-# Soporta tanto OAuth2 (Microsoft 365) como SMTP tradicional
+# SECURITY FIX (MED-03): Soporta tanto OAuth2 (Microsoft 365) como SMTP tradicional
+# La configuración se toma desde .env:
+# - Para Microsoft OAuth2: EMAIL_BACKEND=security.email_backend.MicrosoftOAuth2EmailBackend
+# - Para SMTP tradicional: EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@zirqulotech.com")
 
-# Microsoft 365 OAuth2 Configuration (preferido)
+# Microsoft 365 OAuth2 Configuration
+# Usado si EMAIL_BACKEND=security.email_backend.MicrosoftOAuth2EmailBackend
 MICROSOFT_CLIENT_ID = config("MICROSOFT_CLIENT_ID", default="")
 MICROSOFT_CLIENT_SECRET = config("MICROSOFT_CLIENT_SECRET", default="")
 MICROSOFT_TENANT_ID = config("MICROSOFT_TENANT_ID", default="")
 
 # SMTP Configuration (fallback)
+# Usado si EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
