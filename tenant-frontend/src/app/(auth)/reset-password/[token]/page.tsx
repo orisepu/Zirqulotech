@@ -38,8 +38,7 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import PasswordStrengthIndicator from "@/shared/components/PasswordStrengthIndicator";
 import axios from "axios";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://zirqulotech.com";
+import { API_BASE_URL } from "@/shared/config/env";
 
 export default function ResetPasswordPage({ params }: { params: { token: string } }) {
   const router = useRouter();

@@ -36,8 +36,7 @@ import {
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import axios from "axios";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://zirqulotech.com";
+import { API_BASE_URL } from "@/shared/config/env";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
