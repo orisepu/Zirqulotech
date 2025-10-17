@@ -26,6 +26,7 @@ import BusinessIcon from "@mui/icons-material/Business";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import PasswordStrengthIndicator from "@/shared/components/PasswordStrengthIndicator"; // SECURITY FIX (MED-02)
 
 export default function LoginForm() {
   const router = useRouter();
@@ -218,6 +219,14 @@ export default function LoginForm() {
               ),
             }}
             helperText="Mínimo 8 caracteres"
+          />
+
+          {/* SECURITY FIX (MED-02): Indicador de fortaleza de contraseña */}
+          <PasswordStrengthIndicator
+            password={password}
+            userInputs={[email, empresa]}
+            showSuggestions={true}
+            showCrackTime={true}
           />
 
           <FormControlLabel
