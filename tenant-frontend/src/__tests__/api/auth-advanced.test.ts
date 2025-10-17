@@ -170,9 +170,9 @@ describe('Advanced Authentication Tests', () => {
       // Primera request falla con 401
       mockAxios.onGet('/api/test-endpoint/').replyOnce(401)
 
-      // Refresh token devuelve nuevo access token
-      mockAxios
-        .onPost('/api/token/refresh/')
+      // Refresh token devuelve nuevo access token (usa axios global)
+      mockAxiosGlobal
+        .onPost('https://zirqulotech.com/api/token/refresh/')
         .reply(200, { access: 'new-access-token' })
 
       // Retry de la request original con nuevo token
@@ -189,8 +189,8 @@ describe('Advanced Authentication Tests', () => {
       // Primera request falla con 401
       mockAxios.onGet('/api/test-endpoint/').replyOnce(401)
 
-      // Refresh token también falla
-      mockAxios.onPost('/api/token/refresh/').reply(401, {
+      // Refresh token también falla (usa axios global)
+      mockAxiosGlobal.onPost('https://zirqulotech.com/api/token/refresh/').reply(401, {
         detail: 'Token refresh inválido'
       })
 
@@ -206,7 +206,7 @@ describe('Advanced Authentication Tests', () => {
 
       mockAxios.onGet('/api/test-endpoint/').replyOnce(401)
 
-      mockAxios.onPost('/api/token/refresh/').reply(401, {
+      mockAxiosGlobal.onPost('https://zirqulotech.com/api/token/refresh/').reply(401, {
         detail: 'Token expirado',
         code: 'token_not_valid'
       })
@@ -231,7 +231,7 @@ describe('Advanced Authentication Tests', () => {
         return [401, { detail: 'Unauthorized' }]
       })
 
-      mockAxios.onPost('/api/token/refresh/').reply(200, { access: 'new-token' })
+      mockAxiosGlobal.onPost('https://zirqulotech.com/api/token/refresh/').reply(200, { access: 'new-token' })
 
       try {
         await api.get('/api/test-endpoint/')
@@ -281,6 +281,12 @@ describe('Advanced Authentication Tests', () => {
       // Don't setup authenticated state
       const mockLocalStorage = localStorage as jest.Mocked<typeof localStorage>
       mockLocalStorage.getItem.mockReturnValue(null)
+
+      // Also ensure secureStorage returns null
+      const { getSecureItem } = require('@/shared/lib/secureStorage')
+      if (jest.isMockFunction(getSecureItem)) {
+        getSecureItem.mockResolvedValue(null)
+      }
 
       let capturedHeaders: any = null
 

@@ -19,6 +19,16 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock
 })
 
+// Mock secureStorage
+jest.mock('@/shared/lib/secureStorage', () => ({
+  getSecureItem: jest.fn().mockResolvedValue(null),
+  setSecureItem: jest.fn().mockResolvedValue(undefined),
+  removeSecureItem: jest.fn().mockResolvedValue(undefined),
+  secureTokens: {
+    removeAllTokens: jest.fn()
+  }
+}))
+
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,

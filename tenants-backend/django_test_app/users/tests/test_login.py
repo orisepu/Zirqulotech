@@ -57,8 +57,9 @@ def test_company():
 @pytest.fixture
 @pytest.mark.django_db
 def test_user_in_tenant(test_company):
-    """Create a test user in a tenant schema"""
-    with schema_context(test_company.schema_name):
+    """Create a test user with permissions in a tenant"""
+    # Users must be created in public schema
+    with schema_context("public"):
         user = User.objects.create_user(
             email="user@test.com",
             password="password123",
@@ -66,7 +67,8 @@ def test_user_in_tenant(test_company):
             is_active=True
         )
 
-        # Create UserTenantPermissions (use pk instead of id for TenantBase)
+    # Then create permissions in the tenant schema
+    with schema_context(test_company.schema_name):
         try:
             UserTenantPermissions.objects.create(
                 user=user,
@@ -79,7 +81,7 @@ def test_user_in_tenant(test_company):
                 profile_id=test_company.pk
             )
 
-        return user
+    return user
 
 
 @pytest.fixture
@@ -167,13 +169,16 @@ class TestLoginEndpoint:
 
     def test_login_with_inactive_user(self, api_client, test_company):
         """Should return 403 when user is inactive"""
-        with schema_context(test_company.schema_name):
+        # Create user in public schema
+        with schema_context("public"):
             inactive_user = User.objects.create_user(
                 email="inactive@test.com",
                 password="password123",
                 is_active=False
             )
 
+        # Create permissions in tenant schema
+        with schema_context(test_company.schema_name):
             try:
                 UserTenantPermissions.objects.create(
                     user=inactive_user,
@@ -198,13 +203,14 @@ class TestLoginEndpoint:
 
     def test_login_without_tenant_permissions(self, api_client, test_company):
         """Should return 403 when user has no permissions in tenant"""
-        with schema_context(test_company.schema_name):
+        # Create user in public schema but don't give tenant permissions
+        with schema_context("public"):
             user_without_perms = User.objects.create_user(
                 email="noperms@test.com",
                 password="password123",
                 is_active=True
             )
-            # Don't create UserTenantPermissions
+        # Don't create UserTenantPermissions
 
         data = {
             "empresa": test_company.slug,
@@ -484,39 +490,36 @@ class TestTokenGeneration:
                 owner=owner_b
             )
 
-        # Give user access to multiple tenants
-        with schema_context("tenant_a"):
-            user_a = User.objects.create_user(
+        # Create user in public schema
+        with schema_context("public"):
+            multi_user = User.objects.create_user(
                 email="multiuser@test.com",
                 password="password123",
                 is_active=True
             )
+
+        # Give user access to multiple tenants
+        with schema_context("tenant_a"):
             try:
                 UserTenantPermissions.objects.create(
-                    user=user_a,
+                    user=multi_user,
                     profile=company_a
                 )
             except Exception:
                 UserTenantPermissions.objects.create(
-                    user=user_a,
+                    user=multi_user,
                     profile_id=company_a.pk
                 )
 
         with schema_context("tenant_b"):
-            # Same email in different schema
-            user_b = User.objects.create_user(
-                email="multiuser@test.com",
-                password="password123",
-                is_active=True
-            )
             try:
                 UserTenantPermissions.objects.create(
-                    user=user_b,
+                    user=multi_user,
                     profile=company_b
                 )
             except Exception:
                 UserTenantPermissions.objects.create(
-                    user=user_b,
+                    user=multi_user,
                     profile_id=company_b.pk
                 )
 

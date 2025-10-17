@@ -51,9 +51,9 @@ describe('LoginForm Component', () => {
     test('should render login form with all fields', () => {
       render(<LoginForm />)
 
-      expect(screen.getByLabelText(/empresa/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /empresa/i })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument()
+      expect(screen.getByLabelText(/contraseña/i, { selector: 'input' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /entrar/i })).toBeInTheDocument()
     })
 
@@ -81,7 +81,7 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i) as HTMLInputElement
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i }) as HTMLInputElement
       expect(empresaInput.value).toBe('my-company')
     })
   })
@@ -90,9 +90,9 @@ describe('LoginForm Component', () => {
     test('should enable submit button when all fields are valid', async () => {
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -107,8 +107,8 @@ describe('LoginForm Component', () => {
     test('should keep submit button disabled when empresa is empty', async () => {
       render(<LoginForm />)
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
@@ -120,9 +120,9 @@ describe('LoginForm Component', () => {
     test('should keep submit button disabled when email is invalid', async () => {
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -135,9 +135,9 @@ describe('LoginForm Component', () => {
     test('should keep submit button disabled when password is too short', async () => {
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -152,9 +152,9 @@ describe('LoginForm Component', () => {
       // Will need to update when we change to 8 chars min
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -171,7 +171,7 @@ describe('LoginForm Component', () => {
     test('should toggle password visibility when clicking eye icon', async () => {
       render(<LoginForm />)
 
-      const passwordInput = screen.getByLabelText(/contraseña/i) as HTMLInputElement
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' }) as HTMLInputElement
       const toggleButton = screen.getByLabelText(/mostrar contraseña/i)
 
       // Initially password type
@@ -222,9 +222,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: '  test-company  ' } })
@@ -266,9 +266,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -307,9 +307,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const checkbox = screen.getByRole('checkbox', { name: /recordar empresa/i })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
@@ -342,9 +342,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const checkbox = screen.getByRole('checkbox', { name: /recordar empresa/i })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
@@ -380,9 +380,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -417,9 +417,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'nonexistent-company' } })
@@ -443,9 +443,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -469,9 +469,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -490,9 +490,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -502,7 +502,8 @@ describe('LoginForm Component', () => {
       fireEvent.click(submitButton)
 
       await waitFor(() => {
-        expect(screen.getByText(/error al iniciar sesión/i)).toBeInTheDocument()
+        // The component uses err.message when available, so it shows "Network error"
+        expect(screen.getByText(/network error/i)).toBeInTheDocument()
       })
     })
 
@@ -516,9 +517,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
@@ -559,9 +560,9 @@ describe('LoginForm Component', () => {
 
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
 
       fireEvent.change(empresaInput, { target: { value: 'test-company' } })
       fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
@@ -578,9 +579,9 @@ describe('LoginForm Component', () => {
     test('should have autocomplete attributes', () => {
       render(<LoginForm />)
 
-      const empresaInput = screen.getByLabelText(/empresa/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/contraseña/i)
+      const empresaInput = screen.getByRole('textbox', { name: /empresa/i })
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
 
       expect(empresaInput).toHaveAttribute('autocomplete', 'organization')
       expect(emailInput).toHaveAttribute('autocomplete', 'email')
