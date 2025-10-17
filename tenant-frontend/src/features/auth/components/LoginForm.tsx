@@ -81,6 +81,12 @@ export default function LoginForm() {
         setSecureItem("tenantAccess", JSON.stringify(tenantAccess)),
       ]);
 
+      // SECURITY FIX: Set HTTP cookie flag for middleware authentication check
+      // Note: The actual token stays secure in sessionStorage, this is just a flag
+      // Middleware needs this cookie to verify authentication on server-side
+      const isProduction = window.location.protocol === 'https:';
+      document.cookie = `access=true; path=/; max-age=86400; SameSite=Lax${isProduction ? '; Secure' : ''}`;
+
       // Empresa recordada puede quedarse en localStorage (no es sensible)
       if (rememberEmpresa) {
         localStorage.setItem("rememberedEmpresa", empresa.trim());

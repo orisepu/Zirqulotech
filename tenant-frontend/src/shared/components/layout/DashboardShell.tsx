@@ -120,6 +120,9 @@ export default function DashboardShell({
     localStorage.clear(); // también puedes usar tus claves manuales
     sessionStorage.clear();
 
+    // SECURITY FIX: Clear authentication cookie for middleware
+    document.cookie = 'access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+
     router.push("/login");
     window.location.reload();
   };
