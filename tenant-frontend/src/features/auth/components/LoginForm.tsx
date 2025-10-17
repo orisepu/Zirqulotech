@@ -229,16 +229,27 @@ export default function LoginForm() {
             showCrackTime={true}
           />
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={rememberEmpresa}
-                onChange={(e) => setRememberEmpresa(e.target.checked)}
-              />
-            }
-            label="Recordar empresa"
-            sx={{ mt: 1, color: "text.secondary" }}
-          />
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberEmpresa}
+                  onChange={(e) => setRememberEmpresa(e.target.checked)}
+                />
+              }
+              label="Recordar empresa"
+              sx={{ color: "text.secondary" }}
+            />
+            {/* SECURITY FIX (MED-03): Enlace a recuperación de contraseña */}
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => router.push("/forgot-password")}
+              sx={{ textTransform: "none" }}
+            >
+              ¿Olvidaste tu contraseña?
+            </Button>
+          </Box>
 
           {/* Botón: refuerzo de contraste cuando está deshabilitado en dark */}
           <Button
