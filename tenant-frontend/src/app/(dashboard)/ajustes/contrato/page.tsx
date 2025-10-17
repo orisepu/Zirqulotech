@@ -11,6 +11,7 @@ import {
 import { useTheme } from '@mui/material/styles'
 import type { SelectChangeEvent } from '@mui/material/Select'
 import HistoryIcon from '@mui/icons-material/History'
+import DOMPurify from 'dompurify' // SECURITY FIX (HIGH-05): Sanitizar HTML antes de renderizar
 import api from '@/services/api'
 import { PUBLIC_BASE_URL } from '@/shared/config/env'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -514,7 +515,17 @@ export default function AjustesContratoPage() {
             '& th, & td': { border: '1px solid', borderColor: 'divider', p: 1, verticalAlign: 'top' },
             '& th': { bgcolor: 'background.default' }
           }}>
-            <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            {/* SECURITY FIX (HIGH-05): Sanitizar HTML con DOMPurify antes de renderizar */}
+            <div dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(previewHtml, {
+                ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'b', 'i', 'span', 'div',
+                               'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                               'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                ALLOWED_ATTR: ['class', 'style', 'colspan', 'rowspan'],
+                ALLOW_DATA_ATTR: false,
+                ALLOW_UNKNOWN_PROTOCOLS: false
+              })
+            }} />
           </Box>
         </DialogContent>
         <DialogActions>
