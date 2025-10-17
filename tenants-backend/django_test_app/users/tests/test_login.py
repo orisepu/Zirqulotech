@@ -67,19 +67,20 @@ def test_user_in_tenant(test_company):
             is_active=True
         )
 
-    # Then create permissions in the tenant schema
+    # Add user to tenant (this creates UserTenantPermissions)
     with schema_context(test_company.schema_name):
-        try:
-            UserTenantPermissions.objects.create(
-                user=user,
-                profile=test_company
-            )
-        except Exception:
-            # Fallback: some versions use profile_id
-            UserTenantPermissions.objects.create(
-                user=user,
-                profile_id=test_company.pk
-            )
+        # Get the TenantUser instance in this schema
+        tenant_user = User.objects.get(email="user@test.com")
+
+        # Create UserTenantPermissions pointing to the TenantUser
+        UserTenantPermissions.objects.create(
+            profile=tenant_user,
+            is_staff=False,
+            is_superuser=False
+        )
+
+        # Link user to tenant
+        tenant_user.tenants.add(test_company)
 
     return user
 
@@ -179,16 +180,13 @@ class TestLoginEndpoint:
 
         # Create permissions in tenant schema
         with schema_context(test_company.schema_name):
-            try:
-                UserTenantPermissions.objects.create(
-                    user=inactive_user,
-                    profile=test_company
-                )
-            except Exception:
-                UserTenantPermissions.objects.create(
-                    user=inactive_user,
-                    profile_id=test_company.pk
-                )
+            tenant_user = User.objects.get(email="inactive@test.com")
+            UserTenantPermissions.objects.create(
+                profile=tenant_user,
+                is_staff=False,
+                is_superuser=False
+            )
+            tenant_user.tenants.add(test_company)
 
         data = {
             "empresa": test_company.slug,
@@ -316,20 +314,23 @@ class TestDjangoAxesBruteForceProtection:
         AccessAttempt.objects.all().delete()
 
     def test_axes_blocks_after_multiple_failed_attempts(self, api_client, test_company, test_user_in_tenant):
-        """Should block login after 5 failed attempts"""
+        """Should block login after 5 failed attempts (blocks on 6th attempt)"""
         data = {
             "empresa": test_company.slug,
             "email": "user@test.com",
             "password": "wrongpassword"
         }
 
-        # Make 5 failed attempts
-        for i in range(5):
+        # Make 6 attempts - first 5 fail with 401, 6th is blocked with 403
+        # This is because the check happens BEFORE incrementing the counter:
+        # Attempt 1-5: counter is 0-4, check passes, password fails, counter becomes 1-5
+        # Attempt 6: counter is 5, check 5>=5 passes, blocked with 403
+        for i in range(6):
             response = api_client.post("/api/login/", data, format="json")
-            if i < 4:
+            if i < 5:
                 assert response.status_code == status.HTTP_401_UNAUTHORIZED
             else:
-                # 5th attempt should be blocked
+                # 6th attempt should be blocked (after 5 failures recorded)
                 assert response.status_code == status.HTTP_403_FORBIDDEN
                 assert "bloqueada" in response.data["detail"]
 
@@ -500,28 +501,22 @@ class TestTokenGeneration:
 
         # Give user access to multiple tenants
         with schema_context("tenant_a"):
-            try:
-                UserTenantPermissions.objects.create(
-                    user=multi_user,
-                    profile=company_a
-                )
-            except Exception:
-                UserTenantPermissions.objects.create(
-                    user=multi_user,
-                    profile_id=company_a.pk
-                )
+            tenant_user_a = User.objects.get(email="multiuser@test.com")
+            UserTenantPermissions.objects.create(
+                profile=tenant_user_a,
+                is_staff=False,
+                is_superuser=False
+            )
+            tenant_user_a.tenants.add(company_a)
 
         with schema_context("tenant_b"):
-            try:
-                UserTenantPermissions.objects.create(
-                    user=multi_user,
-                    profile=company_b
-                )
-            except Exception:
-                UserTenantPermissions.objects.create(
-                    user=multi_user,
-                    profile_id=company_b.pk
-                )
+            tenant_user_b = User.objects.get(email="multiuser@test.com")
+            UserTenantPermissions.objects.create(
+                profile=tenant_user_b,
+                is_staff=False,
+                is_superuser=False
+            )
+            tenant_user_b.tenants.add(company_b)
 
         data = {
             "empresa": "tenant-a",
