@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 class TenantLoginView(APIView):
     # SECURITY FIX (MED-01): Rate limiting en login - 5 intentos/minuto
     throttle_classes = [LoginRateThrottle]
+
+    # SECURITY FIX (MED-04): Helper para contexto de seguridad en logs
+    def _get_security_context(self, request, email=None, tenant=None):
+        """Extrae contexto de seguridad para logging estructurado"""
+        ip = request.META.get('REMOTE_ADDR', 'unknown')
+        user_agent = request.META.get('HTTP_USER_AGENT', 'unknown')[:50]  # Primeros 50 chars
+        tenant_name = tenant.schema_name if tenant else 'public'
+        context = f"[IP:{ip}] [UA:{user_agent}] [Tenant:{tenant_name}]"
+        if email:
+            context = f"{context} [Email:{email}]"
+        return context
+
     def post(self, request):
         empresa = request.data.get("empresa")
         email = request.data.get("email")
@@ -33,12 +45,16 @@ class TenantLoginView(APIView):
         try:
             validate_email(email)
         except ValidationError:
-            logger.warning(f"Login attempt with invalid email format: {email[:20]}...")
+            # SECURITY FIX (MED-04): Logging mejorado con contexto
+            ctx = self._get_security_context(request, email=email[:20] + '...')
+            logger.warning(f"SECURITY_EVENT: Invalid email format {ctx}")
             return Response({"detail": "Email invalido."}, status=status.HTTP_400_BAD_REQUEST)
 
         # SECURITY FIX (CRIT-03): Validacion de longitud minima de contraseña (OWASP ASVS 2.1.1)
         if len(password) < 8:
-            logger.warning(f"Login attempt with short password for email: {email}")
+            # SECURITY FIX (MED-04): Logging mejorado con contexto
+            ctx = self._get_security_context(request, email=email)
+            logger.warning(f"SECURITY_EVENT: Short password attempt (len:{len(password)}) {ctx}")
             return Response(
                 {"detail": "La contraseña debe tener al menos 8 caracteres."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -56,7 +72,9 @@ class TenantLoginView(APIView):
         # Solo permitir alphanumeric, guion y underscore para prevenir path traversal y XSS
         import re
         if not re.match(r'^[a-zA-Z0-9_-]+$', empresa):
-            logger.warning(f"Login attempt with invalid empresa format: {empresa[:20]}...")
+            # SECURITY FIX (MED-04): Logging mejorado con contexto
+            ctx = self._get_security_context(request, email=email)
+            logger.warning(f"SECURITY_EVENT: Invalid empresa format '{empresa[:20]}...' {ctx}")
             return Response({"detail": "Empresa invalida."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 🔍 Buscar tenant por slug
@@ -93,7 +111,9 @@ class TenantLoginView(APIView):
             )
 
             if attempt.failures_since_start >= failure_limit:
-                logger.warning(f"Login attempt for {email} BLOCKED by Django Axes ({attempt.failures_since_start} attempts)")
+                # SECURITY FIX (MED-04): Logging mejorado con contexto
+                ctx = self._get_security_context(request, email=email, tenant=tenant)
+                logger.warning(f"SECURITY_EVENT: BLOCKED by Django Axes (attempts:{attempt.failures_since_start}) {ctx}")
                 return Response({
                     'detail': 'Cuenta bloqueada por demasiados intentos de inicio de sesión. '
                               'Por favor, inténtelo de nuevo más tarde.'
@@ -123,14 +143,18 @@ class TenantLoginView(APIView):
             security_check = security_service.check_login_security(user, request)
 
             if security_check == 'BLOCK':
-                logger.warning(f"Login BLOCKED for {user.email} due to impossible travel")
+                # SECURITY FIX (MED-04): Logging mejorado con contexto
+                ctx = self._get_security_context(request, email=user.email, tenant=tenant)
+                logger.warning(f"SECURITY_EVENT: BLOCKED by impossible travel detection {ctx}")
                 return Response({
                     'detail': 'Login bloqueado por razones de seguridad. '
                               'Se ha enviado un email a tu cuenta con más información.'
                 }, status=status.HTTP_403_FORBIDDEN)
 
             elif security_check == 'REQUIRE_2FA':
-                logger.info(f"Login from unusual location for {user.email}, requiring additional verification")
+                # SECURITY FIX (MED-04): Logging mejorado con contexto
+                ctx = self._get_security_context(request, email=user.email, tenant=tenant)
+                logger.info(f"SECURITY_EVENT: Unusual location detected, requiring 2FA {ctx}")
                 return Response({
                     'detail': 'Se detectó un login desde una ubicación inusual. '
                               'Por seguridad, verifica tu email para continuar.',
@@ -138,7 +162,9 @@ class TenantLoginView(APIView):
                 }, status=status.HTTP_401_UNAUTHORIZED)
 
             # security_check == True: Login exitoso, continuar
-            logger.info(f"Successful login for {user.email}")
+            # SECURITY FIX (MED-04): Logging mejorado con contexto
+            ctx = self._get_security_context(request, email=user.email, tenant=tenant)
+            logger.info(f"SECURITY_EVENT: Successful login {ctx}")
 
         except Exception as e:
             # Si hay error en la verificación de ubicación, permitir login pero registrar el error
@@ -180,7 +206,9 @@ class TenantLoginView(APIView):
 
         # 🛡️ LOGIN EXITOSO - Resetear contador de Axes (eliminar intentos fallidos previos)
         AccessAttempt.objects.filter(username=user.email).delete()
-        logger.info(f"Django Axes: reset attempts for {user.email} after successful login")
+        # SECURITY FIX (MED-04): Logging mejorado con contexto
+        ctx = self._get_security_context(request, email=user.email, tenant=tenant)
+        logger.info(f"SECURITY_EVENT: Django Axes reset after successful login {ctx}")
 
         user_data = {
             "id": user.id,
@@ -251,4 +279,5 @@ class TenantLoginView(APIView):
             attempt.attempt_time = timezone.now()
             attempt.save()
 
-        logger.info(f"Django Axes: registered failed attempt #{attempt.failures_since_start} for {email} from {ip_address}")
+        # SECURITY FIX (MED-04): Logging mejorado con contexto
+        logger.warning(f"SECURITY_EVENT: Failed login attempt #{attempt.failures_since_start} [Email:{email}] [IP:{ip_address}] [UA:{user_agent[:50]}]")

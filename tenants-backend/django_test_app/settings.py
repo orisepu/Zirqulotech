@@ -323,6 +323,8 @@ CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", cast=Csv())
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# SECURITY FIX (MED-04): Logging mejorado para eventos de seguridad críticos
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -330,7 +332,18 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'stream': sys.stdout,
-            'formatter': 'simple',  
+            'formatter': 'verbose',
+        },
+        # Handler de archivo para logs de seguridad (solo producción)
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 10,
+            'formatter': 'security',
+            'level': 'WARNING',  # Solo eventos de seguridad importantes
+        } if ENVIRONMENT == 'production' else {
+            'class': 'logging.NullHandler',  # No usar en desarrollo
         },
     },
     'formatters': {
@@ -338,10 +351,21 @@ LOGGING = {
             'format': '[{levelname}] {message}',
             'style': '{',
         },
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        # Formatter específico para eventos de seguridad
+        'security': {
+            'format': '{asctime} [SECURITY-{levelname}] {name} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S %Z',
+        },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': 'INFO' if ENVIRONMENT == 'production' else 'DEBUG',
         'propagate': False,
     },
     'loggers': {
@@ -361,15 +385,28 @@ LOGGING = {
         },
         'checkouters': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'DEBUG' if ENVIRONMENT == 'development' else 'INFO',
             'propagate': False,
         },
         "b2c.contratos": {
             "handlers": ["console"],
             "level": "INFO"
         },
+        # SECURITY FIX (MED-04): Logger dedicado para eventos de seguridad
         'security': {
-            'handlers': ['console'],
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Logger para Django Axes (intentos de login fallidos)
+        'axes': {
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
+            'level': 'WARNING',  # Solo alertas y errores
+            'propagate': False,
+        },
+        # Logger para autenticación (login, logout, cambios de password)
+        'django_test_app.users': {
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
