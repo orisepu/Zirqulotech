@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "dev:legacy": "next dev",
+    "dev": "next dev --turbopack -H 0.0.0.0",
+    "dev:legacy": "next dev -H 0.0.0.0",
     "dev:viewports": "node scripts/test-viewports.mjs",
     "dev:screenshots": "node scripts/capture-screenshots.mjs",
     "build": "next build",

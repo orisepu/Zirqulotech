@@ -1,14 +1,31 @@
 /**
  * Configuración centralizada de URLs de entorno
  *
- * En desarrollo: Usa .env.local con NEXT_PUBLIC_API_URL=http://localhost:8000
+ * En desarrollo: Detecta automáticamente localhost o IP de red
  * En producción: Usa .env.production o default a https://zirqulotech.com
  */
+
+// Función helper para obtener la URL base del API en desarrollo
+function getDevApiUrl(): string {
+  if (typeof window === 'undefined') {
+    // En SSR, usar localhost por defecto
+    return 'http://localhost:8000';
+  }
+
+  // En el navegador, detectar si estamos en localhost o IP de red
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  } else {
+    // Si estamos en una IP de red, usar esa misma IP para el backend
+    return `http://${hostname}:8000`;
+  }
+}
 
 // API Base URL - Detecta automáticamente desarrollo vs producción
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : 'https://zirqulotech.com');
+  (process.env.NODE_ENV === 'development' ? getDevApiUrl() : 'https://zirqulotech.com');
 
 // WebSocket Base URL (sin protocolo ws:// o wss://)
 export const WS_BASE_HOST = process.env.NEXT_PUBLIC_WS_HOST ||
