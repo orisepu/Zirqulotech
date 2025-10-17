@@ -48,13 +48,53 @@ const STRENGTH_LEVELS: StrengthLevel[] = [
 
 const CRACK_TIME_LABELS: Record<string, string> = {
   'less than a second': 'menos de 1 segundo',
+  'second': 'segundo',
   'seconds': 'segundos',
+  'minute': 'minuto',
   'minutes': 'minutos',
+  'hour': 'hora',
   'hours': 'horas',
+  'day': 'día',
   'days': 'días',
+  'month': 'mes',
   'months': 'meses',
+  'year': 'año',
   'years': 'años',
+  'century': 'siglo',
   'centuries': 'siglos',
+};
+
+// Traducciones de warnings y sugerencias de zxcvbn
+const TRANSLATIONS: Record<string, string> = {
+  // Warnings
+  'Straight rows of keys are easy to guess': 'Las filas rectas de teclas son fáciles de adivinar',
+  'Short keyboard patterns are easy to guess': 'Los patrones de teclado cortos son fáciles de adivinar',
+  'Repeats like "aaa" are easy to guess': 'Las repeticiones como "aaa" son fáciles de adivinar',
+  'Repeats like "abcabcabc" are only slightly harder to guess than "abc"': 'Las repeticiones como "abcabcabc" son solo un poco más difíciles de adivinar que "abc"',
+  'Avoid repeated words and characters': 'Evita palabras y caracteres repetidos',
+  'Sequences like abc or 6543 are easy to guess': 'Las secuencias como abc o 6543 son fáciles de adivinar',
+  'Avoid sequences': 'Evita secuencias',
+  'Recent years are easy to guess': 'Los años recientes son fáciles de adivinar',
+  'Avoid recent years': 'Evita años recientes',
+  'Avoid years that are associated with you': 'Evita años asociados contigo',
+  'Dates are often easy to guess': 'Las fechas suelen ser fáciles de adivinar',
+  'Avoid dates and years that are associated with you': 'Evita fechas y años asociados contigo',
+  'This is a top-10 common password': 'Esta es una de las 10 contraseñas más comunes',
+  'This is a top-100 common password': 'Esta es una de las 100 contraseñas más comunes',
+  'This is a very common password': 'Esta es una contraseña muy común',
+  'This is similar to a commonly used password': 'Es similar a una contraseña comúnmente usada',
+  'A word by itself is easy to guess': 'Una palabra por sí sola es fácil de adivinar',
+  'Names and surnames by themselves are easy to guess': 'Los nombres y apellidos por sí solos son fáciles de adivinar',
+  'Common names and surnames are easy to guess': 'Los nombres y apellidos comunes son fáciles de adivinar',
+
+  // Suggestions
+  'Use a few words, avoid common phrases': 'Usa varias palabras, evita frases comunes',
+  'No need for symbols, digits, or uppercase letters': 'No necesitas símbolos, dígitos o mayúsculas',
+  'Add another word or two. Uncommon words are better.': 'Agrega una o dos palabras más. Palabras poco comunes son mejores.',
+  'Capitalization doesn\'t help very much': 'Las mayúsculas no ayudan mucho',
+  'All-uppercase is almost as easy to guess as all-lowercase': 'Todo en mayúsculas es casi tan fácil de adivinar como todo en minúsculas',
+  'Reversed words aren\'t much harder to guess': 'Las palabras invertidas no son mucho más difíciles de adivinar',
+  'Predictable substitutions like \'@\' instead of \'a\' don\'t help very much': 'Las sustituciones predecibles como \'@\' en lugar de \'a\' no ayudan mucho',
 };
 
 export default function PasswordStrengthIndicator({
@@ -93,11 +133,16 @@ export default function PasswordStrengthIndicator({
     // Traducir al español
     let translated = String(display);
     Object.entries(CRACK_TIME_LABELS).forEach(([en, es]) => {
-      translated = translated.replace(en, es);
+      translated = translated.replace(new RegExp(en, 'gi'), es);
     });
 
     return translated;
   }, [result]);
+
+  // Función para traducir texto de zxcvbn
+  const translate = (text: string): string => {
+    return TRANSLATIONS[text] || text;
+  };
 
   // No mostrar nada si no hay contraseña
   if (!password || password.length === 0) {
@@ -148,7 +193,7 @@ export default function PasswordStrengthIndicator({
       {/* Warnings (patrones comunes) */}
       {result?.feedback.warning && (
         <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
-          ⚠️ {result.feedback.warning}
+          ⚠️ {translate(result.feedback.warning)}
         </Typography>
       )}
 
@@ -162,7 +207,7 @@ export default function PasswordStrengthIndicator({
               color="info.main"
               sx={{ display: 'block', mt: 0.25 }}
             >
-              💡 {suggestion}
+              💡 {translate(suggestion)}
             </Typography>
           ))}
         </Box>
