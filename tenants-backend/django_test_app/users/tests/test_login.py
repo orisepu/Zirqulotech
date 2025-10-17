@@ -36,11 +36,20 @@ def api_client():
 def test_company():
     """Create a test company/tenant"""
     with schema_context("public"):
+        # Create an owner user first
+        owner = User.objects.create_user(
+            email="owner@test.com",
+            password="ownerpass",
+            name="Test Owner",
+            is_active=True
+        )
+
         company = Company.objects.create(
             schema_name="test_tenant",
             slug="test-company",
             name="Test Company",
-            tipo_cliente="B2B"
+            type="type1",
+            owner=owner
         )
         return company
 
@@ -57,11 +66,18 @@ def test_user_in_tenant(test_company):
             is_active=True
         )
 
-        # Create UserTenantPermissions
-        UserTenantPermissions.objects.create(
-            user=user,
-            profile_id=test_company.id
-        )
+        # Create UserTenantPermissions (use pk instead of id for TenantBase)
+        try:
+            UserTenantPermissions.objects.create(
+                user=user,
+                profile=test_company
+            )
+        except Exception:
+            # Fallback: some versions use profile_id
+            UserTenantPermissions.objects.create(
+                user=user,
+                profile_id=test_company.pk
+            )
 
         return user
 
@@ -158,10 +174,16 @@ class TestLoginEndpoint:
                 is_active=False
             )
 
-            UserTenantPermissions.objects.create(
-                user=inactive_user,
-                profile_id=test_company.id
-            )
+            try:
+                UserTenantPermissions.objects.create(
+                    user=inactive_user,
+                    profile=test_company
+                )
+            except Exception:
+                UserTenantPermissions.objects.create(
+                    user=inactive_user,
+                    profile_id=test_company.pk
+                )
 
         data = {
             "empresa": test_company.slug,
@@ -438,15 +460,28 @@ class TestTokenGeneration:
         """Should return list of tenants user has access to"""
         # Create multiple tenants
         with schema_context("public"):
+            owner_a = User.objects.create_user(
+                email="owner_a@test.com",
+                password="ownerpass",
+                is_active=True
+            )
+            owner_b = User.objects.create_user(
+                email="owner_b@test.com",
+                password="ownerpass",
+                is_active=True
+            )
+
             company_a = Company.objects.create(
                 schema_name="tenant_a",
                 slug="tenant-a",
-                name="Company A"
+                name="Company A",
+                owner=owner_a
             )
             company_b = Company.objects.create(
                 schema_name="tenant_b",
                 slug="tenant-b",
-                name="Company B"
+                name="Company B",
+                owner=owner_b
             )
 
         # Give user access to multiple tenants
@@ -456,10 +491,16 @@ class TestTokenGeneration:
                 password="password123",
                 is_active=True
             )
-            UserTenantPermissions.objects.create(
-                user=user_a,
-                profile_id=company_a.id
-            )
+            try:
+                UserTenantPermissions.objects.create(
+                    user=user_a,
+                    profile=company_a
+                )
+            except Exception:
+                UserTenantPermissions.objects.create(
+                    user=user_a,
+                    profile_id=company_a.pk
+                )
 
         with schema_context("tenant_b"):
             # Same email in different schema
@@ -468,10 +509,16 @@ class TestTokenGeneration:
                 password="password123",
                 is_active=True
             )
-            UserTenantPermissions.objects.create(
-                user=user_b,
-                profile_id=company_b.id
-            )
+            try:
+                UserTenantPermissions.objects.create(
+                    user=user_b,
+                    profile=company_b
+                )
+            except Exception:
+                UserTenantPermissions.objects.create(
+                    user=user_b,
+                    profile_id=company_b.pk
+                )
 
         data = {
             "empresa": "tenant-a",

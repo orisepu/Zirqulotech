@@ -512,7 +512,6 @@ Device condition assessment with:
   - Comprehensive mock infrastructure for isolated testing
 
 ### Authentication & Security Enhancements
-- **Hardcoded Schema Resolution**: Identified and documented authentication flow issue where "progeek" company logins are forced to "public" schema instead of proper tenant resolution (src/services/api.ts:69)
 - **Error Handling**: Improved error boundary patterns and user feedback mechanisms
 - **Token Refresh**: Robust JWT token refresh mechanism with automatic retry logic
 
