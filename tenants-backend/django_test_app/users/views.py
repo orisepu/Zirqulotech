@@ -10,11 +10,14 @@ from checkouters.models.tienda import UserTenantExtension
 from progeek.models import UserGlobalRole
 from security.services import LocationSecurityService
 from axes.models import AccessAttempt
+from django_test_app.throttling import LoginRateThrottle  # SECURITY FIX (MED-01)
 import logging
 
 logger = logging.getLogger(__name__)
 
 class TenantLoginView(APIView):
+    # SECURITY FIX (MED-01): Rate limiting en login - 5 intentos/minuto
+    throttle_classes = [LoginRateThrottle]
     def post(self, request):
         empresa = request.data.get("empresa")
         email = request.data.get("email")

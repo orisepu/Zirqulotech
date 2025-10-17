@@ -32,7 +32,13 @@ EQUIVALENCIAS_CSV = config("EQUIVALENCIAS_CSV", default="/srv/checkouters/Partne
 SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
+# SECURITY FIX (HIGH-01): Doble verificación - detectar automáticamente producción
+ENVIRONMENT = config("ENVIRONMENT", default="production")
 DEBUG = config("DEBUG", default=False, cast=bool)
+
+# SECURITY FIX (HIGH-01): Forzar DEBUG=False en producción incluso si está mal configurado
+if ENVIRONMENT == "production":
+    DEBUG = False  # Nunca permitir DEBUG=True en producción
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv())
 
@@ -132,6 +138,17 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    # SECURITY FIX (MED-01): Rate Limiting Global con DRF throttling
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': config('THROTTLE_RATE_ANON', default='100/hour'),  # Usuarios anónimos: 100 req/hora
+        'user': config('THROTTLE_RATE_USER', default='1000/hour'),  # Usuarios autenticados: 1000 req/hora
+        'login': config('THROTTLE_RATE_LOGIN', default='5/minute'),  # Login: 5 intentos/minuto
+        'sensitive': config('THROTTLE_RATE_SENSITIVE', default='10/minute'),  # Endpoints sensibles
+    },
 }
 CHANNEL_LAYERS = {
     "default": {
@@ -238,10 +255,68 @@ MAPPING_V2_PERCENTAGE = config("MAPPING_V2_PERCENTAGE", default=100, cast=int)
 MAPPING_V2_DEVICE_TYPES = config("MAPPING_V2_DEVICE_TYPES", default="mac,iphone,ipad", cast=Csv())
 COMPARE_MAPPING_VERSIONS = config("COMPARE_MAPPING_VERSIONS", default=True, cast=bool)
 
-# Security Configuration
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
-SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
-CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
+# ========================================
+# SECURITY: Production-only settings
+# ========================================
+
+# SECURITY FIX (HIGH-02): Forzar cookies seguras en producción
+# En desarrollo, estas pueden ser configurables desde .env
+# En producción, SIEMPRE deben ser True independientemente de .env
+if ENVIRONMENT == "production":
+    # Forzar HTTPS
+    SECURE_SSL_REDIRECT = True
+
+    # Forzar cookies seguras (solo se envían por HTTPS)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # SameSite para protección adicional contra CSRF
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = "Lax"
+
+    # HTTPOnly para prevenir acceso desde JavaScript
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # Debe ser False para que frontend pueda leer el token
+
+    # SECURITY FIX (HIGH-03): Security Headers en producción
+    # ========================================
+
+    # HSTS (HTTP Strict Transport Security)
+    # Fuerza navegadores a usar HTTPS durante 1 año
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # X-Content-Type-Options: nosniff
+    # Previene MIME type sniffing
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    # X-Frame-Options: DENY
+    # Previene clickjacking
+    X_FRAME_OPTIONS = "DENY"
+
+    # Secure Referrer Policy
+    # Controla qué información de referrer se envía
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+    # Secure Browser XSS Filter
+    SECURE_BROWSER_XSS_FILTER = True
+
+else:
+    # Desarrollo: Usar configuración de .env
+    SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+    SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
+    CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
+    SESSION_COOKIE_SAMESITE = config("SESSION_COOKIE_SAMESITE", default="Lax")
+    CSRF_COOKIE_SAMESITE = config("CSRF_COOKIE_SAMESITE", default="Lax")
+
+    # En desarrollo, security headers más relajados
+    SECURE_HSTS_SECONDS = 0  # No forzar HSTS en desarrollo
+    SECURE_CONTENT_TYPE_NOSNIFF = True  # Mantener incluso en desarrollo
+    X_FRAME_OPTIONS = "SAMEORIGIN"  # Permitir iframes de mismo origen en desarrollo
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    SECURE_BROWSER_XSS_FILTER = True
+
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", cast=Csv())
 
 # Default primary key field type
