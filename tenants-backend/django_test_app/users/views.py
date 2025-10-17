@@ -20,8 +20,26 @@ class TenantLoginView(APIView):
         email = request.data.get("email")
         password = request.data.get("password")
 
+        # SECURITY FIX (CRIT-03): Validacion de campos obligatorios
         if not email or not password:
             return Response({"detail": "Faltan datos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # SECURITY FIX (CRIT-03): Validacion de formato de email
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+        try:
+            validate_email(email)
+        except ValidationError:
+            logger.warning(f"Login attempt with invalid email format: {email[:20]}...")
+            return Response({"detail": "Email invalido."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # SECURITY FIX (CRIT-03): Validacion de longitud minima de contraseña (OWASP ASVS 2.1.1)
+        if len(password) < 8:
+            logger.warning(f"Login attempt with short password for email: {email}")
+            return Response(
+                {"detail": "La contraseña debe tener al menos 8 caracteres."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # ✅ Login como usuario interno si empresa == 'zirqulotech''
         if empresa and empresa.lower() == "zirqulotech":
@@ -30,6 +48,13 @@ class TenantLoginView(APIView):
 
         if not empresa:
             return Response({"detail": "Falta el campo empresa."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # SECURITY FIX (CRIT-03): Validacion de formato de empresa (slug)
+        # Solo permitir alphanumeric, guion y underscore para prevenir path traversal y XSS
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', empresa):
+            logger.warning(f"Login attempt with invalid empresa format: {empresa[:20]}...")
+            return Response({"detail": "Empresa invalida."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 🔍 Buscar tenant por slug
         try:

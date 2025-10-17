@@ -52,8 +52,9 @@ export default function LoginForm() {
   // Validación simple
   const isValid = useMemo(() => {
     const okEmpresa = empresa.trim().length > 0;
-    const okEmail = /\S+@\S+\.\S+/.test(email);
-    const okPass = password.length >= 4; // mínimo 8 caracteres
+    // SECURITY FIX (CRIT-02): RFC 5322 simplified regex - rechaza XSS/SQLi payloads
+    const okEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
+    const okPass = password.length >= 8; // SECURITY FIX (CRIT-01): Forzar mínimo 8 caracteres (OWASP ASVS 2.1.1)
     return okEmpresa && okEmail && okPass;
   }, [empresa, email, password]);
 
