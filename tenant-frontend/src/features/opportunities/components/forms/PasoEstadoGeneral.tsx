@@ -65,46 +65,62 @@ export default function PasoEstadoGeneral({
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+      <Typography
+        variant="h6"
+        gutterBottom
+        sx={{ mb: 2 }}
+        id="estado-general-heading"
+      >
         Estado general del dispositivo
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Seleccione el estado que mejor describe la condición actual del dispositivo
+        Seleccione el estado que mejor describe la condición actual del dispositivo.
+        Use las teclas Tab para navegar entre opciones, Espacio o Enter para seleccionar.
       </Typography>
 
-      <Grid container spacing={2}>
+      <Grid
+        container
+        spacing={2}
+        role="radiogroup"
+        aria-labelledby="estado-general-heading"
+      >
         {estadoOptions.map((option) => {
           const isSelected = estadoGeneral === option.value
 
           return (
             <Grid key={option.value} size={{ xs: 12, md: 4 }}>
               <Card
-                role="button"
+                role="radio"
                 tabIndex={0}
-                aria-selected={isSelected}
+                aria-checked={isSelected}
+                aria-label={`${option.label}: ${option.description}. Valoración al ${option.percentage}% del precio base.${isSelected ? ' Actualmente seleccionado.' : ''}`}
                 onClick={() => handleCardClick(option.value)}
                 onKeyDown={(e) => handleKeyDown(e, option.value)}
-                className={isSelected ? 'selected' : ''}
                 sx={{
                   cursor: 'pointer',
                   position: 'relative',
                   border: isSelected ? `3px solid ${option.color}` : '2px solid #e0e0e0',
                   backgroundColor: isSelected ? option.bgColor : '#ffffff',
                   transition: 'all 0.3s ease',
-                  '&:hover': {
+                  '&:hover:not(:focus)': {
                     borderColor: option.color,
                     backgroundColor: option.bgColor,
                     transform: 'translateY(-4px)',
                     boxShadow: `0 4px 12px ${option.color}40`,
                   },
                   '&:focus': {
-                    outline: `2px solid ${option.color}`,
-                    outlineOffset: '2px',
+                    outline: `3px solid ${option.color}`,
+                    outlineOffset: '4px',
+                    boxShadow: `0 0 0 6px rgba(0, 0, 0, 0.12)`,
+                  },
+                  '&:focus:not(:focus-visible)': {
+                    outline: 'none',
+                    boxShadow: 'none',
                   },
                 }}
               >
                 <CardContent>
-                  {/* Checkmark icon para card seleccionada */}
+                  {/* Checkmark icon para card seleccionada - decorativo */}
                   {isSelected && (
                     <Box
                       sx={{
@@ -112,6 +128,7 @@ export default function PasoEstadoGeneral({
                         top: 12,
                         right: 12,
                       }}
+                      aria-hidden="true"
                     >
                       <CheckCircle sx={{ color: option.color, fontSize: 28 }} />
                     </Box>
@@ -125,6 +142,7 @@ export default function PasoEstadoGeneral({
                       fontWeight: isSelected ? 700 : 600,
                       mb: 1,
                     }}
+                    aria-hidden="true"
                   >
                     {option.label}
                   </Typography>
@@ -137,6 +155,7 @@ export default function PasoEstadoGeneral({
                       fontWeight: 700,
                       mb: 1,
                     }}
+                    aria-hidden="true"
                   >
                     {option.percentage}%
                   </Typography>
@@ -146,6 +165,7 @@ export default function PasoEstadoGeneral({
                     variant="body2"
                     color="text.secondary"
                     sx={{ minHeight: '40px' }}
+                    aria-hidden="true"
                   >
                     {option.description}
                   </Typography>

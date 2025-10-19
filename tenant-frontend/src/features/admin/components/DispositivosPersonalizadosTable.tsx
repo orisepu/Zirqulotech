@@ -168,39 +168,69 @@ export default function DispositivosPersonalizadosTable({
     }).format(price)
   }
 
-  // Loading state
+  // Loading state - ACCESIBILIDAD MEJORADA
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress role="progressbar" />
+      <Box
+        sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}
+        role="status"
+        aria-live="polite"
+      >
+        <CircularProgress aria-label="Cargando dispositivos personalizados" />
+        <Typography sx={{ mt: 2, position: 'absolute', left: '-10000px' }}>
+          Cargando dispositivos personalizados. Por favor, espere.
+        </Typography>
       </Box>
     )
   }
 
-  // Error state
+  // Error state - ACCESIBILIDAD MEJORADA
   if (isError) {
     return (
-      <Alert severity="error">
-        Error al cargar dispositivos personalizados. Por favor, intenta de nuevo.
+      <Alert
+        severity="error"
+        role="alert"
+        aria-live="assertive"
+      >
+        <strong>Error al cargar dispositivos personalizados.</strong>
+        <br />
+        Verifique su conexión a internet e intente recargar la página (presione F5).
+        Si el problema persiste, contacte con soporte técnico.
       </Alert>
     )
   }
 
   return (
     <Box>
-      {/* Toolbar */}
+      {/* Toolbar - ACCESIBILIDAD MEJORADA */}
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={onCreate}
+          disabled={!onCreate}
+          sx={{ order: { xs: -1, md: 2 } }}
+        >
+          Crear dispositivo
+        </Button>
+
         <TextField
-          placeholder="Buscar dispositivos..."
+          label="Buscar dispositivos"
+          placeholder="Buscar por marca, modelo o descripción"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           size="small"
-          sx={{ minWidth: 250 }}
+          sx={{ minWidth: 250, order: 1 }}
+          inputProps={{
+            'aria-label': 'Campo de búsqueda de dispositivos',
+          }}
         />
 
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Filtrar por tipo</InputLabel>
+        <FormControl size="small" sx={{ minWidth: 150, order: 1 }}>
+          <InputLabel id="tipo-filter-label">Filtrar por tipo</InputLabel>
           <Select
+            labelId="tipo-filter-label"
+            id="tipo-filter"
             value={tipoFilter}
             onChange={(e) => setTipoFilter(e.target.value)}
             label="Filtrar por tipo"
@@ -214,9 +244,11 @@ export default function DispositivosPersonalizadosTable({
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Filtrar por estado</InputLabel>
+        <FormControl size="small" sx={{ minWidth: 150, order: 1 }}>
+          <InputLabel id="estado-filter-label">Filtrar por estado</InputLabel>
           <Select
+            labelId="estado-filter-label"
+            id="estado-filter"
             value={estadoFilter}
             onChange={(e) => setEstadoFilter(e.target.value)}
             label="Filtrar por estado"
@@ -226,22 +258,11 @@ export default function DispositivosPersonalizadosTable({
             <MenuItem value="inactivo">Inactivos</MenuItem>
           </Select>
         </FormControl>
-
-        <Box sx={{ flexGrow: 1 }} />
-
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={onCreate}
-          disabled={!onCreate}
-        >
-          Crear dispositivo
-        </Button>
       </Box>
 
-      {/* Table */}
+      {/* Table - ACCESIBILIDAD MEJORADA */}
       {filteredAndSortedData.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
+        <Paper sx={{ p: 4, textAlign: 'center' }} role="status">
           <Typography color="text.secondary">
             No hay dispositivos personalizados que mostrar
           </Typography>
@@ -249,33 +270,53 @@ export default function DispositivosPersonalizadosTable({
       ) : (
         <>
           <TableContainer component={Paper}>
-            <Table>
+            <Table aria-label="Tabla de dispositivos personalizados">
+              <caption style={{ position: 'absolute', left: '-10000px' }}>
+                Tabla de dispositivos personalizados con {filteredAndSortedData.length} resultados.
+                {filteredAndSortedData.length > rowsPerPage &&
+                  ` Mostrando página ${page + 1} de ${Math.ceil(filteredAndSortedData.length / rowsPerPage)}.`
+                }
+              </caption>
               <TableHead>
                 <TableRow>
-                  <TableCell>
+                  <TableCell scope="col">
                     <TableSortLabel
                       active={orderBy === 'marca'}
                       direction={orderBy === 'marca' ? orderDirection : 'asc'}
                       onClick={() => handleSort('marca')}
+                      sx={{
+                        '&:focus-visible': {
+                          outline: '2px solid #1976d2',
+                          outlineOffset: '2px',
+                          borderRadius: '4px',
+                        }
+                      }}
                     >
                       Marca
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell>
+                  <TableCell scope="col">
                     <TableSortLabel
                       active={orderBy === 'modelo'}
                       direction={orderBy === 'modelo' ? orderDirection : 'asc'}
                       onClick={() => handleSort('modelo')}
+                      sx={{
+                        '&:focus-visible': {
+                          outline: '2px solid #1976d2',
+                          outlineOffset: '2px',
+                          borderRadius: '4px',
+                        }
+                      }}
                     >
                       Modelo
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell>Tipo</TableCell>
-                  <TableCell align="right">Precio B2B</TableCell>
-                  <TableCell align="right">Precio B2C</TableCell>
-                  <TableCell>Ajustes (%)</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell align="center">Acciones</TableCell>
+                  <TableCell scope="col">Tipo</TableCell>
+                  <TableCell scope="col" align="right">Precio B2B</TableCell>
+                  <TableCell scope="col" align="right">Precio B2C</TableCell>
+                  <TableCell scope="col">Ajustes (%)</TableCell>
+                  <TableCell scope="col">Estado</TableCell>
+                  <TableCell scope="col" align="center">Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -320,7 +361,13 @@ export default function DispositivosPersonalizadosTable({
                         size="small"
                         onClick={() => onEdit?.(dispositivo)}
                         disabled={!onEdit}
-                        aria-label="Editar"
+                        aria-label={`Editar ${dispositivo.descripcion_completa}`}
+                        sx={{
+                          '&:focus-visible': {
+                            outline: '2px solid #1976d2',
+                            outlineOffset: '2px',
+                          }
+                        }}
                       >
                         <Edit fontSize="small" />
                       </IconButton>
@@ -328,7 +375,13 @@ export default function DispositivosPersonalizadosTable({
                         size="small"
                         onClick={() => handleDeleteClick(dispositivo)}
                         color="error"
-                        aria-label="Eliminar"
+                        aria-label={`Eliminar ${dispositivo.descripcion_completa}`}
+                        sx={{
+                          '&:focus-visible': {
+                            outline: '2px solid #d32f2f',
+                            outlineOffset: '2px',
+                          }
+                        }}
                       >
                         <Delete fontSize="small" />
                       </IconButton>
@@ -353,15 +406,23 @@ export default function DispositivosPersonalizadosTable({
             labelDisplayedRows={({ from, to, count }) =>
               `${from}-${to} de ${count}`
             }
+            aria-label="Paginación de la tabla de dispositivos"
           />
         </>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel}>
-        <DialogTitle>Confirmar eliminación</DialogTitle>
+      {/* Delete Confirmation Dialog - ACCESIBILIDAD MEJORADA */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Confirmar eliminación
+        </DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography id="delete-dialog-description">
             ¿Estás seguro de que deseas eliminar el dispositivo{' '}
             <strong>{deviceToDelete?.descripcion_completa}</strong>?
           </Typography>
@@ -370,7 +431,9 @@ export default function DispositivosPersonalizadosTable({
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteCancel}>Cancelar</Button>
+          <Button onClick={handleDeleteCancel} autoFocus>
+            Cancelar
+          </Button>
           <Button
             onClick={handleDeleteConfirm}
             color="error"
