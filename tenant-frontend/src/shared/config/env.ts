@@ -3,11 +3,11 @@
  */
 
 // API Base URL
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://zirqulotech.com";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // WebSocket Base URL (sin protocolo ws:// o wss://)
 export const WS_BASE_HOST = process.env.NEXT_PUBLIC_WS_HOST ||
-  (typeof window !== "undefined" ? window.location.host : "zirqulotech.com");
+  (typeof window !== "undefined" ? window.location.host : "localhost");
 
 /**
  * Obtiene la URL completa del WebSocket con el protocolo correcto
@@ -25,4 +25,4 @@ export function getWebSocketUrl(path: string): string {
  * URL base pública para enlaces externos (sin /api)
  */
 export const PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ||
-  (typeof window !== "undefined" ? window.location.origin : "https://progeek.es");
+  (typeof window !== "undefined" ? window.location.origin : "http://localhost");
