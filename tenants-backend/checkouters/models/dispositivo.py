@@ -139,8 +139,9 @@ class DispositivoReal(models.Model):
     )
 
     # Dispositivos personalizados (no-Apple): cualquier marca
+    # IMPORTANTE: Este modelo ahora está en productos (SHARED_APPS) para ser compartido entre tenants
     dispositivo_personalizado = models.ForeignKey(
-        'DispositivoPersonalizado',
+        'productos.DispositivoPersonalizado',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

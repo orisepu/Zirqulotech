@@ -1,11 +1,13 @@
 from rest_framework import serializers
 from ..models.dispositivo import Dispositivo, DispositivoReal
 from ..models.oportunidad import Oportunidad
-from ..models import DispositivoPersonalizado
+# IMPORTANTE: DispositivoPersonalizado ahora está en productos (SHARED_APPS)
+from productos.models import DispositivoPersonalizado
 
 from productos.models.modelos import Modelo, Capacidad
 from .producto import ModeloSerializer, CapacidadSerializer
-from .dispositivo_personalizado import DispositivoPersonalizadoSimpleSerializer
+# IMPORTANTE: DispositivoPersonalizadoSimpleSerializer ahora está en productos.serializers
+from productos.serializers import DispositivoPersonalizadoSimpleSerializer
 from decimal import Decimal
 from collections import OrderedDict
 from .utils import PKOrUUIDRelatedField
