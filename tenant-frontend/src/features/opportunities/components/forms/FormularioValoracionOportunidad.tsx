@@ -27,6 +27,8 @@ import {
   buildIMacCatalog,
 } from './catalogos-mac'
 import { STEPS, FormStep, ValoracionDerivada, CatalogoValoracion, FuncPantallaValue, EsteticaKey, EsteticaPantallaKey } from './tipos'
+import type { DispositivoPersonalizadoSimple, EstadoGeneral } from '@/shared/types/dispositivos'
+import PasoEstadoGeneral from './PasoEstadoGeneral'
 import { Stepper, Step, StepLabel, Box } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import BoltIcon from '@mui/icons-material/Bolt'
@@ -100,6 +102,11 @@ export default function FormularioValoracionOportunidad({
   const [estadoPantalla, setEstadoPantalla] = useState<'' | EsteticaPantallaKey>('')
   const [estadoLados, setEstadoLados] = useState<'' | EsteticaKey>('')
   const [estadoEspalda, setEstadoEspalda] = useState<'' | EsteticaKey>('')
+
+  // Estados para dispositivos personalizados (no-Apple)
+  const [esDispositivoPersonalizado, setEsDispositivoPersonalizado] = useState<boolean>(false)
+  const [dispositivoPersonalizado, setDispositivoPersonalizado] = useState<DispositivoPersonalizadoSimple | null>(null)
+  const [estadoGeneral, setEstadoGeneral] = useState<EstadoGeneral | ''>('')
 
   const [demoOpen, setDemoOpen] = useState(false)
   const [demo, setDemo] = useState<{ src: string; title: string } | null>(null)
@@ -286,6 +293,27 @@ export default function FormularioValoracionOportunidad({
     })
   }, [])
 
+  // Handlers para dispositivos personalizados
+  const handleToggleDispositivoPersonalizado = useCallback((value: boolean) => {
+    setEsDispositivoPersonalizado(value)
+    if (value) {
+      // Limpiar campos de catálogo Apple
+      setMarca('')
+      setTipo('')
+      setModelo('')
+      setModeloInicial(null)
+      setCapacidad('')
+    } else {
+      // Limpiar campos de dispositivo personalizado
+      setDispositivoPersonalizado(null)
+      setEstadoGeneral('')
+    }
+  }, [])
+
+  const handleDispositivoPersonalizadoChange = useCallback((device: DispositivoPersonalizadoSimple | null) => {
+    setDispositivoPersonalizado(device)
+  }, [])
+
   const modelosArr = useMemo<ModeloObj[]>(() => {
     const raw: unknown[] = Array.isArray(modelos)
       ? (modelos as unknown[])
@@ -420,6 +448,12 @@ export default function FormularioValoracionOportunidad({
 
   // Pasos visibles dinámicos
   const visibleSteps: FormStep[] = useMemo(() => {
+    // Flujo simplificado para dispositivos personalizados (no-Apple)
+    if (esDispositivoPersonalizado) {
+      return ['Datos básicos', 'Estado General', 'Valoración']
+    }
+
+    // Flujo estándar para catálogo Apple
     if (saltarsePreguntas) {
       return ['Datos básicos', 'Valoración']
     }
@@ -430,7 +464,7 @@ export default function FormularioValoracionOportunidad({
     })
     // Si solo queda un paso (p.ej. valoraciones simplificadas), duplicamos para mantener layout sin stepper
     return filtered.length >= 2 ? filtered : ['Datos básicos', 'Valoración']
-  }, [hasScreen, hasBattery, saltarsePreguntas])
+  }, [hasScreen, hasBattery, saltarsePreguntas, esDispositivoPersonalizado])
 
   const ocultarStepper =
     visibleSteps.length === 2 &&
@@ -612,7 +646,15 @@ export default function FormularioValoracionOportunidad({
   const puedeAvanzarStrict = () => {
     switch (current) {
       case 'Datos básicos':
+        if (esDispositivoPersonalizado) {
+          // Para dispositivos personalizados: requiere dispositivo seleccionado
+          return !!dispositivoPersonalizado && (!item ? Number(cantidad) > 0 : true)
+        }
+        // Para catálogo Apple: requiere marca, tipo, modelo, capacidad
         return !!marca && !!tipo && !!modelo && !!capacidad && (!item ? Number(cantidad) > 0 : true)
+      case 'Estado General':
+        // Paso exclusivo para dispositivos personalizados
+        return !!estadoGeneral
       case 'Batería':
         // iPhone/iPad: obligamos a responder encendido/carga; otros: libre
         return !esComercial || (enciende !== null && cargaOk !== null)
@@ -642,7 +684,12 @@ export default function FormularioValoracionOportunidad({
     if (puedeAvanzar()) return null
     switch (current) {
       case 'Datos básicos':
+        if (esDispositivoPersonalizado) {
+          return 'Selecciona un dispositivo personalizado.'
+        }
         return 'Selecciona marca, tipo, modelo y capacidad.'
+      case 'Estado General':
+        return 'Selecciona el estado general del dispositivo (Excelente, Bueno o Malo).'
       case 'Batería':
         return 'Indica si enciende y si carga por cable.'
       case 'Funcionalidad':
@@ -1002,12 +1049,13 @@ export default function FormularioValoracionOportunidad({
               {visibleSteps.map((label) => {
                 const icon =
                   label === 'Datos básicos' ? <SmartphoneIcon /> :
-                    label === 'Batería' ? <BoltIcon /> :
-                      label === 'Funcionalidad' ? <PsychologyIcon /> :
-                        label === 'Pantalla (funcional)' ? <ScreenshotMonitorIcon /> :
-                          label === 'Estética pantalla' ? <BrushIcon /> :
-                            label === 'Estética laterales/trasera' ? <DevicesIcon /> :
-                              /* Valoración */ <EuroIcon />
+                    label === 'Estado General' ? <PsychologyIcon /> :
+                      label === 'Batería' ? <BoltIcon /> :
+                        label === 'Funcionalidad' ? <PsychologyIcon /> :
+                          label === 'Pantalla (funcional)' ? <ScreenshotMonitorIcon /> :
+                            label === 'Estética pantalla' ? <BrushIcon /> :
+                              label === 'Estética laterales/trasera' ? <DevicesIcon /> :
+                                /* Valoración */ <EuroIcon />
                 return (
                   <Step key={label}><StepLabel icon={icon}>{label}</StepLabel></Step>
                 )
@@ -1033,6 +1081,13 @@ export default function FormularioValoracionOportunidad({
             capacidad={capacidad} setCapacidad={setCapacidad}
             cantidad={cantidad} setCantidad={setCantidad}
             isB2C={tipoCliente === 'B2C' || modoCompleto}
+            esDispositivoPersonalizado={esDispositivoPersonalizado}
+            onToggleDispositivoPersonalizado={handleToggleDispositivoPersonalizado}
+            dispositivoPersonalizado={dispositivoPersonalizado}
+            onDispositivoPersonalizadoChange={handleDispositivoPersonalizadoChange}
+            onCrearPersonalizado={() => {
+              toast.info('Funcionalidad de crear dispositivo personalizado disponible en panel de administración')
+            }}
           />
         )}
 
@@ -1107,6 +1162,14 @@ export default function FormularioValoracionOportunidad({
             estadoEspalda={estadoEspalda} setEstadoEspalda={setEstadoEspalda}
             openDemo={openDemo}
             mode="body"
+          />
+        )}
+
+        {/* Paso exclusivo para dispositivos personalizados */}
+        {current === 'Estado General' && esDispositivoPersonalizado && (
+          <PasoEstadoGeneral
+            estadoGeneral={estadoGeneral}
+            onEstadoGeneralChange={setEstadoGeneral}
           />
         )}
 
