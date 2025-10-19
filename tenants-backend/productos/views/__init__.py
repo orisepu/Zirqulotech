@@ -36,6 +36,8 @@ from .actualizador import (
 )
 from .valoraciones import IphoneComercialValoracionView, IphoneAuditoriaValoracionView
 from .valoraciones_genericas import ValoracionComercialGenericaView, ValoracionAuditoriaGenericaView
+from .dispositivo_personalizado import DispositivoPersonalizadoViewSet
+
 __all__ = [
    "CapacidadAdminListView",
    "tipos_modelo",
@@ -78,4 +80,5 @@ __all__ = [
    "ValidarMapeoLikewizeView",
    "CorregirMapeoLikewizeView",
    "ValidationItemsLikewizeView",
+   "DispositivoPersonalizadoViewSet",
 ]

@@ -17,6 +17,11 @@ from .valoraciones import (
     ComercialIMacInputSerializer,
     ComercialMacProInputSerializer,
 )
+from .dispositivo_personalizado import (
+    DispositivoPersonalizadoSerializer,
+    DispositivoPersonalizadoSimpleSerializer,
+)
+
 __all__ = [
    "ModeloMiniSerializer",
    "ModeloCreateSerializer",
@@ -35,4 +40,6 @@ __all__ = [
    "ComercialMacBookInputSerializer",
    "ComercialIMacInputSerializer",
    "ComercialMacProInputSerializer",
+   "DispositivoPersonalizadoSerializer",
+   "DispositivoPersonalizadoSimpleSerializer",
 ]
