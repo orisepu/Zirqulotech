@@ -603,3 +603,203 @@ def test_serializer_descripcion_completa():
     response = client.get(f"/api/dispositivos-personalizados/{dispositivo.id}/")
     assert response.status_code == 200
     assert response.data["descripcion_completa"] == "Dell XPS 15 1TB SSD"
+
+
+# ===== TESTS PARA INTEGRACIÓN CON DispositivoReal =====
+
+@pytest.mark.django_db
+def test_dispositivo_real_con_dispositivo_personalizado():
+    """Test crear DispositivoReal con dispositivo_personalizado en lugar de modelo/capacidad"""
+    from checkouters.models import DispositivoPersonalizado, DispositivoReal, Oportunidad, Cliente
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    # Crear cliente y oportunidad
+    cliente = Cliente.objects.create(
+        nombre="Test Cliente",
+        tipo_cliente="empresa",
+        canal="B2B"
+    )
+    oportunidad = Oportunidad.objects.create(
+        cliente=cliente,
+        estado="pendiente"
+    )
+
+    # Crear dispositivo personalizado
+    dispositivo_pers = DispositivoPersonalizado.objects.create(
+        marca="Samsung",
+        modelo="Galaxy S23",
+        tipo="movil",
+        precio_base_b2b=Decimal("450.00"),
+        precio_base_b2c=Decimal("500.00"),
+    )
+
+    # Crear DispositivoReal con dispositivo_personalizado
+    dispositivo_real = DispositivoReal.objects.create(
+        oportunidad=oportunidad,
+        dispositivo_personalizado=dispositivo_pers,
+        precio_final=Decimal("360.00"),
+        recibido=True
+    )
+
+    assert dispositivo_real.dispositivo_personalizado == dispositivo_pers
+    assert dispositivo_real.modelo is None
+    assert dispositivo_real.capacidad is None
+
+
+@pytest.mark.django_db
+def test_dispositivo_real_validacion_debe_tener_uno():
+    """Test que DispositivoReal debe tener O bien (modelo+capacidad) O bien dispositivo_personalizado"""
+    from checkouters.models import DispositivoReal, Oportunidad, Cliente
+    from django.core.exceptions import ValidationError
+
+    cliente = Cliente.objects.create(
+        nombre="Test Cliente",
+        tipo_cliente="empresa"
+    )
+    oportunidad = Oportunidad.objects.create(
+        cliente=cliente,
+        estado="pendiente"
+    )
+
+    # Crear sin modelo, capacidad ni dispositivo_personalizado debe fallar
+    dispositivo_real = DispositivoReal(
+        oportunidad=oportunidad,
+        precio_final=Decimal("100.00")
+    )
+
+    with pytest.raises(ValidationError):
+        dispositivo_real.clean()
+
+
+@pytest.mark.django_db
+def test_dispositivo_real_validacion_no_ambos():
+    """Test que DispositivoReal no puede tener ambos: catálogo Y personalizado"""
+    from checkouters.models import DispositivoPersonalizado, DispositivoReal, Oportunidad, Cliente
+    from productos.models import Modelo, Capacidad
+    from django.core.exceptions import ValidationError
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    cliente = Cliente.objects.create(
+        nombre="Test Cliente",
+        tipo_cliente="empresa"
+    )
+    oportunidad = Oportunidad.objects.create(
+        cliente=cliente,
+        estado="pendiente"
+    )
+
+    # Crear dispositivo personalizado
+    dispositivo_pers = DispositivoPersonalizado.objects.create(
+        marca="Samsung",
+        modelo="Galaxy S23",
+        tipo="movil",
+        precio_base_b2b=Decimal("450.00"),
+        precio_base_b2c=Decimal("500.00"),
+    )
+
+    # Crear modelo y capacidad del catálogo
+    modelo = Modelo.objects.create(descripcion="iPhone 13", tipo="iPhone")
+    capacidad = Capacidad.objects.create(modelo=modelo, tamaño="128GB", precio_b2b=500)
+
+    # Intentar crear con AMBOS debe fallar
+    dispositivo_real = DispositivoReal(
+        oportunidad=oportunidad,
+        modelo=modelo,
+        capacidad=capacidad,
+        dispositivo_personalizado=dispositivo_pers,
+        precio_final=Decimal("100.00")
+    )
+
+    with pytest.raises(ValidationError):
+        dispositivo_real.clean()
+
+
+@pytest.mark.django_db
+def test_dispositivo_real_serializer_acepta_personalizado_id():
+    """Test que DispositivoRealSerializer acepta dispositivo_personalizado_id"""
+    from checkouters.models import DispositivoPersonalizado, Oportunidad, Cliente
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    cliente = Cliente.objects.create(
+        nombre="Test Cliente",
+        tipo_cliente="empresa",
+        canal="B2B"
+    )
+    oportunidad = Oportunidad.objects.create(
+        cliente=cliente,
+        estado="pendiente"
+    )
+
+    dispositivo_pers = DispositivoPersonalizado.objects.create(
+        marca="Xiaomi",
+        modelo="Redmi Note 12",
+        tipo="movil",
+        precio_base_b2b=Decimal("200.00"),
+        precio_base_b2c=Decimal("250.00"),
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    data = {
+        "oportunidad": oportunidad.id,
+        "dispositivo_personalizado_id": dispositivo_pers.id,
+        "precio_final": "160.00",
+        "recibido": True
+    }
+
+    response = client.post("/api/dispositivos-reales/crear/", data, format="json")
+    assert response.status_code == 201
+    assert response.data["dispositivo_personalizado"]["id"] == dispositivo_pers.id
+
+
+@pytest.mark.django_db
+def test_dispositivo_real_modelo_capacidad_opcionales_con_personalizado():
+    """Test que modelo y capacidad son opcionales cuando se usa dispositivo_personalizado"""
+    from checkouters.models import DispositivoPersonalizado, DispositivoReal, Oportunidad, Cliente
+
+    cliente = Cliente.objects.create(
+        nombre="Test Cliente",
+        tipo_cliente="empresa"
+    )
+    oportunidad = Oportunidad.objects.create(
+        cliente=cliente,
+        estado="pendiente"
+    )
+
+    dispositivo_pers = DispositivoPersonalizado.objects.create(
+        marca="Dell",
+        modelo="XPS 15",
+        tipo="portatil",
+        precio_base_b2b=Decimal("800.00"),
+        precio_base_b2c=Decimal("900.00"),
+    )
+
+    # Crear con solo dispositivo_personalizado (sin modelo/capacidad)
+    dispositivo_real = DispositivoReal.objects.create(
+        oportunidad=oportunidad,
+        dispositivo_personalizado=dispositivo_pers,
+        precio_final=Decimal("640.00")
+    )
+
+    # Validar que clean() no lanza error
+    dispositivo_real.clean()
+
+    assert dispositivo_real.dispositivo_personalizado is not None
+    assert dispositivo_real.modelo is None
+    assert dispositivo_real.capacidad is None
