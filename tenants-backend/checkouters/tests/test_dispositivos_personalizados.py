@@ -290,3 +290,316 @@ def test_soft_delete_inactivo():
     assert dispositivo.activo is False
     # El dispositivo sigue existiendo en la base de datos
     assert DispositivoPersonalizado.objects.filter(id=dispositivo.id).exists()
+
+
+# ===== TESTS PARA API (Serializers y ViewSets) =====
+
+@pytest.mark.django_db
+def test_solo_admin_puede_crear_via_api():
+    """Test que solo usuarios admin pueden crear dispositivos personalizados vía API"""
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+    partner = User.objects.create_user(
+        email="partner@test.com",
+        password="partner123",
+        is_staff=False
+    )
+
+    client = APIClient()
+
+    # Partner NO puede crear
+    client.force_authenticate(user=partner)
+    data = {
+        "marca": "Samsung",
+        "modelo": "Galaxy S23",
+        "tipo": "movil",
+        "precio_base_b2b": "450.00",
+        "precio_base_b2c": "500.00",
+    }
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 403
+
+    # Admin SÍ puede crear
+    client.force_authenticate(user=admin)
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 201
+    assert response.data["marca"] == "Samsung"
+    assert response.data["modelo"] == "Galaxy S23"
+
+
+@pytest.mark.django_db
+def test_solo_admin_puede_editar_via_api():
+    """Test que solo usuarios admin pueden editar dispositivos personalizados"""
+    from checkouters.models import DispositivoPersonalizado
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+    partner = User.objects.create_user(
+        email="partner@test.com",
+        password="partner123",
+        is_staff=False
+    )
+
+    dispositivo = DispositivoPersonalizado.objects.create(
+        marca="Xiaomi",
+        modelo="Redmi Note 12",
+        tipo="movil",
+        precio_base_b2b=Decimal("200.00"),
+        precio_base_b2c=Decimal("250.00"),
+        created_by=admin
+    )
+
+    client = APIClient()
+
+    # Partner NO puede editar
+    client.force_authenticate(user=partner)
+    data = {"precio_base_b2b": "220.00"}
+    response = client.patch(f"/api/dispositivos-personalizados/{dispositivo.id}/", data, format="json")
+    assert response.status_code == 403
+
+    # Admin SÍ puede editar
+    client.force_authenticate(user=admin)
+    response = client.patch(f"/api/dispositivos-personalizados/{dispositivo.id}/", data, format="json")
+    assert response.status_code == 200
+    assert float(response.data["precio_base_b2b"]) == 220.00
+
+
+@pytest.mark.django_db
+def test_validacion_precio_negativo():
+    """Test que la API rechaza precios negativos"""
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    data = {
+        "marca": "Test",
+        "modelo": "Invalid",
+        "tipo": "otro",
+        "precio_base_b2b": "-100.00",  # Precio negativo
+        "precio_base_b2c": "120.00",
+    }
+
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_validacion_ajustes_fuera_rango():
+    """Test que la API rechaza ajustes fuera del rango 0-100"""
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    # Ajuste mayor a 100
+    data = {
+        "marca": "Test",
+        "modelo": "Invalid",
+        "tipo": "otro",
+        "precio_base_b2b": "100.00",
+        "precio_base_b2c": "120.00",
+        "ajuste_excelente": 150,  # Fuera de rango
+    }
+
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 400
+
+    # Ajuste menor a 0
+    data["ajuste_excelente"] = -10
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_created_by_asignado_automaticamente():
+    """Test que created_by se asigna automáticamente al usuario que crea"""
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    data = {
+        "marca": "Dell",
+        "modelo": "XPS 15",
+        "tipo": "portatil",
+        "precio_base_b2b": "800.00",
+        "precio_base_b2c": "900.00",
+    }
+
+    response = client.post("/api/dispositivos-personalizados/", data, format="json")
+    assert response.status_code == 201
+    assert response.data["created_by"] == admin.id
+    assert response.data["created_by_name"] is not None
+
+
+@pytest.mark.django_db
+def test_endpoint_disponibles_todos_autenticados():
+    """Test que el endpoint disponibles/ es accesible para todos los usuarios autenticados"""
+    from checkouters.models import DispositivoPersonalizado
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+    partner = User.objects.create_user(
+        email="partner@test.com",
+        password="partner123",
+        is_staff=False
+    )
+
+    # Crear algunos dispositivos
+    DispositivoPersonalizado.objects.create(
+        marca="Samsung",
+        modelo="Galaxy S23",
+        tipo="movil",
+        precio_base_b2b=Decimal("450.00"),
+        precio_base_b2c=Decimal("500.00"),
+    )
+    DispositivoPersonalizado.objects.create(
+        marca="Xiaomi",
+        modelo="Redmi Note 12",
+        tipo="movil",
+        precio_base_b2b=Decimal("200.00"),
+        precio_base_b2c=Decimal("250.00"),
+    )
+
+    client = APIClient()
+
+    # Partner autenticado SÍ puede ver disponibles
+    client.force_authenticate(user=partner)
+    response = client.get("/api/dispositivos-personalizados/disponibles/")
+    assert response.status_code == 200
+    assert len(response.data) == 2
+
+    # Admin también puede ver
+    client.force_authenticate(user=admin)
+    response = client.get("/api/dispositivos-personalizados/disponibles/")
+    assert response.status_code == 200
+    assert len(response.data) == 2
+
+
+@pytest.mark.django_db
+def test_endpoint_calcular_oferta():
+    """Test del endpoint calcular_oferta"""
+    from checkouters.models import DispositivoPersonalizado
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    dispositivo = DispositivoPersonalizado.objects.create(
+        marca="Samsung",
+        modelo="Galaxy S23",
+        tipo="movil",
+        precio_base_b2b=Decimal("450.00"),
+        precio_base_b2c=Decimal("500.00"),
+        ajuste_excelente=100,
+        ajuste_bueno=80,
+        ajuste_malo=50,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    # Calcular oferta bueno B2B: 450 * 80% = 360€
+    data = {
+        "estado": "bueno",
+        "canal": "B2B"
+    }
+    response = client.post(f"/api/dispositivos-personalizados/{dispositivo.id}/calcular_oferta/", data, format="json")
+    assert response.status_code == 200
+    assert response.data["oferta"] == 360.0
+    assert response.data["estado"] == "bueno"
+    assert response.data["canal"] == "B2B"
+    assert response.data["ajuste_aplicado"] == 80
+
+
+@pytest.mark.django_db
+def test_listar_solo_activos():
+    """Test que por defecto solo se listan dispositivos activos"""
+    from checkouters.models import DispositivoPersonalizado
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    # Crear dispositivo activo
+    DispositivoPersonalizado.objects.create(
+        marca="Samsung",
+        modelo="Galaxy S23",
+        tipo="movil",
+        precio_base_b2b=Decimal("450.00"),
+        precio_base_b2c=Decimal("500.00"),
+        activo=True
+    )
+
+    # Crear dispositivo inactivo
+    DispositivoPersonalizado.objects.create(
+        marca="Xiaomi",
+        modelo="Redmi Note 12",
+        tipo="movil",
+        precio_base_b2b=Decimal("200.00"),
+        precio_base_b2c=Decimal("250.00"),
+        activo=False
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.get("/api/dispositivos-personalizados/")
+    assert response.status_code == 200
+    # Solo debe devolver el activo
+    assert len(response.data) == 1
+    assert response.data[0]["marca"] == "Samsung"
+
+
+@pytest.mark.django_db
+def test_serializer_descripcion_completa():
+    """Test que el serializer incluye descripcion_completa"""
+    from checkouters.models import DispositivoPersonalizado
+
+    admin = User.objects.create_user(
+        email="admin@test.com",
+        password="admin123",
+        is_staff=True
+    )
+
+    dispositivo = DispositivoPersonalizado.objects.create(
+        marca="Dell",
+        modelo="XPS 15",
+        capacidad="1TB SSD",
+        tipo="portatil",
+        precio_base_b2b=Decimal("800.00"),
+        precio_base_b2c=Decimal("900.00"),
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.get(f"/api/dispositivos-personalizados/{dispositivo.id}/")
+    assert response.status_code == 200
+    assert response.data["descripcion_completa"] == "Dell XPS 15 1TB SSD"
