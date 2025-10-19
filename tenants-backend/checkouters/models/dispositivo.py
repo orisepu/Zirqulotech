@@ -118,12 +118,36 @@ class Dispositivo(models.Model):
 
 
 class DispositivoReal(models.Model):
-    
+
     oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name='dispositivos_reales')
     origen = models.ForeignKey(Dispositivo, null=True, blank=True, on_delete=models.SET_NULL, related_name='dispositivo_real')
-    
-    modelo = models.ForeignKey("productos.Modelo", on_delete=models.CASCADE, related_name="dispositivos_reales")
-    capacidad = models.ForeignKey(Capacidad, on_delete=models.SET_NULL, null=True, blank=True, related_name='dispositivos_reales')
+
+    # Catálogo normal (Apple): modelo + capacidad
+    modelo = models.ForeignKey(
+        "productos.Modelo",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dispositivos_reales"
+    )
+    capacidad = models.ForeignKey(
+        Capacidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispositivos_reales'
+    )
+
+    # Dispositivos personalizados (no-Apple): cualquier marca
+    dispositivo_personalizado = models.ForeignKey(
+        'DispositivoPersonalizado',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispositivos_reales',
+        help_text="Dispositivo personalizado (Samsung, Xiaomi, Dell, etc.)"
+    )
+
     año = models.IntegerField(blank=True, null=True)
     imei = models.CharField(max_length=15, blank=True, null=True)
     numero_serie = models.CharField(max_length=100, blank=True, null=True)
@@ -143,8 +167,36 @@ class DispositivoReal(models.Model):
         on_delete=models.SET_NULL,
         related_name='auditorias_realizadas'
     )
+
+    def clean(self):
+        """
+        Validar integridad: debe tener O bien (modelo + capacidad) O bien dispositivo_personalizado.
+        No puede tener ambos ni ninguno.
+        """
+        from django.core.exceptions import ValidationError
+        super().clean()
+
+        tiene_catalogo = self.modelo and self.capacidad
+        tiene_personalizado = self.dispositivo_personalizado
+
+        if not tiene_catalogo and not tiene_personalizado:
+            raise ValidationError(
+                "Debe especificar (modelo + capacidad) o dispositivo_personalizado"
+            )
+
+        if tiene_catalogo and tiene_personalizado:
+            raise ValidationError(
+                "No puede especificar ambos: catálogo normal y dispositivo personalizado"
+            )
+
     def __str__(self):
-        return f"{self.modelo.descripcion} (Real)"
+        """Representación string que maneja ambos tipos de dispositivos"""
+        if self.dispositivo_personalizado:
+            return f"{self.dispositivo_personalizado} (Real)"
+        elif self.modelo:
+            return f"{self.modelo.descripcion} (Real)"
+        return "Dispositivo Real (sin especificar)"
+
     class Meta:
         constraints = [
             models.UniqueConstraint(

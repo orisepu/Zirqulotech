@@ -1,9 +1,11 @@
 from rest_framework import serializers
 from ..models.dispositivo import Dispositivo, DispositivoReal
 from ..models.oportunidad import Oportunidad
+from ..models import DispositivoPersonalizado
 
 from productos.models.modelos import Modelo, Capacidad
 from .producto import ModeloSerializer, CapacidadSerializer
+from .dispositivo_personalizado import DispositivoPersonalizadoSimpleSerializer
 from decimal import Decimal
 from collections import OrderedDict
 from .utils import PKOrUUIDRelatedField
@@ -181,11 +183,30 @@ class DispositivoSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class DispositivoRealSerializer(serializers.ModelSerializer):
+    # Catálogo normal (Apple)
     modelo_id = serializers.PrimaryKeyRelatedField(
-        queryset=Modelo.objects.all(), source='modelo', write_only=True
+        queryset=Modelo.objects.all(),
+        source='modelo',
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     capacidad_id = serializers.PrimaryKeyRelatedField(
-        queryset=Capacidad.objects.all(), source='capacidad', write_only=True, required=False, allow_null=True
+        queryset=Capacidad.objects.all(),
+        source='capacidad',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    # Dispositivos personalizados (no-Apple)
+    dispositivo_personalizado = DispositivoPersonalizadoSimpleSerializer(read_only=True)
+    dispositivo_personalizado_id = serializers.PrimaryKeyRelatedField(
+        queryset=DispositivoPersonalizado.objects.filter(activo=True),
+        source='dispositivo_personalizado',
+        write_only=True,
+        required=False,
+        allow_null=True
     )
 
     modelo = serializers.CharField(source='modelo.descripcion', read_only=True)
@@ -206,17 +227,31 @@ class DispositivoRealSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate(self, attrs):
+        # Validar IMEI único por oportunidad
         imei = (attrs.get('imei') or getattr(self.instance, 'imei', '') or '').strip()
-        if not imei:
-            return attrs
+        if imei:
+            oportunidad = attrs.get('oportunidad') or getattr(self.instance, 'oportunidad', None)
+            if oportunidad:
+                qs = DispositivoReal.objects.filter(oportunidad=oportunidad, imei=imei)
+                if self.instance:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise serializers.ValidationError({'imei': 'Este IMEI ya está en esta oportunidad.'})
 
-        oportunidad = attrs.get('oportunidad') or getattr(self.instance, 'oportunidad', None)
-        if oportunidad:
-            qs = DispositivoReal.objects.filter(oportunidad=oportunidad, imei=imei)
-            if self.instance:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise serializers.ValidationError({'imei': 'Este IMEI ya está en esta oportunidad.'})
+        # Validar lógica de dispositivo: debe tener (modelo+capacidad) O dispositivo_personalizado
+        tiene_catalogo = attrs.get('modelo') and attrs.get('capacidad')
+        tiene_personalizado = attrs.get('dispositivo_personalizado')
+
+        if not tiene_catalogo and not tiene_personalizado:
+            raise serializers.ValidationError(
+                "Debe especificar (modelo + capacidad) o dispositivo_personalizado"
+            )
+
+        if tiene_catalogo and tiene_personalizado:
+            raise serializers.ValidationError(
+                "No puede especificar ambos: catálogo normal y dispositivo personalizado"
+            )
+
         return attrs
 
     def get_estado_valoracion(self, obj):
