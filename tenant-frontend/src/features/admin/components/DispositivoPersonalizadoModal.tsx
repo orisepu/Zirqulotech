@@ -33,8 +33,23 @@ interface DispositivoPersonalizadoModalProps {
 interface FormData {
   marca: string
   modelo: string
-  capacidad: string
   tipo: 'movil' | 'portatil' | 'tablet' | 'monitor' | 'otro' | ''
+
+  // Campos genéricos (móvil, tablet, otro)
+  capacidad: string
+
+  // Campos específicos de Monitor
+  pulgadas: string
+  herzios: string
+  proporcion: string
+  resolucion: string
+
+  // Campos específicos de Portátil
+  almacenamiento: string
+  ram: string
+  procesador: string
+  grafica: string
+
   precio_base_b2b: string
   precio_base_b2c: string
   ajuste_excelente: string
@@ -47,8 +62,23 @@ interface FormData {
 const initialFormData: FormData = {
   marca: '',
   modelo: '',
-  capacidad: '',
   tipo: '',
+
+  // Campos genéricos
+  capacidad: '',
+
+  // Campos Monitor
+  pulgadas: '',
+  herzios: '',
+  proporcion: '',
+  resolucion: '',
+
+  // Campos Portátil
+  almacenamiento: '',
+  ram: '',
+  procesador: '',
+  grafica: '',
+
   precio_base_b2b: '',
   precio_base_b2c: '',
   ajuste_excelente: '100',
@@ -73,11 +103,28 @@ export default function DispositivoPersonalizadoModal({
   // Populate form when editing
   useEffect(() => {
     if (open && dispositivo) {
+      const caract = dispositivo.caracteristicas || {}
+
       setFormData({
         marca: dispositivo.marca,
         modelo: dispositivo.modelo,
-        capacidad: dispositivo.capacidad,
         tipo: dispositivo.tipo,
+
+        // Campos genéricos
+        capacidad: dispositivo.capacidad || '',
+
+        // Campos Monitor (desde caracteristicas JSON)
+        pulgadas: caract.pulgadas || '',
+        herzios: caract.herzios || '',
+        proporcion: caract.proporcion || '',
+        resolucion: caract.resolucion || '',
+
+        // Campos Portátil (desde caracteristicas JSON)
+        almacenamiento: caract.almacenamiento || '',
+        ram: caract.ram || '',
+        procesador: caract.procesador || '',
+        grafica: caract.grafica || '',
+
         precio_base_b2b: String(dispositivo.precio_base_b2b),
         precio_base_b2c: String(dispositivo.precio_base_b2c),
         ajuste_excelente: String(dispositivo.ajuste_excelente),
@@ -153,7 +200,24 @@ export default function DispositivoPersonalizadoModal({
   }
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value }
+
+      // Si cambia el tipo, limpiar campos específicos del tipo anterior
+      if (field === 'tipo') {
+        updated.capacidad = ''
+        updated.pulgadas = ''
+        updated.herzios = ''
+        updated.proporcion = ''
+        updated.resolucion = ''
+        updated.almacenamiento = ''
+        updated.ram = ''
+        updated.procesador = ''
+        updated.grafica = ''
+      }
+
+      return updated
+    })
 
     // Clear error for this field
     if (errors[field]) {
@@ -204,6 +268,25 @@ export default function DispositivoPersonalizadoModal({
   const handleSave = () => {
     if (!isFormValid()) return
 
+    // Construir objeto caracteristicas según el tipo de dispositivo
+    let caracteristicas: Record<string, string> = {}
+
+    if (formData.tipo === 'monitor') {
+      caracteristicas = {
+        pulgadas: formData.pulgadas.trim(),
+        herzios: formData.herzios.trim(),
+        proporcion: formData.proporcion.trim(),
+        resolucion: formData.resolucion.trim(),
+      }
+    } else if (formData.tipo === 'portatil') {
+      caracteristicas = {
+        almacenamiento: formData.almacenamiento.trim(),
+        ram: formData.ram.trim(),
+        procesador: formData.procesador.trim(),
+        grafica: formData.grafica.trim(),
+      }
+    }
+
     const payload = {
       marca: formData.marca.trim(),
       modelo: formData.modelo.trim(),
@@ -216,6 +299,7 @@ export default function DispositivoPersonalizadoModal({
       ajuste_malo: parseFloat(formData.ajuste_malo),
       notas: formData.notas.trim(),
       activo: formData.activo,
+      caracteristicas,
     }
 
     if (isEditMode) {
@@ -270,32 +354,6 @@ export default function DispositivoPersonalizadoModal({
             disabled={isSaving}
           />
 
-          {/* Capacidad (opcional para monitores) */}
-          <TextField
-            label={
-              formData.tipo === 'monitor'
-                ? "Capacidad (opcional)"
-                : formData.tipo === 'movil' || formData.tipo === 'tablet'
-                ? "Almacenamiento (opcional)"
-                : formData.tipo === 'portatil'
-                ? "Almacenamiento/RAM (opcional)"
-                : "Capacidad (opcional)"
-            }
-            value={formData.capacidad}
-            onChange={(e) => handleChange('capacidad', e.target.value)}
-            onBlur={() => handleBlur('capacidad')}
-            fullWidth
-            error={!!errors.capacidad}
-            helperText={
-              errors.capacidad ||
-              (formData.tipo === 'monitor' ? 'No es necesario para monitores' :
-               formData.tipo === 'movil' || formData.tipo === 'tablet' ? 'Ej: 64GB, 128GB, 256GB' :
-               formData.tipo === 'portatil' ? 'Ej: 512GB SSD + 16GB RAM' :
-               'Ej: 256GB, 512GB, 1TB SSD')
-            }
-            disabled={isSaving}
-          />
-
           {/* Tipo */}
           <FormControl fullWidth required disabled={isSaving}>
             <InputLabel>Tipo</InputLabel>
@@ -311,6 +369,132 @@ export default function DispositivoPersonalizadoModal({
               <MenuItem value="otro">Otro</MenuItem>
             </Select>
           </FormControl>
+
+          {/* Campos específicos de Monitor */}
+          {formData.tipo === 'monitor' && (
+            <>
+              <TextField
+                label="Pulgadas"
+                value={formData.pulgadas}
+                onChange={(e) => handleChange('pulgadas', e.target.value)}
+                onBlur={() => handleBlur('pulgadas')}
+                fullWidth
+                error={!!errors.pulgadas}
+                helperText={errors.pulgadas || 'Ej: 24", 27", 32"'}
+                disabled={isSaving}
+              />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="Herzios"
+                  value={formData.herzios}
+                  onChange={(e) => handleChange('herzios', e.target.value)}
+                  onBlur={() => handleBlur('herzios')}
+                  fullWidth
+                  error={!!errors.herzios}
+                  helperText={errors.herzios || 'Ej: 60Hz, 144Hz, 165Hz'}
+                  disabled={isSaving}
+                />
+                <TextField
+                  label="Proporción"
+                  value={formData.proporcion}
+                  onChange={(e) => handleChange('proporcion', e.target.value)}
+                  onBlur={() => handleBlur('proporcion')}
+                  fullWidth
+                  error={!!errors.proporcion}
+                  helperText={errors.proporcion || 'Ej: 16:9, 21:9, 32:9'}
+                  disabled={isSaving}
+                />
+              </Stack>
+              <TextField
+                label="Resolución"
+                value={formData.resolucion}
+                onChange={(e) => handleChange('resolucion', e.target.value)}
+                onBlur={() => handleBlur('resolucion')}
+                fullWidth
+                error={!!errors.resolucion}
+                helperText={errors.resolucion || 'Ej: 1920x1080, 2560x1440, 3840x2160'}
+                disabled={isSaving}
+              />
+            </>
+          )}
+
+          {/* Campos específicos de Móvil/Tablet */}
+          {(formData.tipo === 'movil' || formData.tipo === 'tablet') && (
+            <TextField
+              label="Capacidad (almacenamiento)"
+              value={formData.capacidad}
+              onChange={(e) => handleChange('capacidad', e.target.value)}
+              onBlur={() => handleBlur('capacidad')}
+              fullWidth
+              error={!!errors.capacidad}
+              helperText={errors.capacidad || 'Ej: 64GB, 128GB, 256GB, 512GB'}
+              disabled={isSaving}
+            />
+          )}
+
+          {/* Campos específicos de Portátil */}
+          {formData.tipo === 'portatil' && (
+            <>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="Almacenamiento"
+                  value={formData.almacenamiento}
+                  onChange={(e) => handleChange('almacenamiento', e.target.value)}
+                  onBlur={() => handleBlur('almacenamiento')}
+                  fullWidth
+                  error={!!errors.almacenamiento}
+                  helperText={errors.almacenamiento || 'Ej: 256GB SSD, 512GB SSD, 1TB SSD'}
+                  disabled={isSaving}
+                />
+                <TextField
+                  label="RAM"
+                  value={formData.ram}
+                  onChange={(e) => handleChange('ram', e.target.value)}
+                  onBlur={() => handleBlur('ram')}
+                  fullWidth
+                  error={!!errors.ram}
+                  helperText={errors.ram || 'Ej: 8GB, 16GB, 32GB'}
+                  disabled={isSaving}
+                />
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="Procesador"
+                  value={formData.procesador}
+                  onChange={(e) => handleChange('procesador', e.target.value)}
+                  onBlur={() => handleBlur('procesador')}
+                  fullWidth
+                  error={!!errors.procesador}
+                  helperText={errors.procesador || 'Ej: Intel i5 11th Gen, AMD Ryzen 7'}
+                  disabled={isSaving}
+                />
+                <TextField
+                  label="Gráfica"
+                  value={formData.grafica}
+                  onChange={(e) => handleChange('grafica', e.target.value)}
+                  onBlur={() => handleBlur('grafica')}
+                  fullWidth
+                  error={!!errors.grafica}
+                  helperText={errors.grafica || 'Ej: Integrada, NVIDIA GTX 1650'}
+                  disabled={isSaving}
+                />
+              </Stack>
+            </>
+          )}
+
+          {/* Campo genérico para tipo "Otro" */}
+          {formData.tipo === 'otro' && (
+            <TextField
+              label="Capacidad"
+              value={formData.capacidad}
+              onChange={(e) => handleChange('capacidad', e.target.value)}
+              onBlur={() => handleBlur('capacidad')}
+              fullWidth
+              error={!!errors.capacidad}
+              helperText={errors.capacidad || 'Descripción de capacidad o características específicas'}
+              disabled={isSaving}
+            />
+          )}
 
           {/* Precios */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
