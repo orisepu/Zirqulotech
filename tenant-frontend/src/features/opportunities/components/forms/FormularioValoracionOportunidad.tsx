@@ -1029,27 +1029,30 @@ export default function FormularioValoracionOportunidad({
 
     try {
       const payload = {
-        // oportunidad puede ser ID numérico (tenant) o hashid/uuid (global)
+        // Oportunidad siempre en payload (puede ser ID numérico o UUID)
         oportunidad: oppIdValido,
         dispositivo_personalizado_id: dispositivoPersonalizado.id,
-        precio_final: valoracionData.precio_final,
-        observaciones: valoracionData.observaciones,
+        tipo: 'Otro', // Tipo genérico para dispositivos personalizados
+        precio_orientativo: valoracionData.precio_final,
         cantidad: Number(cantidad),
+        // El grado (A+/A/B/C) es solo informativo para calcular precio, no se guarda
+        // estado_fisico, estado_funcional, estado_valoracion se establecen en recepción
+        // Observaciones van en DispositivoReal, no en Dispositivo orientativo
       }
 
       console.log('[handleSaveDispositivoPersonalizado] Payload a enviar:', payload)
-      console.log('[handleSaveDispositivoPersonalizado] Endpoint:', tenant
-        ? `/api/dispositivos-reales-globales/${tenant}/crear/`
-        : '/api/dispositivos-reales/crear/')
+      console.log('[handleSaveDispositivoPersonalizado] Endpoint: /api/dispositivos/')
+      console.log('[handleSaveDispositivoPersonalizado] Tenant para header:', tenant)
 
-      // Crear DispositivoReal
-      if (tenant) {
-        // Modo global/admin: usa endpoint globales con tenant
-        await api.post(`/api/dispositivos-reales-globales/${tenant}/crear/`, payload)
-      } else {
-        // Modo tenant: usa endpoint local
-        await api.post('/api/dispositivos-reales/crear/', payload)
-      }
+      // Crear Dispositivo orientativo usando endpoint estándar
+      // En modo global, sobrescribir el header X-Tenant con el tenant de la URL
+      const config = tenant ? {
+        headers: {
+          'X-Tenant': tenant  // Sobrescribe el header del interceptor en modo global
+        }
+      } : {}
+
+      await api.post('/api/dispositivos/', payload, config)
 
       // Invalidar cache y refrescar
       await queryClient.invalidateQueries({ queryKey: ['oportunidad', oppKey] })

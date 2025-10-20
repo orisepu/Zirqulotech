@@ -116,6 +116,9 @@ class Dispositivo(models.Model):
     estado_lados    = models.CharField(max_length=20, choices=ESTETICA_CHOICES, blank=True, null=True)
     estado_espalda  = models.CharField(max_length=20, choices=ESTETICA_CHOICES, blank=True, null=True)
 
+    # Indica si el dispositivo fue creado manualmente por un admin (vs formulario web)
+    es_manual = models.BooleanField(default=False)
+
     def save(self, *args, **kwargs):
         # Establecer tipo desde modelo Apple o desde dispositivo personalizado
         if not self.tipo:

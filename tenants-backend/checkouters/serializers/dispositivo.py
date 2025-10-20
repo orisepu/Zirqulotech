@@ -46,6 +46,9 @@ class DispositivoSerializer(serializers.ModelSerializer):
         allow_null=True
     )
 
+    # Oportunidad: se maneja en el ViewSet perform_create() para soportar multi-tenancy
+    # En modo global, el UUID no se puede resolver aquí porque el queryset filtra por schema
+
     # Nuevos campos
     salud_bateria_pct = serializers.IntegerField(min_value=0, max_value=100, required=False, allow_null=True)
     ciclos_bateria = serializers.IntegerField(min_value=0, required=False, allow_null=True)
@@ -59,6 +62,8 @@ class DispositivoSerializer(serializers.ModelSerializer):
     estado_lados = serializers.ChoiceField(choices=[c[0] for c in Dispositivo.ESTETICA_CHOICES], required=False, allow_null=True)
     estado_espalda = serializers.ChoiceField(choices=[c[0] for c in Dispositivo.ESTETICA_CHOICES], required=False, allow_null=True)
 
+    es_manual = serializers.BooleanField(default=False, required=False)
+
     imei = serializers.CharField(allow_blank=True, allow_null=True, required=False, default=None)
 
     class Meta:
@@ -69,11 +74,12 @@ class DispositivoSerializer(serializers.ModelSerializer):
             'tipo',
             'estado_fisico', 'estado_funcional', 'estado_valoracion',
             'precio_orientativo', 'fecha_creacion', 'imei', 'numero_serie',
-            'fecha_caducidad', 'oportunidad', 'cantidad',
+            'fecha_caducidad', 'cantidad',
             # nuevos
             'salud_bateria_pct', 'ciclos_bateria', 'funcionalidad_basica',
             'pantalla_funcional_puntos_bril', 'pantalla_funcional_pixeles_muertos', 'pantalla_funcional_lineas_quemaduras',
             'estado_pantalla', 'estado_lados', 'estado_espalda',
+            'es_manual',
         ]
         # 👇 Evita la validación de choices de DRF en entrada
         extra_kwargs = {
@@ -93,10 +99,12 @@ class DispositivoSerializer(serializers.ModelSerializer):
         v = (v or '').strip()
         if not v:
             return v
-        oportunidad = self.initial_data.get('oportunidad') or getattr(self.instance, 'oportunidad_id', None)
-        if oportunidad:
+        # La oportunidad se valida en el ViewSet perform_create, no aquí
+        # Ya que puede ser ID numérico o UUID en contexto multi-tenant
+        oportunidad_id = getattr(self.instance, 'oportunidad_id', None)
+        if oportunidad_id:
             exists = Dispositivo.objects.filter(
-                oportunidad_id=oportunidad, imei=v
+                oportunidad_id=oportunidad_id, imei=v
             ).exclude(pk=getattr(self.instance, 'pk', None)).exists()
             if exists:
                 raise serializers.ValidationError('Este IMEI ya está en esta oportunidad.')
@@ -172,22 +180,32 @@ class DispositivoSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        aliases = self._extract_front_alias()
+        # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
+        es_personalizado = bool(validated_data.get('dispositivo_personalizado'))
 
-        est_pant = validated_data.get('estado_pantalla')
-        est_lados = validated_data.get('estado_lados')
-        est_espalda = validated_data.get('estado_espalda')
-        func_basica = validated_data.get('funcionalidad_basica')
-        puntos = validated_data.get('pantalla_funcional_puntos_bril') or False
-        pixeles = validated_data.get('pantalla_funcional_pixeles_muertos') or False
-        lineas = validated_data.get('pantalla_funcional_lineas_quemaduras') or False
+        if not es_personalizado:
+            # Solo para dispositivos Apple calcular estados físico/funcional
+            aliases = self._extract_front_alias()
 
-        validated_data['estado_fisico'] = self._map_estado_fisico(
-            aliases['estado_fisico_front'], est_pant, est_lados, est_espalda
-        )
-        validated_data['estado_funcional'] = self._map_estado_funcional(
-            func_basica, puntos, pixeles, lineas, front_value=aliases['estado_funcional_front']
-        )
+            est_pant = validated_data.get('estado_pantalla')
+            est_lados = validated_data.get('estado_lados')
+            est_espalda = validated_data.get('estado_espalda')
+            func_basica = validated_data.get('funcionalidad_basica')
+            puntos = validated_data.get('pantalla_funcional_puntos_bril') or False
+            pixeles = validated_data.get('pantalla_funcional_pixeles_muertos') or False
+            lineas = validated_data.get('pantalla_funcional_lineas_quemaduras') or False
+
+            validated_data['estado_fisico'] = self._map_estado_fisico(
+                aliases['estado_fisico_front'], est_pant, est_lados, est_espalda
+            )
+            validated_data['estado_funcional'] = self._map_estado_funcional(
+                func_basica, puntos, pixeles, lineas, front_value=aliases['estado_funcional_front']
+            )
+        else:
+            # Dispositivos personalizados: estados se establecen en DispositivoReal
+            validated_data['estado_fisico'] = None
+            validated_data['estado_funcional'] = None
+            validated_data['estado_valoracion'] = None
 
         try:
             logger.info("Create validated_data post-map=%s", validated_data)
@@ -202,24 +220,40 @@ class DispositivoSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        aliases = self._extract_front_alias()
-
-        est_pant = validated_data.get('estado_pantalla', instance.estado_pantalla)
-        est_lados = validated_data.get('estado_lados', instance.estado_lados)
-        est_espalda = validated_data.get('estado_espalda', instance.estado_espalda)
-        func_basica = validated_data.get('funcionalidad_basica', instance.funcionalidad_basica)
-        puntos = validated_data.get('pantalla_funcional_puntos_bril', instance.pantalla_funcional_puntos_bril)
-        pixeles = validated_data.get('pantalla_funcional_pixeles_muertos', instance.pantalla_funcional_pixeles_muertos)
-        lineas = validated_data.get('pantalla_funcional_lineas_quemaduras', instance.pantalla_funcional_lineas_quemaduras)
-
-        validated_data['estado_fisico'] = self._map_estado_fisico(
-            aliases['estado_fisico_front'] or validated_data.get('estado_fisico', instance.estado_fisico),
-            est_pant, est_lados, est_espalda
+        # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
+        es_personalizado = bool(
+            validated_data.get('dispositivo_personalizado') or instance.dispositivo_personalizado
         )
-        validated_data['estado_funcional'] = self._map_estado_funcional(
-            func_basica, puntos, pixeles, lineas,
-            front_value=(aliases['estado_funcional_front'] or validated_data.get('estado_funcional', instance.estado_funcional))
-        )
+
+        if not es_personalizado:
+            # Solo para dispositivos Apple calcular estados físico/funcional
+            aliases = self._extract_front_alias()
+
+            est_pant = validated_data.get('estado_pantalla', instance.estado_pantalla)
+            est_lados = validated_data.get('estado_lados', instance.estado_lados)
+            est_espalda = validated_data.get('estado_espalda', instance.estado_espalda)
+            func_basica = validated_data.get('funcionalidad_basica', instance.funcionalidad_basica)
+            puntos = validated_data.get('pantalla_funcional_puntos_bril', instance.pantalla_funcional_puntos_bril)
+            pixeles = validated_data.get('pantalla_funcional_pixeles_muertos', instance.pantalla_funcional_pixeles_muertos)
+            lineas = validated_data.get('pantalla_funcional_lineas_quemaduras', instance.pantalla_funcional_lineas_quemaduras)
+
+            validated_data['estado_fisico'] = self._map_estado_fisico(
+                aliases['estado_fisico_front'] or validated_data.get('estado_fisico', instance.estado_fisico),
+                est_pant, est_lados, est_espalda
+            )
+            validated_data['estado_funcional'] = self._map_estado_funcional(
+                func_basica, puntos, pixeles, lineas,
+                front_value=(aliases['estado_funcional_front'] or validated_data.get('estado_funcional', instance.estado_funcional))
+            )
+        else:
+            # Dispositivos personalizados: mantener estados como están (se establecen en recepción)
+            # No sobrescribir si ya se han establecido
+            if 'estado_fisico' not in validated_data:
+                validated_data['estado_fisico'] = instance.estado_fisico
+            if 'estado_funcional' not in validated_data:
+                validated_data['estado_funcional'] = instance.estado_funcional
+            if 'estado_valoracion' not in validated_data:
+                validated_data['estado_valoracion'] = instance.estado_valoracion
 
         try:
             logger.info("Update validated_data post-map=%s", validated_data)
