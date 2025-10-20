@@ -95,6 +95,32 @@ def _precio_recompra_vigente(capacidad_id: int, canal: str, fecha=None, cache: d
     return precio
 
 
+def _precio_dispositivo_personalizado_vigente(dispositivo_pers_id: int, canal: str, fecha=None, cache: dict | None = None):
+    """
+    Obtiene el precio vigente de un dispositivo personalizado desde PrecioDispositivoPersonalizado.
+    Similar a _precio_recompra_vigente pero para dispositivos no-Apple.
+    """
+    if not dispositivo_pers_id:
+        return None
+    if fecha is None:
+        fecha = timezone.now()
+    key = (f'pers_{dispositivo_pers_id}', canal, fecha.date())
+    if cache is not None and key in cache:
+        return cache[key]
+
+    from productos.models.precios import PrecioDispositivoPersonalizado
+
+    precio = (PrecioDispositivoPersonalizado.objects
+              .filter(dispositivo_personalizado_id=dispositivo_pers_id, canal=canal, valid_from__lte=fecha)
+              .filter(Q(valid_to__isnull=True) | Q(valid_to__gt=fecha))
+              .order_by('-valid_from')
+              .values_list('precio_neto', flat=True)
+              .first())
+    if cache is not None:
+        cache[key] = precio
+    return precio
+
+
 def euros(valor):
     # Mantengo tu formato entero + € (puedes cambiarlo a 2 decimales si quieres)
     return f"{int(valor):,}".replace(",", ".") + " €"
@@ -612,34 +638,67 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
 
         elementos_mostrados = set()
         for d in dispositivos:
-            # Saltar dispositivos personalizados (no tienen precios por grado de PrecioRecompra)
+            # Dispositivos personalizados: usar PrecioDispositivoPersonalizado vigente
             if hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado:
-                continue
+                disp_pers = d.dispositivo_personalizado
 
-            key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
-            if key in elementos_mostrados:
-                continue
-            elementos_mostrados.add(key)
+                # Usar descripción completa como clave única
+                key = str(disp_pers)
+                if key in elementos_mostrados:
+                    continue
+                elementos_mostrados.add(key)
 
-            cap_id = getattr(d.capacidad, 'id', None)
-            base = _precio_recompra_vigente(cap_id, canal_pdf, cache=_cache_precios)
-            precio_base = Decimal(str(base)) if base is not None else Decimal("0.00")
+                # Obtener precio vigente de PrecioDispositivoPersonalizado
+                base = _precio_dispositivo_personalizado_vigente(disp_pers.id, canal_pdf, cache=_cache_precios)
+                if base is None:
+                    continue  # Sin precio vigente, no mostrar
 
-            # Calcular precios por grado: A+ (base), A, B, C
-            factor = Decimal(str(get_factor(float(precio_base))))
-            precio_a_plus = precio_base  # A+ = Como nuevo (precio base)
-            precio_a = (precio_a_plus * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # A = Excelente
-            precio_b = (precio_a * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # B = Muy bueno
-            precio_c = (precio_b * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # C = Correcto
+                precio_base = Decimal(str(base))
 
-            precios_data.append([
-                Paragraph(key[0], cell_left),
-                Paragraph(str(key[1]), cell_center),
-                Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-            ])
+                # Calcular precios usando porcentajes de penalización del dispositivo personalizado
+                pp_a = Decimal(str(disp_pers.pp_A))  # Ej: 0.08 = 8%
+                pp_b = Decimal(str(disp_pers.pp_B))  # Ej: 0.12 = 12%
+                pp_c = Decimal(str(disp_pers.pp_C))  # Ej: 0.15 = 15%
+
+                precio_a_plus = precio_base  # A+ = precio vigente
+                precio_a = (precio_a_plus * (Decimal('1') - pp_a)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                precio_b = (precio_a * (Decimal('1') - pp_b)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                precio_c = (precio_b * (Decimal('1') - pp_c)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+                precios_data.append([
+                    Paragraph(key, cell_left),
+                    Paragraph("—", cell_center),  # No tiene capacidad separada
+                    Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                ])
+            else:
+                # Dispositivos Apple: usar PrecioRecompra vigente
+                key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
+                if key in elementos_mostrados:
+                    continue
+                elementos_mostrados.add(key)
+
+                cap_id = getattr(d.capacidad, 'id', None)
+                base = _precio_recompra_vigente(cap_id, canal_pdf, cache=_cache_precios)
+                precio_base = Decimal(str(base)) if base is not None else Decimal("0.00")
+
+                # Calcular precios por grado: A+ (base), A, B, C
+                factor = Decimal(str(get_factor(float(precio_base))))
+                precio_a_plus = precio_base  # A+ = Como nuevo (precio base)
+                precio_a = (precio_a_plus * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # A = Excelente
+                precio_b = (precio_a * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # B = Muy bueno
+                precio_c = (precio_b * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # C = Correcto
+
+                precios_data.append([
+                    Paragraph(key[0], cell_left),
+                    Paragraph(str(key[1]), cell_center),
+                    Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                ])
 
         # Solo mostrar tabla si hay dispositivos Apple (precios_data tiene más de 1 fila = headers + datos)
         if len(precios_data) > 1:
