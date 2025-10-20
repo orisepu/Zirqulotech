@@ -205,7 +205,9 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     if dispositivos_override is not None:
         dispositivos = dispositivos_override
     else:
-        dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
+        dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad).select_related(
+            'modelo', 'capacidad', 'dispositivo_personalizado'
+        )
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -466,8 +468,8 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     for idx, d in enumerate(dispositivos, start=1):
         # Detectar si es dispositivo personalizado
         if hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado:
-            # Dispositivo personalizado: mostrar descripción completa en Modelo, ocultar Capacidad
-            modelo = Paragraph(d.dispositivo_personalizado.descripcion_completa, cell_left)
+            # Dispositivo personalizado: usar __str__() que genera "Marca Modelo Capacidad"
+            modelo = Paragraph(str(d.dispositivo_personalizado), cell_left)
             capacidad = Paragraph("—", cell_center)  # Ocultar capacidad
         else:
             # Dispositivo Apple: flujo normal
