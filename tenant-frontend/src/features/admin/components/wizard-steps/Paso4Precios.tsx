@@ -12,8 +12,9 @@ import {
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3'
-import { es } from 'date-fns/locale'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import dayjs, { Dayjs } from 'dayjs'
+import 'dayjs/locale/es'
 
 interface Paso4PreciosProps {
   formData: any
@@ -41,8 +42,11 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
   const preciosB2BPorEstado = calcularPreciosPorEstado(precioB2B)
   const preciosB2CPorEstado = calcularPreciosPorEstado(precioB2C)
 
+  // Configurar locale español para dayjs
+  dayjs.locale('es')
+
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
       <Box>
         <Typography variant="h6" gutterBottom>
           Precios de recompra
@@ -86,7 +90,7 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
           <DatePicker
             label="Fecha de inicio de vigencia"
             value={formData.valid_from}
-            onChange={(date) => handleChange('valid_from', date || new Date())}
+            onChange={(date) => handleChange('valid_from', date || dayjs())}
             slotProps={{
               textField: {
                 fullWidth: true,

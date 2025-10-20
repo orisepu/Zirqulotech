@@ -15,6 +15,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
+import dayjs from 'dayjs'
 import api from '@/services/api'
 import type { DispositivoPersonalizado, TipoDispositivo } from '@/shared/types/dispositivos'
 
@@ -60,7 +61,7 @@ interface WizardFormData {
   // Paso 4: Precios
   precio_b2b: string
   precio_b2c: string
-  valid_from: Date
+  valid_from: any // Dayjs object
 
   // Metadata
   activo: boolean
@@ -82,7 +83,7 @@ const initialFormData: WizardFormData = {
   grafica: '',
   precio_b2b: '',
   precio_b2c: '',
-  valid_from: new Date(),
+  valid_from: dayjs(),
   activo: true,
 }
 

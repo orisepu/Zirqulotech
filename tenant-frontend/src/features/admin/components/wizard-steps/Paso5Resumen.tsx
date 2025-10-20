@@ -11,8 +11,8 @@ import {
   Grid,
 } from '@mui/material'
 import { TIPO_DISPOSITIVO_LABELS } from '@/shared/types/dispositivos'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import dayjs from 'dayjs'
+import 'dayjs/locale/es'
 
 interface Paso5ResumenProps {
   formData: any
@@ -134,7 +134,7 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
                 Fecha de vigencia:
               </Typography>
               <Typography variant="body1">
-                Desde {format(formData.valid_from, "d 'de' MMMM 'de' yyyy", { locale: es })}
+                Desde {dayjs(formData.valid_from).locale('es').format('D [de] MMMM [de] YYYY')}
               </Typography>
             </Grid>
 
