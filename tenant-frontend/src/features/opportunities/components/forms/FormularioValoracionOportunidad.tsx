@@ -29,6 +29,7 @@ import {
 import { STEPS, FormStep, ValoracionDerivada, CatalogoValoracion, FuncPantallaValue, EsteticaKey, EsteticaPantallaKey } from './tipos'
 import type { DispositivoPersonalizadoSimple, EstadoGeneral } from '@/shared/types/dispositivos'
 import PasoEstadoGeneral from './PasoEstadoGeneral'
+import PasoValoracionPersonalizada from './pasos/PasoValoracionPersonalizada'
 import DispositivoPersonalizadoWizard from '@/features/admin/components/DispositivoPersonalizadoWizard'
 import { Stepper, Step, StepLabel, Box } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
@@ -107,8 +108,10 @@ export default function FormularioValoracionOportunidad({
   // Estados para dispositivos personalizados (no-Apple)
   const [esDispositivoPersonalizado, setEsDispositivoPersonalizado] = useState<boolean>(false)
   const [dispositivoPersonalizado, setDispositivoPersonalizado] = useState<DispositivoPersonalizadoSimple | null>(null)
+  const [dispositivoPersonalizadoCompleto, setDispositivoPersonalizadoCompleto] = useState<any>(null)
   const [estadoGeneral, setEstadoGeneral] = useState<EstadoGeneral | ''>('')
   const [modalPersonalizadoOpen, setModalPersonalizadoOpen] = useState(false)
+  const [guardandoPersonalizado, setGuardandoPersonalizado] = useState(false)
 
   const [demoOpen, setDemoOpen] = useState(false)
   const [demo, setDemo] = useState<{ src: string; title: string } | null>(null)
@@ -314,6 +317,14 @@ export default function FormularioValoracionOportunidad({
 
   const handleDispositivoPersonalizadoChange = useCallback((device: DispositivoPersonalizadoSimple | null) => {
     setDispositivoPersonalizado(device)
+    // Cargar el dispositivo completo con campos de grading
+    if (device) {
+      api.get(`/api/dispositivos-personalizados/${device.id}/`)
+        .then(res => setDispositivoPersonalizadoCompleto(res.data))
+        .catch(err => console.error('Error cargando dispositivo personalizado:', err))
+    } else {
+      setDispositivoPersonalizadoCompleto(null)
+    }
   }, [])
 
   const modelosArr = useMemo<ModeloObj[]>(() => {
@@ -451,8 +462,9 @@ export default function FormularioValoracionOportunidad({
   // Pasos visibles dinámicos
   const visibleSteps: FormStep[] = useMemo(() => {
     // Flujo simplificado para dispositivos personalizados (no-Apple)
+    // Solo datos básicos + valoración directa con selector de grado
     if (esDispositivoPersonalizado) {
-      return ['Datos básicos', 'Estado General', 'Valoración']
+      return ['Datos básicos', 'Valoración']
     }
 
     // Flujo estándar para catálogo Apple
@@ -981,6 +993,72 @@ export default function FormularioValoracionOportunidad({
     }
   }
 
+  // Handler para guardar dispositivos personalizados
+  const handleSaveDispositivoPersonalizado = async (valoracionData: {
+    grado: string
+    precio_final: number
+    observaciones: string
+  }) => {
+    // Validar que tengamos un ID válido (no NaN)
+    const oppIdValido = (oportunidadId && !isNaN(Number(oportunidadId)) && Number(oportunidadId) !== -1)
+      ? oportunidadId
+      : oportunidadUuid
+
+    // Debug
+    console.log('[handleSaveDispositivoPersonalizado] Valores:', {
+      dispositivoPersonalizado,
+      oportunidadId,
+      oportunidadUuid,
+      oppIdValido,
+      tenant,
+      cantidad,
+    })
+
+    if (!dispositivoPersonalizado || !oppIdValido) {
+      console.error('[handleSaveDispositivoPersonalizado] Falta información:', {
+        dispositivoPersonalizado: !!dispositivoPersonalizado,
+        oportunidadId,
+        oportunidadUuid,
+        oppIdValido,
+      })
+      toast.error('Falta información del dispositivo o la oportunidad.')
+      return
+    }
+
+    setGuardandoPersonalizado(true)
+
+    try {
+      const payload = {
+        oportunidad: oppIdToUse ? Number(oppIdToUse) : undefined,
+        dispositivo_personalizado: dispositivoPersonalizado.id,
+        precio_final: valoracionData.precio_final,
+        observaciones: valoracionData.observaciones,
+        cantidad: Number(cantidad),
+      }
+
+      // Crear DispositivoReal
+      if (tenant) {
+        await api.post(`/api/global/dispositivos-reales/${tenant}/${oppIdToUse}/`, payload)
+      } else {
+        await api.post('/api/dispositivos-reales/crear/', payload)
+      }
+
+      // Invalidar cache y refrescar
+      await queryClient.invalidateQueries({ queryKey: ['oportunidad', oppKey] })
+      await queryClient.refetchQueries({ queryKey: ['oportunidad', oppKey], exact: true })
+      await queryClient.invalidateQueries({ queryKey: ['dispositivos-reales', oppKey] })
+      await queryClient.refetchQueries({ queryKey: ['dispositivos-reales', oppKey], exact: true })
+
+      toast.success('Dispositivo personalizado valorado exitosamente')
+      onSuccess()
+    } catch (err) {
+      console.error('Error al guardar dispositivo personalizado:', err)
+      toast.error('Error al guardar el dispositivo personalizado')
+    } finally {
+      setGuardandoPersonalizado(false)
+    }
+  }
+
   // Paso previo: pregunta única por oportunidad (solo B2B)
   if (esEmpresaAutonomo && cfgElegida === null) {
     return (
@@ -1167,15 +1245,25 @@ export default function FormularioValoracionOportunidad({
           />
         )}
 
-        {/* Paso exclusivo para dispositivos personalizados */}
-        {current === 'Estado General' && esDispositivoPersonalizado && (
-          <PasoEstadoGeneral
-            estadoGeneral={estadoGeneral}
-            onEstadoGeneralChange={setEstadoGeneral}
-          />
+        {/* Valoración para dispositivos personalizados */}
+        {current === 'Valoración' && esDispositivoPersonalizado && (
+          dispositivoPersonalizadoCompleto ? (
+            <PasoValoracionPersonalizada
+              dispositivo={dispositivoPersonalizadoCompleto}
+              canal={tipoCliente as 'B2B' | 'B2C'}
+              onGuardar={handleSaveDispositivoPersonalizado}
+              onCancelar={onClose}
+              guardando={guardandoPersonalizado}
+            />
+          ) : (
+            <Alert severity="info" variant="outlined">
+              Cargando información del dispositivo personalizado...
+            </Alert>
+          )
         )}
 
-        {current === 'Valoración' && (
+        {/* Valoración para catálogo Apple */}
+        {current === 'Valoración' && !esDispositivoPersonalizado && (
           modeloObj && capacidadObj ? (
               <PasoValoracion
               tipo={tipo}
@@ -1217,6 +1305,8 @@ export default function FormularioValoracionOportunidad({
           flexDirection: 'column',
           gap: 1,
           py: 1.25,
+          // Ocultar botones cuando PasoValoracionPersonalizada tiene sus propios controles
+          display: (esDispositivoPersonalizado && current === 'Valoración') ? 'none' : 'flex',
         }}
       >
         {/* Fila de botones */}
@@ -1242,7 +1332,7 @@ export default function FormularioValoracionOportunidad({
               Siguiente
             </Button>
           )}
-          {activeStep === visibleSteps.length - 1 && !modoInformativo && (
+          {activeStep === visibleSteps.length - 1 && !modoInformativo && !esDispositivoPersonalizado && (
             <>
               <Tooltip title="Ctrl + Shift + Enter">
                 <Button variant="outlined" onClick={() => handleSubmit(true)}>Guardar y añadir otro</Button>

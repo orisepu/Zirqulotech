@@ -127,7 +127,7 @@ export default function PasoValoracionPersonalizada({
     })
   }
 
-  const puedeGuardar = gradoSeleccionado !== null && precioCalculado !== null
+  const puedeGuardar = gradoSeleccionado !== null && precioCalculado !== null && typeof precioCalculado === 'number'
 
   return (
     <Box>
@@ -203,7 +203,7 @@ export default function PasoValoracionPersonalizada({
             </Box>
 
             {/* Preview precio calculado */}
-            {precioCalculado !== null && (
+            {precioCalculado !== null && typeof precioCalculado === 'number' && (
               <Paper sx={{ p: 2, bgcolor: 'success.lighter' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Precio de oferta calculado
