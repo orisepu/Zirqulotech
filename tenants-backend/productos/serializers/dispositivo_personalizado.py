@@ -1,14 +1,43 @@
 from rest_framework import serializers
-from productos.models import DispositivoPersonalizado
+from productos.models import DispositivoPersonalizado, PrecioDispositivoPersonalizado
+
+
+class PrecioDispositivoPersonalizadoSerializer(serializers.ModelSerializer):
+    """
+    Serializer para precios versionados de dispositivos personalizados.
+    """
+    class Meta:
+        model = PrecioDispositivoPersonalizado
+        fields = [
+            'id',
+            'dispositivo_personalizado',
+            'canal',
+            'precio_neto',
+            'valid_from',
+            'valid_to',
+            'fuente',
+            'tenant_schema',
+            'changed_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class DispositivoPersonalizadoSerializer(serializers.ModelSerializer):
     """
     Serializer completo para dispositivos personalizados.
-    Incluye validaciones y asignación automática de created_by.
+    Incluye precios vigentes del sistema de precios versionado.
     """
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     descripcion_completa = serializers.SerializerMethodField()
+
+    # Precios vigentes actuales
+    precio_b2b_vigente = serializers.SerializerMethodField()
+    precio_b2c_vigente = serializers.SerializerMethodField()
+
+    # Historial de precios (read-only)
+    precios = PrecioDispositivoPersonalizadoSerializer(many=True, read_only=True)
 
     class Meta:
         model = DispositivoPersonalizado
@@ -18,11 +47,6 @@ class DispositivoPersonalizadoSerializer(serializers.ModelSerializer):
             'modelo',
             'capacidad',
             'tipo',
-            'precio_base_b2b',
-            'precio_base_b2c',
-            'ajuste_excelente',
-            'ajuste_bueno',
-            'ajuste_malo',
             'caracteristicas',
             'notas',
             'created_by',
@@ -31,46 +55,25 @@ class DispositivoPersonalizadoSerializer(serializers.ModelSerializer):
             'updated_at',
             'activo',
             'descripcion_completa',
+            'precio_b2b_vigente',
+            'precio_b2c_vigente',
+            'precios',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'precio_b2b_vigente', 'precio_b2c_vigente', 'precios']
 
     def get_descripcion_completa(self, obj):
         """Retorna la representación string del modelo"""
         return str(obj)
 
-    def validate(self, data):
-        """
-        Validaciones personalizadas:
-        - Precios deben ser mayores o iguales a 0
-        - Ajustes deben estar entre 0 y 100
-        """
-        # Validar precios positivos
-        precio_b2b = data.get('precio_base_b2b', 0)
-        precio_b2c = data.get('precio_base_b2c', 0)
+    def get_precio_b2b_vigente(self, obj):
+        """Obtiene el precio B2B vigente actual"""
+        precio = obj.get_precio_vigente('B2B')
+        return float(precio) if precio else None
 
-        if precio_b2b < 0:
-            raise serializers.ValidationError(
-                {"precio_base_b2b": "El precio B2B debe ser mayor o igual a 0"}
-            )
-        if precio_b2c < 0:
-            raise serializers.ValidationError(
-                {"precio_base_b2c": "El precio B2C debe ser mayor o igual a 0"}
-            )
-
-        # Validar ajustes entre 0-100
-        ajustes = {
-            'ajuste_excelente': data.get('ajuste_excelente', 100),
-            'ajuste_bueno': data.get('ajuste_bueno', 80),
-            'ajuste_malo': data.get('ajuste_malo', 50),
-        }
-
-        for field_name, valor in ajustes.items():
-            if not (0 <= valor <= 100):
-                raise serializers.ValidationError(
-                    {field_name: f"{field_name} debe estar entre 0 y 100"}
-                )
-
-        return data
+    def get_precio_b2c_vigente(self, obj):
+        """Obtiene el precio B2C vigente actual"""
+        precio = obj.get_precio_vigente('B2C')
+        return float(precio) if precio else None
 
     def create(self, validated_data):
         """Asignar usuario que crea automáticamente"""

@@ -1,4 +1,4 @@
-from .precios import CanalChoices,PrecioRecompra,PiezaTipo,ManoObraTipo,CostoPieza
+from .precios import CanalChoices,PrecioRecompra,PrecioDispositivoPersonalizado,PiezaTipo,ManoObraTipo,CostoPieza
 from .modelos import (Modelo, Capacidad, DispositivoPersonalizado)
 from .actualizarpreciosfuturos import TareaActualizacionLikewize,LikewizeItemStaging,LikewizeCazadorTarea
 from .device_mapping import DeviceMapping, MappingFeedback, MappingMetrics
@@ -19,6 +19,7 @@ from .grading_config import GradingConfig
 __all__ = [
    "CanalChoices",
    "PrecioRecompra",
+   "PrecioDispositivoPersonalizado",
    "PiezaTipo",
    "ManoObraTipo",
    "CostoPieza",

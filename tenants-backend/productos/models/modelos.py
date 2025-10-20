@@ -14,6 +14,7 @@ class DispositivoPersonalizado(models.Model):
     TIPO_CHOICES = [
         ('movil', 'Móvil'),
         ('portatil', 'Portátil'),
+        ('pc', 'PC (Desktop/Torre)'),
         ('monitor', 'Monitor'),
         ('tablet', 'Tablet'),
         ('otro', 'Otro'),
@@ -34,31 +35,6 @@ class DispositivoPersonalizado(models.Model):
         help_text="Tipo de dispositivo"
     )
 
-    # Precios base por canal
-    precio_base_b2b = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        help_text="Precio base para canal B2B"
-    )
-    precio_base_b2c = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        help_text="Precio base para canal B2C"
-    )
-
-    # Ajustes por estado (porcentajes 0-100)
-    ajuste_excelente = models.IntegerField(
-        default=100,
-        help_text="% del precio base para estado excelente (0-100)"
-    )
-    ajuste_bueno = models.IntegerField(
-        default=80,
-        help_text="% del precio base para estado bueno (0-100)"
-    )
-    ajuste_malo = models.IntegerField(
-        default=50,
-        help_text="% del precio base para estado malo (0-100)"
-    )
 
     # Metadata flexible
     caracteristicas = models.JSONField(
@@ -110,9 +86,31 @@ class DispositivoPersonalizado(models.Model):
         capacidad_str = f" {self.capacidad}" if self.capacidad else ""
         return f"{self.marca} {self.modelo}{capacidad_str}"
 
+    def get_precio_vigente(self, canal: str):
+        """
+        Obtiene el precio vigente actual para este dispositivo y canal.
+
+        Args:
+            canal: 'B2B' o 'B2C'
+
+        Returns:
+            Decimal con el precio vigente, o None si no hay precio activo.
+        """
+        from django.utils import timezone
+        from django.db.models import Q
+
+        now = timezone.now()
+        precio = (self.precios
+                  .filter(canal=canal, valid_from__lte=now)
+                  .filter(Q(valid_to__isnull=True) | Q(valid_to__gt=now))
+                  .order_by('-valid_from')
+                  .first())
+
+        return precio.precio_neto if precio else None
+
     def calcular_oferta(self, estado: str, canal: str) -> float:
         """
-        Calcula la oferta según estado y canal.
+        Calcula la oferta según estado y canal usando precios versionados.
 
         Args:
             estado: 'excelente', 'bueno', 'malo'
@@ -121,19 +119,23 @@ class DispositivoPersonalizado(models.Model):
         Returns:
             Precio calculado redondeado a múltiplos de 5€.
             Mínimo 0€ (no puede ser negativo).
+            Retorna 0 si no hay precio vigente.
         """
-        # Seleccionar precio base según canal
-        precio_base = self.precio_base_b2b if canal == 'B2B' else self.precio_base_b2c
+        # Obtener precio vigente del sistema de precios versionado
+        precio_base = self.get_precio_vigente(canal)
 
-        # Mapear estado a ajuste porcentual
+        if not precio_base:
+            return 0.0
+
+        # Ajustes estándar por estado (consistente con dispositivos Apple)
         ajuste_map = {
-            'excelente': self.ajuste_excelente,
-            'bueno': self.ajuste_bueno,
-            'malo': self.ajuste_malo,
+            'excelente': 1.0,    # 100%
+            'bueno': 0.80,       # 80%
+            'malo': 0.50,        # 50%
         }
 
         # Obtener ajuste (default 100% si estado inválido)
-        ajuste_pct = ajuste_map.get(estado, 100) / 100
+        ajuste_pct = ajuste_map.get(estado, 1.0)
         precio_calculado = float(precio_base) * ajuste_pct
 
         # Redondear a múltiplos de 5€

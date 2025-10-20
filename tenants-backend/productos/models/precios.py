@@ -56,6 +56,96 @@ class PrecioRecompra(models.Model):
         return f'{self.capacidad_id} {self.canal} {self.precio_neto} {self.valid_from}..{self.valid_to or "∞"}'
 
 
+class PrecioDispositivoPersonalizado(models.Model):
+    """
+    Precio de recompra versionado para dispositivos personalizados (non-Apple).
+    Estructura idéntica a PrecioRecompra para mantener consistencia en el sistema.
+
+    Permite:
+    - Precios diferenciados por canal (B2B/B2C)
+    - Versionado temporal con valid_from/valid_to
+    - Historial completo de cambios de precio
+    - Soporte multi-tenant opcional
+    """
+    dispositivo_personalizado = models.ForeignKey(
+        'productos.DispositivoPersonalizado',
+        on_delete=models.CASCADE,
+        related_name='precios',
+        help_text="Dispositivo personalizado al que pertenece este precio"
+    )
+    canal = models.CharField(
+        max_length=3,
+        choices=CanalChoices.choices,
+        help_text="Canal de venta (B2B o B2C)"
+    )
+    fuente = models.CharField(
+        max_length=50,
+        default='manual',
+        help_text="Origen del precio: manual, api, importación"
+    )
+    moneda = models.CharField(max_length=3, default='EUR')
+    precio_neto = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Precio sin IVA"
+    )
+
+    # Versionado temporal
+    valid_from = models.DateTimeField(
+        help_text="Fecha/hora desde la cual este precio es válido"
+    )
+    valid_to = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora hasta la cual este precio es válido. NULL = vigente indefinidamente"
+    )
+
+    # Soporte multi-tenant (opcional)
+    tenant_schema = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text="Schema del tenant (para overrides específicos por tenant)"
+    )
+
+    # Auditoría
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Usuario que creó/modificó este precio"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'precios_dispositivos_personalizados'
+        verbose_name = 'Precio Dispositivo Personalizado'
+        verbose_name_plural = 'Precios Dispositivos Personalizados'
+
+        constraints = [
+            # Garantiza un único precio vigente por (dispositivo, canal, tenant)
+            models.UniqueConstraint(
+                fields=['dispositivo_personalizado', 'canal', 'tenant_schema'],
+                condition=models.Q(valid_to__isnull=True),
+                name='uniq_precio_dispositivo_personalizado_vigente'
+            ),
+        ]
+
+        indexes = [
+            models.Index(fields=['dispositivo_personalizado', 'canal', 'valid_from']),
+            models.Index(fields=['valid_to']),
+            models.Index(fields=['tenant_schema']),
+        ]
+
+        ordering = ['-valid_from']
+
+    def __str__(self):
+        disp = f"{self.dispositivo_personalizado.marca} {self.dispositivo_personalizado.modelo}"
+        return f'{disp} | {self.canal} | €{self.precio_neto} | {self.valid_from.strftime("%Y-%m-%d")}..{self.valid_to.strftime("%Y-%m-%d") if self.valid_to else "∞"}'
+
+
 class PiezaTipo(models.Model):
     """
     Catálogo de tipos de pieza: pantalla, batería, cámara trasera, chasis/tapa, etc.
