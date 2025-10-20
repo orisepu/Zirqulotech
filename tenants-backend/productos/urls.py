@@ -13,6 +13,7 @@ from .views.admincapacidades import (
     AjusteMasivoPreciosView,
 )
 from .views.tiposreparacion import PiezaTipoViewSet, ManoObraTipoViewSet
+from .views.dispositivo_personalizado import DispositivoPersonalizadoViewSet
 from .views.costespiezas import (
     ReparacionOpcionesView,CostosPiezaCoverageView,
     CostosPiezaListView,
@@ -60,6 +61,7 @@ from .views.device_mapping_v2_views import (
 router = DefaultRouter()
 router.register(r"admin/piezas-tipo", PiezaTipoViewSet, basename="admin-piezas-tipo")
 router.register(r"admin/mano-obra-tipos", ManoObraTipoViewSet, basename="admin-mano-obra-tipos")
+router.register(r"dispositivos-personalizados", DispositivoPersonalizadoViewSet, basename="dispositivo-personalizado")
 
 urlpatterns = [
     # path("", include(router.urls)),  # sin uso

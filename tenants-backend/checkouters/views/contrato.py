@@ -4,8 +4,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.db import connection
+from django.db.models import Prefetch
 from ..models.oportunidad import Oportunidad
-from ..models.dispositivo import DispositivoReal
+from ..models.dispositivo import DispositivoReal, Dispositivo
 from checkouters.utils.createpdf import generar_pdf_oportunidad
 from django.http import HttpResponse,JsonResponse
 from rest_framework.response import Response
@@ -19,7 +20,10 @@ def generar_pdf_view(request, pk):
     logger.info(f"➡️ Generando PDF para oportunidad {pk}...")
 
     try:
-        oportunidad = Oportunidad.objects.select_related('cliente').prefetch_related('dispositivos').get(pk=pk)
+        oportunidad = Oportunidad.objects.select_related('cliente').prefetch_related(
+            Prefetch('dispositivos_oportunidad',
+                     queryset=Dispositivo.objects.select_related('modelo', 'capacidad', 'dispositivo_personalizado'))
+        ).get(pk=pk)
     except Oportunidad.DoesNotExist:
         logger.error(f"❌ Oportunidad con ID {pk} no encontrada")
         raise Http404("Oportunidad no encontrada")
@@ -58,7 +62,7 @@ def generar_pdf_oferta_formal(request, pk):
     # Obtener dispositivos REALES (auditados) en lugar de los declarados
     dispositivos_reales = DispositivoReal.objects.filter(
         oportunidad=oportunidad
-    ).select_related('modelo', 'capacidad')
+    ).select_related('modelo', 'capacidad', 'dispositivo_personalizado')
 
     if not dispositivos_reales.exists():
         logger.warning(f"⚠️ No hay dispositivos reales para oportunidad {pk}, generando PDF vacío")

@@ -82,39 +82,95 @@ class DispositivoViewSet(viewsets.ModelViewSet):
         return Dispositivo.objects.all()
 
     def perform_create(self, serializer):
+        # Soporta tanto catálogo Apple (modelo+capacidad) como dispositivos personalizados
         modelo_id = self.request.data.get("modelo_id")
         capacidad_id = self.request.data.get("capacidad_id")
-        oportunidad_id = self.request.data.get("oportunidad")
+        dispositivo_personalizado_id = self.request.data.get("dispositivo_personalizado_id")
 
-        try:
-            modelo = Modelo.objects.get(id=modelo_id)
-            capacidad = Capacidad.objects.get(id=capacidad_id)
-        except (Modelo.DoesNotExist, Capacidad.DoesNotExist):
-            raise ValidationError("Modelo o capacidad no encontrados.")
+        # Obtener tenant del header X-Tenant para multi-tenancy
+        tenant_slug = self.request.headers.get('X-Tenant')
 
+        # Resolver oportunidad manualmente (puede ser ID numérico o UUID en multi-tenancy)
+        oportunidad_value = self.request.data.get("oportunidad")
         oportunidad = None
-        if oportunidad_id:
-            try:
-                oportunidad = Oportunidad.objects.get(id=oportunidad_id)
-            except Oportunidad.DoesNotExist:
-                raise ValidationError("Oportunidad no encontrada.")
 
-        dispositivo = serializer.save(
-            usuario=self.request.user,
-            modelo=modelo,
-            capacidad=capacidad,
-            oportunidad=oportunidad,
-        )
+        if oportunidad_value:
 
-        if oportunidad:
-            tipo_cliente = self._get_b2x_from_oportunidad(oportunidad)
+            # Si es numérico, buscar directamente en el schema del tenant
+            if NUM_REGEX.match(str(oportunidad_value)):
+                try:
+                    if tenant_slug:
+                        # En modo global admin, usar schema_context para acceder al tenant correcto
+                        with schema_context(tenant_slug):
+                            oportunidad = Oportunidad.objects.get(pk=int(oportunidad_value))
+                    else:
+                        # Modo tenant normal, el schema ya está configurado
+                        oportunidad = Oportunidad.objects.get(pk=int(oportunidad_value))
+                except Oportunidad.DoesNotExist:
+                    raise ValidationError({"oportunidad": "Oportunidad no encontrada."})
+            # Si es UUID, buscar por uuid field en el schema del tenant
+            elif UUID_REGEX.match(str(oportunidad_value)):
+                try:
+                    if tenant_slug:
+                        # En modo global admin, usar schema_context para acceder al tenant correcto
+                        with schema_context(tenant_slug):
+                            oportunidad = Oportunidad.objects.get(uuid=str(oportunidad_value))
+                    else:
+                        # Modo tenant normal, el schema ya está configurado
+                        oportunidad = Oportunidad.objects.get(uuid=str(oportunidad_value))
+                except Oportunidad.DoesNotExist:
+                    raise ValidationError({"oportunidad": "Oportunidad no encontrada por UUID."})
+            else:
+                raise ValidationError({"oportunidad": "Formato de oportunidad inválido (debe ser ID o UUID)."})
+
+        # Función interna para crear el dispositivo (se ejecutará en el schema correcto)
+        def _crear_dispositivo():
+            # Determinar si es Apple o personalizado
+            es_apple = modelo_id and capacidad_id
+            es_personalizado = dispositivo_personalizado_id
+
+            if es_apple:
+                # Flujo original Apple
+                try:
+                    modelo = Modelo.objects.get(id=modelo_id)
+                    capacidad = Capacidad.objects.get(id=capacidad_id)
+                except (Modelo.DoesNotExist, Capacidad.DoesNotExist):
+                    raise ValidationError("Modelo o capacidad no encontrados.")
+
+                # Guardar con oportunidad resuelta
+                dispositivo = serializer.save(usuario=self.request.user, oportunidad=oportunidad)
+
+                # Asignar precio_orientativoexcelente solo para Apple
+                if oportunidad:
+                    tipo_cliente = self._get_b2x_from_oportunidad(oportunidad)
+                else:
+                    tipo_cliente = "B2B"
+                self._asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente)
+
+            elif es_personalizado:
+                # Flujo dispositivos personalizados
+                # El serializer ya maneja dispositivo_personalizado_id
+                # El precio_orientativo ya viene en el payload del frontend
+                dispositivo = serializer.save(usuario=self.request.user, oportunidad=oportunidad)
+            else:
+                # No debería llegar aquí por validación del serializer, pero por si acaso
+                raise ValidationError("Debe especificar modelo+capacidad o dispositivo_personalizado_id")
+
+            # Establecer fecha de caducidad (común para ambos)
+            if not dispositivo.fecha_caducidad:
+                dispositivo.fecha_caducidad = dispositivo.fecha_creacion + timedelta(days=7)
+            dispositivo.save()
+
+            return dispositivo
+
+        # Ejecutar la creación en el schema correcto
+        if oportunidad_value and tenant_slug:
+            # En modo global admin, ejecutar en el schema del tenant
+            with schema_context(tenant_slug):
+                dispositivo = _crear_dispositivo()
         else:
-            tipo_cliente = "B2B"
-        self._asignar_precio_excelente_por_cliente(dispositivo, capacidad, tipo_cliente)
-
-        if not dispositivo.fecha_caducidad:
-            dispositivo.fecha_caducidad = dispositivo.fecha_creacion + timedelta(days=7)
-        dispositivo.save()
+            # Modo tenant normal o sin oportunidad
+            dispositivo = _crear_dispositivo()
 
     @action(detail=True, methods=['POST'])
     def recalcular_precio(self, request, pk=None):

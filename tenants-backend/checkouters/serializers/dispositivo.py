@@ -1,9 +1,13 @@
 from rest_framework import serializers
 from ..models.dispositivo import Dispositivo, DispositivoReal
 from ..models.oportunidad import Oportunidad
+# IMPORTANTE: DispositivoPersonalizado ahora está en productos (SHARED_APPS)
+from productos.models import DispositivoPersonalizado
 
 from productos.models.modelos import Modelo, Capacidad
 from .producto import ModeloSerializer, CapacidadSerializer
+# IMPORTANTE: DispositivoPersonalizadoSimpleSerializer ahora está en productos.serializers
+from productos.serializers import DispositivoPersonalizadoSimpleSerializer
 from decimal import Decimal
 from collections import OrderedDict
 from .utils import PKOrUUIDRelatedField
@@ -13,11 +17,37 @@ logger = logging.getLogger(__name__)
 
 
 class DispositivoSerializer(serializers.ModelSerializer):
+    # Catálogo normal (Apple)
     modelo = ModeloSerializer(read_only=True)
-    modelo_id = serializers.PrimaryKeyRelatedField(queryset=Modelo.objects.all(), write_only=True, source='modelo')
+    modelo_id = serializers.PrimaryKeyRelatedField(
+        queryset=Modelo.objects.all(),
+        write_only=True,
+        source='modelo',
+        required=False,
+        allow_null=True
+    )
 
     capacidad = CapacidadSerializer(read_only=True)
-    capacidad_id = serializers.PrimaryKeyRelatedField(queryset=Capacidad.objects.all(), write_only=True, source='capacidad')
+    capacidad_id = serializers.PrimaryKeyRelatedField(
+        queryset=Capacidad.objects.all(),
+        write_only=True,
+        source='capacidad',
+        required=False,
+        allow_null=True
+    )
+
+    # Dispositivos personalizados (no-Apple)
+    dispositivo_personalizado = DispositivoPersonalizadoSimpleSerializer(read_only=True)
+    dispositivo_personalizado_id = serializers.PrimaryKeyRelatedField(
+        queryset=DispositivoPersonalizado.objects.filter(activo=True),
+        write_only=True,
+        source='dispositivo_personalizado',
+        required=False,
+        allow_null=True
+    )
+
+    # Oportunidad: se maneja en el ViewSet perform_create() para soportar multi-tenancy
+    # En modo global, el UUID no se puede resolver aquí porque el queryset filtra por schema
 
     # Nuevos campos
     salud_bateria_pct = serializers.IntegerField(min_value=0, max_value=100, required=False, allow_null=True)
@@ -32,20 +62,24 @@ class DispositivoSerializer(serializers.ModelSerializer):
     estado_lados = serializers.ChoiceField(choices=[c[0] for c in Dispositivo.ESTETICA_CHOICES], required=False, allow_null=True)
     estado_espalda = serializers.ChoiceField(choices=[c[0] for c in Dispositivo.ESTETICA_CHOICES], required=False, allow_null=True)
 
+    es_manual = serializers.BooleanField(default=False, required=False)
+
     imei = serializers.CharField(allow_blank=True, allow_null=True, required=False, default=None)
 
     class Meta:
         model = Dispositivo
         fields = [
             'id', 'modelo', 'modelo_id', 'capacidad', 'capacidad_id',
+            'dispositivo_personalizado', 'dispositivo_personalizado_id',
             'tipo',
             'estado_fisico', 'estado_funcional', 'estado_valoracion',
             'precio_orientativo', 'fecha_creacion', 'imei', 'numero_serie',
-            'fecha_caducidad', 'oportunidad', 'cantidad',
+            'fecha_caducidad', 'cantidad',
             # nuevos
             'salud_bateria_pct', 'ciclos_bateria', 'funcionalidad_basica',
             'pantalla_funcional_puntos_bril', 'pantalla_funcional_pixeles_muertos', 'pantalla_funcional_lineas_quemaduras',
             'estado_pantalla', 'estado_lados', 'estado_espalda',
+            'es_manual',
         ]
         # 👇 Evita la validación de choices de DRF en entrada
         extra_kwargs = {
@@ -65,14 +99,36 @@ class DispositivoSerializer(serializers.ModelSerializer):
         v = (v or '').strip()
         if not v:
             return v
-        oportunidad = self.initial_data.get('oportunidad') or getattr(self.instance, 'oportunidad_id', None)
-        if oportunidad:
+        # La oportunidad se valida en el ViewSet perform_create, no aquí
+        # Ya que puede ser ID numérico o UUID en contexto multi-tenant
+        oportunidad_id = getattr(self.instance, 'oportunidad_id', None)
+        if oportunidad_id:
             exists = Dispositivo.objects.filter(
-                oportunidad_id=oportunidad, imei=v
+                oportunidad_id=oportunidad_id, imei=v
             ).exclude(pk=getattr(self.instance, 'pk', None)).exists()
             if exists:
                 raise serializers.ValidationError('Este IMEI ya está en esta oportunidad.')
         return v
+
+    def validate(self, attrs):
+        """
+        Validar que se proporcione O bien (modelo + capacidad) O bien dispositivo_personalizado.
+        No puede tener ambos ni ninguno.
+        """
+        tiene_catalogo = attrs.get('modelo') and attrs.get('capacidad')
+        tiene_personalizado = attrs.get('dispositivo_personalizado')
+
+        if not tiene_catalogo and not tiene_personalizado:
+            raise serializers.ValidationError(
+                "Debe especificar (modelo + capacidad) o dispositivo_personalizado"
+            )
+
+        if tiene_catalogo and tiene_personalizado:
+            raise serializers.ValidationError(
+                "No puede especificar ambos: catálogo normal y dispositivo personalizado"
+            )
+
+        return attrs
 
     # ---- MAPEOS NUEVA→LEGACY ----
     @staticmethod
@@ -124,22 +180,35 @@ class DispositivoSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        aliases = self._extract_front_alias()
+        # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
+        es_personalizado = bool(validated_data.get('dispositivo_personalizado'))
 
-        est_pant = validated_data.get('estado_pantalla')
-        est_lados = validated_data.get('estado_lados')
-        est_espalda = validated_data.get('estado_espalda')
-        func_basica = validated_data.get('funcionalidad_basica')
-        puntos = validated_data.get('pantalla_funcional_puntos_bril') or False
-        pixeles = validated_data.get('pantalla_funcional_pixeles_muertos') or False
-        lineas = validated_data.get('pantalla_funcional_lineas_quemaduras') or False
+        if not es_personalizado:
+            # Solo para dispositivos Apple calcular estados físico/funcional
+            aliases = self._extract_front_alias()
 
-        validated_data['estado_fisico'] = self._map_estado_fisico(
-            aliases['estado_fisico_front'], est_pant, est_lados, est_espalda
-        )
-        validated_data['estado_funcional'] = self._map_estado_funcional(
-            func_basica, puntos, pixeles, lineas, front_value=aliases['estado_funcional_front']
-        )
+            est_pant = validated_data.get('estado_pantalla')
+            est_lados = validated_data.get('estado_lados')
+            est_espalda = validated_data.get('estado_espalda')
+            func_basica = validated_data.get('funcionalidad_basica')
+            puntos = validated_data.get('pantalla_funcional_puntos_bril') or False
+            pixeles = validated_data.get('pantalla_funcional_pixeles_muertos') or False
+            lineas = validated_data.get('pantalla_funcional_lineas_quemaduras') or False
+
+            validated_data['estado_fisico'] = self._map_estado_fisico(
+                aliases['estado_fisico_front'], est_pant, est_lados, est_espalda
+            )
+            validated_data['estado_funcional'] = self._map_estado_funcional(
+                func_basica, puntos, pixeles, lineas, front_value=aliases['estado_funcional_front']
+            )
+        else:
+            # Dispositivos personalizados: mantener estado_valoracion si se envió, resto a None
+            # estado_fisico y estado_funcional se establecen en DispositivoReal durante recepción
+            if 'estado_fisico' not in validated_data:
+                validated_data['estado_fisico'] = None
+            if 'estado_funcional' not in validated_data:
+                validated_data['estado_funcional'] = None
+            # NO sobrescribir estado_valoracion si viene del frontend (mapeo de grado A+/A/B/C)
 
         try:
             logger.info("Create validated_data post-map=%s", validated_data)
@@ -154,24 +223,40 @@ class DispositivoSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        aliases = self._extract_front_alias()
-
-        est_pant = validated_data.get('estado_pantalla', instance.estado_pantalla)
-        est_lados = validated_data.get('estado_lados', instance.estado_lados)
-        est_espalda = validated_data.get('estado_espalda', instance.estado_espalda)
-        func_basica = validated_data.get('funcionalidad_basica', instance.funcionalidad_basica)
-        puntos = validated_data.get('pantalla_funcional_puntos_bril', instance.pantalla_funcional_puntos_bril)
-        pixeles = validated_data.get('pantalla_funcional_pixeles_muertos', instance.pantalla_funcional_pixeles_muertos)
-        lineas = validated_data.get('pantalla_funcional_lineas_quemaduras', instance.pantalla_funcional_lineas_quemaduras)
-
-        validated_data['estado_fisico'] = self._map_estado_fisico(
-            aliases['estado_fisico_front'] or validated_data.get('estado_fisico', instance.estado_fisico),
-            est_pant, est_lados, est_espalda
+        # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
+        es_personalizado = bool(
+            validated_data.get('dispositivo_personalizado') or instance.dispositivo_personalizado
         )
-        validated_data['estado_funcional'] = self._map_estado_funcional(
-            func_basica, puntos, pixeles, lineas,
-            front_value=(aliases['estado_funcional_front'] or validated_data.get('estado_funcional', instance.estado_funcional))
-        )
+
+        if not es_personalizado:
+            # Solo para dispositivos Apple calcular estados físico/funcional
+            aliases = self._extract_front_alias()
+
+            est_pant = validated_data.get('estado_pantalla', instance.estado_pantalla)
+            est_lados = validated_data.get('estado_lados', instance.estado_lados)
+            est_espalda = validated_data.get('estado_espalda', instance.estado_espalda)
+            func_basica = validated_data.get('funcionalidad_basica', instance.funcionalidad_basica)
+            puntos = validated_data.get('pantalla_funcional_puntos_bril', instance.pantalla_funcional_puntos_bril)
+            pixeles = validated_data.get('pantalla_funcional_pixeles_muertos', instance.pantalla_funcional_pixeles_muertos)
+            lineas = validated_data.get('pantalla_funcional_lineas_quemaduras', instance.pantalla_funcional_lineas_quemaduras)
+
+            validated_data['estado_fisico'] = self._map_estado_fisico(
+                aliases['estado_fisico_front'] or validated_data.get('estado_fisico', instance.estado_fisico),
+                est_pant, est_lados, est_espalda
+            )
+            validated_data['estado_funcional'] = self._map_estado_funcional(
+                func_basica, puntos, pixeles, lineas,
+                front_value=(aliases['estado_funcional_front'] or validated_data.get('estado_funcional', instance.estado_funcional))
+            )
+        else:
+            # Dispositivos personalizados: mantener estados como están (se establecen en recepción)
+            # No sobrescribir si ya se han establecido
+            if 'estado_fisico' not in validated_data:
+                validated_data['estado_fisico'] = instance.estado_fisico
+            if 'estado_funcional' not in validated_data:
+                validated_data['estado_funcional'] = instance.estado_funcional
+            if 'estado_valoracion' not in validated_data:
+                validated_data['estado_valoracion'] = instance.estado_valoracion
 
         try:
             logger.info("Update validated_data post-map=%s", validated_data)
@@ -181,11 +266,30 @@ class DispositivoSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class DispositivoRealSerializer(serializers.ModelSerializer):
+    # Catálogo normal (Apple)
     modelo_id = serializers.PrimaryKeyRelatedField(
-        queryset=Modelo.objects.all(), source='modelo', write_only=True
+        queryset=Modelo.objects.all(),
+        source='modelo',
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     capacidad_id = serializers.PrimaryKeyRelatedField(
-        queryset=Capacidad.objects.all(), source='capacidad', write_only=True, required=False, allow_null=True
+        queryset=Capacidad.objects.all(),
+        source='capacidad',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    # Dispositivos personalizados (no-Apple)
+    dispositivo_personalizado = DispositivoPersonalizadoSimpleSerializer(read_only=True)
+    dispositivo_personalizado_id = serializers.PrimaryKeyRelatedField(
+        queryset=DispositivoPersonalizado.objects.filter(activo=True),
+        source='dispositivo_personalizado',
+        write_only=True,
+        required=False,
+        allow_null=True
     )
 
     modelo = serializers.CharField(source='modelo.descripcion', read_only=True)
@@ -206,17 +310,31 @@ class DispositivoRealSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate(self, attrs):
+        # Validar IMEI único por oportunidad
         imei = (attrs.get('imei') or getattr(self.instance, 'imei', '') or '').strip()
-        if not imei:
-            return attrs
+        if imei:
+            oportunidad = attrs.get('oportunidad') or getattr(self.instance, 'oportunidad', None)
+            if oportunidad:
+                qs = DispositivoReal.objects.filter(oportunidad=oportunidad, imei=imei)
+                if self.instance:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise serializers.ValidationError({'imei': 'Este IMEI ya está en esta oportunidad.'})
 
-        oportunidad = attrs.get('oportunidad') or getattr(self.instance, 'oportunidad', None)
-        if oportunidad:
-            qs = DispositivoReal.objects.filter(oportunidad=oportunidad, imei=imei)
-            if self.instance:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise serializers.ValidationError({'imei': 'Este IMEI ya está en esta oportunidad.'})
+        # Validar lógica de dispositivo: debe tener (modelo+capacidad) O dispositivo_personalizado
+        tiene_catalogo = attrs.get('modelo') and attrs.get('capacidad')
+        tiene_personalizado = attrs.get('dispositivo_personalizado')
+
+        if not tiene_catalogo and not tiene_personalizado:
+            raise serializers.ValidationError(
+                "Debe especificar (modelo + capacidad) o dispositivo_personalizado"
+            )
+
+        if tiene_catalogo and tiene_personalizado:
+            raise serializers.ValidationError(
+                "No puede especificar ambos: catálogo normal y dispositivo personalizado"
+            )
+
         return attrs
 
     def get_estado_valoracion(self, obj):
