@@ -69,7 +69,7 @@ export default function PasoValoracionPersonalizada({
   onCancelar,
   guardando = false,
 }: PasoValoracionPersonalizadaProps) {
-  const [gradoSeleccionado, setGradoSeleccionado] = useState<Grade | 'V_SUELO' | null>(null)
+  const [gradoSeleccionado, setGradoSeleccionado] = useState<Grade | 'V_SUELO' | null>('A+')
   const [observaciones, setObservaciones] = useState('')
 
   // Obtener precio vigente según canal

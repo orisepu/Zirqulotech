@@ -8,6 +8,7 @@ import { DialogTitle, DialogContent, DialogActions, Button, Tooltip, Chip, Stack
 import api from '@/services/api'
 import { getPrecioFinal, formatoBonito } from '@/context/precios'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
 import PasoDatosBasicos from './PasoDatosBasicos'
 import PasoEstadoDispositivo from './PasoEstadoDispositivo'
 import PasoEstetica from './PasoEstetica'
@@ -85,6 +86,10 @@ interface Props {
 export default function FormularioValoracionOportunidad({
   item, onClose, onSuccess, oportunidadId, oportunidadUuid, oportunidad,
 }: Props) {
+  // Usuario actual para determinar si es admin
+  const usuario = useUsuarioActual()
+  const esAdmin = usuario?.es_superadmin || usuario?.es_empleado_interno
+
   const [activeStep, setActiveStep] = useState<number>(0)
   const [marca, setMarca] = useState<string>('')
   const [tipo, setTipo] = useState<string>('')
@@ -1028,6 +1033,19 @@ export default function FormularioValoracionOportunidad({
     setGuardandoPersonalizado(true)
 
     try {
+      // Mapear grado a estado_valoracion
+      let estado_valoracion: 'excelente' | 'muy_bueno' | 'bueno' | 'a_revision'
+      if (valoracionData.grado === 'A+' || valoracionData.grado === 'A') {
+        estado_valoracion = 'excelente'
+      } else if (valoracionData.grado === 'B') {
+        estado_valoracion = 'muy_bueno'
+      } else if (valoracionData.grado === 'C') {
+        estado_valoracion = 'bueno'
+      } else {
+        // V_SUELO o cualquier otro caso
+        estado_valoracion = 'bueno'
+      }
+
       const payload = {
         // Oportunidad siempre en payload (puede ser ID numérico o UUID)
         oportunidad: oppIdValido,
@@ -1035,9 +1053,9 @@ export default function FormularioValoracionOportunidad({
         tipo: 'Otro', // Tipo genérico para dispositivos personalizados
         precio_orientativo: valoracionData.precio_final,
         cantidad: Number(cantidad),
-        // El grado (A+/A/B/C) es solo informativo para calcular precio, no se guarda
-        // estado_fisico, estado_funcional, estado_valoracion se establecen en recepción
-        // Observaciones van en DispositivoReal, no en Dispositivo orientativo
+        estado_valoracion,
+        estado_fisico: 'sin_signos', // Por defecto, se ajusta en recepción si necesario
+        estado_funcional: 'ok', // Por defecto, dispositivos personalizados son funcionales
       }
 
       console.log('[handleSaveDispositivoPersonalizado] Payload a enviar:', payload)
@@ -1179,6 +1197,7 @@ export default function FormularioValoracionOportunidad({
             onCrearPersonalizado={() => {
               setModalPersonalizadoOpen(true)
             }}
+            mostrarTogglePersonalizado={esAdmin}
           />
         )}
 

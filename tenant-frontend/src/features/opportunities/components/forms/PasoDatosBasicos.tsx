@@ -25,6 +25,7 @@ export default function PasoDatosBasicos({
   dispositivoPersonalizado = null,
   onDispositivoPersonalizadoChange,
   onCrearPersonalizado,
+  mostrarTogglePersonalizado = true,
 }: {
   marcas: string[]
   loadingMarcas: boolean
@@ -51,6 +52,7 @@ export default function PasoDatosBasicos({
   dispositivoPersonalizado?: DispositivoPersonalizadoSimple | null
   onDispositivoPersonalizadoChange?: (device: DispositivoPersonalizadoSimple | null) => void
   onCrearPersonalizado?: () => void
+  mostrarTogglePersonalizado?: boolean
 }) {
   // Estado para dispositivos personalizados
   const [dispositivosPersonalizados, setDispositivosPersonalizados] = useState<DispositivoPersonalizadoSimple[]>([])
@@ -89,19 +91,21 @@ export default function PasoDatosBasicos({
 
   return (
     <Grid container spacing={2}>
-      {/* Toggle para dispositivos personalizados */}
-      <Grid size={{ xs: 12 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={esDispositivoPersonalizado}
-              onChange={handleToggleChange}
-              color="primary"
-            />
-          }
-          label="Dispositivo personalizado (no Apple)"
-        />
-      </Grid>
+      {/* Toggle para dispositivos personalizados (solo visible para admin) */}
+      {mostrarTogglePersonalizado && (
+        <Grid size={{ xs: 12 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={esDispositivoPersonalizado}
+                onChange={handleToggleChange}
+                color="primary"
+              />
+            }
+            label="Dispositivo personalizado (no Apple)"
+          />
+        </Grid>
+      )}
 
       {/* Flujo normal: Apple catalog */}
       {!esDispositivoPersonalizado && (
