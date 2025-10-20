@@ -67,6 +67,32 @@ class DispositivoPersonalizado(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     activo = models.BooleanField(default=True, help_text="Soft delete: False para desactivar")
 
+    # Sistema de grading (consistente con dispositivos Apple)
+    pp_A = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0.08,
+        help_text="Penalización de A+ a A (0.08 = 8%)"
+    )
+    pp_B = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0.12,
+        help_text="Penalización de A a B (0.12 = 12%)"
+    )
+    pp_C = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0.15,
+        help_text="Penalización de B a C (0.15 = 15%)"
+    )
+    precio_suelo = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Precio mínimo ofertable (V_SUELO)"
+    )
+
     class Meta:
         db_table = 'dispositivos_personalizados'
         ordering = ['-created_at']
@@ -108,17 +134,18 @@ class DispositivoPersonalizado(models.Model):
 
         return precio.precio_neto if precio else None
 
-    def calcular_oferta(self, estado: str, canal: str) -> float:
+    def calcular_oferta(self, grado: str, canal: str) -> float:
         """
-        Calcula la oferta según estado y canal usando precios versionados.
+        Calcula la oferta según grado estético y canal usando precios versionados.
+        Sistema consistente con dispositivos Apple (A+, A, B, C, V_SUELO).
 
         Args:
-            estado: 'excelente', 'bueno', 'malo'
+            grado: 'A+', 'A', 'B', 'C', 'V_SUELO'
             canal: 'B2B', 'B2C'
 
         Returns:
             Precio calculado redondeado a múltiplos de 5€.
-            Mínimo 0€ (no puede ser negativo).
+            Mínimo precio_suelo.
             Retorna 0 si no hay precio vigente.
         """
         # Obtener precio vigente del sistema de precios versionado
@@ -127,22 +154,38 @@ class DispositivoPersonalizado(models.Model):
         if not precio_base:
             return 0.0
 
-        # Ajustes estándar por estado (consistente con dispositivos Apple)
-        ajuste_map = {
-            'excelente': 1.0,    # 100%
-            'bueno': 0.80,       # 80%
-            'malo': 0.50,        # 50%
-        }
+        # Caso especial: precio suelo
+        if grado == 'V_SUELO':
+            return float(self.precio_suelo)
 
-        # Obtener ajuste (default 100% si estado inválido)
-        ajuste_pct = ajuste_map.get(estado, 1.0)
-        precio_calculado = float(precio_base) * ajuste_pct
+        # Cálculo de grados según documento oficial (mismo que Apple devices)
+        precio_base_float = float(precio_base)
+
+        if grado == 'A+':
+            # A+ = 100% del precio base (V_Aplus)
+            precio_calculado = precio_base_float
+        elif grado == 'A':
+            # A = precio_base * (1 - pp_A)
+            precio_calculado = precio_base_float * (1 - float(self.pp_A))
+        elif grado == 'B':
+            # B = V_A * (1 - pp_B)
+            V_A = precio_base_float * (1 - float(self.pp_A))
+            precio_calculado = V_A * (1 - float(self.pp_B))
+        elif grado == 'C':
+            # C = V_B * (1 - pp_C)
+            V_A = precio_base_float * (1 - float(self.pp_A))
+            V_B = V_A * (1 - float(self.pp_B))
+            precio_calculado = V_B * (1 - float(self.pp_C))
+        else:
+            # Grado inválido: retornar precio base
+            precio_calculado = precio_base_float
 
         # Redondear a múltiplos de 5€
         precio_redondeado = round(precio_calculado / 5) * 5
 
-        # Asegurar que no sea negativo
-        return max(precio_redondeado, 0)
+        # Aplicar precio suelo como mínimo
+        precio_suelo_float = float(self.precio_suelo)
+        return max(precio_redondeado, precio_suelo_float)
 
 
 class Modelo(models.Model):

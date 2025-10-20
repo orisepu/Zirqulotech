@@ -20,6 +20,7 @@ from .valoraciones import (
 from .dispositivo_personalizado import (
     DispositivoPersonalizadoSerializer,
     DispositivoPersonalizadoSimpleSerializer,
+    PrecioDispositivoPersonalizadoSerializer,
 )
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
    "ComercialMacProInputSerializer",
    "DispositivoPersonalizadoSerializer",
    "DispositivoPersonalizadoSimpleSerializer",
+   "PrecioDispositivoPersonalizadoSerializer",
 ]

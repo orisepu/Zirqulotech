@@ -58,6 +58,10 @@ class DispositivoPersonalizadoSerializer(serializers.ModelSerializer):
             'precio_b2b_vigente',
             'precio_b2c_vigente',
             'precios',
+            'pp_A',
+            'pp_B',
+            'pp_C',
+            'precio_suelo',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'precio_b2b_vigente', 'precio_b2c_vigente', 'precios']
 
