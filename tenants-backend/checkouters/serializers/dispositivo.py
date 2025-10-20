@@ -202,10 +202,13 @@ class DispositivoSerializer(serializers.ModelSerializer):
                 func_basica, puntos, pixeles, lineas, front_value=aliases['estado_funcional_front']
             )
         else:
-            # Dispositivos personalizados: estados se establecen en DispositivoReal
-            validated_data['estado_fisico'] = None
-            validated_data['estado_funcional'] = None
-            validated_data['estado_valoracion'] = None
+            # Dispositivos personalizados: mantener estado_valoracion si se envió, resto a None
+            # estado_fisico y estado_funcional se establecen en DispositivoReal durante recepción
+            if 'estado_fisico' not in validated_data:
+                validated_data['estado_fisico'] = None
+            if 'estado_funcional' not in validated_data:
+                validated_data['estado_funcional'] = None
+            # NO sobrescribir estado_valoracion si viene del frontend (mapeo de grado A+/A/B/C)
 
         try:
             logger.info("Create validated_data post-map=%s", validated_data)
