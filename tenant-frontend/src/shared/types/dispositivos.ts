@@ -42,6 +42,11 @@ export interface DispositivoPersonalizado {
   precio_b2b_vigente: number | null
   precio_b2c_vigente: number | null
   precios: PrecioDispositivoPersonalizado[]
+  // Sistema de grading (consistente con dispositivos Apple)
+  pp_A: number // Penalización A+ → A (default 0.08 = 8%)
+  pp_B: number // Penalización A → B (default 0.12 = 12%)
+  pp_C: number // Penalización B → C (default 0.15 = 15%)
+  precio_suelo: number // Precio mínimo ofertable (V_SUELO)
 }
 
 // Versión simplificada para listados y selección

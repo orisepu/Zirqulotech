@@ -63,6 +63,12 @@ interface WizardFormData {
   precio_b2c: string
   valid_from: any // Dayjs object
 
+  // Sistema de grading
+  pp_A: string
+  pp_B: string
+  pp_C: string
+  precio_suelo: string
+
   // Metadata
   activo: boolean
 }
@@ -84,6 +90,10 @@ const initialFormData: WizardFormData = {
   precio_b2b: '',
   precio_b2c: '',
   valid_from: dayjs(),
+  pp_A: '0.08',
+  pp_B: '0.12',
+  pp_C: '0.15',
+  precio_suelo: '0',
   activo: true,
 }
 
@@ -211,6 +221,10 @@ export default function DispositivoPersonalizadoWizard({
       caracteristicas,
       notas: formData.notas.trim(),
       activo: formData.activo,
+      pp_A: parseFloat(formData.pp_A),
+      pp_B: parseFloat(formData.pp_B),
+      pp_C: parseFloat(formData.pp_C),
+      precio_suelo: parseFloat(formData.precio_suelo),
     }
 
     try {

@@ -31,16 +31,31 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
 
   const precioB2B = parseFloat(formData.precio_b2b) || 0
   const precioB2C = parseFloat(formData.precio_b2c) || 0
+  const precioSuelo = parseFloat(formData.precio_suelo) || 0
+  const ppA = parseFloat(formData.pp_A) || 0.08
+  const ppB = parseFloat(formData.pp_B) || 0.12
+  const ppC = parseFloat(formData.pp_C) || 0.15
 
-  // Calcular precios estimados por estado
-  const calcularPreciosPorEstado = (precioBase: number) => ({
-    excelente: Math.round((precioBase * 1.0) / 5) * 5, // 100%
-    bueno: Math.round((precioBase * 0.8) / 5) * 5, // 80%
-    malo: Math.round((precioBase * 0.5) / 5) * 5, // 50%
-  })
+  // Calcular precios por grado (sistema consistente con Apple devices)
+  const calcularPreciosPorGrado = (precioBase: number) => {
+    if (precioBase === 0) return { aPlus: 0, a: 0, b: 0, c: 0, suelo: precioSuelo }
 
-  const preciosB2BPorEstado = calcularPreciosPorEstado(precioB2B)
-  const preciosB2CPorEstado = calcularPreciosPorEstado(precioB2C)
+    const aPlus = precioBase // 100%
+    const a = precioBase * (1 - ppA)
+    const b = a * (1 - ppB)
+    const c = b * (1 - ppC)
+
+    return {
+      aPlus: Math.round(aPlus / 5) * 5,
+      a: Math.round(a / 5) * 5,
+      b: Math.round(b / 5) * 5,
+      c: Math.max(Math.round(c / 5) * 5, precioSuelo),
+      suelo: precioSuelo,
+    }
+  }
+
+  const preciosB2BPorGrado = calcularPreciosPorGrado(precioB2B)
+  const preciosB2CPorGrado = calcularPreciosPorGrado(precioB2C)
 
   // Configurar locale español para dayjs
   dayjs.locale('es')
@@ -69,7 +84,7 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
               InputProps={{
                 startAdornment: <InputAdornment position="start">€</InputAdornment>,
               }}
-              helperText="Precio base para canal B2B (empresas)"
+              helperText="Precio base para grado A+ en canal B2B"
             />
 
             <TextField
@@ -82,9 +97,66 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
               InputProps={{
                 startAdornment: <InputAdornment position="start">€</InputAdornment>,
               }}
-              helperText="Precio base para canal B2C (particulares)"
+              helperText="Precio base para grado A+ en canal B2C"
             />
           </Stack>
+
+          {/* Configuración de grading */}
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+            Configuración de penalizaciones por grado
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Penalización A+ → A"
+              value={formData.pp_A}
+              onChange={(e) => handleChange('pp_A', e.target.value)}
+              fullWidth
+              type="number"
+              InputProps={{
+                endAdornment: <InputAdornment position="end">%</InputAdornment>,
+              }}
+              helperText="Default: 8%"
+              inputProps={{ step: 0.01, min: 0, max: 1 }}
+            />
+            <TextField
+              label="Penalización A → B"
+              value={formData.pp_B}
+              onChange={(e) => handleChange('pp_B', e.target.value)}
+              fullWidth
+              type="number"
+              InputProps={{
+                endAdornment: <InputAdornment position="end">%</InputAdornment>,
+              }}
+              helperText="Default: 12%"
+              inputProps={{ step: 0.01, min: 0, max: 1 }}
+            />
+            <TextField
+              label="Penalización B → C"
+              value={formData.pp_C}
+              onChange={(e) => handleChange('pp_C', e.target.value)}
+              fullWidth
+              type="number"
+              InputProps={{
+                endAdornment: <InputAdornment position="end">%</InputAdornment>,
+              }}
+              helperText="Default: 15%"
+              inputProps={{ step: 0.01, min: 0, max: 1 }}
+            />
+          </Stack>
+
+          {/* Precio suelo */}
+          <TextField
+            label="Precio suelo (V_SUELO)"
+            value={formData.precio_suelo}
+            onChange={(e) => handleChange('precio_suelo', e.target.value)}
+            required
+            fullWidth
+            type="number"
+            InputProps={{
+              startAdornment: <InputAdornment position="start">€</InputAdornment>,
+            }}
+            helperText="Precio mínimo ofertable para cualquier estado"
+          />
 
           {/* Fecha de inicio de vigencia */}
           <DatePicker
@@ -100,19 +172,23 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
             }}
           />
 
-          {/* Preview de precios por estado */}
+          {/* Preview de precios por grado */}
           {(precioB2B > 0 || precioB2C > 0) && (
             <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
               <Typography variant="subtitle2" gutterBottom>
-                Vista previa de ofertas por estado
+                Vista previa de ofertas por grado
               </Typography>
               <Typography variant="caption" color="text.secondary" paragraph>
-                El sistema aplicará los siguientes ajustes automáticamente:
+                Sistema de grading consistente con dispositivos Apple:
                 <br />
-                • Excelente: 100% del precio base
+                • A+ (Como nuevo): {precioB2B > 0 ? `€${preciosB2BPorGrado.aPlus}` : '-'}
                 <br />
-                • Bueno: 80% del precio base
-                <br />• Malo: 50% del precio base
+                • A (Excelente): Penalización {(ppA * 100).toFixed(0)}%
+                <br />
+                • B (Muy bueno): Penalización adicional {(ppB * 100).toFixed(0)}%
+                <br />
+                • C (Correcto): Penalización adicional {(ppC * 100).toFixed(0)}%
+                <br />• V_SUELO (Precio mínimo): €{precioSuelo}
               </Typography>
 
               <Stack spacing={2}>
@@ -122,8 +198,9 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
                       Canal B2B:
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Excelente: €{preciosB2BPorEstado.excelente} | Bueno: €
-                      {preciosB2BPorEstado.bueno} | Malo: €{preciosB2BPorEstado.malo}
+                      A+: €{preciosB2BPorGrado.aPlus} | A: €{preciosB2BPorGrado.a} | B: €
+                      {preciosB2BPorGrado.b} | C: €{preciosB2BPorGrado.c} | Suelo: €
+                      {preciosB2BPorGrado.suelo}
                     </Typography>
                   </Box>
                 )}
@@ -134,8 +211,9 @@ export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProp
                       Canal B2C:
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Excelente: €{preciosB2CPorEstado.excelente} | Bueno: €
-                      {preciosB2CPorEstado.bueno} | Malo: €{preciosB2CPorEstado.malo}
+                      A+: €{preciosB2CPorGrado.aPlus} | A: €{preciosB2CPorGrado.a} | B: €
+                      {preciosB2CPorGrado.b} | C: €{preciosB2CPorGrado.c} | Suelo: €
+                      {preciosB2CPorGrado.suelo}
                     </Typography>
                   </Box>
                 )}

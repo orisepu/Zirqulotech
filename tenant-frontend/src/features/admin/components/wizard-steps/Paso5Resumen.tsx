@@ -47,15 +47,30 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
   const caracteristicas = renderCaracteristicas()
   const precioB2B = parseFloat(formData.precio_b2b) || 0
   const precioB2C = parseFloat(formData.precio_b2c) || 0
+  const precioSuelo = parseFloat(formData.precio_suelo) || 0
+  const ppA = parseFloat(formData.pp_A) || 0.08
+  const ppB = parseFloat(formData.pp_B) || 0.12
+  const ppC = parseFloat(formData.pp_C) || 0.15
 
-  const calcularPreciosPorEstado = (precioBase: number) => ({
-    excelente: Math.round((precioBase * 1.0) / 5) * 5,
-    bueno: Math.round((precioBase * 0.8) / 5) * 5,
-    malo: Math.round((precioBase * 0.5) / 5) * 5,
-  })
+  const calcularPreciosPorGrado = (precioBase: number) => {
+    if (precioBase === 0) return { aPlus: 0, a: 0, b: 0, c: 0, suelo: precioSuelo }
 
-  const preciosB2B = calcularPreciosPorEstado(precioB2B)
-  const preciosB2C = calcularPreciosPorEstado(precioB2C)
+    const aPlus = precioBase // 100%
+    const a = precioBase * (1 - ppA)
+    const b = a * (1 - ppB)
+    const c = b * (1 - ppC)
+
+    return {
+      aPlus: Math.round(aPlus / 5) * 5,
+      a: Math.round(a / 5) * 5,
+      b: Math.round(b / 5) * 5,
+      c: Math.max(Math.round(c / 5) * 5, precioSuelo),
+      suelo: precioSuelo,
+    }
+  }
+
+  const preciosB2B = calcularPreciosPorGrado(precioB2B)
+  const preciosB2C = calcularPreciosPorGrado(precioB2C)
 
   return (
     <Box>
@@ -143,11 +158,11 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
                 Canal B2B (Empresas)
               </Typography>
               <Typography variant="h6" color="primary.main">
-                €{precioB2B.toFixed(2)}
+                €{precioB2B.toFixed(2)} (Grado A+)
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Excelente: €{preciosB2B.excelente} • Bueno: €{preciosB2B.bueno} • Malo: €
-                {preciosB2B.malo}
+                A+: €{preciosB2B.aPlus} • A: €{preciosB2B.a} • B: €{preciosB2B.b} • C: €
+                {preciosB2B.c} • Suelo: €{preciosB2B.suelo}
               </Typography>
             </Grid>
 
@@ -156,11 +171,11 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
                 Canal B2C (Particulares)
               </Typography>
               <Typography variant="h6" color="secondary.main">
-                €{precioB2C.toFixed(2)}
+                €{precioB2C.toFixed(2)} (Grado A+)
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Excelente: €{preciosB2C.excelente} • Bueno: €{preciosB2C.bueno} • Malo: €
-                {preciosB2C.malo}
+                A+: €{preciosB2C.aPlus} • A: €{preciosB2C.a} • B: €{preciosB2C.b} • C: €
+                {preciosB2C.c} • Suelo: €{preciosB2C.suelo}
               </Typography>
             </Grid>
           </Grid>
