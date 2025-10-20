@@ -29,7 +29,7 @@ import {
 import { STEPS, FormStep, ValoracionDerivada, CatalogoValoracion, FuncPantallaValue, EsteticaKey, EsteticaPantallaKey } from './tipos'
 import type { DispositivoPersonalizadoSimple, EstadoGeneral } from '@/shared/types/dispositivos'
 import PasoEstadoGeneral from './PasoEstadoGeneral'
-import DispositivoPersonalizadoModal from '@/features/admin/components/DispositivoPersonalizadoModal'
+import DispositivoPersonalizadoWizard from '@/features/admin/components/DispositivoPersonalizadoWizard'
 import { Stepper, Step, StepLabel, Box } from '@mui/material'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import BoltIcon from '@mui/icons-material/Bolt'
@@ -1363,7 +1363,7 @@ export default function FormularioValoracionOportunidad({
 
       <DemoViewer open={demoOpen} demo={demo} onClose={closeDemo} />
 
-      <DispositivoPersonalizadoModal
+      <DispositivoPersonalizadoWizard
         open={modalPersonalizadoOpen}
         onClose={() => setModalPersonalizadoOpen(false)}
         onSuccess={(nuevoDispositivo) => {
