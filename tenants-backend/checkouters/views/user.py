@@ -119,26 +119,72 @@ def cambiar_contraseña(request):
 def cambiar_contraseña_usuario(request):
     user_id = request.data.get('user_id')
     new_password = request.data.get('new_password')
-    tenant_slug = request.tenant.schema_name.lower()
+
+    # Resolver tenant_slug desde query params (prioridad) o request.tenant
+    qp_schema = (request.query_params.get("schema") or "").strip().lower()
+    header_schema = (request.headers.get("X-Tenant") or "").strip().lower()
+    req_tenant = getattr(getattr(request, "tenant", None), "schema_name", "").lower() if hasattr(request, "tenant") else ""
+
+    tenant_slug = qp_schema or header_schema or req_tenant
+
+    logger.debug(
+        "cambiar_contraseña_usuario | qp_schema=%r header=%r req_tenant=%r -> resolved=%r",
+        qp_schema, header_schema, req_tenant, tenant_slug
+    )
 
     if not user_id or not new_password:
         return Response({"error": "Faltan datos"}, status=400)
 
-    try:
-        rol = request.user.global_role.roles.get(tenant_slug=tenant_slug)
-    except (AttributeError, RolPorTenant.DoesNotExist):
-        return Response({"error": "No tienes permisos."}, status=403)
+    if not tenant_slug:
+        return Response({"error": "Falta especificar el schema del tenant"}, status=400)
 
-    if rol.rol != "manager":
-        return Response({"error": "Solo los managers pueden cambiar contraseñas."}, status=403)
+    # Verificar permisos: el usuario debe ser superadmin O manager del tenant especificado
+    public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+    with schema_context(public_schema):
+        # Verificar si el usuario tiene UserGlobalRole
+        try:
+            global_role = request.user.global_role
+        except AttributeError:
+            logger.warning(
+                "cambiar_contraseña_usuario | user_id=%s no tiene UserGlobalRole",
+                request.user.id
+            )
+            return Response({"error": "No tienes permisos."}, status=403)
 
-    User = get_user_model()
-    try:
-        user = User.objects.get(pk=user_id)
-    except User.DoesNotExist:
-        return Response({"error": "Usuario no encontrado"}, status=404)
+        # Si es superadmin, permitir sin restricciones
+        if global_role.es_superadmin:
+            logger.info(
+                "cambiar_contraseña_usuario | user_id=%s es superadmin, permitiendo cambio de contraseña",
+                request.user.id
+            )
+        else:
+            # Si no es superadmin, verificar que sea manager del tenant
+            try:
+                rol = global_role.roles.get(tenant_slug=tenant_slug)
+            except RolPorTenant.DoesNotExist:
+                logger.warning(
+                    "cambiar_contraseña_usuario | user_id=%s no tiene rol en tenant=%s y no es superadmin",
+                    request.user.id, tenant_slug
+                )
+                return Response({"error": "No tienes permisos."}, status=403)
 
-    user.set_password(new_password)
-    user.save()
+            if rol.rol != "manager":
+                logger.warning(
+                    "cambiar_contraseña_usuario | user_id=%s tiene rol=%s (no manager) en tenant=%s",
+                    request.user.id, rol.rol, tenant_slug
+                )
+                return Response({"error": "Solo los managers pueden cambiar contraseñas."}, status=403)
+
+        # Cambiar contraseña del usuario (también en schema public)
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            logger.warning("cambiar_contraseña_usuario | user_id=%s no encontrado", user_id)
+            return Response({"error": "Usuario no encontrado"}, status=404)
+
+        user.set_password(new_password)
+        user.save()
+        logger.info("cambiar_contraseña_usuario | Contraseña actualizada para user_id=%s por manager_id=%s", user_id, request.user.id)
 
     return Response({"success": "Contraseña actualizada"})
