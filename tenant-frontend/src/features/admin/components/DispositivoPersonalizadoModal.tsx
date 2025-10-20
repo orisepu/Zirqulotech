@@ -26,7 +26,8 @@ import type { DispositivoPersonalizado } from '@/shared/types/dispositivos'
 interface DispositivoPersonalizadoModalProps {
   open: boolean
   onClose: () => void
-  dispositivo: DispositivoPersonalizado | null
+  dispositivo?: DispositivoPersonalizado | null
+  onSuccess?: (dispositivo: DispositivoPersonalizado) => void
 }
 
 interface FormData {
@@ -61,6 +62,7 @@ export default function DispositivoPersonalizadoModal({
   open,
   onClose,
   dispositivo,
+  onSuccess,
 }: DispositivoPersonalizadoModalProps) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<FormData>(initialFormData)
@@ -97,10 +99,16 @@ export default function DispositivoPersonalizadoModal({
       const response = await api.post('/api/dispositivos-personalizados/', data)
       return response.data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['dispositivos-personalizados'] })
-      toast.success('Dispositivo creado correctamente')
-      onClose()
+      // Si hay callback onSuccess, llamarlo (usado cuando se crea desde formulario de valoración)
+      if (onSuccess) {
+        onSuccess(data)
+      } else {
+        // Si no hay callback, comportamiento por defecto (usado desde admin)
+        toast.success('Dispositivo creado correctamente')
+        onClose()
+      }
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.detail || 'Error al crear dispositivo')
@@ -166,10 +174,9 @@ export default function DispositivoPersonalizadoModal({
   }
 
   const isFormValid = (): boolean => {
-    // Check required fields
+    // Solo campos obligatorios: marca, modelo, tipo, precios
     if (!formData.marca.trim()) return false
     if (!formData.modelo.trim()) return false
-    if (!formData.capacidad.trim()) return false
     if (!formData.tipo) return false
     if (!formData.precio_base_b2b.trim()) return false
     if (!formData.precio_base_b2c.trim()) return false
@@ -263,17 +270,29 @@ export default function DispositivoPersonalizadoModal({
             disabled={isSaving}
           />
 
-          {/* Capacidad */}
+          {/* Capacidad (opcional para monitores) */}
           <TextField
-            label="Capacidad"
+            label={
+              formData.tipo === 'monitor'
+                ? "Capacidad (opcional)"
+                : formData.tipo === 'movil' || formData.tipo === 'tablet'
+                ? "Almacenamiento (opcional)"
+                : formData.tipo === 'portatil'
+                ? "Almacenamiento/RAM (opcional)"
+                : "Capacidad (opcional)"
+            }
             value={formData.capacidad}
             onChange={(e) => handleChange('capacidad', e.target.value)}
             onBlur={() => handleBlur('capacidad')}
-            required
             fullWidth
             error={!!errors.capacidad}
-            helperText={errors.capacidad}
-            placeholder="Ej: 256GB, 512GB, 1TB SSD"
+            helperText={
+              errors.capacidad ||
+              (formData.tipo === 'monitor' ? 'No es necesario para monitores' :
+               formData.tipo === 'movil' || formData.tipo === 'tablet' ? 'Ej: 64GB, 128GB, 256GB' :
+               formData.tipo === 'portatil' ? 'Ej: 512GB SSD + 16GB RAM' :
+               'Ej: 256GB, 512GB, 1TB SSD')
+            }
             disabled={isSaving}
           />
 

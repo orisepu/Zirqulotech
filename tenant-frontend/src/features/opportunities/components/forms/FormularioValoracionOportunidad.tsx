@@ -1088,7 +1088,7 @@ export default function FormularioValoracionOportunidad({
             dispositivoPersonalizado={dispositivoPersonalizado}
             onDispositivoPersonalizadoChange={handleDispositivoPersonalizadoChange}
             onCrearPersonalizado={() => {
-              toast.info('Funcionalidad de crear dispositivo personalizado disponible en panel de administración')
+              setModalPersonalizadoOpen(true)
             }}
           />
         )}
@@ -1362,6 +1362,19 @@ export default function FormularioValoracionOportunidad({
       </DialogActions>
 
       <DemoViewer open={demoOpen} demo={demo} onClose={closeDemo} />
+
+      <DispositivoPersonalizadoModal
+        open={modalPersonalizadoOpen}
+        onClose={() => setModalPersonalizadoOpen(false)}
+        onSuccess={(nuevoDispositivo) => {
+          // Cerrar modal
+          setModalPersonalizadoOpen(false)
+          // Auto-seleccionar el dispositivo recién creado
+          handleDispositivoPersonalizadoChange(nuevoDispositivo)
+          // Mostrar mensaje de éxito
+          toast.success(`Dispositivo "${nuevoDispositivo.descripcion_completa}" creado exitosamente`)
+        }}
+      />
     </>
   )
 }
