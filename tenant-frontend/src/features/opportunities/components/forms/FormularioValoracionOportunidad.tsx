@@ -1031,11 +1031,16 @@ export default function FormularioValoracionOportunidad({
       const payload = {
         // oportunidad puede ser ID numérico (tenant) o hashid/uuid (global)
         oportunidad: oppIdValido,
-        dispositivo_personalizado: dispositivoPersonalizado.id,
+        dispositivo_personalizado_id: dispositivoPersonalizado.id,
         precio_final: valoracionData.precio_final,
         observaciones: valoracionData.observaciones,
         cantidad: Number(cantidad),
       }
+
+      console.log('[handleSaveDispositivoPersonalizado] Payload a enviar:', payload)
+      console.log('[handleSaveDispositivoPersonalizado] Endpoint:', tenant
+        ? `/api/dispositivos-reales-globales/${tenant}/crear/`
+        : '/api/dispositivos-reales/crear/')
 
       // Crear DispositivoReal
       if (tenant) {
