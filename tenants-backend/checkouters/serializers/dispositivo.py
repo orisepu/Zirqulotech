@@ -17,11 +17,34 @@ logger = logging.getLogger(__name__)
 
 
 class DispositivoSerializer(serializers.ModelSerializer):
+    # Catálogo normal (Apple)
     modelo = ModeloSerializer(read_only=True)
-    modelo_id = serializers.PrimaryKeyRelatedField(queryset=Modelo.objects.all(), write_only=True, source='modelo')
+    modelo_id = serializers.PrimaryKeyRelatedField(
+        queryset=Modelo.objects.all(),
+        write_only=True,
+        source='modelo',
+        required=False,
+        allow_null=True
+    )
 
     capacidad = CapacidadSerializer(read_only=True)
-    capacidad_id = serializers.PrimaryKeyRelatedField(queryset=Capacidad.objects.all(), write_only=True, source='capacidad')
+    capacidad_id = serializers.PrimaryKeyRelatedField(
+        queryset=Capacidad.objects.all(),
+        write_only=True,
+        source='capacidad',
+        required=False,
+        allow_null=True
+    )
+
+    # Dispositivos personalizados (no-Apple)
+    dispositivo_personalizado = DispositivoPersonalizadoSimpleSerializer(read_only=True)
+    dispositivo_personalizado_id = serializers.PrimaryKeyRelatedField(
+        queryset=DispositivoPersonalizado.objects.filter(activo=True),
+        write_only=True,
+        source='dispositivo_personalizado',
+        required=False,
+        allow_null=True
+    )
 
     # Nuevos campos
     salud_bateria_pct = serializers.IntegerField(min_value=0, max_value=100, required=False, allow_null=True)
@@ -42,6 +65,7 @@ class DispositivoSerializer(serializers.ModelSerializer):
         model = Dispositivo
         fields = [
             'id', 'modelo', 'modelo_id', 'capacidad', 'capacidad_id',
+            'dispositivo_personalizado', 'dispositivo_personalizado_id',
             'tipo',
             'estado_fisico', 'estado_funcional', 'estado_valoracion',
             'precio_orientativo', 'fecha_creacion', 'imei', 'numero_serie',
@@ -77,6 +101,26 @@ class DispositivoSerializer(serializers.ModelSerializer):
             if exists:
                 raise serializers.ValidationError('Este IMEI ya está en esta oportunidad.')
         return v
+
+    def validate(self, attrs):
+        """
+        Validar que se proporcione O bien (modelo + capacidad) O bien dispositivo_personalizado.
+        No puede tener ambos ni ninguno.
+        """
+        tiene_catalogo = attrs.get('modelo') and attrs.get('capacidad')
+        tiene_personalizado = attrs.get('dispositivo_personalizado')
+
+        if not tiene_catalogo and not tiene_personalizado:
+            raise serializers.ValidationError(
+                "Debe especificar (modelo + capacidad) o dispositivo_personalizado"
+            )
+
+        if tiene_catalogo and tiene_personalizado:
+            raise serializers.ValidationError(
+                "No puede especificar ambos: catálogo normal y dispositivo personalizado"
+            )
+
+        return attrs
 
     # ---- MAPEOS NUEVA→LEGACY ----
     @staticmethod
