@@ -89,7 +89,7 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
           </Typography>
           <Divider sx={{ my: 1 }} />
           <Grid container spacing={2}>
-            <Grid item xs={6}>
+            <Grid size={{ xs: 6 }}>
               <Typography variant="body2" color="text.secondary">
                 Tipo:
               </Typography>
@@ -98,20 +98,20 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
                   '-'}
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={{ xs: 6 }}>
               <Typography variant="body2" color="text.secondary">
                 Marca:
               </Typography>
               <Typography variant="body1">{formData.marca || '-'}</Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Typography variant="body2" color="text.secondary">
                 Modelo:
               </Typography>
               <Typography variant="body1">{formData.modelo || '-'}</Typography>
             </Grid>
             {formData.notas && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="body2" color="text.secondary">
                   Notas:
                 </Typography>
@@ -144,7 +144,7 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
           <Divider sx={{ my: 1 }} />
 
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Typography variant="body2" color="text.secondary">
                 Fecha de vigencia:
               </Typography>
@@ -153,7 +153,7 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Canal B2B (Empresas)
               </Typography>
@@ -166,7 +166,7 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Canal B2C (Particulares)
               </Typography>

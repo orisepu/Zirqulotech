@@ -2,6 +2,7 @@
 
 export const STEPS = [
   'Datos básicos',
+  'Estado General',
   'Batería',
   'Funcionalidad',
   'Pantalla (funcional)',

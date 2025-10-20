@@ -22,7 +22,7 @@ interface Paso4PreciosProps {
 }
 
 export default function Paso4Precios({ formData, setFormData }: Paso4PreciosProps) {
-  const handleChange = (field: string, value: string | Date) => {
+  const handleChange = (field: string, value: string | Date | Dayjs) => {
     setFormData((prev: any) => ({
       ...prev,
       [field]: value,

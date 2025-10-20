@@ -218,7 +218,7 @@ describe('FormularioValoracionOportunidad - Custom Devices Integration', () => {
         expect(screen.getByLabelText(/seleccionar dispositivo personalizado/i)).toBeInTheDocument()
       })
 
-      const autocomplete = screen.getByLabelText(/seleccionar dispositivo personalizado/i })
+      const autocomplete = screen.getByLabelText(/seleccionar dispositivo personalizado/i)
       fireEvent.click(autocomplete)
 
       await waitFor(() => {

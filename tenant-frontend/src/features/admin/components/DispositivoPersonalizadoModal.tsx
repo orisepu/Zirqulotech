@@ -33,7 +33,7 @@ interface DispositivoPersonalizadoModalProps {
 interface FormData {
   marca: string
   modelo: string
-  tipo: 'movil' | 'portatil' | 'tablet' | 'monitor' | 'otro' | ''
+  tipo: 'movil' | 'portatil' | 'pc' | 'tablet' | 'monitor' | 'otro' | ''
 
   // Campos genéricos (móvil, tablet, otro)
   capacidad: string
@@ -50,11 +50,11 @@ interface FormData {
   procesador: string
   grafica: string
 
-  precio_base_b2b: string
-  precio_base_b2c: string
-  ajuste_excelente: string
-  ajuste_bueno: string
-  ajuste_malo: string
+  // Sistema de grading (porcentajes de penalización)
+  pp_A: string  // Penalización A+ → A (default 0.08 = 8%)
+  pp_B: string  // Penalización A → B (default 0.12 = 12%)
+  pp_C: string  // Penalización B → C (default 0.15 = 15%)
+  precio_suelo: string  // Precio mínimo ofertable
   notas: string
   activo: boolean
 }
@@ -79,11 +79,11 @@ const initialFormData: FormData = {
   procesador: '',
   grafica: '',
 
-  precio_base_b2b: '',
-  precio_base_b2c: '',
-  ajuste_excelente: '100',
-  ajuste_bueno: '80',
-  ajuste_malo: '50',
+  // Valores por defecto del sistema de grading
+  pp_A: '0.08',  // 8%
+  pp_B: '0.12',  // 12%
+  pp_C: '0.15',  // 15%
+  precio_suelo: '0',
   notas: '',
   activo: true,
 }
@@ -125,11 +125,10 @@ export default function DispositivoPersonalizadoModal({
         procesador: caract.procesador || '',
         grafica: caract.grafica || '',
 
-        precio_base_b2b: String(dispositivo.precio_base_b2b),
-        precio_base_b2c: String(dispositivo.precio_base_b2c),
-        ajuste_excelente: String(dispositivo.ajuste_excelente),
-        ajuste_bueno: String(dispositivo.ajuste_bueno),
-        ajuste_malo: String(dispositivo.ajuste_malo),
+        pp_A: String(dispositivo.pp_A),
+        pp_B: String(dispositivo.pp_B),
+        pp_C: String(dispositivo.pp_C),
+        precio_suelo: String(dispositivo.precio_suelo),
         notas: dispositivo.notas || '',
         activo: dispositivo.activo,
       })
@@ -142,7 +141,7 @@ export default function DispositivoPersonalizadoModal({
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: async (data: Omit<DispositivoPersonalizado, 'id' | 'created_by' | 'created_by_name' | 'created_at' | 'updated_at' | 'descripcion_completa'>) => {
+    mutationFn: async (data: any) => {
       const response = await api.post('/api/dispositivos-personalizados/', data)
       return response.data
     },
@@ -164,7 +163,7 @@ export default function DispositivoPersonalizadoModal({
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: async (data: Partial<DispositivoPersonalizado>) => {
+    mutationFn: async (data: any) => {
       const response = await api.put(`/api/dispositivos-personalizados/${dispositivo!.id}/`, data)
       return response.data
     },
@@ -182,17 +181,17 @@ export default function DispositivoPersonalizadoModal({
 
   // Validation
   const validateField = (field: keyof FormData, value: string | boolean): string | null => {
-    if (field === 'precio_base_b2b' || field === 'precio_base_b2c') {
+    if (field === 'pp_A' || field === 'pp_B' || field === 'pp_C') {
       const numValue = parseFloat(value as string)
-      if (isNaN(numValue) || numValue < 0) {
-        return 'El precio debe ser un valor positivo'
+      if (isNaN(numValue) || numValue < 0 || numValue > 1) {
+        return 'El porcentaje debe estar entre 0 y 1 (ej: 0.08 para 8%)'
       }
     }
 
-    if (field === 'ajuste_excelente' || field === 'ajuste_bueno' || field === 'ajuste_malo') {
+    if (field === 'precio_suelo') {
       const numValue = parseFloat(value as string)
-      if (isNaN(numValue) || numValue < 0 || numValue > 100) {
-        return 'El ajuste debe estar entre 0 y 100'
+      if (isNaN(numValue) || numValue < 0) {
+        return 'El precio suelo debe ser un valor positivo o 0'
       }
     }
 
@@ -238,29 +237,24 @@ export default function DispositivoPersonalizadoModal({
   }
 
   const isFormValid = (): boolean => {
-    // Solo campos obligatorios: marca, modelo, tipo, precios
+    // Solo campos obligatorios: marca, modelo, tipo
     if (!formData.marca.trim()) return false
     if (!formData.modelo.trim()) return false
     if (!formData.tipo) return false
-    if (!formData.precio_base_b2b.trim()) return false
-    if (!formData.precio_base_b2c.trim()) return false
 
     // Check for validation errors
     if (Object.keys(errors).length > 0) return false
 
-    // Validate prices
-    const b2b = parseFloat(formData.precio_base_b2b)
-    const b2c = parseFloat(formData.precio_base_b2c)
-    if (isNaN(b2b) || b2b < 0) return false
-    if (isNaN(b2c) || b2c < 0) return false
+    // Validate grading percentages
+    const pp_a = parseFloat(formData.pp_A)
+    const pp_b = parseFloat(formData.pp_B)
+    const pp_c = parseFloat(formData.pp_C)
+    const precio_suelo = parseFloat(formData.precio_suelo)
 
-    // Validate adjustments
-    const ajustes = [
-      parseFloat(formData.ajuste_excelente),
-      parseFloat(formData.ajuste_bueno),
-      parseFloat(formData.ajuste_malo),
-    ]
-    if (ajustes.some((a) => isNaN(a) || a < 0 || a > 100)) return false
+    if (isNaN(pp_a) || pp_a < 0 || pp_a > 1) return false
+    if (isNaN(pp_b) || pp_b < 0 || pp_b > 1) return false
+    if (isNaN(pp_c) || pp_c < 0 || pp_c > 1) return false
+    if (isNaN(precio_suelo) || precio_suelo < 0) return false
 
     return true
   }
@@ -278,7 +272,7 @@ export default function DispositivoPersonalizadoModal({
         proporcion: formData.proporcion.trim(),
         resolucion: formData.resolucion.trim(),
       }
-    } else if (formData.tipo === 'portatil') {
+    } else if (formData.tipo === 'portatil' || formData.tipo === 'pc') {
       caracteristicas = {
         almacenamiento: formData.almacenamiento.trim(),
         ram: formData.ram.trim(),
@@ -291,12 +285,11 @@ export default function DispositivoPersonalizadoModal({
       marca: formData.marca.trim(),
       modelo: formData.modelo.trim(),
       capacidad: formData.capacidad.trim(),
-      tipo: formData.tipo as 'movil' | 'portatil' | 'tablet' | 'monitor' | 'otro',
-      precio_base_b2b: parseFloat(formData.precio_base_b2b),
-      precio_base_b2c: parseFloat(formData.precio_base_b2c),
-      ajuste_excelente: parseFloat(formData.ajuste_excelente),
-      ajuste_bueno: parseFloat(formData.ajuste_bueno),
-      ajuste_malo: parseFloat(formData.ajuste_malo),
+      tipo: formData.tipo as 'movil' | 'portatil' | 'pc' | 'tablet' | 'monitor' | 'otro',
+      pp_A: parseFloat(formData.pp_A),
+      pp_B: parseFloat(formData.pp_B),
+      pp_C: parseFloat(formData.pp_C),
+      precio_suelo: parseFloat(formData.precio_suelo),
       notas: formData.notas.trim(),
       activo: formData.activo,
       caracteristicas,
@@ -364,6 +357,7 @@ export default function DispositivoPersonalizadoModal({
             >
               <MenuItem value="movil">Móvil</MenuItem>
               <MenuItem value="portatil">Portátil</MenuItem>
+              <MenuItem value="pc">PC</MenuItem>
               <MenuItem value="tablet">Tablet</MenuItem>
               <MenuItem value="monitor">Monitor</MenuItem>
               <MenuItem value="otro">Otro</MenuItem>
@@ -432,8 +426,8 @@ export default function DispositivoPersonalizadoModal({
             />
           )}
 
-          {/* Campos específicos de Portátil */}
-          {formData.tipo === 'portatil' && (
+          {/* Campos específicos de Portátil/PC */}
+          {(formData.tipo === 'portatil' || formData.tipo === 'pc') && (
             <>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
@@ -496,76 +490,66 @@ export default function DispositivoPersonalizadoModal({
             />
           )}
 
-          {/* Precios */}
+          {/* Sistema de Grading (porcentajes de penalización en cascada) */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Precio B2B"
-              value={formData.precio_base_b2b}
-              onChange={(e) => handleChange('precio_base_b2b', e.target.value)}
-              onBlur={() => handleBlur('precio_base_b2b')}
+              label="Penalización A+ → A (pp_A)"
+              value={formData.pp_A}
+              onChange={(e) => handleChange('pp_A', e.target.value)}
+              onBlur={() => handleBlur('pp_A')}
               required
               fullWidth
               type="number"
-              error={!!errors.precio_base_b2b}
-              helperText={errors.precio_base_b2b}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">€</InputAdornment>,
-              }}
+              error={!!errors.pp_A}
+              helperText={errors.pp_A || 'Ej: 0.08 para 8% de penalización'}
+              inputProps={{ step: '0.01', min: '0', max: '1' }}
               disabled={isSaving}
             />
 
             <TextField
-              label="Precio B2C"
-              value={formData.precio_base_b2c}
-              onChange={(e) => handleChange('precio_base_b2c', e.target.value)}
-              onBlur={() => handleBlur('precio_base_b2c')}
+              label="Penalización A → B (pp_B)"
+              value={formData.pp_B}
+              onChange={(e) => handleChange('pp_B', e.target.value)}
+              onBlur={() => handleBlur('pp_B')}
               required
               fullWidth
               type="number"
-              error={!!errors.precio_base_b2c}
-              helperText={errors.precio_base_b2c}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">€</InputAdornment>,
-              }}
+              error={!!errors.pp_B}
+              helperText={errors.pp_B || 'Ej: 0.12 para 12% de penalización'}
+              inputProps={{ step: '0.01', min: '0', max: '1' }}
               disabled={isSaving}
             />
           </Stack>
 
-          {/* Ajustes de estado */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Ajuste Excelente (%)"
-              value={formData.ajuste_excelente}
-              onChange={(e) => handleChange('ajuste_excelente', e.target.value)}
-              onBlur={() => handleBlur('ajuste_excelente')}
+              label="Penalización B → C (pp_C)"
+              value={formData.pp_C}
+              onChange={(e) => handleChange('pp_C', e.target.value)}
+              onBlur={() => handleBlur('pp_C')}
+              required
               fullWidth
               type="number"
-              error={!!errors.ajuste_excelente}
-              helperText={errors.ajuste_excelente}
+              error={!!errors.pp_C}
+              helperText={errors.pp_C || 'Ej: 0.15 para 15% de penalización'}
+              inputProps={{ step: '0.01', min: '0', max: '1' }}
               disabled={isSaving}
             />
 
             <TextField
-              label="Ajuste Bueno (%)"
-              value={formData.ajuste_bueno}
-              onChange={(e) => handleChange('ajuste_bueno', e.target.value)}
-              onBlur={() => handleBlur('ajuste_bueno')}
+              label="Precio Suelo (mínimo ofertable)"
+              value={formData.precio_suelo}
+              onChange={(e) => handleChange('precio_suelo', e.target.value)}
+              onBlur={() => handleBlur('precio_suelo')}
+              required
               fullWidth
               type="number"
-              error={!!errors.ajuste_bueno}
-              helperText={errors.ajuste_bueno}
-              disabled={isSaving}
-            />
-
-            <TextField
-              label="Ajuste Malo (%)"
-              value={formData.ajuste_malo}
-              onChange={(e) => handleChange('ajuste_malo', e.target.value)}
-              onBlur={() => handleBlur('ajuste_malo')}
-              fullWidth
-              type="number"
-              error={!!errors.ajuste_malo}
-              helperText={errors.ajuste_malo}
+              error={!!errors.precio_suelo}
+              helperText={errors.precio_suelo || 'Precio mínimo garantizado'}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">€</InputAdornment>,
+              }}
+              inputProps={{ step: '1', min: '0' }}
               disabled={isSaving}
             />
           </Stack>

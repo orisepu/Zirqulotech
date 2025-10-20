@@ -101,7 +101,7 @@ export default function Paso1Tipo({ formData, setFormData }: Paso1TipoProps) {
           const isSelected = formData.tipo === tipo.value
 
           return (
-            <Grid item xs={12} sm={6} md={4} key={tipo.value}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={tipo.value}>
               <Card
                 sx={{
                   cursor: 'pointer',

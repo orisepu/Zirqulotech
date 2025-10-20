@@ -312,9 +312,10 @@ export default function DispositivosPersonalizadosTable({
                     </TableSortLabel>
                   </TableCell>
                   <TableCell scope="col">Tipo</TableCell>
-                  <TableCell scope="col" align="right">Precio B2B</TableCell>
-                  <TableCell scope="col" align="right">Precio B2C</TableCell>
-                  <TableCell scope="col">Ajustes (%)</TableCell>
+                  <TableCell scope="col" align="right">Precio B2B Vigente</TableCell>
+                  <TableCell scope="col" align="right">Precio B2C Vigente</TableCell>
+                  <TableCell scope="col">Penalizaciones (A/B/C)</TableCell>
+                  <TableCell scope="col" align="right">Precio Suelo</TableCell>
                   <TableCell scope="col">Estado</TableCell>
                   <TableCell scope="col" align="center">Acciones</TableCell>
                 </TableRow>
@@ -339,15 +340,18 @@ export default function DispositivosPersonalizadosTable({
                       />
                     </TableCell>
                     <TableCell align="right">
-                      {formatPrice(dispositivo.precio_base_b2b)}
+                      {dispositivo.precio_b2b_vigente ? formatPrice(dispositivo.precio_b2b_vigente) : '—'}
                     </TableCell>
                     <TableCell align="right">
-                      {formatPrice(dispositivo.precio_base_b2c)}
+                      {dispositivo.precio_b2c_vigente ? formatPrice(dispositivo.precio_b2c_vigente) : '—'}
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption" component="div">
-                        {dispositivo.ajuste_excelente}% / {dispositivo.ajuste_bueno}% / {dispositivo.ajuste_malo}%
+                        {(dispositivo.pp_A * 100).toFixed(0)}% / {(dispositivo.pp_B * 100).toFixed(0)}% / {(dispositivo.pp_C * 100).toFixed(0)}%
                       </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      {formatPrice(dispositivo.precio_suelo)}
                     </TableCell>
                     <TableCell>
                       <Chip
