@@ -1029,7 +1029,8 @@ export default function FormularioValoracionOportunidad({
 
     try {
       const payload = {
-        oportunidad: oppIdToUse ? Number(oppIdToUse) : undefined,
+        // oportunidad puede ser ID numérico (tenant) o hashid/uuid (global)
+        oportunidad: oppIdValido,
         dispositivo_personalizado: dispositivoPersonalizado.id,
         precio_final: valoracionData.precio_final,
         observaciones: valoracionData.observaciones,
@@ -1038,8 +1039,10 @@ export default function FormularioValoracionOportunidad({
 
       // Crear DispositivoReal
       if (tenant) {
-        await api.post(`/api/global/dispositivos-reales/${tenant}/${oppIdToUse}/`, payload)
+        // Modo global/admin: usa endpoint globales con tenant
+        await api.post(`/api/dispositivos-reales-globales/${tenant}/crear/`, payload)
       } else {
+        // Modo tenant: usa endpoint local
         await api.post('/api/dispositivos-reales/crear/', payload)
       }
 

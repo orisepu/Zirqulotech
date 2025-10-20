@@ -589,6 +589,7 @@ export default function OportunidadDetallePageGlobal() {
       >
         <FormularioValoracionOportunidad
           oportunidadId={Number(id)}
+          oportunidadUuid={String(id)}
           item={itemAEditar ? {
             id: itemAEditar.id,
             modelo: itemAEditar.modelo ? {
