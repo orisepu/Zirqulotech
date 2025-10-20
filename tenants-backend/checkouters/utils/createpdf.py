@@ -467,26 +467,54 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     if not es_oferta_formal:
         elements.append(Paragraph("<b>Valoración máxima</b>", h3))
 
-    # Headers dinámicos: agregar IMEI/SN en ofertas formales
+    # Detectar si TODOS los dispositivos son personalizados (sin capacidad separada)
+    todos_personalizados = all(
+        hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado
+        for d in dispositivos
+    )
+
+    # Headers dinámicos: agregar IMEI/SN en ofertas formales, omitir Cap. si todos personalizados
+    # Usar "Fabricante" + "Modelo" cuando todos son dispositivos personalizados
     if es_oferta_formal:
-        headers = [
-            Paragraph("<b>Modelo</b>", cell_center),
-            Paragraph("<b>Cap.</b>", cell_center),
-            Paragraph("<b>IMEI / SN</b>", cell_center),
-            Paragraph("<b>Grado</b>", cell_center),
-            Paragraph("<b>Cant.</b>", cell_center),
-            Paragraph("<b>Precio sin IVA</b>", cell_center),
-            Paragraph("<b>Total sin IVA</b>", cell_center),
-        ]
+        if todos_personalizados:
+            headers = [
+                Paragraph("<b>Fabricante</b>", cell_center),
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph("<b>IMEI / SN</b>", cell_center),
+                Paragraph("<b>Grado</b>", cell_center),
+                Paragraph("<b>Cant.</b>", cell_center),
+                Paragraph("<b>Precio sin IVA</b>", cell_center),
+                Paragraph("<b>Total sin IVA</b>", cell_center),
+            ]
+        else:
+            headers = [
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph("<b>Cap.</b>", cell_center),
+                Paragraph("<b>IMEI / SN</b>", cell_center),
+                Paragraph("<b>Grado</b>", cell_center),
+                Paragraph("<b>Cant.</b>", cell_center),
+                Paragraph("<b>Precio sin IVA</b>", cell_center),
+                Paragraph("<b>Total sin IVA</b>", cell_center),
+            ]
     else:
-        headers = [
-            Paragraph("<b>Modelo</b>", cell_center),
-            Paragraph("<b>Cap.</b>", cell_center),
-            Paragraph("<b>Grado</b>", cell_center),
-            Paragraph("<b>Cant.</b>", cell_center),
-            Paragraph("<b>Precio sin IVA</b>", cell_center),
-            Paragraph("<b>Total sin IVA</b>", cell_center),
-        ]
+        if todos_personalizados:
+            headers = [
+                Paragraph("<b>Fabricante</b>", cell_center),
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph("<b>Grado</b>", cell_center),
+                Paragraph("<b>Cant.</b>", cell_center),
+                Paragraph("<b>Precio sin IVA</b>", cell_center),
+                Paragraph("<b>Total sin IVA</b>", cell_center),
+            ]
+        else:
+            headers = [
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph("<b>Cap.</b>", cell_center),
+                Paragraph("<b>Grado</b>", cell_center),
+                Paragraph("<b>Cant.</b>", cell_center),
+                Paragraph("<b>Precio sin IVA</b>", cell_center),
+                Paragraph("<b>Total sin IVA</b>", cell_center),
+            ]
 
     data = [headers]
     total_general = 0
@@ -494,11 +522,14 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     for idx, d in enumerate(dispositivos, start=1):
         # Detectar si es dispositivo personalizado
         if hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado:
-            # Dispositivo personalizado: usar __str__() que genera "Marca Modelo Capacidad"
-            modelo = Paragraph(str(d.dispositivo_personalizado), cell_left)
+            # Dispositivo personalizado: separar marca y modelo
+            disp_pers = d.dispositivo_personalizado
+            fabricante = Paragraph(disp_pers.marca, cell_left)
+            modelo = Paragraph(disp_pers.modelo, cell_left)
             capacidad = Paragraph("—", cell_center)  # Ocultar capacidad
         else:
-            # Dispositivo Apple: flujo normal
+            # Dispositivo Apple: flujo normal (una sola columna para modelo)
+            fabricante = None  # No aplica para Apple
             modelo = Paragraph(d.modelo.descripcion if d.modelo else "—", cell_left)
             capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_center)
 
@@ -524,7 +555,7 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         total_linea = float(precio_unitario) * cantidad
         total_general += total_linea
 
-        # Construir fila con o sin IMEI/SN según tipo de oferta
+        # Construir fila con o sin IMEI/SN según tipo de oferta, omitir capacidad si todos personalizados
         if es_oferta_formal:
             imei = getattr(d, "imei", None) or ""
             numero_serie = getattr(d, "numero_serie", None) or ""
@@ -539,24 +570,45 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
             else:
                 imei_sn_text = "—"
 
-            data.append([
-                modelo,
-                capacidad,
-                Paragraph(str(imei_sn_text), cell_center),
-                estado_valoracion,
-                Paragraph(str(cantidad), cell_center),
-                Paragraph(euros(precio_unitario), cell_right),
-                Paragraph(euros(total_linea), cell_right),
-            ])
+            if todos_personalizados:
+                data.append([
+                    fabricante,
+                    modelo,
+                    Paragraph(str(imei_sn_text), cell_center),
+                    estado_valoracion,
+                    Paragraph(str(cantidad), cell_center),
+                    Paragraph(euros(precio_unitario), cell_right),
+                    Paragraph(euros(total_linea), cell_right),
+                ])
+            else:
+                data.append([
+                    modelo,
+                    capacidad,
+                    Paragraph(str(imei_sn_text), cell_center),
+                    estado_valoracion,
+                    Paragraph(str(cantidad), cell_center),
+                    Paragraph(euros(precio_unitario), cell_right),
+                    Paragraph(euros(total_linea), cell_right),
+                ])
         else:
-            data.append([
-                modelo,
-                capacidad,
-                estado_valoracion,
-                Paragraph(str(cantidad), cell_center),
-                Paragraph(euros(precio_unitario), cell_right),
-                Paragraph(euros(total_linea), cell_right),
-            ])
+            if todos_personalizados:
+                data.append([
+                    fabricante,
+                    modelo,
+                    estado_valoracion,
+                    Paragraph(str(cantidad), cell_center),
+                    Paragraph(euros(precio_unitario), cell_right),
+                    Paragraph(euros(total_linea), cell_right),
+                ])
+            else:
+                data.append([
+                    modelo,
+                    capacidad,
+                    estado_valoracion,
+                    Paragraph(str(cantidad), cell_center),
+                    Paragraph(euros(precio_unitario), cell_right),
+                    Paragraph(euros(total_linea), cell_right),
+                ])
 
     # Filas de totales con IVA desglosado
     iva_rate = Decimal("0.21")  # 21% IVA
@@ -564,8 +616,12 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     iva_amount = (subtotal * iva_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     total_con_iva = subtotal + iva_amount
 
-    # Ajustar columnas vacías según tipo de oferta
-    empty_cols = ["", "", "", "", ""] if es_oferta_formal else ["", "", "", ""]
+    # Ajustar columnas vacías según tipo de oferta y si todos son personalizados
+    # Con personalizados tenemos Fabricante + Modelo (7 cols formal, 6 cols temporal)
+    if es_oferta_formal:
+        empty_cols = ["", "", "", "", ""] if todos_personalizados else ["", "", "", "", ""]
+    else:
+        empty_cols = ["", "", "", ""] if todos_personalizados else ["", "", "", ""]
 
     data.append(empty_cols + [
         Paragraph("<b>SUBTOTAL (sin IVA)</b>", cell_right),
@@ -580,13 +636,21 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         Paragraph(f"<b>{euros(total_con_iva)}</b>", cell_right),
     ])
 
-    # Anchos de columna dinámicos según tipo de oferta
+    # Anchos de columna dinámicos según tipo de oferta y si todos son personalizados
     if es_oferta_formal:
-        # 7 columnas: Modelo | Capacidad | IMEI | Grado | Cantidad | Precio | Total
-        colWidths = [130, 50, 90, 70, 45, 70, 70]
+        if todos_personalizados:
+            # 7 columnas: Fabricante | Modelo | IMEI | Grado | Cantidad | Precio | Total
+            colWidths = [70, 70, 90, 70, 45, 75, 75]
+        else:
+            # 7 columnas: Modelo | Capacidad | IMEI | Grado | Cantidad | Precio | Total
+            colWidths = [130, 50, 90, 70, 45, 70, 70]
     else:
-        # 6 columnas: Modelo | Capacidad | Grado | Cantidad | Precio | Total
-        colWidths = [150, 50, 80, 50, 80, 80]
+        if todos_personalizados:
+            # 6 columnas: Fabricante | Modelo | Grado | Cantidad | Precio | Total
+            colWidths = [80, 85, 85, 55, 85, 85]
+        else:
+            # 6 columnas: Modelo | Capacidad | Grado | Cantidad | Precio | Total
+            colWidths = [150, 50, 80, 50, 80, 80]
 
     table = Table(data, repeatRows=1, colWidths=colWidths)
     # Estilos con filas alternas y caja de totales resaltada
@@ -623,14 +687,26 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     if not es_oferta_formal:
         elements.append(Paragraph("<b>Precios por grado del dispositivo (sin IVA)</b>", h3))
 
-        precios_headers = [
-            Paragraph("<b>Modelo</b>", cell_center),
-            Paragraph("<b>Capacidad</b>", cell_center),
-            Paragraph(f"<b>{format_grade_full('A+')}</b>", cell_center),
-            Paragraph(f"<b>{format_grade_full('A')}</b>", cell_center),
-            Paragraph(f"<b>{format_grade_full('B')}</b>", cell_center),
-            Paragraph(f"<b>{format_grade_full('C')}</b>", cell_center),
-        ]
+        # Headers dinámicos: omitir Capacidad si todos son personalizados
+        # Usar "Fabricante" + "Modelo" cuando todos son dispositivos personalizados
+        if todos_personalizados:
+            precios_headers = [
+                Paragraph("<b>Fabricante</b>", cell_center),
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('A+')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('A')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('B')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('C')}</b>", cell_center),
+            ]
+        else:
+            precios_headers = [
+                Paragraph("<b>Modelo</b>", cell_center),
+                Paragraph("<b>Capacidad</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('A+')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('A')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('B')}</b>", cell_center),
+                Paragraph(f"<b>{format_grade_full('C')}</b>", cell_center),
+            ]
 
         precios_data = [precios_headers]
         canal_pdf = _canal_from_oportunidad(oportunidad)
@@ -672,14 +748,25 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 precio_b = (precio_b_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
                 precio_c = (precio_c_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
 
-                precios_data.append([
-                    Paragraph(key, cell_left),
-                    Paragraph("—", cell_center),  # No tiene capacidad separada
-                    Paragraph(euros(precio_a_plus), cell_right),
-                    Paragraph(euros(precio_a), cell_right),
-                    Paragraph(euros(precio_b), cell_right),
-                    Paragraph(euros(precio_c), cell_right),
-                ])
+                # Construir fila con o sin capacidad según todos_personalizados
+                if todos_personalizados:
+                    precios_data.append([
+                        Paragraph(disp_pers.marca, cell_left),
+                        Paragraph(disp_pers.modelo, cell_left),
+                        Paragraph(euros(precio_a_plus), cell_right),
+                        Paragraph(euros(precio_a), cell_right),
+                        Paragraph(euros(precio_b), cell_right),
+                        Paragraph(euros(precio_c), cell_right),
+                    ])
+                else:
+                    precios_data.append([
+                        Paragraph(key, cell_left),
+                        Paragraph("—", cell_center),  # No tiene capacidad separada
+                        Paragraph(euros(precio_a_plus), cell_right),
+                        Paragraph(euros(precio_a), cell_right),
+                        Paragraph(euros(precio_b), cell_right),
+                        Paragraph(euros(precio_c), cell_right),
+                    ])
             else:
                 # Dispositivos Apple: usar PrecioRecompra vigente
                 key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
@@ -704,18 +791,36 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 precio_b = (precio_b_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
                 precio_c = (precio_c_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
 
-                precios_data.append([
-                    Paragraph(key[0], cell_left),
-                    Paragraph(str(key[1]), cell_center),
-                    Paragraph(euros(precio_a_plus), cell_right),
-                    Paragraph(euros(precio_a), cell_right),
-                    Paragraph(euros(precio_b), cell_right),
-                    Paragraph(euros(precio_c), cell_right),
-                ])
+                # Construir fila con o sin capacidad según todos_personalizados
+                if todos_personalizados:
+                    precios_data.append([
+                        Paragraph(key[0], cell_left),
+                        Paragraph(euros(precio_a_plus), cell_right),
+                        Paragraph(euros(precio_a), cell_right),
+                        Paragraph(euros(precio_b), cell_right),
+                        Paragraph(euros(precio_c), cell_right),
+                    ])
+                else:
+                    precios_data.append([
+                        Paragraph(key[0], cell_left),
+                        Paragraph(str(key[1]), cell_center),
+                        Paragraph(euros(precio_a_plus), cell_right),
+                        Paragraph(euros(precio_a), cell_right),
+                        Paragraph(euros(precio_b), cell_right),
+                        Paragraph(euros(precio_c), cell_right),
+                    ])
 
         # Solo mostrar tabla si hay dispositivos Apple (precios_data tiene más de 1 fila = headers + datos)
         if len(precios_data) > 1:
-            precios_table = Table(precios_data, repeatRows=1, colWidths=[150, 60, 75, 75, 75, 75])
+            # Anchos de columna dinámicos según todos_personalizados
+            if todos_personalizados:
+                # 6 columnas: Fabricante | Modelo | A+ | A | B | C
+                precios_colWidths = [80, 85, 90, 90, 90, 90]
+            else:
+                # 6 columnas con Capacidad: Modelo | Capacidad | A+ | A | B | C
+                precios_colWidths = [150, 60, 75, 75, 75, 75]
+
+            precios_table = Table(precios_data, repeatRows=1, colWidths=precios_colWidths)
             precios_table.setStyle(TableStyle([
                 # Encabezado sutil
                 ("BACKGROUND", (0, 0), (-1, 0), colors.white),
