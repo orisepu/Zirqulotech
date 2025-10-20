@@ -464,8 +464,15 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     total_general = 0
 
     for idx, d in enumerate(dispositivos, start=1):
-        modelo = Paragraph(d.modelo.descripcion if d.modelo else "—", cell_left)
-        capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_center)
+        # Detectar si es dispositivo personalizado
+        if hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado:
+            # Dispositivo personalizado: mostrar descripción completa en Modelo, ocultar Capacidad
+            modelo = Paragraph(d.dispositivo_personalizado.descripcion_completa, cell_left)
+            capacidad = Paragraph("—", cell_center)  # Ocultar capacidad
+        else:
+            # Dispositivo Apple: flujo normal
+            modelo = Paragraph(d.modelo.descripcion if d.modelo else "—", cell_left)
+            capacidad = Paragraph(str(d.capacidad.tamaño) if d.capacidad else "—", cell_center)
 
         # Mapear estado a grado oficial
         estado_valoracion_raw = getattr(d, "estado_valoracion", None)
@@ -603,6 +610,10 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
 
         elementos_mostrados = set()
         for d in dispositivos:
+            # Saltar dispositivos personalizados (no tienen precios por grado de PrecioRecompra)
+            if hasattr(d, 'dispositivo_personalizado') and d.dispositivo_personalizado:
+                continue
+
             key = (getattr(d.modelo, 'descripcion', '—'), getattr(d.capacidad, 'tamaño', '—'))
             if key in elementos_mostrados:
                 continue
@@ -628,24 +639,26 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
             ])
 
-        precios_table = Table(precios_data, repeatRows=1, colWidths=[150, 60, 75, 75, 75, 75])
-        precios_table.setStyle(TableStyle([
-            # Encabezado sutil
-            ("BACKGROUND", (0, 0), (-1, 0), colors.white),
-            ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
+        # Solo mostrar tabla si hay dispositivos Apple (precios_data tiene más de 1 fila = headers + datos)
+        if len(precios_data) > 1:
+            precios_table = Table(precios_data, repeatRows=1, colWidths=[150, 60, 75, 75, 75, 75])
+            precios_table.setStyle(TableStyle([
+                # Encabezado sutil
+                ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+                ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_DARK),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
 
-            # Cuerpo
-            ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
-        ]))
-        elements.append(precios_table)
+                # Cuerpo
+                ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
+            ]))
+            elements.append(precios_table)
 
-        elements.append(_section_divider(doc.width, color=GREY_BORDER, thickness=0.8, space=10))
+            elements.append(_section_divider(doc.width, color=GREY_BORDER, thickness=0.8, space=10))
 
     # ==========================
     # Descripción de estados
