@@ -1,7 +1,7 @@
 // Tipos para el sistema de dispositivos personalizados (no-Apple)
 
 // Tipos de dispositivos soportados
-export type TipoDispositivo = 'movil' | 'portatil' | 'monitor' | 'tablet' | 'otro'
+export type TipoDispositivo = 'movil' | 'portatil' | 'pc' | 'monitor' | 'tablet' | 'otro'
 
 // Estado general del dispositivo para valoración simple
 export type EstadoGeneral = 'excelente' | 'bueno' | 'malo'
@@ -9,18 +9,28 @@ export type EstadoGeneral = 'excelente' | 'bueno' | 'malo'
 // Canal de venta
 export type CanalVenta = 'B2B' | 'B2C'
 
-// Dispositivo personalizado completo (backend response)
+// Precio versionado para dispositivo personalizado
+export interface PrecioDispositivoPersonalizado {
+  id: number
+  dispositivo_personalizado: number
+  canal: CanalVenta
+  precio_neto: number
+  valid_from: string  // ISO 8601 datetime
+  valid_to: string | null  // ISO 8601 datetime or null if current
+  fuente: string  // 'manual', 'api', etc.
+  tenant_schema: string | null
+  changed_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+// Dispositivo personalizado completo (backend response con precios versionados)
 export interface DispositivoPersonalizado {
   id: number
   marca: string
   modelo: string
   capacidad?: string
   tipo: TipoDispositivo
-  precio_base_b2b: number
-  precio_base_b2c: number
-  ajuste_excelente: number
-  ajuste_bueno: number
-  ajuste_malo: number
   caracteristicas: Record<string, any>
   notas?: string
   created_by?: number
@@ -29,6 +39,9 @@ export interface DispositivoPersonalizado {
   updated_at: string
   activo: boolean
   descripcion_completa: string
+  precio_b2b_vigente: number | null
+  precio_b2c_vigente: number | null
+  precios: PrecioDispositivoPersonalizado[]
 }
 
 // Versión simplificada para listados y selección
@@ -47,20 +60,29 @@ export interface CalcularOfertaRequest {
   canal: CanalVenta
 }
 
-// Response del endpoint calcular_oferta
+// Response del endpoint calcular_oferta (con precios versionados)
 export interface OfertaPersonalizadaResponse {
   dispositivo_id: number
   estado: EstadoGeneral
   canal: CanalVenta
-  precio_base: number
-  ajuste_aplicado: number
+  precio_vigente: number
+  ajuste_aplicado: number  // 1.0 (100%), 0.80 (80%), 0.50 (50%)
   oferta: number
+}
+
+// Request para set_precio
+export interface SetPrecioRequest {
+  canal: CanalVenta
+  precio_neto: number
+  valid_from?: string  // ISO 8601 datetime, opcional (default: now)
+  fuente?: string  // opcional (default: 'manual')
 }
 
 // Labels para UI
 export const TIPO_DISPOSITIVO_LABELS: Record<TipoDispositivo, string> = {
   movil: 'Móvil',
   portatil: 'Portátil',
+  pc: 'PC (Desktop/Torre)',
   monitor: 'Monitor',
   tablet: 'Tablet',
   otro: 'Otro',
