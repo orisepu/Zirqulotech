@@ -660,18 +660,25 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 pp_b = Decimal(str(disp_pers.pp_B))  # Ej: 0.12 = 12%
                 pp_c = Decimal(str(disp_pers.pp_C))  # Ej: 0.15 = 15%
 
-                precio_a_plus = precio_base  # A+ = precio vigente
-                precio_a = (precio_a_plus * (Decimal('1') - pp_a)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                precio_b = (precio_a * (Decimal('1') - pp_b)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                precio_c = (precio_b * (Decimal('1') - pp_c)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                # Cálculo en cascada
+                precio_a_plus_raw = precio_base  # A+ = precio vigente
+                precio_a_raw = precio_a_plus_raw * (Decimal('1') - pp_a)
+                precio_b_raw = precio_a_raw * (Decimal('1') - pp_b)
+                precio_c_raw = precio_b_raw * (Decimal('1') - pp_c)
+
+                # Redondear a múltiplos de 5€ (igual que en DispositivoPersonalizado.calcular_oferta)
+                precio_a_plus = (precio_a_plus_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_a = (precio_a_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_b = (precio_b_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_c = (precio_c_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
 
                 precios_data.append([
                     Paragraph(key, cell_left),
                     Paragraph("—", cell_center),  # No tiene capacidad separada
-                    Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_a_plus), cell_right),
+                    Paragraph(euros(precio_a), cell_right),
+                    Paragraph(euros(precio_b), cell_right),
+                    Paragraph(euros(precio_c), cell_right),
                 ])
             else:
                 # Dispositivos Apple: usar PrecioRecompra vigente
@@ -686,18 +693,24 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
 
                 # Calcular precios por grado: A+ (base), A, B, C
                 factor = Decimal(str(get_factor(float(precio_base))))
-                precio_a_plus = precio_base  # A+ = Como nuevo (precio base)
-                precio_a = (precio_a_plus * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # A = Excelente
-                precio_b = (precio_a * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # B = Muy bueno
-                precio_c = (precio_b * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # C = Correcto
+                precio_a_plus_raw = precio_base  # A+ = Como nuevo (precio base)
+                precio_a_raw = precio_a_plus_raw * factor  # A = Excelente
+                precio_b_raw = precio_a_raw * factor  # B = Muy bueno
+                precio_c_raw = precio_b_raw * factor  # C = Correcto
+
+                # Redondear a múltiplos de 5€
+                precio_a_plus = (precio_a_plus_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_a = (precio_a_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_b = (precio_b_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
+                precio_c = (precio_c_raw / Decimal('5')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('5')
 
                 precios_data.append([
                     Paragraph(key[0], cell_left),
                     Paragraph(str(key[1]), cell_center),
-                    Paragraph(euros(precio_a_plus.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_a.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_b.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
-                    Paragraph(euros(precio_c.to_integral_value(rounding=ROUND_HALF_UP)), cell_right),
+                    Paragraph(euros(precio_a_plus), cell_right),
+                    Paragraph(euros(precio_a), cell_right),
+                    Paragraph(euros(precio_b), cell_right),
+                    Paragraph(euros(precio_c), cell_right),
                 ])
 
         # Solo mostrar tabla si hay dispositivos Apple (precios_data tiene más de 1 fila = headers + datos)
