@@ -276,12 +276,12 @@ export function calcularOferta(
   let V1 = V_tope - (pr_bat + pr_pant + pr_chas)
   if (!Number.isFinite(V1)) V1 = 0
   const V2 = (gate === 'OK' && input.funcional_basico_ok === true) ? V1 : Math.round(V1 * (1 - pp_func))
-  const oferta = Math.max(Math.round(V2 / 5) * 5, params.V_suelo, 0)
+  const oferta = Math.max(Math.round(V2), params.V_suelo, 0)
 
   return { gate, grado_estetico, V_A, V_B, V_C, V_tope, deducciones: { pr_bat, pr_pant, pr_chas, pp_func }, oferta }
 }
 
-// Suelo dinámico basado en V_Aplus, con horquillas y redondeo a múltiplos de 5€
+// Suelo dinámico basado en V_Aplus, con horquillas y redondeo a euros completos
 export function vSueloDesdeMax(V_Aplus: number): number {
   const bands = [
     /*     hasta   %min   €mín */
@@ -294,7 +294,7 @@ export function vSueloDesdeMax(V_Aplus: number): number {
   ]
   const band = bands.find(b => V_Aplus < b.to)!;
   const raw = Math.max(band.min, Math.round(V_Aplus * band.pct))
-  return Math.round(raw / 5) * 5 // coherente con el redondeo general
+  return Math.round(raw) // redondeo a euros completos (1€)
 }
 
 // (Opcional) si quieres mostrar en la telemetría qué regla aplicó:
