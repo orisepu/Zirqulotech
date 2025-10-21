@@ -154,4 +154,5 @@ export interface ModeloSerieCapacidad {
 export interface DispositivoIds {
   modelo_id: number | null
   capacidad_id: number | null
+  dispositivo_personalizado_id: number | null
 }
