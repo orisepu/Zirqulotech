@@ -61,10 +61,10 @@ export default function Paso5Resumen({ formData }: Paso5ResumenProps) {
     const c = b * (1 - ppC)
 
     return {
-      aPlus: Math.round(aPlus / 5) * 5,
-      a: Math.round(a / 5) * 5,
-      b: Math.round(b / 5) * 5,
-      c: Math.max(Math.round(c / 5) * 5, precioSuelo),
+      aPlus: Math.round(aPlus),
+      a: Math.round(a),
+      b: Math.round(b),
+      c: Math.max(Math.round(c), precioSuelo),
       suelo: precioSuelo,
     }
   }
