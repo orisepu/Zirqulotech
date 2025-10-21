@@ -49,7 +49,7 @@ function distributeAmount(total: number, percentages: number[], decimals: number
   const raw = percentages.map((p) => (total * p) / 100);
   const scaled = raw.map((v) => Math.floor(v * factor + 1e-6));
   const targetSum = Math.round(total * factor);
-  let currentSum = scaled.reduce((acc, val) => acc + val, 0);
+  const currentSum = scaled.reduce((acc, val) => acc + val, 0);
 
   if (currentSum !== targetSum) {
     const remainder = targetSum - currentSum;

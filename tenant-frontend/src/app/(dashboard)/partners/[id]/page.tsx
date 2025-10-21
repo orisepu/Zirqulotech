@@ -255,7 +255,7 @@ export default function PartnerDetailPage() {
 
   // Cargar logo preview cuando cambie partner.logo_url
   React.useEffect(() => {
-    let objectUrl: string | null = null
+    const objectUrl: string | null = null
 
     if (partner?.logo_url) {
       void cargarLogoPreview(partner.logo_url)
