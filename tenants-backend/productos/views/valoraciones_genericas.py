@@ -152,8 +152,12 @@ class ValoracionComercialGenericaView(APIView):
         # Intentar obtener el tipo desde dispositivo_id o modelo_id
         if request.data.get('dispositivo_id'):
             try:
-                disp = DispositivoReal.objects.select_related('modelo').get(id=request.data['dispositivo_id'])
-                modelo_tipo = disp.modelo.tipo
+                disp = DispositivoReal.objects.select_related('modelo', 'dispositivo_personalizado').get(id=request.data['dispositivo_id'])
+                # Si es dispositivo personalizado, usar su tipo
+                if disp.dispositivo_personalizado:
+                    modelo_tipo = disp.dispositivo_personalizado.tipo
+                elif disp.modelo:
+                    modelo_tipo = disp.modelo.tipo
             except DispositivoReal.DoesNotExist:
                 pass
             except (DatabaseError, ProgrammingError, OperationalError):
@@ -355,13 +359,96 @@ class ValoracionAuditoriaGenericaView(APIView):
     POST /api/valoraciones/{tipo}/auditoria/
     Vista genérica de valoración de auditoría (más completa que comercial).
 
+    Soporta tanto dispositivos Apple (modelo_id + capacidad_id) como dispositivos
+    personalizados (dispositivo_personalizado_id).
+
     Similar a ValoracionComercialGenericaView pero con validaciones adicionales
     y campos de auditoría técnica (FMI, SIM lock, blacklist, etc.).
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, tipo=None):
-        # Por ahora, simplemente delegar a la lógica comercial
-        # En el futuro se pueden agregar campos adicionales de auditoría
+        from productos.models import DispositivoPersonalizado
+
+        # Detectar si es dispositivo personalizado
+        dispositivo_personalizado_id = request.data.get('dispositivo_personalizado_id')
+
+        # Si es dispositivo personalizado, usar lógica específica
+        if dispositivo_personalizado_id:
+            try:
+                disp_pers = DispositivoPersonalizado.objects.get(id=dispositivo_personalizado_id, activo=True)
+
+                # Obtener precio vigente del dispositivo personalizado
+                active_schema = getattr(connection, 'schema_name', None)
+                tenant_schema = request.data.get('tenant') or (active_schema if active_schema and active_schema != 'public' else None)
+                canal = request.data.get('canal') or ('B2B' if tenant_schema else 'B2C')
+
+                precio_vigente = disp_pers.get_precio_vigente(canal)
+                if not precio_vigente:
+                    return Response({
+                        "detail": f"No hay precio vigente para dispositivo personalizado {disp_pers.descripcion_completa} en canal {canal}"
+                    }, http_status.HTTP_404_NOT_FOUND)
+
+                V_Aplus = int(Decimal(precio_vigente).quantize(Decimal('1')))
+
+                # Usar parámetros de penalización del dispositivo personalizado
+                pp_A = float(disp_pers.pp_A)
+                pp_B = float(disp_pers.pp_B)
+                pp_C = float(disp_pers.pp_C)
+                V_suelo = int(Decimal(disp_pers.precio_suelo or 0).quantize(Decimal('1')))
+
+                # Dispositivos personalizados no tienen costes de reparación catalogados
+                pr_bateria = 0
+                pr_pantalla = 0
+                pr_chasis = 0
+
+                params = Params(
+                    V_Aplus=V_Aplus,
+                    pp_A=pp_A,
+                    pp_B=pp_B,
+                    pp_C=pp_C,
+                    V_suelo=V_suelo,
+                    pr_bateria=pr_bateria,
+                    pr_pantalla=pr_pantalla,
+                    pr_chasis=pr_chasis,
+                    v_suelo_regla='precio_suelo_dispositivo_personalizado',
+                    has_battery=True,  # Asumimos que tienen batería
+                    has_display=True,  # Asumimos que tienen pantalla
+                    tipo_dispositivo=disp_pers.tipo
+                )
+
+                # Calcular valoración
+                out = calcular(params, request.data)
+
+                logger.info(
+                    "[valoraciones_genericas] Auditoría dispositivo personalizado: %s canal=%s precio=%s resultado=%s",
+                    disp_pers.descripcion_completa, canal, V_Aplus, out
+                )
+
+                return Response({
+                    "tipo_dispositivo": disp_pers.tipo,
+                    "dispositivo_personalizado_id": dispositivo_personalizado_id,
+                    "descripcion": disp_pers.descripcion_completa,
+                    "canal": canal,
+                    "tenant": tenant_schema,
+                    **out,
+                    "params": {
+                        "V_suelo": params.V_suelo,
+                        "pp_A": params.pp_A,
+                        "pp_B": params.pp_B,
+                        "pp_C": params.pp_C,
+                        "pr_bateria": params.pr_bateria,
+                        "pr_pantalla": params.pr_pantalla,
+                        "pr_chasis": params.pr_chasis,
+                        "v_suelo_regla": params.v_suelo_regla,
+                    },
+                }, http_status.HTTP_200_OK)
+
+            except DispositivoPersonalizado.DoesNotExist:
+                return Response({
+                    "detail": f"Dispositivo personalizado con ID {dispositivo_personalizado_id} no encontrado o inactivo"
+                }, http_status.HTTP_404_NOT_FOUND)
+
+        # Si no es dispositivo personalizado, delegar a la lógica comercial estándar
         comercial_view = ValoracionComercialGenericaView()
         return comercial_view.post(request, tipo=tipo)
