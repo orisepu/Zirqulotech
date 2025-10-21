@@ -11,7 +11,7 @@ export type ValoracionComercialResponse = {
     pr_bateria: number; pr_pantalla: number; pr_chasis: number
     v_suelo_regla: { value: number; pct: number; min: number; label: string }
   }
-  calculo?: { V1: number; aplica_pp_func: boolean; V2: number; redondeo5: number; suelo: number; oferta_final: number }
+  calculo?: { V1: number; aplica_pp_func: boolean; V2: number; precio_redondeado: number; suelo: number; oferta_final: number }
   // Campos adicionales de respuesta genérica
   tipo_dispositivo?: string
   modelo_id?: number

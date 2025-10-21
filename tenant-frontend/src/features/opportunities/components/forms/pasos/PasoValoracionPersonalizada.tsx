@@ -110,8 +110,8 @@ export default function PasoValoracionPersonalizada({
         precio = precioBase
     }
 
-    // Redondear a múltiplos de 5€
-    const precioRedondeado = Math.round(precio / 5) * 5
+    // Redondear a euros completos (1€)
+    const precioRedondeado = Math.round(precio)
 
     // Aplicar precio suelo como mínimo
     return Math.max(precioRedondeado, dispositivo.precio_suelo)
