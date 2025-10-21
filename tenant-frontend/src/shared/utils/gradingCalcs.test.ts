@@ -123,18 +123,28 @@ describe('gradingCalcs', () => {
     it('should calculate correct floor price for different ranges', () => {
       // Range 1: hasta 100 (20% / min 10€)
       expect(vSueloDesdeMax(50)).toBe(10)   // max(10, 50*0.2=10) = 10
-      expect(vSueloDesdeMax(80)).toBe(15)   // max(10, 80*0.2=16) rounded to 15
+      expect(vSueloDesdeMax(80)).toBe(16)   // max(10, 80*0.2=16) = 16 (euros completos)
 
       // Range 2: 100-199 (18% / min 15€)
-      expect(vSueloDesdeMax(150)).toBe(25)  // max(15, 150*0.18=27) rounded to 25
+      expect(vSueloDesdeMax(150)).toBe(27)  // max(15, 150*0.18=27) = 27 (euros completos)
 
       // Range 6: >=800 (8% / min 50€)
       expect(vSueloDesdeMax(1000)).toBe(80) // max(50, 1000*0.08=80) = 80
     })
 
-    it('should round to multiples of 5', () => {
-      expect(vSueloDesdeMax(127) % 5).toBe(0)
-      expect(vSueloDesdeMax(333) % 5).toBe(0)
+    it('should round to whole euros (not multiples of 5)', () => {
+      // Redondeo a euros completos (1€), no a múltiplos de 5€
+      const result1 = vSueloDesdeMax(127)
+      const result2 = vSueloDesdeMax(333)
+
+      // Verificar que son números enteros
+      expect(Number.isInteger(result1)).toBe(true)
+      expect(Number.isInteger(result2)).toBe(true)
+
+      // Verificar que NO necesariamente son múltiplos de 5
+      // (pueden ser cualquier euro completo: 23€, 67€, etc.)
+      expect(result1 % 1).toBe(0)
+      expect(result2 % 1).toBe(0)
     })
   })
 
@@ -221,9 +231,15 @@ describe('gradingCalcs', () => {
       expect(result.oferta).toBeGreaterThanOrEqual(highDeductionParams.V_suelo)
     })
 
-    it('should round offer to multiples of 5', () => {
+    it('should round offer to whole euros (not multiples of 5)', () => {
       const result = calcularOferta(baseInput, baseParams, 0.1)
-      expect(result.oferta % 5).toBe(0)
+
+      // Verificar que es un número entero (euros completos)
+      expect(Number.isInteger(result.oferta)).toBe(true)
+
+      // Verificar que NO necesariamente es múltiplo de 5
+      // (puede ser cualquier euro completo: 123€, 897€, etc.)
+      expect(result.oferta % 1).toBe(0)
     })
   })
 

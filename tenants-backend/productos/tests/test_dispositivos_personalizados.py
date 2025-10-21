@@ -133,25 +133,28 @@ def test_calcular_oferta_malo_b2c():
 
 
 @pytest.mark.django_db
-def test_calcular_oferta_redondeo_multiplo_5():
-    """Test que la oferta se redondea a múltiplos de 5€"""
+def test_calcular_oferta_redondeo_euro_completo():
+    """Test que la oferta se redondea a euros completos (no a múltiplos de 5€)"""
     from productos.models import DispositivoPersonalizado
 
     dispositivo = DispositivoPersonalizado.objects.create(
         marca="Dell",
         modelo="XPS 15",
         tipo="portatil",
-        precio_base_b2b=Decimal("573.00"),  # Con ajuste 80% = 458.4 → debe redondear a 460
+        precio_base_b2b=Decimal("573.00"),  # Con ajuste 80% = 458.4 → debe redondear a 458
         precio_base_b2c=Decimal("650.00"),
         ajuste_excelente=100,
         ajuste_bueno=80,
         ajuste_malo=50,
     )
 
-    # 573 * 80% = 458.4 → redondea a 460 (múltiplo de 5)
+    # 573 * 80% = 458.4 → redondea a 458€ (euro completo, no múltiplo de 5)
     oferta = dispositivo.calcular_oferta('bueno', 'B2B')
-    assert oferta == 460.0
-    assert oferta % 5 == 0
+    assert oferta == 458.0
+    # Verificar que es un número entero (euros completos)
+    assert oferta == int(oferta)
+    # Verificar que NO necesariamente es múltiplo de 5 (puede ser cualquier euro)
+    assert oferta % 1 == 0
 
 
 @pytest.mark.django_db
