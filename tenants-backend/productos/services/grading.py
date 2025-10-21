@@ -92,7 +92,7 @@ def calcular(params: Params, i: dict):
                 "V1": params.V_suelo,
                 "aplica_pp_func": False,
                 "V2": params.V_suelo,
-                "redondeo5": params.V_suelo,
+                "precio_redondeado": params.V_suelo,
                 "suelo": params.V_suelo,
                 "oferta_final": params.V_suelo,
             },
