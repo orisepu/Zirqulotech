@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class DispositivoSerializer(serializers.ModelSerializer):
+    # Campo tipo: se establece automáticamente en el save() del modelo
+    # No validamos choices para permitir cualquier valor temporal
+    tipo = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     # Catálogo normal (Apple)
     modelo = ModeloSerializer(read_only=True)
     modelo_id = serializers.PrimaryKeyRelatedField(
@@ -180,6 +184,9 @@ class DispositivoSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
+        # Remover 'tipo' si viene del frontend - se establece automáticamente en model.save()
+        validated_data.pop('tipo', None)
+
         # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
         es_personalizado = bool(validated_data.get('dispositivo_personalizado'))
 
@@ -222,6 +229,9 @@ class DispositivoSerializer(serializers.ModelSerializer):
             logger.info("Update validated_data pre-map=%s", validated_data)
         except Exception:
             pass
+
+        # Remover 'tipo' si viene del frontend - se establece automáticamente en model.save()
+        validated_data.pop('tipo', None)
 
         # Para dispositivos personalizados, NO calcular estados (se establecen en recepción)
         es_personalizado = bool(
