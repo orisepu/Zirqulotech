@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { postValoracionIphoneAuditoria, type ValoracionTecnicaResponse } from '@/services/valoraciones'
+import { postValoracionAuditoria, type ValoracionTecnicaResponse } from '@/services/valoraciones'
 import type { EsteticaKey, EsteticaPantallaKey, FuncPantallaValue } from '../../tipos'
-import { getModeloSerieCapacidad, pickIdsFromDispositivo } from '../utils/auditoriaHelpers'
+import { getModeloSerieCapacidad, pickIdsFromDispositivo, inferTipoFromDispositivo } from '../utils/auditoriaHelpers'
 
 interface UseValoracionTecnicaParams {
   // Estado funcional
@@ -134,6 +134,7 @@ export function useValoracionTecnica(params: UseValoracionTecnicaParams) {
         typeof capacidadId === 'number' && Number.isFinite(capacidadId)
           ? capacidadId
           : idsDetected.capacidad_id,
+      dispositivo_personalizado_id: idsDetected.dispositivo_personalizado_id,
     }
 
     const payload = {
@@ -151,6 +152,7 @@ export function useValoracionTecnica(params: UseValoracionTecnicaParams) {
       canal: canal || 'B2B',
       modelo_id: ids.modelo_id ?? undefined,
       capacidad_id: ids.capacidad_id ?? undefined,
+      dispositivo_personalizado_id: ids.dispositivo_personalizado_id ?? undefined,
       modelo_nombre: modelo_nombre || undefined,
       capacidad_texto: capacidad_texto || undefined,
     } as Record<string, unknown>
@@ -183,6 +185,7 @@ export function useValoracionTecnica(params: UseValoracionTecnicaParams) {
         typeof capacidadId === 'number' && Number.isFinite(capacidadId)
           ? capacidadId
           : detected.capacidad_id,
+      dispositivo_personalizado_id: detected.dispositivo_personalizado_id,
     }
   }, [dispositivo, modeloId, capacidadId])
 
@@ -200,6 +203,7 @@ export function useValoracionTecnica(params: UseValoracionTecnicaParams) {
       dispositivo && (dispositivo as any).id ? Number((dispositivo as any).id) : null,
       idsForAuditoria.modelo_id ?? null,
       idsForAuditoria.capacidad_id ?? null,
+      idsForAuditoria.dispositivo_personalizado_id ?? null,
       names.modelo || null,
       names.capacidad || null,
       enciende,
@@ -239,14 +243,28 @@ export function useValoracionTecnica(params: UseValoracionTecnicaParams) {
   const canQueryAuditoria =
     Boolean(
       (idsForAuditoria.modelo_id && idsForAuditoria.capacidad_id) ||
+        idsForAuditoria.dispositivo_personalizado_id ||
         (namesForQuery.modelo && namesForQuery.capacidad) ||
         dispositivoIdForQuery
     ) && !isSecurityKO
 
+  // Determinar tipo de dispositivo
+  const tipo = useMemo(() => {
+    const idsDetected = pickIdsFromDispositivo(dispositivo)
+    if (idsDetected.dispositivo_personalizado_id) {
+      // Para dispositivos personalizados, extraer tipo del objeto
+      const dispPers = dispositivo && typeof dispositivo === 'object'
+        ? (dispositivo as any).dispositivo_personalizado
+        : null
+      return dispPers?.tipo || inferTipoFromDispositivo(dispositivo)
+    }
+    return inferTipoFromDispositivo(dispositivo)
+  }, [dispositivo])
+
   // Query
   const { data: valoracionTecnica, isLoading, error } = useQuery<ValoracionTecnicaResponse>({
     queryKey: auditoriaKey,
-    queryFn: () => postValoracionIphoneAuditoria(payloadAuditoria, tenant || undefined),
+    queryFn: () => postValoracionAuditoria(tipo, payloadAuditoria, tenant || undefined),
     enabled: canQueryAuditoria,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,

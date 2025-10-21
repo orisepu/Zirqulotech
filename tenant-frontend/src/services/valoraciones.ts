@@ -135,17 +135,12 @@ export async function postValoracionAuditoria(
     if (on) console.log('[AUD API]', ...args)
   }
 
-  // Construir URLs con y sin tipo
-  const endpoints = tipo
-    ? [
-        `/api/valoraciones/${encodeURIComponent(tipo)}/auditoria/`,
-        `/api/valoraciones/${encodeURIComponent(tipo)}/comercial/`, // fallback
-      ]
-    : [
-        '/api/valoraciones/auditoria/',
-        '/api/valoraciones/comercial/', // fallback
-      ]
+  // Usar endpoint genérico directamente
+  const endpoints = [
+    '/api/valoraciones/auditoria/',  // endpoint genérico que acepta todos los tipos
+  ]
 
+  // Siempre incluir tipo en el payload
   const payloadWithTipo = tipo && !(payload as any).tipo
     ? { ...payload, tipo }
     : payload

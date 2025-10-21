@@ -184,7 +184,14 @@ export function pickIdsFromDispositivo(d: unknown): DispositivoIds {
     num((o as any)?.capacidad_obj?.id) ??
     null
 
-  return { modelo_id, capacidad_id }
+  // Dispositivo personalizado: intenta múltiples variantes
+  const dispositivo_personalizado_id =
+    tryKeys(o, ['dispositivo_personalizado_id', 'dispositivo_pers_id']) ??
+    num((o?.dispositivo_personalizado as any)?.id) ??
+    num((o as any)?.dispositivoPersonalizadoId) ??
+    null
+
+  return { modelo_id, capacidad_id, dispositivo_personalizado_id }
 }
 
 /**
