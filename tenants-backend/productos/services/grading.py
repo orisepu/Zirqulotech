@@ -30,7 +30,7 @@ def v_suelo_desde_max(V_Aplus: int):
     ]
     to, pct, minimo, label = next(b for b in bands if V_Aplus < b[0])
     raw = max(minimo, round(V_Aplus * pct))
-    value = round(raw / 5) * 5
+    value = round(raw)  # redondeo a euros completos (1€)
     return value, {"value": value, "pct": pct, "min": minimo, "label": label}
 
 def topes(V_Aplus:int, ppA:float, ppB:float, ppC:float):
@@ -92,7 +92,7 @@ def calcular(params: Params, i: dict):
                 "V1": params.V_suelo,
                 "aplica_pp_func": False,
                 "V2": params.V_suelo,
-                "redondeo5": params.V_suelo,
+                "precio_redondeado": params.V_suelo,
                 "suelo": params.V_suelo,
                 "oferta_final": params.V_suelo,
             },
@@ -226,8 +226,8 @@ def calcular(params: Params, i: dict):
     pp_func = 0.15 if aplica_pp_func else 0.0
     V2 = round(V1*(1-pp_func)) if aplica_pp_func else V1
 
-    redondeo5 = round(V2/5)*5
-    oferta = max(redondeo5, params.V_suelo, 0)
+    precio_redondeado = round(V2)  # redondeo a euros completos (1€)
+    oferta = max(precio_redondeado, params.V_suelo, 0)
 
     return {
         "oferta": oferta,
@@ -235,5 +235,5 @@ def calcular(params: Params, i: dict):
         "grado_estetico": g,
         "V_Aplus": params.V_Aplus, "V_A": A, "V_B": B, "V_C": C, "V_tope": V_tope,
         "deducciones": {"pr_bat": pr_bat, "pr_pant": pr_pant, "pr_chas": pr_chas, "pp_func": pp_func},
-        "calculo": {"V1": V1, "aplica_pp_func": aplica_pp_func, "V2": V2, "redondeo5": redondeo5, "suelo": params.V_suelo, "oferta_final": oferta},
+        "calculo": {"V1": V1, "aplica_pp_func": aplica_pp_func, "V2": V2, "precio_redondeado": precio_redondeado, "suelo": params.V_suelo, "oferta_final": oferta},
     }

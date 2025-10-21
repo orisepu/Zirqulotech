@@ -144,7 +144,7 @@ class DispositivoPersonalizado(models.Model):
             canal: 'B2B', 'B2C'
 
         Returns:
-            Precio calculado redondeado a múltiplos de 5€.
+            Precio calculado redondeado a euros completos (1€).
             Mínimo precio_suelo.
             Retorna 0 si no hay precio vigente.
         """
@@ -180,8 +180,8 @@ class DispositivoPersonalizado(models.Model):
             # Grado inválido: retornar precio base
             precio_calculado = precio_base_float
 
-        # Redondear a múltiplos de 5€
-        precio_redondeado = round(precio_calculado / 5) * 5
+        # Redondear a euros completos (1€)
+        precio_redondeado = round(precio_calculado)
 
         # Aplicar precio suelo como mínimo
         precio_suelo_float = float(self.precio_suelo)

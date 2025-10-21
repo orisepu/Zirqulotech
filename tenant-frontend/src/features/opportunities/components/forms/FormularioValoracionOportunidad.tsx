@@ -1410,8 +1410,8 @@ export default function FormularioValoracionOportunidad({
                     const sumD = r.deducciones.pr_bat + r.deducciones.pr_pant + r.deducciones.pr_chas
                     const V1 = r.V_tope - sumD
                     const V2 = r.calculo?.aplica_pp_func ? Math.round(V1 * (1 - r.deducciones.pp_func)) : V1
-                    const redondeo5 = Math.round(V2 / 5) * 5
-                    const ofertaFinal = Math.max(redondeo5, r.params?.V_suelo ?? 0, 0)
+                    const precioRedondeado = Math.round(V2)
+                    const ofertaFinal = Math.max(precioRedondeado, r.params?.V_suelo ?? 0, 0)
 
                     const jsonDebug = {
                       input: payloadIphone, // enciende/carga/estética/etc. enviado al backend
@@ -1429,7 +1429,7 @@ export default function FormularioValoracionOportunidad({
                         V1,
                         aplica_pp_func: r.calculo?.aplica_pp_func ?? false,
                         V2,
-                        redondeo5,
+                        precio_redondeado: precioRedondeado,
                         suelo: r.params?.V_suelo ?? 0,
                         oferta_final: ofertaFinal
                       },
@@ -1455,7 +1455,7 @@ export default function FormularioValoracionOportunidad({
                           ? <Box>V2 = V1 × (1 − pp_func <b>{Math.round(r.deducciones.pp_func * 100)}%</b>) ⇒ <b>{fmtEUR(V2)}</b></Box>
                           : <Box>V2 = V1 (sin penalización funcional) ⇒ <b>{fmtEUR(V1)}</b></Box>
                         }
-                        <Box>Redondeo: round(V2 / 5) × 5 ⇒ <b>{fmtEUR(redondeo5)}</b></Box>
+                        <Box>Redondeo: round(V2) ⇒ <b>{fmtEUR(precioRedondeado)}</b></Box>
                         <Box>Suelo: max(Redondeo, V_suelo <b>{fmtEUR(r.params?.V_suelo ?? 0)}</b>, 0) ⇒ <b>{fmtEUR(ofertaFinal)}</b></Box>
 
                         <Box sx={{ my: 1, borderTop: 1, borderColor: 'divider' }} />

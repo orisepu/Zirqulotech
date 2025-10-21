@@ -367,14 +367,14 @@ describe('Dispositivos Personalizados - API Tests', () => {
       expect(response.data.ajuste_aplicado).toBe(50)
     })
 
-    test('should return rounded offer (multiple of 5€)', async () => {
+    test('should return rounded offer (whole euros)', async () => {
       const oferta: OfertaPersonalizadaResponse = {
         dispositivo_id: 1,
         estado: 'bueno',
         canal: 'B2B',
         precio_base: 573.00,
         ajuste_aplicado: 80,
-        oferta: 460.00 // 573 * 0.8 = 458.4 → rounds to 460
+        oferta: 458.00 // 573 * 0.8 = 458.4 → rounds to 458 (whole euro)
       }
 
       mockApiSuccess('/api/dispositivos-personalizados/1/calcular_oferta/', oferta, 'post')
@@ -384,7 +384,8 @@ describe('Dispositivos Personalizados - API Tests', () => {
         canal: 'B2B'
       })
 
-      expect(response.data.oferta % 5).toBe(0) // Must be multiple of 5
+      expect(response.data.oferta % 1).toBe(0) // Must be whole euro (integer)
+      expect(Number.isInteger(response.data.oferta)).toBe(true)
     })
 
   })
