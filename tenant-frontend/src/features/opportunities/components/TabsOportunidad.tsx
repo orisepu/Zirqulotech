@@ -197,8 +197,14 @@ export default function TabsOportunidad({
                     <List>
                       {oportunidad.dispositivos?.map((d, idx) => {
                         const _precios = (getField(d, 'precios_por_estado') ?? getField(d, 'precio_por_estado')) as Record<string, unknown> | undefined
-                        const modeloDesc = String(getField(getField(d, 'modelo'), 'descripcion') ?? '')
-                        const capacidadTam = String(getField(getField(d, 'capacidad'), 'tamaño') ?? '')
+                        // Detectar si es dispositivo personalizado o Apple
+                        const dispositivoPersonalizado = getField(d, 'dispositivo_personalizado')
+                        const modeloDesc = dispositivoPersonalizado
+                          ? String(getField(dispositivoPersonalizado, 'descripcion_completa') ?? '')
+                          : String(getField(getField(d, 'modelo'), 'descripcion') ?? '')
+                        const capacidadTam = dispositivoPersonalizado
+                          ? String(getField(dispositivoPersonalizado, 'capacidad') ?? '')
+                          : String(getField(getField(d, 'capacidad'), 'tamaño') ?? '')
                         const cantidadStr = String(getField(d, 'cantidad') ?? '')
                         const _estadoFisico = String(getField(d, 'estado_fisico') ?? '')
                         const _estadoFuncional = String(getField(d, 'estado_funcional') ?? '')
@@ -243,8 +249,14 @@ export default function TabsOportunidad({
                           pixeles_muertos: Boolean(getField(d, 'pantalla_funcional_pixeles_muertos')),
                           lineas_quemaduras: Boolean(getField(d, 'pantalla_funcional_lineas_quemaduras')),
                         }
-                        const modeloDesc = String(getField(getField(d, 'modelo'), 'descripcion') ?? '')
-                        const capacidadTam = String(getField(getField(d, 'capacidad'), 'tamaño') ?? '')
+                        // Detectar si es dispositivo personalizado o Apple
+                        const dispositivoPersonalizado = getField(d, 'dispositivo_personalizado')
+                        const modeloDesc = dispositivoPersonalizado
+                          ? String(getField(dispositivoPersonalizado, 'descripcion_completa') ?? '')
+                          : String(getField(getField(d, 'modelo'), 'descripcion') ?? '')
+                        const capacidadTam = dispositivoPersonalizado
+                          ? String(getField(dispositivoPersonalizado, 'capacidad') ?? '')
+                          : String(getField(getField(d, 'capacidad'), 'tamaño') ?? '')
                         const cantidadStr = String(getField(d, 'cantidad') ?? '')
                         const estadoFisico = String(getField(d, 'estado_fisico') ?? '')
                         const estadoFuncional = String(getField(d, 'estado_funcional') ?? '')
