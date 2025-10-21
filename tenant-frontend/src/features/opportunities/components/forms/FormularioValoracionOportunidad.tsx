@@ -273,8 +273,9 @@ export default function FormularioValoracionOportunidad({
     queryKey: ['capacidades-por-modelo', modelo, oportunidadId],
     enabled: !!modelo,
     queryFn: async () => {
-      // Solo incluir oportunidad si es un número válido
-      const oppParam = (typeof oportunidadId === 'number' && !Number.isNaN(oportunidadId))
+      // Solo incluir oportunidad si es un número válido Y no estamos en modo global
+      // En modo global, omitir el parámetro para evitar problemas de multi-tenancy
+      const oppParam = (!tenant && typeof oportunidadId === 'number' && !Number.isNaN(oportunidadId))
         ? `&oportunidad=${oportunidadId}`
         : ''
       return (await api.get(`/api/capacidades-por-modelo/?modelo=${modelo}${oppParam}`)).data
@@ -947,12 +948,17 @@ export default function FormularioValoracionOportunidad({
     }
 
     try {
+      // En modo global, usar el mismo endpoint estándar con header X-Tenant
+      const config = tenant ? {
+        headers: {
+          'X-Tenant': tenant  // Sobrescribe el header del interceptor en modo global
+        }
+      } : {}
+
       if (item) {
-        if (tenant) await api.put(`/api/global/dispositivo/${tenant}/${item.id}/`, data)
-        else await api.put(`/api/dispositivos/${item.id}/`, data)
+        await api.put(`/api/dispositivos/${item.id}/`, data, config)
       } else {
-        if (tenant) await api.post(`/api/global/dispositivos/${tenant}/${oportunidadId}/`, data)
-        else await api.post('/api/dispositivos/', data)
+        await api.post('/api/dispositivos/', data, config)
       }
 
       await queryClient.invalidateQueries({ queryKey: ['oportunidad', oppKey] })
