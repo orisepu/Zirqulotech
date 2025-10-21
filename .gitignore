@@ -67,3 +67,9 @@ Thumbs.db
 *.log
 
 .claude/
+
+# ESLint cache
+.eslintcache
+
+# Lock files at root (use workspace lock files instead)
+/package-lock.json
