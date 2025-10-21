@@ -182,7 +182,7 @@ def _draw_footer(canvas, doc):
     page_txt = f"Página {canvas.getPageNumber()}"
     canvas.drawRightString(width - doc.rightMargin, footer_y, page_txt)
     # texto: marca
-    canvas.drawString(doc.leftMargin, footer_y, "Zirqulo S.L. — Oferta de recompra")
+    canvas.drawString(doc.leftMargin, footer_y, "ZirquloApp S.L. — Oferta de recompra")
     canvas.restoreState()
 
 
@@ -436,8 +436,8 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
 
     datos_nuestros = [
         Paragraph("<b>Nuestros datos</b>", h4),
-        Paragraph("Zirqulo S.L.", p_norm),
-        Paragraph("CIF: B12345678", p_norm),
+        Paragraph("ZirquloApp S.L.", p_norm),
+       # Paragraph("CIF: B12345678", p_norm),
         Paragraph("C. de la Industria, 114", p_norm),
         Paragraph("08912 Badalona", p_norm),
         Paragraph("Email: info@zirqulo.com", p_norm),
@@ -624,7 +624,7 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         empty_cols = ["", "", "", ""] if todos_personalizados else ["", "", "", ""]
 
     data.append(empty_cols + [
-        Paragraph("<b>SUBTOTAL (sin IVA)</b>", cell_right),
+        Paragraph("<b>SUBTOTAL</b>", cell_right),
         Paragraph(f"<b>{euros(total_general)}</b>", cell_right),
     ])
     data.append(empty_cols + [
@@ -632,7 +632,7 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
         Paragraph(f"<b>{euros(iva_amount)}</b>", cell_right),
     ])
     data.append(empty_cols + [
-        Paragraph("<b>TOTAL (con IVA)</b>", cell_right),
+        Paragraph("<b>TOTAL</b>", cell_right),
         Paragraph(f"<b>{euros(total_con_iva)}</b>", cell_right),
     ])
 
@@ -640,17 +640,17 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
     if es_oferta_formal:
         if todos_personalizados:
             # 7 columnas: Fabricante | Modelo | IMEI | Grado | Cantidad | Precio | Total
-            colWidths = [70, 70, 90, 70, 45, 75, 75]
+            colWidths = [65, 90, 90, 70, 45, 75, 75]  # ← Modelo más ancho (90px)
         else:
             # 7 columnas: Modelo | Capacidad | IMEI | Grado | Cantidad | Precio | Total
-            colWidths = [130, 50, 90, 70, 45, 70, 70]
+            colWidths = [155, 50, 90, 70, 45, 70, 70]  # ← Modelo más ancho (155px)
     else:
         if todos_personalizados:
             # 6 columnas: Fabricante | Modelo | Grado | Cantidad | Precio | Total
-            colWidths = [80, 85, 85, 55, 85, 85]
+            colWidths = [70, 110, 85, 55, 85, 85]  # ← Modelo más ancho (110px)
         else:
             # 6 columnas: Modelo | Capacidad | Grado | Cantidad | Precio | Total
-            colWidths = [150, 50, 80, 50, 80, 80]
+            colWidths = [180, 50, 80, 50, 80, 80]  # ← Modelo más ancho (180px)
 
     table = Table(data, repeatRows=1, colWidths=colWidths)
     # Estilos con filas alternas y caja de totales resaltada
@@ -753,19 +753,19 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                     precios_data.append([
                         Paragraph(disp_pers.marca, cell_left),
                         Paragraph(disp_pers.modelo, cell_left),
-                        Paragraph(euros(precio_a_plus), cell_right),
-                        Paragraph(euros(precio_a), cell_right),
-                        Paragraph(euros(precio_b), cell_right),
-                        Paragraph(euros(precio_c), cell_right),
+                        Paragraph(euros(precio_a_plus), cell_center),  # ← Centrado
+                        Paragraph(euros(precio_a), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_b), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_c), cell_center),        # ← Centrado
                     ])
                 else:
                     precios_data.append([
                         Paragraph(key, cell_left),
                         Paragraph("—", cell_center),  # No tiene capacidad separada
-                        Paragraph(euros(precio_a_plus), cell_right),
-                        Paragraph(euros(precio_a), cell_right),
-                        Paragraph(euros(precio_b), cell_right),
-                        Paragraph(euros(precio_c), cell_right),
+                        Paragraph(euros(precio_a_plus), cell_center),  # ← Centrado
+                        Paragraph(euros(precio_a), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_b), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_c), cell_center),        # ← Centrado
                     ])
             else:
                 # Dispositivos Apple: usar PrecioRecompra vigente
@@ -795,30 +795,31 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 if todos_personalizados:
                     precios_data.append([
                         Paragraph(key[0], cell_left),
-                        Paragraph(euros(precio_a_plus), cell_right),
-                        Paragraph(euros(precio_a), cell_right),
-                        Paragraph(euros(precio_b), cell_right),
-                        Paragraph(euros(precio_c), cell_right),
+                        Paragraph(euros(precio_a_plus), cell_center),  # ← Centrado
+                        Paragraph(euros(precio_a), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_b), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_c), cell_center),        # ← Centrado
                     ])
                 else:
                     precios_data.append([
                         Paragraph(key[0], cell_left),
                         Paragraph(str(key[1]), cell_center),
-                        Paragraph(euros(precio_a_plus), cell_right),
-                        Paragraph(euros(precio_a), cell_right),
-                        Paragraph(euros(precio_b), cell_right),
-                        Paragraph(euros(precio_c), cell_right),
+                        Paragraph(euros(precio_a_plus), cell_center),  # ← Centrado
+                        Paragraph(euros(precio_a), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_b), cell_center),        # ← Centrado
+                        Paragraph(euros(precio_c), cell_center),        # ← Centrado
                     ])
 
         # Solo mostrar tabla si hay dispositivos Apple (precios_data tiene más de 1 fila = headers + datos)
         if len(precios_data) > 1:
             # Anchos de columna dinámicos según todos_personalizados
+            # Columnas de precios más estrechas (solo el ancho de la palabra + margen mínimo)
             if todos_personalizados:
                 # 6 columnas: Fabricante | Modelo | A+ | A | B | C
-                precios_colWidths = [80, 85, 90, 90, 90, 90]
+                precios_colWidths = [85, 135, 60, 60, 60, 60]  # ← Modelo más ancho (135px)
             else:
                 # 6 columnas con Capacidad: Modelo | Capacidad | A+ | A | B | C
-                precios_colWidths = [150, 60, 75, 75, 75, 75]
+                precios_colWidths = [210, 60, 60, 60, 60, 60]  # ← Modelo más ancho (210px)
 
             precios_table = Table(precios_data, repeatRows=1, colWidths=precios_colWidths)
             precios_table.setStyle(TableStyle([
@@ -831,9 +832,12 @@ def generar_pdf_oportunidad(oportunidad, tenant=None, dispositivos_override=None
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LINEBELOW", (0, 0), (-1, 0), 0.8, GREY_BORDER),
 
-                # Cuerpo
+                # Cuerpo con columnas de precios centradas
                 ("GRID", (0, 1), (-1, -1), 0.25, GREY_BORDER),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GREY_ROW]),
+
+                # Centrar contenido de columnas de precios (A+, A, B, C)
+                ("ALIGN", (2, 1), (-1, -1), "CENTER"),  # ← Centrar precios en cuerpo
             ]))
             elements.append(precios_table)
 

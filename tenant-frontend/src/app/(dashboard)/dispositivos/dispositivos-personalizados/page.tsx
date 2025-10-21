@@ -1,12 +1,12 @@
 'use client'
 
 import React, { useState } from 'react'
-import Head from 'next/head'
 import { Box, Typography } from '@mui/material'
 import DispositivosPersonalizadosTable from '@/features/admin/components/DispositivosPersonalizadosTable'
 import DispositivoPersonalizadoModal from '@/features/admin/components/DispositivoPersonalizadoModal'
 import type { DispositivoPersonalizado } from '@/shared/types/dispositivos'
 
+// Metadata is handled by layout.tsx or can be set via Metadata API in a server component wrapper
 export default function DispositivosPersonalizadosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedDispositivo, setSelectedDispositivo] = useState<DispositivoPersonalizado | null>(null)
@@ -28,13 +28,6 @@ export default function DispositivosPersonalizadosPage() {
 
   return (
     <>
-      <Head>
-        <title>Dispositivos Personalizados - Administración | Zirqulotech Partners</title>
-        <meta
-          name="description"
-          content="Gestión de dispositivos personalizados no-Apple para valoraciones B2B y B2C"
-        />
-      </Head>
 
       <Box
         sx={{ p: { xs: 1, md: 2 } }}
