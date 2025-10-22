@@ -31,6 +31,8 @@ import CancelIcon from "@mui/icons-material/Cancel"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from 'react-toastify'
+import InfoIcon from "@mui/icons-material/Info"
+import Collapse from "@mui/material/Collapse"
 import {
   Table,
   TableBody,
@@ -45,10 +47,11 @@ type Usuario = {
   id: number
   name: string
   email: string
-  rol_lectura?: "manager" | "empleado" | string
-  rol?: "manager" | "empleado" | string
+  rol_lectura?: "comercial" | "store_manager" | "manager" | "auditor" | string
+  rol?: "comercial" | "store_manager" | "manager" | "auditor" | string
   tienda_id_lectura?: number | null
   tienda_id?: number | null
+  managed_store_ids?: number[]
   is_active?: boolean
 }
 
@@ -68,12 +71,14 @@ export default function UsuariosTenantPage() {
 
   const [contrasenas, setContrasenas] = useState<Record<number, string>>({})
   const [editandoEmail, setEditandoEmail] = useState<Record<number, string>>({})
+  const [showRoleInfo, setShowRoleInfo] = useState(false)
   const [nuevoUsuario, setNuevoUsuario] = useState({
     name: "",
     email: "",
     password: "",
-    rol: "empleado",
-    tienda_id: "" as number | "" // mantener como string vacío cuando no hay selección
+    rol: "comercial",
+    tienda_id: "" as number | "", // mantener como string vacío cuando no hay selección
+    managed_store_ids: [] as number[] // para Managers regionales
   })
 
   // --- Queries ---
@@ -167,8 +172,12 @@ export default function UsuariosTenantPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["usuariosTenant", schema] })
-      setNuevoUsuario({ name: "", email: "", password: "", rol: "empleado", tienda_id: "" })
+      setNuevoUsuario({ name: "", email: "", password: "", rol: "comercial", tienda_id: "", managed_store_ids: [] })
+      toast.success('Usuario creado correctamente')
     },
+    onError: () => {
+      toast.error('Error al crear el usuario')
+    }
   })
 
   // --- Handlers ---
@@ -202,9 +211,7 @@ export default function UsuariosTenantPage() {
 
   const handleCrearUsuario = () => {
     if (!schema) return
-    crearUsuario.mutate(undefined, {
-      onError: () => toast.error("Error al crear el usuario")
-    })
+    crearUsuario.mutate()
   }
 
 
@@ -242,6 +249,99 @@ export default function UsuariosTenantPage() {
           </Box>
         </Box>
       </Box>
+
+      {/* Información sobre Roles */}
+      <Card sx={{ mb: 3, bgcolor: 'info.lighter', borderColor: 'info.main', borderWidth: 1, borderStyle: 'solid' }}>
+        <CardHeader
+          avatar={
+            <Avatar sx={{ bgcolor: 'info.main' }}>
+              <InfoIcon />
+            </Avatar>
+          }
+          title={
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="h6">Jerarquía de Roles</Typography>
+              <Button
+                size="small"
+                onClick={() => setShowRoleInfo(!showRoleInfo)}
+                endIcon={showRoleInfo ? <CancelIcon /> : <InfoIcon />}
+              >
+                {showRoleInfo ? 'Ocultar' : 'Ver detalles'}
+              </Button>
+            </Box>
+          }
+        />
+        <Collapse in={showRoleInfo}>
+          <CardContent>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom>
+                    👤 Comercial
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Crea y edita sus propios Clientes, Contactos y Oportunidades
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Puede ver información del resto de la tienda (solo lectura)
+                  </Typography>
+                  <Typography variant="caption" color="success.main" fontWeight="bold">
+                    KPI: 2% de comisión sobre operaciones propias
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="success.main" gutterBottom>
+                    🏪 Store Manager
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Crea y edita Clientes, Contactos y Oportunidades
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Puede ver y editar toda la información de su tienda
+                  </Typography>
+                  <Typography variant="caption" color="success.main" fontWeight="bold">
+                    KPI: 2% individual + 1% de tienda
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="primary.main" gutterBottom>
+                    👔 Manager
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Crea y edita Clientes, Contactos y Oportunidades
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Gestiona múltiples tiendas (regional) o todas (general)
+                  </Typography>
+                  <Typography variant="caption" color="success.main" fontWeight="bold">
+                    KPI: Comisiones del equipo comercial y Store Managers
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle2" fontWeight="bold" color="warning.main" gutterBottom>
+                    🔍 Auditor
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • Acceso completo de solo lectura
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    • No puede realizar cambios en el sistema
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" fontWeight="bold">
+                    Sin comisiones
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Collapse>
+      </Card>
 
       {/* Crear nuevo usuario */}
       <Card sx={{ mb: 3 }}>
@@ -289,8 +389,10 @@ export default function UsuariosTenantPage() {
                   label="Rol"
                   onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, rol: String(e.target.value) })}
                 >
+                  <MenuItem value="comercial">Comercial</MenuItem>
+                  <MenuItem value="store_manager">Store Manager</MenuItem>
                   <MenuItem value="manager">Manager</MenuItem>
-                  <MenuItem value="empleado">Empleado</MenuItem>
+                  <MenuItem value="auditor">Auditor</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -359,22 +461,34 @@ export default function UsuariosTenantPage() {
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
                     <Select
                       value={user.rol_lectura ?? user.rol ?? ""}
                       onChange={(e) => handleRolChange(user.id, String(e.target.value))}
                       displayEmpty
                     >
+                      <MenuItem value="comercial">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <PersonIcon fontSize="small" />
+                          <span>Comercial</span>
+                        </Stack>
+                      </MenuItem>
+                      <MenuItem value="store_manager">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <StoreIcon fontSize="small" />
+                          <span>Store Manager</span>
+                        </Stack>
+                      </MenuItem>
                       <MenuItem value="manager">
                         <Stack direction="row" spacing={1} alignItems="center">
                           <AdminPanelSettingsIcon fontSize="small" />
                           <span>Manager</span>
                         </Stack>
                       </MenuItem>
-                      <MenuItem value="empleado">
+                      <MenuItem value="auditor">
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <PersonIcon fontSize="small" />
-                          <span>Empleado</span>
+                          <AdminPanelSettingsIcon fontSize="small" color="action" />
+                          <span>Auditor</span>
                         </Stack>
                       </MenuItem>
                     </Select>
