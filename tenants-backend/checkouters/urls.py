@@ -69,7 +69,7 @@ from .kpimanager.dashboard_manager import DashboardManagerAPIView
 from .views.dispositivo import ModeloViewSet, CapacidadViewSet
 from .kpisutils import DashboardTotalPagadoAPIView
 router = DefaultRouter()
-router.register(r'dispositivos', DispositivoViewSet)
+router.register(r'dispositivos', DispositivoViewSet, basename='dispositivo')
 # ELIMINADO: dispositivos-personalizados ahora está en productos/urls.py (SHARED_APPS)
 # router.register(r'dispositivos-personalizados', DispositivoPersonalizadoViewSet, basename='dispositivo-personalizado')
 router.register(r'modelos', ModeloViewSet)
