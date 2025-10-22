@@ -114,6 +114,7 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         cliente = self.request.query_params.get("cliente") or ""
         fecha_inicio = self.request.query_params.get("fecha_inicio")
         fecha_fin = self.request.query_params.get("fecha_fin")
+        usuario_id = self.request.query_params.get("usuario")
 
         estados = self.request.query_params.getlist("estado")
         if len(estados) == 1 and "," in estados[0]:
@@ -128,6 +129,8 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
             base_qs = base_qs.filter(fecha_creacion__gte=fecha_inicio)
         if fecha_fin:
             base_qs = base_qs.filter(fecha_creacion__lte=fecha_fin)
+        if usuario_id:
+            base_qs = base_qs.filter(usuario_id=usuario_id)
 
         base_qs = base_qs.order_by("-fecha_creacion")
 
