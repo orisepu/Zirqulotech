@@ -6,8 +6,10 @@ and permission checks across different ViewSets.
 """
 
 from .role_based_viewset import RoleBasedQuerysetMixin, RoleInfoMixin
+from .schema_aware import SchemaAwareCreateMixin
 
 __all__ = [
     'RoleBasedQuerysetMixin',
     'RoleInfoMixin',
+    'SchemaAwareCreateMixin',
 ]

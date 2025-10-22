@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from 'react'
-import { useUsuarioActual } from '@/shared/hooks/useUsuarioActual'
+import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
 
 export type RolType = 'comercial' | 'store_manager' | 'manager' | 'auditor'
 
@@ -55,11 +55,11 @@ const ROLE_DISPLAY_NAMES: Record<RolType, string> = {
 }
 
 export function useUserPermissions(): RolePermissions {
-  const { usuario, tenant } = useUsuarioActual()
+  const usuarioData = useUsuarioActual()
 
   return useMemo(() => {
     // Si no hay usuario o tenant, sin permisos
-    if (!usuario || !tenant) {
+    if (!usuarioData || !usuarioData.tenant) {
       return {
         rol: null,
         rolDisplay: 'Sin rol',
@@ -82,10 +82,10 @@ export function useUserPermissions(): RolePermissions {
     }
 
     // Extraer rol del tenant actual
-    // Asumimos que el rol viene en usuario.rol o tenant.user_role
-    const rol = (usuario.rol || tenant.user_role) as RolType
-    const tiendaId = usuario.tienda_id || tenant.tienda_id || null
-    const managedStoreIds = usuario.managed_store_ids || tenant.managed_store_ids || []
+    // Asumimos que el rol viene en usuarioData.rol o tenant.user_role
+    const rol = (usuarioData.rol_actual) as RolType
+    const tiendaId = usuarioData.tenant.tienda_id || null
+    const managedStoreIds = usuarioData.tenant.managed_store_ids || []
 
     // Checks de rol
     const isComercial = rol === 'comercial'
@@ -105,7 +105,7 @@ export function useUserPermissions(): RolePermissions {
       if (canEditAll) return true
       if (isComercial) {
         // Comercial solo edita lo que creó
-        return createdBy === usuario.id
+        return createdBy === usuarioData.id
       }
       return false
     }
@@ -178,7 +178,7 @@ export function useUserPermissions(): RolePermissions {
       getRoleDescription,
       getRoleColor
     }
-  }, [usuario, tenant])
+  }, [usuarioData])
 }
 
 /**
