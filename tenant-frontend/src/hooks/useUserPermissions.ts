@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from 'react'
-import { useUsuarioActual } from './useUsuarioActual'
+import { useUsuarioActual } from '@/shared/hooks/useUsuarioActual'
 
 export type RolType = 'comercial' | 'store_manager' | 'manager' | 'auditor'
 
