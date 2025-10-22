@@ -851,6 +851,7 @@ class YoAPIView(APIView):
                 r.tenant_slug: {
                     'rol': r.rol,
                     'tienda_id': r.tienda_id,
+                    'managed_store_ids': r.managed_store_ids if r.rol == 'manager' else [],
                 }
                 for r in global_role.roles.all()
             }

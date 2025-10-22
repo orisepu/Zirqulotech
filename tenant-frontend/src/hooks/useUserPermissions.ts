@@ -82,10 +82,11 @@ export function useUserPermissions(): RolePermissions {
     }
 
     // Extraer rol del tenant actual
-    // Asumimos que el rol viene en usuarioData.rol o tenant.user_role
-    const rol = (usuarioData.rol_actual) as RolType
-    const tiendaId = usuarioData.tenant.tienda_id || null
-    const managedStoreIds = usuarioData.tenant.managed_store_ids || []
+    // rol_actual es un objeto con {rol: string, tienda_id: number}
+    const rolData = usuarioData.rol_actual || {}
+    const rol = rolData.rol as RolType
+    const tiendaId = rolData.tienda_id || null
+    const managedStoreIds = rolData.managed_store_ids || []
 
     // Checks de rol
     const isComercial = rol === 'comercial'
