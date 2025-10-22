@@ -20,15 +20,22 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UsuarioTenantSerializer(serializers.ModelSerializer):
     rol = serializers.CharField(write_only=True, required=False, allow_blank=True)
     tienda_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    managed_store_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     rol_lectura = serializers.SerializerMethodField(read_only=True)
     tienda_id_lectura = serializers.SerializerMethodField(read_only=True)
+    managed_store_ids_lectura = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         fields = [
-            "id", "email", "name", "password", "rol", "tienda_id",
-            "rol_lectura", "tienda_id_lectura", "is_active", "uuid"
+            "id", "email", "name", "password", "rol", "tienda_id", "managed_store_ids",
+            "rol_lectura", "tienda_id_lectura", "managed_store_ids_lectura", "is_active", "uuid"
         ]
 
     def _resolve_tenant_slug(self):
@@ -75,6 +82,14 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
         except RolPorTenant.DoesNotExist:
             return None
 
+    def get_managed_store_ids_lectura(self, user):
+        tenant_slug = self._resolve_tenant_slug()
+        if not tenant_slug: return []
+        try:
+            return user.global_role.roles.get(tenant_slug=tenant_slug).managed_store_ids or []
+        except RolPorTenant.DoesNotExist:
+            return []
+
     def create(self, validated_data):
         tenant_slug = self._resolve_tenant_slug()
         if not tenant_slug:
@@ -82,6 +97,7 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
 
         rol = (validated_data.pop("rol", "") or "empleado").strip()
         tienda_id = validated_data.pop("tienda_id", None)
+        managed_store_ids = validated_data.pop("managed_store_ids", [])
         password = (validated_data.pop("password", "") or "").strip()
 
         public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
@@ -117,6 +133,7 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
             rpt = self._get_role_obj(user, tenant_slug)
             rpt.rol = rol
             rpt.tienda_id = tienda_id
+            rpt.managed_store_ids = managed_store_ids if rol == 'manager' else []
             rpt.save()
 
         with schema_context(tenant_slug):
@@ -163,6 +180,11 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
             if "tienda_id" in validated_data:
                 rpt.tienda_id = validated_data.get("tienda_id")
                 touching_role = True
+            if "managed_store_ids" in validated_data:
+                # Solo actualizar si es manager
+                if rpt.rol == 'manager':
+                    rpt.managed_store_ids = validated_data.get("managed_store_ids", [])
+                    touching_role = True
             if touching_role:
                 rpt.save()
 

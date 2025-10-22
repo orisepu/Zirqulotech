@@ -18,7 +18,10 @@ import {
   Avatar,
   Stack,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Chip,
+  OutlinedInput,
+  SelectChangeEvent
 } from "@mui/material"
 import SaveIcon from "@mui/icons-material/Save"
 import PersonIcon from "@mui/icons-material/Person"
@@ -52,6 +55,7 @@ type Usuario = {
   tienda_id_lectura?: number | null
   tienda_id?: number | null
   managed_store_ids?: number[]
+  managed_store_ids_lectura?: number[]
   is_active?: boolean
 }
 
@@ -165,6 +169,20 @@ export default function UsuariosTenantPage() {
     },
   })
 
+  const cambiarTiendasGestionadas = useMutation({
+    mutationFn: async ({ userId, managedStoreIds }: { userId: number; managedStoreIds: number[] }) => {
+      const { data } = await api.patch(`/api/usuarios-tenant/${userId}/`, { managed_store_ids: managedStoreIds }, { params: { schema } })
+      return data as Usuario
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["usuariosTenant", schema] })
+      toast.success('Tiendas gestionadas actualizadas')
+    },
+    onError: () => {
+      toast.error('Error al actualizar las tiendas gestionadas')
+    },
+  })
+
   const crearUsuario = useMutation({
     mutationFn: async () => {
       const { data } = await api.post("/api/usuarios-tenant/", nuevoUsuario, { params: { schema } })
@@ -212,6 +230,10 @@ export default function UsuariosTenantPage() {
   const handleCrearUsuario = () => {
     if (!schema) return
     crearUsuario.mutate()
+  }
+
+  const handleManagedStoresChange = (userId: number, storeIds: number[]) => {
+    cambiarTiendasGestionadas.mutate({ userId, managedStoreIds: storeIds })
   }
 
 
@@ -379,24 +401,70 @@ export default function UsuariosTenantPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel>Tienda</InputLabel>
-                <Select
-                  value={nuevoUsuario.tienda_id}
-                  label="Tienda"
-                  onChange={(e) =>
-                    setNuevoUsuario({ ...nuevoUsuario, tienda_id: e.target.value as number | "" })
-                  }
-                >
-                  {tiendas.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+            {nuevoUsuario.rol !== 'manager' && (
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Tienda</InputLabel>
+                  <Select
+                    value={nuevoUsuario.tienda_id}
+                    label="Tienda"
+                    onChange={(e) =>
+                      setNuevoUsuario({ ...nuevoUsuario, tienda_id: e.target.value as number | "" })
+                    }
+                  >
+                    {tiendas.map((t) => (
+                      <MenuItem key={t.id} value={t.id}>
+                        {t.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            {nuevoUsuario.rol === 'manager' && (
+              <Grid size={{ xs: 12, md: 12 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Tiendas Gestionadas (Manager Regional)</InputLabel>
+                  <Select
+                    multiple
+                    value={nuevoUsuario.managed_store_ids}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setNuevoUsuario({
+                        ...nuevoUsuario,
+                        managed_store_ids: typeof value === 'string' ? [] : value,
+                        tienda_id: "" // Managers no tienen tienda única
+                      })
+                    }}
+                    input={<OutlinedInput label="Tiendas Gestionadas (Manager Regional)" />}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.length === 0 ? (
+                          <Chip label="General Manager (todas las tiendas)" color="primary" size="small" />
+                        ) : (
+                          selected.map((storeId) => {
+                            const tienda = tiendas.find(t => t.id === storeId)
+                            return <Chip key={storeId} label={tienda?.nombre || storeId} size="small" />
+                          })
+                        )}
+                      </Box>
+                    )}
+                  >
+                    {tiendas.map((t) => (
+                      <MenuItem key={t.id} value={t.id}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <StoreIcon fontSize="small" />
+                          <span>{t.nombre}</span>
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  💡 Dejar vacío para Manager General (gestiona todas las tiendas)
+                </Typography>
+              </Grid>
+            )}
             <Grid size={{ xs: 12, md: 12 }}>
               <Button
                 variant="contained"
@@ -419,7 +487,7 @@ export default function UsuariosTenantPage() {
             <TableRow>
               <TableCell>Usuario</TableCell>
               <TableCell>Rol</TableCell>
-              <TableCell>Tienda Asignada</TableCell>
+              <TableCell>Tienda / Tiendas Gestionadas</TableCell>
               <TableCell>Estado</TableCell>
               <TableCell>Cambiar Email/Login</TableCell>
               <TableCell>Cambiar Contraseña</TableCell>
@@ -472,25 +540,60 @@ export default function UsuariosTenantPage() {
                   </FormControl>
                 </TableCell>
                 <TableCell>
-                  <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <Select
-                      value={user.tienda_id_lectura ?? user.tienda_id ?? ""}
-                      onChange={(e) => handleTiendaChange(user.id, Number(e.target.value))}
-                      displayEmpty
-                    >
-                      <MenuItem value="">
-                        <em>Sin tienda</em>
-                      </MenuItem>
-                      {tiendas.map((t) => (
-                        <MenuItem key={t.id} value={t.id}>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <StoreIcon fontSize="small" />
-                            <span>{t.nombre}</span>
-                          </Stack>
+                  {(user.rol_lectura ?? user.rol) === 'manager' ? (
+                    <FormControl size="small" sx={{ minWidth: 250 }}>
+                      <Select
+                        multiple
+                        value={user.managed_store_ids_lectura || user.managed_store_ids || []}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          handleManagedStoresChange(user.id, typeof value === 'string' ? [] : value)
+                        }}
+                        displayEmpty
+                        renderValue={(selected) => (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.length === 0 ? (
+                              <Chip label="General Manager" color="primary" size="small" />
+                            ) : (
+                              selected.map((storeId) => {
+                                const tienda = tiendas.find(t => t.id === storeId)
+                                return <Chip key={storeId} label={tienda?.nombre || storeId} size="small" />
+                              })
+                            )}
+                          </Box>
+                        )}
+                      >
+                        {tiendas.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <StoreIcon fontSize="small" />
+                              <span>{t.nombre}</span>
+                            </Stack>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                      <Select
+                        value={user.tienda_id_lectura ?? user.tienda_id ?? ""}
+                        onChange={(e) => handleTiendaChange(user.id, Number(e.target.value))}
+                        displayEmpty
+                      >
+                        <MenuItem value="">
+                          <em>Sin tienda</em>
                         </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                        {tiendas.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <StoreIcon fontSize="small" />
+                              <span>{t.nombre}</span>
+                            </Stack>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
                 </TableCell>
                 <TableCell>
                   {user.is_active !== false ? (
