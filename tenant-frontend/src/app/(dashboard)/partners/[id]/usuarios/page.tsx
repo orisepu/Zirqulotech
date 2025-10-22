@@ -26,6 +26,8 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"
 import StoreIcon from "@mui/icons-material/Store"
 import AddIcon from "@mui/icons-material/Add"
 import ArrowBackIcon from "@mui/icons-material/ArrowBack"
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"
+import CancelIcon from "@mui/icons-material/Cancel"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from 'react-toastify'
@@ -47,6 +49,7 @@ type Usuario = {
   rol?: "manager" | "empleado" | string
   tienda_id_lectura?: number | null
   tienda_id?: number | null
+  is_active?: boolean
 }
 
 type Tienda = { id: number; nombre: string }
@@ -304,7 +307,8 @@ export default function UsuariosTenantPage() {
             <TableRow>
               <TableCell>Usuario</TableCell>
               <TableCell>Rol</TableCell>
-              <TableCell>Tienda</TableCell>
+              <TableCell>Tienda Asignada</TableCell>
+              <TableCell>Estado</TableCell>
               <TableCell>Cambiar Contraseña</TableCell>
             </TableRow>
           </TableHead>
@@ -355,6 +359,9 @@ export default function UsuariosTenantPage() {
                       onChange={(e) => handleTiendaChange(user.id, Number(e.target.value))}
                       displayEmpty
                     >
+                      <MenuItem value="">
+                        <em>Sin tienda</em>
+                      </MenuItem>
                       {tiendas.map((t) => (
                         <MenuItem key={t.id} value={t.id}>
                           <Stack direction="row" spacing={1} alignItems="center">
@@ -365,6 +372,19 @@ export default function UsuariosTenantPage() {
                       ))}
                     </Select>
                   </FormControl>
+                </TableCell>
+                <TableCell>
+                  {user.is_active !== false ? (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CheckCircleIcon fontSize="small" color="success" />
+                      <Typography variant="body2" color="success.main">Activo</Typography>
+                    </Stack>
+                  ) : (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CancelIcon fontSize="small" color="error" />
+                      <Typography variant="body2" color="error.main">Inactivo</Typography>
+                    </Stack>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={1} alignItems="center">

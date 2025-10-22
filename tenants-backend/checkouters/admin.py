@@ -111,6 +111,9 @@ class TiendaAdmin(admin.ModelAdmin):
     search_fields = ('nombre', 'direccion_poblacion', 'direccion_provincia')
     readonly_fields = ('get_usuarios_asignados_detail',)
 
+    class Media:
+        js = ('admin/js/preserve_schema.js',)
+
     def get_usuarios_asignados_count(self, obj):
         """Cuenta de usuarios asignados a esta tienda"""
         from django.db import connection

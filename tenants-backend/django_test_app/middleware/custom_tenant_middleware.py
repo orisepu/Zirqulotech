@@ -30,6 +30,26 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
     def process_request(self, request):
         self.request = request
 
+        # Verificar si hay parámetro schema o header X-Tenant para el admin
+        schema_param = request.headers.get("X-Tenant") or request.headers.get("x-tenant") or request.GET.get("schema")
+
+        # Si es admin con schema específico, NO hacer bypass
+        if request.path.startswith("/admin/") and schema_param:
+            logger.info("🔧 Admin con schema específico: %s → procesando con tenant resolution", schema_param)
+            # Continuar con el proceso normal de tenant resolution
+            response = super().process_request(request)
+
+            user = getattr(request, "user", None)
+            if user and user.is_authenticated:
+                # Solo verificar permisos si no estamos en el esquema `public`
+                if connection.schema_name != 'public':
+                    try:
+                        _ = user.usertenantpermissions
+                    except UserTenantPermissions.DoesNotExist:
+                        raise PermissionDenied("No tienes permisos en este tenant.")
+
+            return response
+
         # Bypass para rutas públicas - establecer schema público como base
         # El view puede usar schema_context() para cambiar temporalmente
         if any(request.path.startswith(route) for route in PUBLIC_ROUTES):
