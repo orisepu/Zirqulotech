@@ -70,42 +70,70 @@ export default function CabeceraOportunidad({
               )}
         </Box>
 
-        <EstadoChipSelector
-          estadoActual={oportunidad.estado}
-          anteriores={transiciones.anteriores}
-          siguientes={transiciones.siguientes}
-          onSelect={(nuevo, extras) => onCambiarEstado(nuevo, extras)}
-          disabledItem={() => false}
-          getTooltip={(estado) =>
-            transiciones.siguientes.includes(estado)
-              ? 'Mover a estado siguiente'
-              : transiciones.anteriores.includes(estado)
-              ? 'Volver a estado anterior'
-              : undefined
-          }
-        />
+        {/* Solo mostrar selector de estado si puede editar */}
+        {canEdit && (
+          <EstadoChipSelector
+            estadoActual={oportunidad.estado}
+            anteriores={transiciones.anteriores}
+            siguientes={transiciones.siguientes}
+            onSelect={(nuevo, extras) => onCambiarEstado(nuevo, extras)}
+            disabledItem={() => false}
+            getTooltip={(estado) =>
+              transiciones.siguientes.includes(estado)
+                ? 'Mover a estado siguiente'
+                : transiciones.anteriores.includes(estado)
+                ? 'Volver a estado anterior'
+                : undefined
+            }
+          />
+        )}
+
+        {/* Mostrar solo el estado actual si no puede editar */}
+        {!canEdit && (
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>Estado actual:</Typography>
+            <Typography variant="h6" sx={{
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              bgcolor: meta?.color ? `${meta.color}.light` : 'grey.200',
+              color: meta?.color ? `${meta.color}.contrastText` : 'text.primary',
+              display: 'inline-block'
+            }}>
+              {oportunidad.estado}
+            </Typography>
+          </Box>
+        )}
       </Stack>
 
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" mt={3}>
+        {/* Botones de generación de ofertas - permitidos solo para lectura */}
         {!hayAuditados && hayAsociados && (
           <Button variant="outlined" onClick={onGenerarTemporal}>Oferta temporal</Button>
         )}
         {auditoriaFinalizada && <Button variant="outlined" onClick={onGenerarFormal}>Oferta formal</Button>}
+
+        {/* Botones de navegación - siempre visibles */}
         {hayReales && onIrRecepcion && <Button variant="outlined" onClick={onIrRecepcion}>Ver recepción</Button>}
         {hayAuditados && onIrAuditoria && <Button variant="outlined" onClick={onIrAuditoria}>Ver auditoría</Button>}
-        {oportunidad.estado === 'Pendiente factura' && onSubirFactura && (
+
+        {/* Botón de subir factura - solo si puede editar */}
+        {canEdit && oportunidad.estado === 'Pendiente factura' && onSubirFactura && (
           <Button variant="outlined" component="label">
             Subir factura
             <input hidden type="file" accept="application/pdf" onChange={(e) => {
               const f = e.target.files?.[0]; if (f) onSubirFactura(f)
             }} />
           </Button>
-          
         )}
-        {((oportunidad.cliente.canal === 'b2c' && oportunidad.estado === 'Aceptado') ||
+
+        {/* Panel de contratos B2C - solo si puede editar */}
+        {canEdit && ((oportunidad.cliente.canal === 'b2c' && oportunidad.estado === 'Aceptado') ||
           oportunidad.estado === 'Contrato firmado') && (
           <PartnerCreateMarcoPanel oportunidadUUID={oportunidad.uuid ?? ''} />
         )}
+
+        {/* Ver facturas - siempre visible */}
         {!!oportunidad?.facturas?.length && onAbrirFacturas && (
           <Button variant="outlined" onClick={onAbrirFacturas}>
             Ver facturas ({oportunidad.facturas.length})

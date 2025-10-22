@@ -89,7 +89,10 @@ export default function TabsOportunidad({
     return { resumenIdx, recogidaIdx, realesIdx, totalTabs: idx }
   }, [mostrarDatosrecogida, dispositivosReales?.length])
 
-  const puedeEditar = permitirEdicionResumen ?? (estado === 'Pendiente')
+  // Combinar todas las condiciones de edición:
+  // 1. canEdit debe ser true (permiso del usuario)
+  // 2. Y (permitirEdicionResumen O estado sea 'Pendiente')
+  const puedeEditar = canEdit && (permitirEdicionResumen ?? (estado === 'Pendiente'))
 
   useEffect(() => {
     if (tab > totalTabs - 1) setTab(totalTabs - 1)
