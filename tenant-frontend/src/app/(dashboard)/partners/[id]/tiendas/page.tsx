@@ -354,9 +354,14 @@ export default function TiendasPage() {
                     cursor: "pointer",
                     height: "100%",
                     transition: 'all 0.2s',
+                    opacity: tienda.is_active === false ? 0.6 : 1,
+                    filter: tienda.is_active === false ? 'grayscale(30%)' : 'none',
+                    border: tienda.is_active === false ? '2px dashed' : '1px solid',
+                    borderColor: tienda.is_active === false ? 'error.main' : 'divider',
                     '&:hover': {
                       transform: 'translateY(-2px)',
-                      boxShadow: 4
+                      boxShadow: 4,
+                      opacity: tienda.is_active === false ? 0.8 : 1
                     }
                   }}
                 >
@@ -368,9 +373,23 @@ export default function TiendasPage() {
                     }
                     title={
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="h6">{tienda.nombre}</Typography>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            textDecoration: tienda.is_active === false ? 'line-through' : 'none',
+                            color: tienda.is_active === false ? 'text.disabled' : 'text.primary'
+                          }}
+                        >
+                          {tienda.nombre}
+                        </Typography>
                         {tienda.is_active === false && (
-                          <Chip label="Inactiva" size="small" color="error" />
+                          <Chip
+                            label="Inactiva"
+                            size="small"
+                            color="error"
+                            variant="filled"
+                            icon={<CancelIcon />}
+                          />
                         )}
                       </Stack>
                     }

@@ -65,7 +65,7 @@ class TiendaViewSet(viewsets.ModelViewSet):
             )
 
         # Autenticar usuario con su contraseña
-        user = authenticate(username=request.user.email, password=password)
+        user = authenticate(request, username=request.user.email, password=password)
         if not user:
             return Response(
                 {"detail": "Contraseña incorrecta"},
