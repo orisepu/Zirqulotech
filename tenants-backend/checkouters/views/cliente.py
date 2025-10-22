@@ -18,7 +18,7 @@ class ClienteViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelViewSe
 
     # Configuración para role-based filtering
     tienda_field = "tienda"
-    creador_field = "creado_por"
+    creador_field = None  # Cliente no tiene campo de creador
 
     filter_backends = [filters.SearchFilter]
     search_fields = [
