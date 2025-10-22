@@ -141,6 +141,7 @@ async function fetchValorPorTiendaTransform({
   tiendaNombre,
   granularidad = 'mes',
   estado_minimo = 'Oferta confirmada',
+  usuario,
 }: {
   fecha_inicio: string;
   fecha_fin: string;
@@ -148,9 +149,11 @@ async function fetchValorPorTiendaTransform({
   tiendaNombre?: string | null;
   granularidad?: 'dia' | 'semana' | 'mes';
   estado_minimo?: string;
+  usuario?: number | null;
 }): Promise<KPIs> {
   const params: Record<string, string | number | null | undefined> = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
   if (tiendaId) params.tienda = tiendaId;
+  if (usuario) params.usuario = usuario;
 
   const { data } = await api.get('/api/dashboard/valor-por-tienda/', { params });
   if (!Array.isArray(data)) {
@@ -258,7 +261,7 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoKpis,
     refetch: refetchKpis,
   } = useQuery<KPIs>({
-    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo],
+    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo, isComercial, usuario?.id],
     queryFn: () =>
       fetchValorPorTiendaTransform({
         fecha_inicio: fechaInicio,
@@ -267,6 +270,7 @@ export default function TenantDashboardPage() {
         tiendaNombre,
         granularidad,
         estado_minimo: estadoMinimo,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 

@@ -40,6 +40,7 @@ class ValorPorTiendaAPIView(APIView):
         estado_minimo = request.query_params.get("estado_minimo", "Oferta confirmada")
         fecha_inicio_raw = request.query_params.get("fecha_inicio")
         fecha_fin_raw = request.query_params.get("fecha_fin")
+        usuario_id = request.query_params.get("usuario")
 
         fecha_inicio = parse_date(fecha_inicio_raw)
         fecha_fin = parse_date(fecha_fin_raw)
@@ -82,7 +83,12 @@ class ValorPorTiendaAPIView(APIView):
             oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
         ).exclude(
             oportunidad__estado__in=ESTADOS_EXCLUIDOS_VALOR
-        ).annotate(
+        )
+
+        if usuario_id:
+            valores = valores.filter(oportunidad__usuario_id=usuario_id)
+
+        valores = valores.annotate(
             grupo=truncador("oportunidad__fecha_creacion")
         ).values(
             "grupo", "oportunidad__tienda__nombre"
@@ -93,7 +99,12 @@ class ValorPorTiendaAPIView(APIView):
         dispositivos = Dispositivo.objects.filter(
             oportunidad__estado__in=estados_filtrados,
             oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
-        ).annotate(
+        )
+
+        if usuario_id:
+            dispositivos = dispositivos.filter(oportunidad__usuario_id=usuario_id)
+
+        dispositivos = dispositivos.annotate(
             grupo=truncador("oportunidad__fecha_creacion")
         ).values(
             "grupo", "oportunidad__tienda__nombre"
@@ -104,7 +115,12 @@ class ValorPorTiendaAPIView(APIView):
         oportunidades = Oportunidad.objects.filter(
             estado__in=estados_filtrados,
             fecha_creacion__range=[fecha_inicio, fecha_fin]
-        ).annotate(
+        )
+
+        if usuario_id:
+            oportunidades = oportunidades.filter(usuario_id=usuario_id)
+
+        oportunidades = oportunidades.annotate(
             grupo=truncador("fecha_creacion")
         ).values(
             "grupo", "tienda__nombre"
