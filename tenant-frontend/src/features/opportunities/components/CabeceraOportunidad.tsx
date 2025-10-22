@@ -31,12 +31,14 @@ type Props = {
   hayReales: boolean
   hayAuditados: boolean
   auditoriaFinalizada: boolean
+  canEdit?: boolean  // Indica si el usuario puede editar la oportunidad
 }
 
 export default function CabeceraOportunidad({
   oportunidad, transiciones, onCambiarEstado,
   onGenerarTemporal, onGenerarFormal, onIrRecepcion, onIrAuditoria,
   onSubirFactura, onAbrirFacturas, hayReales, hayAuditados, auditoriaFinalizada,
+  canEdit = true,  // Por defecto, permitir edición (para backwards compatibility)
 }: Props) {
   const hayAsociados = Array.isArray((oportunidad as any)?.dispositivos) && ((oportunidad as any)?.dispositivos?.length ?? 0) > 0
   const meta = oportunidad?.estado ? ESTADOS_META[oportunidad.estado] : null

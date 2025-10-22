@@ -44,6 +44,7 @@ export default function TabsOportunidad({
   onTabChange,
   renderAccionesReales,
   permitirEdicionResumen,
+  canEdit = true,  // Por defecto, permitir edición (para backwards compatibility)
 }: {
   oportunidad: OportunidadResumen
   dispositivosReales: DispositivoRecibido[]
@@ -54,6 +55,7 @@ export default function TabsOportunidad({
   onTabChange?: (i: number, info?: { realesIdx: number; recogidaIdx: number }) => void
   renderAccionesReales?: () => ReactNode
   permitirEdicionResumen?: boolean
+  canEdit?: boolean  // Indica si el usuario puede editar la oportunidad
 }) {
   const [tab, setTab] = useState(0)
   const [vistaCompacta, setVistaCompacta] = useState(true)
