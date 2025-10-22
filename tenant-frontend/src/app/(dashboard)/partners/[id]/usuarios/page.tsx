@@ -67,6 +67,7 @@ export default function UsuariosTenantPage() {
   const qc = useQueryClient()
 
   const [contrasenas, setContrasenas] = useState<Record<number, string>>({})
+  const [editandoEmail, setEditandoEmail] = useState<Record<number, string>>({})
   const [nuevoUsuario, setNuevoUsuario] = useState({
     name: "",
     email: "",
@@ -142,6 +143,23 @@ export default function UsuariosTenantPage() {
     },
   })
 
+  const cambiarEmail = useMutation({
+    mutationFn: async ({ userId, newEmail }: { userId: number; newEmail: string }) => {
+      const { data } = await api.patch(`/api/usuarios-tenant/${userId}/`, { email: newEmail }, { params: { schema } })
+      return data as Usuario
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["usuariosTenant", schema] })
+      toast.success('Email actualizado correctamente')
+      setEditandoEmail(prev => ({ ...prev, [variables.userId]: "" }))
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      const mensaje = err?.response?.data?.detail || 'Error al actualizar el email'
+      toast.error(mensaje)
+    },
+  })
+
   const crearUsuario = useMutation({
     mutationFn: async () => {
       const { data } = await api.post("/api/usuarios-tenant/", nuevoUsuario, { params: { schema } })
@@ -171,6 +189,15 @@ export default function UsuariosTenantPage() {
         setContrasenas(prev => ({ ...prev, [userId]: "" }))
       }
     })
+  }
+
+  const handleEmailChange = (userId: number) => {
+    const nuevoEmail = editandoEmail[userId]
+    if (!nuevoEmail || !nuevoEmail.includes('@')) {
+      toast.error('Email inválido')
+      return
+    }
+    cambiarEmail.mutate({ userId, newEmail: nuevoEmail })
   }
 
   const handleCrearUsuario = () => {
@@ -309,6 +336,7 @@ export default function UsuariosTenantPage() {
               <TableCell>Rol</TableCell>
               <TableCell>Tienda Asignada</TableCell>
               <TableCell>Estado</TableCell>
+              <TableCell>Cambiar Email/Login</TableCell>
               <TableCell>Cambiar Contraseña</TableCell>
             </TableRow>
           </TableHead>
@@ -385,6 +413,28 @@ export default function UsuariosTenantPage() {
                       <Typography variant="body2" color="error.main">Inactivo</Typography>
                     </Stack>
                   )}
+                </TableCell>
+                <TableCell>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField
+                      size="small"
+                      type="email"
+                      placeholder={user.email}
+                      value={editandoEmail[user.id] || ""}
+                      onChange={(e) =>
+                        setEditandoEmail((prev) => ({ ...prev, [user.id]: e.target.value }))
+                      }
+                      sx={{ minWidth: 200 }}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEmailChange(user.id)}
+                      disabled={cambiarEmail.isPending || !editandoEmail[user.id]}
+                      color="primary"
+                    >
+                      <SaveIcon />
+                    </IconButton>
+                  </Stack>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={1} alignItems="center">
