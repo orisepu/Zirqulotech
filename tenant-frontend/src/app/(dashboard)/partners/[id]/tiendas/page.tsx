@@ -6,7 +6,8 @@ import {
   Box, Card, CardContent, Typography, Button, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions,
   FormControl, TextField, Select, MenuItem, Chip, IconButton,
-  Avatar, Stack, Alert, CircularProgress, CardHeader, CardActions
+  Avatar, Stack, Alert, CircularProgress, CardHeader, CardActions,
+  Menu
 } from "@mui/material"
 import StoreIcon from "@mui/icons-material/Store"
 import PersonIcon from "@mui/icons-material/Person"
@@ -17,6 +18,10 @@ import EditIcon from "@mui/icons-material/Edit"
 import ArrowBackIcon from "@mui/icons-material/ArrowBack"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import CancelIcon from "@mui/icons-material/Cancel"
+import DeleteIcon from "@mui/icons-material/Delete"
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"
+import MoreVertIcon from "@mui/icons-material/MoreVert"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import api from "@/services/api"
@@ -33,6 +38,7 @@ type Tienda = {
   responsable?: number | '';
   responsable_nombre?: string;
   responsable_email?: string;
+  is_active?: boolean;
 };
 
 type UsuarioTenant = {
@@ -62,11 +68,23 @@ export default function TiendasPage() {
 
   const [nuevaTienda, setNuevaTienda] = useState({
     nombre: "", direccion_calle: "", direccion_cp: "", direccion_poblacion: "",
-    direccion_provincia: "", direccion_pais: "", responsable: "" as number | '' 
+    direccion_provincia: "", direccion_pais: "", responsable: "" as number | ''
   })
 
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioTenant | null>(null)
   const [contrasenaEditando, setContrasenaEditando] = useState("")
+
+  // Estados para confirmación de contraseña
+  const [modalConfirmacion, setModalConfirmacion] = useState<{
+    open: boolean;
+    action: 'delete' | 'disable' | 'enable' | null;
+    tienda: Tienda | null;
+  }>({ open: false, action: null, tienda: null })
+  const [passwordConfirmacion, setPasswordConfirmacion] = useState("")
+
+  // Estado para menú contextual
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [tiendaMenuActual, setTiendaMenuActual] = useState<Tienda | null>(null)
 
   // --- Queries ---
   const { data: tiendas = [], isLoading: loadingTiendas } = useQuery({
@@ -160,6 +178,47 @@ export default function TiendasPage() {
     },
   })
 
+  const eliminarTiendaMutation = useMutation({
+    mutationFn: async ({ tiendaId, password }: { tiendaId: number; password: string }) => {
+      await api.delete(`/api/tiendas/${tiendaId}/`, {
+        params: { schema },
+        data: { password }
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tiendas", schema] })
+      setModalConfirmacion({ open: false, action: null, tienda: null })
+      setPasswordConfirmacion("")
+      toast.success('Tienda eliminada correctamente')
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      const mensaje = err?.response?.data?.detail || 'Error al eliminar la tienda'
+      toast.error(mensaje)
+    },
+  })
+
+  const toggleTiendaMutation = useMutation({
+    mutationFn: async ({ tiendaId, isActive }: { tiendaId: number; isActive: boolean }) => {
+      const { data } = await api.patch(`/api/tiendas/${tiendaId}/`, { is_active: isActive }, {
+        params: { schema }
+      })
+      return data as Tienda
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["tiendas", schema] })
+      setModalConfirmacion({ open: false, action: null, tienda: null })
+      setPasswordConfirmacion("")
+      const accion = variables.isActive ? 'habilitada' : 'deshabilitada'
+      toast.success(`Tienda ${accion} correctamente`)
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      const mensaje = err?.response?.data?.detail || 'Error al cambiar estado de la tienda'
+      toast.error(mensaje)
+    },
+  })
+
   // --- Handlers ---
   const handleSeleccionarTienda = (tienda: Tienda) => {
     setTiendaSeleccionada(tienda)
@@ -180,6 +239,43 @@ export default function TiendasPage() {
       console.error(e)
       toast.error('Error al actualizar el usuario')
     }
+  }
+
+  const handleConfirmarAccion = async () => {
+    if (!modalConfirmacion.tienda) return
+
+    if (modalConfirmacion.action === 'delete') {
+      if (!passwordConfirmacion) {
+        toast.error('Debe ingresar su contraseña')
+        return
+      }
+      await eliminarTiendaMutation.mutateAsync({
+        tiendaId: modalConfirmacion.tienda.id,
+        password: passwordConfirmacion
+      })
+    } else if (modalConfirmacion.action === 'enable' || modalConfirmacion.action === 'disable') {
+      await toggleTiendaMutation.mutateAsync({
+        tiendaId: modalConfirmacion.tienda.id,
+        isActive: modalConfirmacion.action === 'enable'
+      })
+    }
+  }
+
+  const handleAbrirMenu = (event: React.MouseEvent<HTMLElement>, tienda: Tienda) => {
+    event.stopPropagation()
+    setMenuAnchor(event.currentTarget)
+    setTiendaMenuActual(tienda)
+  }
+
+  const handleCerrarMenu = () => {
+    setMenuAnchor(null)
+    setTiendaMenuActual(null)
+  }
+
+  const handleAccionMenu = (action: 'delete' | 'disable' | 'enable') => {
+    if (!tiendaMenuActual) return
+    setModalConfirmacion({ open: true, action, tienda: tiendaMenuActual })
+    handleCerrarMenu()
   }
 
   if (!schema) {
@@ -266,12 +362,27 @@ export default function TiendasPage() {
                 >
                   <CardHeader
                     avatar={
-                      <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      <Avatar sx={{ bgcolor: tienda.is_active === false ? 'grey.400' : 'primary.main' }}>
                         <StoreIcon />
                       </Avatar>
                     }
-                    title={tienda.nombre}
+                    title={
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="h6">{tienda.nombre}</Typography>
+                        {tienda.is_active === false && (
+                          <Chip label="Inactiva" size="small" color="error" />
+                        )}
+                      </Stack>
+                    }
                     subheader={`${usuariosEnTienda.length} usuarios asignados`}
+                    action={
+                      <IconButton
+                        onClick={(e) => handleAbrirMenu(e, tienda)}
+                        aria-label="opciones"
+                      >
+                        <MoreVertIcon />
+                      </IconButton>
+                    }
                   />
                   <CardContent>
                     <Stack spacing={2}>
@@ -515,6 +626,93 @@ export default function TiendasPage() {
             onClick={handleGuardarUsuario}
           >
             {updateUserMutation.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Menú contextual de tienda */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleCerrarMenu}
+      >
+        {tiendaMenuActual?.is_active !== false ? (
+          <MenuItem onClick={() => handleAccionMenu('disable')}>
+            <ToggleOffIcon fontSize="small" sx={{ mr: 1 }} />
+            Deshabilitar tienda
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => handleAccionMenu('enable')}>
+            <ToggleOnIcon fontSize="small" sx={{ mr: 1 }} />
+            Habilitar tienda
+          </MenuItem>
+        )}
+        <MenuItem onClick={() => handleAccionMenu('delete')} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          Eliminar tienda
+        </MenuItem>
+      </Menu>
+
+      {/* Modal de confirmación de contraseña */}
+      <Dialog
+        open={modalConfirmacion.open}
+        onClose={() => {
+          setModalConfirmacion({ open: false, action: null, tienda: null })
+          setPasswordConfirmacion("")
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {modalConfirmacion.action === 'delete' && 'Confirmar eliminación'}
+          {modalConfirmacion.action === 'disable' && 'Confirmar deshabilitación'}
+          {modalConfirmacion.action === 'enable' && 'Confirmar habilitación'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            {modalConfirmacion.action === 'delete' &&
+              `¿Está seguro que desea eliminar la tienda "${modalConfirmacion.tienda?.nombre}"? Esta acción no se puede deshacer.`}
+            {modalConfirmacion.action === 'disable' &&
+              `¿Está seguro que desea deshabilitar la tienda "${modalConfirmacion.tienda?.nombre}"?`}
+            {modalConfirmacion.action === 'enable' &&
+              `¿Está seguro que desea habilitar la tienda "${modalConfirmacion.tienda?.nombre}"?`}
+          </Typography>
+          {modalConfirmacion.action === 'delete' && (
+            <>
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Por seguridad, ingrese su contraseña para confirmar la eliminación.
+              </Alert>
+              <TextField
+                label="Contraseña"
+                type="password"
+                fullWidth
+                value={passwordConfirmacion}
+                onChange={(e) => setPasswordConfirmacion(e.target.value)}
+                autoFocus
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setModalConfirmacion({ open: false, action: null, tienda: null })
+              setPasswordConfirmacion("")
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color={modalConfirmacion.action === 'delete' ? 'error' : 'primary'}
+            onClick={handleConfirmarAccion}
+            disabled={
+              eliminarTiendaMutation.isPending ||
+              toggleTiendaMutation.isPending ||
+              (modalConfirmacion.action === 'delete' && !passwordConfirmacion)
+            }
+          >
+            {(eliminarTiendaMutation.isPending || toggleTiendaMutation.isPending) ? 'Procesando…' : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>
