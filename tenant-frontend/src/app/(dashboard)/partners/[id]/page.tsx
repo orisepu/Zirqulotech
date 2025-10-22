@@ -112,12 +112,20 @@ export default function PartnerDetailPage() {
   }
 
   const { mutate: updatePartner, isPending: saving } = useMutation({
-    mutationFn: (data: any) => api.put(`/api/tenants/${data.id}/`, data),
-    onSuccess: (response) => {
+    mutationFn: (data: any) => {
+      // Siempre usar el endpoint con ID numérico para PUT
+      const updateEndpoint = `/api/tenants/${data.id}/`
+      return api.put(updateEndpoint, data)
+    },
+    onSuccess: async (response) => {
       // response.data contiene los datos actualizados devueltos por el servidor
-      queryClient.setQueryData(['partner', idStr], (prev: any) => ({ ...prev, ...response.data }))
-      // Invalidar para forzar una recarga desde el servidor
-      queryClient.invalidateQueries({ queryKey: ['partner', idStr] })
+      queryClient.setQueryData(['partner', idStr], response.data)
+      // Invalidar TODAS las queries relacionadas con este partner
+      await queryClient.invalidateQueries({ queryKey: ['partner', idStr] })
+      // También invalidar por ID si estamos usando schema
+      if (!isNumericId && response.data?.id) {
+        await queryClient.invalidateQueries({ queryKey: ['partner', String(response.data.id)] })
+      }
       closeModal()
       toast.success('Partner actualizado correctamente')
     },
