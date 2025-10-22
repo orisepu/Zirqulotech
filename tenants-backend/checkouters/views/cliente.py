@@ -3,15 +3,22 @@ from rest_framework.exceptions import PermissionDenied
 from django_tenants.utils import schema_context, get_tenant_model
 from ..models.cliente import Cliente, ComentarioCliente
 from ..serializers import ClienteSerializer, ComentarioClienteSerializer,ClienteListSerializer
+from ..permissions import IsComercialOrAbove
+from ..mixins.role_based_viewset import RoleBasedQuerysetMixin, RoleInfoMixin
+from ..utils.role_filters import filter_queryset_by_role
 from progeek.models import UserGlobalRole, RolPorTenant
 from .pagination import StandardResultsSetPagination
 from decimal import Decimal
 from django.db.models import Sum, Count, Q, Value, DecimalField
 from django.db.models.functions import Coalesce
 
-class ClienteViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+class ClienteViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelViewSet):
+    permission_classes = [IsComercialOrAbove]
     pagination_class = StandardResultsSetPagination
+
+    # Configuración para role-based filtering
+    tienda_field = "tienda"
+    creador_field = "creado_por"
 
     filter_backends = [filters.SearchFilter]
     search_fields = [
@@ -58,6 +65,35 @@ class ClienteViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_queryset(self):
+        """
+        Retorna clientes filtrados por rol y parámetros adicionales.
+
+        Comportamiento por rol:
+        - Comercial: Solo ve clientes que creó en su tienda
+        - Store Manager: Ve todos los clientes de su tienda
+        - Manager: Ve clientes de tiendas gestionadas (o todas)
+        - Auditor: Ve todos los clientes (read-only)
+        """
+        user = self.request.user
+        schema = self.request.query_params.get("schema")
+
+        # Base queryset
+        base_qs = Cliente.objects.all()
+
+        # Aplicar filtros de búsqueda
+        base_qs = self._qs_filtrado(base_qs).order_by("id")
+
+        # Aplicar filtrado basado en roles
+        return filter_queryset_by_role(
+            queryset=base_qs,
+            user=user,
+            tenant_slug=schema,
+            tienda_field=self.tienda_field,
+            creador_field=self.creador_field
+        )
+
+    def _get_qs_old(self):
+        """Método antiguo preservado para referencia - DEPRECADO"""
         user = self.request.user
         schema = self.request.query_params.get("schema")
         es_super = self._es_super(user)
@@ -66,7 +102,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
             with schema_context(schema):
                 qs = Cliente.objects.all()
                 return self._qs_filtrado(qs).order_by("id")
-            
+
         tenant_slug = self.request.tenant.schema_name.lower()
         try:
             rol = user.global_role.roles.get(tenant_slug=tenant_slug)
