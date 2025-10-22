@@ -5,6 +5,7 @@ from tenant_users.permissions.models import UserTenantPermissions
 
 class Tienda(models.Model):
     nombre = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True, help_text="Indica si la tienda está activa")
 
     # Dirección fiscal
     direccion_calle = models.CharField(max_length=255, blank=True)
