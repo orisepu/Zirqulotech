@@ -1,8 +1,10 @@
 'use client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import api from '@/services/api'
 import { toast } from 'react-toastify'
 import { AxiosError } from 'axios'
+import { useUserPermissions } from '@/hooks/useUserPermissions'
 
 const _toArray = (v: unknown) => Array.isArray(v) ? v : [v]
 const _label = (k: string) =>
@@ -43,7 +45,8 @@ export const oportunidadKeys = {
 }
 export function useOportunidadData(id: string | number) {
   const qc = useQueryClient()
-  
+  const { canEditData } = useUserPermissions()
+
   const oportunidad = useQuery({
     queryKey: ['oportunidad', id],
     enabled: !!id,
@@ -185,9 +188,30 @@ export function useOportunidadData(id: string | number) {
     qc.invalidateQueries({ queryKey: oportunidadKeys.reales(id) })
   }
 
+  // Calcular si puede editar esta oportunidad
+  const canEdit = useMemo(() => {
+    if (!oportunidad.data) return false
+    // Extraer ID del creador (puede venir como objeto o ID directo)
+    const creadorId = oportunidad.data.usuario?.id || oportunidad.data.usuario
+    return canEditData(creadorId)
+  }, [oportunidad.data, canEditData])
+
+  // Información del creador para mostrar
+  const creadorInfo = useMemo(() => {
+    if (!oportunidad.data?.usuario) return null
+    const usuario = oportunidad.data.usuario
+    return {
+      id: usuario.id || usuario,
+      nombre: usuario.name || usuario.email || 'Usuario',
+      email: usuario.email
+    }
+  }, [oportunidad.data])
+
   return {
     oportunidad, transiciones, historial, modelos, capacidades, reales,
     guardarEstado, enviarComentario, eliminarDispositivo, guardarRecogida,
-    generarPDF, subirFactura, descargarDocumento, verDocumentoURL,refetchTodo,oportunidadKeys
+    generarPDF, subirFactura, descargarDocumento, verDocumentoURL, refetchTodo, oportunidadKeys,
+    canEdit,      // NUEVO: Boolean para controlar edición
+    creadorInfo,  // NUEVO: Info del creador para mostrar
   }
 }

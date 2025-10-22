@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import filters
 from django.utils import timezone
@@ -20,7 +20,7 @@ from ..models.oportunidad import Oportunidad,HistorialOportunidad
 from ..serializers import DispositivoSerializer, DispositivoRealSerializer
 from ..permissions import IsComercialOrAbove
 from ..mixins.role_based_viewset import RoleBasedQuerysetMixin, RoleInfoMixin
-from ..utils.role_filters import filter_queryset_by_role
+from ..utils.role_filters import filter_queryset_by_role, can_user_edit_object
 from django.shortcuts import get_object_or_404
 from ..serializers.producto import ModeloSerializer, CapacidadSerializer
 import re
@@ -162,6 +162,27 @@ class DispositivoViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
             else:
                 raise ValidationError({"oportunidad": "Formato de oportunidad inválido (debe ser ID o UUID)."})
 
+        # Verificar permisos para comerciales (capa de seguridad)
+        user = self.request.user
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if not es_super and oportunidad:
+            resolved_tenant_slug = tenant_slug or getattr(self.request.tenant, "schema_name", "").lower()
+            if not can_user_edit_object(
+                user=user,
+                obj=oportunidad,
+                tenant_slug=resolved_tenant_slug,
+                tienda_field="tienda",
+                creador_field="usuario"
+            ):
+                raise PermissionDenied(
+                    "No tienes permisos para agregar dispositivos a esta oportunidad. "
+                    "Los comerciales solo pueden editar oportunidades que ellos crearon."
+                )
+
         # Función interna para crear el dispositivo (se ejecutará en el schema correcto)
         def _crear_dispositivo():
             # Determinar si es Apple o personalizado
@@ -210,6 +231,59 @@ class DispositivoViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         else:
             # Modo tenant normal o sin oportunidad
             dispositivo = _crear_dispositivo()
+
+    def perform_update(self, serializer):
+        """
+        Validar que comerciales solo editen dispositivos de sus oportunidades.
+        Store Managers y Managers pueden editar cualquier dispositivo en su ámbito.
+        """
+        instance = self.get_object()
+        user = self.request.user
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if not es_super and instance.oportunidad:
+            tenant_slug = self.request.headers.get('X-Tenant') or getattr(self.request.tenant, "schema_name", "").lower()
+            if not can_user_edit_object(
+                user=user,
+                obj=instance.oportunidad,
+                tenant_slug=tenant_slug,
+                tienda_field="tienda",
+                creador_field="usuario"
+            ):
+                raise PermissionDenied(
+                    "No tienes permisos para editar dispositivos de esta oportunidad."
+                )
+
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """
+        Validar que comerciales solo eliminen dispositivos de sus oportunidades.
+        Store Managers y Managers pueden eliminar cualquier dispositivo en su ámbito.
+        """
+        user = self.request.user
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if not es_super and instance.oportunidad:
+            tenant_slug = self.request.headers.get('X-Tenant') or getattr(self.request.tenant, "schema_name", "").lower()
+            if not can_user_edit_object(
+                user=user,
+                obj=instance.oportunidad,
+                tenant_slug=tenant_slug,
+                tienda_field="tienda",
+                creador_field="usuario"
+            ):
+                raise PermissionDenied(
+                    "No tienes permisos para eliminar dispositivos de esta oportunidad."
+                )
+
+        instance.delete()
 
     @action(detail=True, methods=['POST'])
     def recalcular_precio(self, request, pk=None):
@@ -346,12 +420,39 @@ class DispositivoViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
 
 
 class DispositivoRealCreateAPIView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsComercialOrAbove]
 
     def post(self, request):
         tenant = request.data.get("tenant")
+        oportunidad_id = request.data.get("oportunidad")
+
         if not tenant:
             return Response({"detail": "Schema (tenant) requerido"}, status=400)
+
+        # Verificar permisos de la oportunidad asociada
+        user = request.user
+        es_super = (
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
+        )
+
+        if not es_super and oportunidad_id:
+            with schema_context(tenant):
+                try:
+                    oportunidad = Oportunidad.objects.get(id=oportunidad_id)
+                    if not can_user_edit_object(
+                        user=user,
+                        obj=oportunidad,
+                        tenant_slug=tenant,
+                        tienda_field="tienda",
+                        creador_field="usuario"
+                    ):
+                        return Response(
+                            {"detail": "No tienes permisos para agregar dispositivos reales a esta oportunidad."},
+                            status=403
+                        )
+                except Oportunidad.DoesNotExist:
+                    return Response({"detail": "Oportunidad no encontrada"}, status=404)
 
         with schema_context(tenant):
             serializer = DispositivoRealSerializer(data=request.data)
