@@ -58,13 +58,15 @@ class DispositivoViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         from ..models.oportunidad import Oportunidad
 
         # Obtener IDs de oportunidades accesibles
+        # Comerciales pueden ver dispositivos de TODAS las oportunidades de su tienda
         oportunidades_qs = Oportunidad.objects.all()
         oportunidades_filtradas = filter_queryset_by_role(
             queryset=oportunidades_qs,
             user=user,
             tenant_slug=schema,
             tienda_field="tienda",
-            creador_field="usuario"
+            creador_field="usuario",
+            read_only_for_comercial=True  # Permite ver dispositivos de toda la tienda
         )
 
         oportunidad_ids = oportunidades_filtradas.values_list('id', flat=True)

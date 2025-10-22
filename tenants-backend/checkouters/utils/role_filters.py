@@ -39,7 +39,7 @@ def get_user_rol_tenant(user, tenant_slug=None):
         return None
 
 
-def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_field="tienda", creador_field="creado_por"):
+def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_field="tienda", creador_field="creado_por", read_only_for_comercial=False):
     """
     Filtra un queryset basándose en el rol del usuario y sus permisos.
 
@@ -49,6 +49,8 @@ def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_f
         tenant_slug: Schema del tenant (opcional, usa el actual si no se especifica)
         tienda_field: Nombre del campo de tienda en el modelo (default: "tienda")
         creador_field: Nombre del campo de creador en el modelo (default: "creado_por")
+        read_only_for_comercial: Si True, comercial ve TODO en su tienda (read-only).
+                                  Si False, comercial solo ve sus propios datos (default: False)
 
     Returns:
         QuerySet filtrado según el rol del usuario
@@ -58,7 +60,8 @@ def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_f
         - Manager (general): Ve todo (sin filtrar)
         - Manager (regional): Solo tiendas gestionadas
         - Store Manager: Solo su tienda
-        - Comercial: Solo sus propios datos en su tienda
+        - Comercial (read_only=True): Ve todo en su tienda (solo lectura)
+        - Comercial (read_only=False): Solo sus propios datos en su tienda
         - Auditor: Ve todo (read-only, pero sin filtrar)
     """
     if not user or not user.is_authenticated:
@@ -98,11 +101,17 @@ def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_f
             return queryset.none()
         return queryset.filter(**{tienda_field: rol_tenant.tienda_id})
 
-    # Comercial: solo sus propios datos en su tienda
+    # Comercial: comportamiento depende de read_only_for_comercial
     if rol == "comercial":
-        filters = Q()
-        if rol_tenant.tienda_id:
-            filters &= Q(**{tienda_field: rol_tenant.tienda_id})
+        if not rol_tenant.tienda_id:
+            return queryset.none()
+
+        # Si read_only_for_comercial=True: ve TODO en su tienda (para lectura)
+        if read_only_for_comercial:
+            return queryset.filter(**{tienda_field: rol_tenant.tienda_id})
+
+        # Si read_only_for_comercial=False: solo ve sus propios datos (para escritura)
+        filters = Q(**{tienda_field: rol_tenant.tienda_id})
         if creador_field:
             filters &= Q(**{creador_field: user})
         return queryset.filter(filters)

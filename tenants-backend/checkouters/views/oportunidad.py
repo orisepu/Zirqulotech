@@ -137,13 +137,15 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         # - Manager (general): ve todo
         # - Manager (regional): ve tiendas gestionadas
         # - Store Manager: ve su tienda
-        # - Comercial: ve solo sus oportunidades de su tienda
+        # - Comercial: ve TODAS las oportunidades de su tienda (solo lectura)
+        #   pero solo puede editar las que creó (verificado en perform_update/destroy)
         return filter_queryset_by_role(
             queryset=base_qs,
             user=user,
             tenant_slug=schema,
             tienda_field=self.tienda_field,
-            creador_field=self.creador_field
+            creador_field=self.creador_field,
+            read_only_for_comercial=True  # Permite ver todo en su tienda
         )
 
     def perform_create(self, serializer):
@@ -211,12 +213,35 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         raise serializers.ValidationError("No tienes permisos para crear oportunidades.")
 
     def perform_update(self, serializer):
+        """
+        Actualiza una oportunidad validando permisos de edición.
+
+        Los comerciales solo pueden editar oportunidades que ellos crearon.
+        Store Managers y Managers pueden editar cualquier oportunidad en su ámbito.
+        """
+        instance = self.get_object()
+        user = self.request.user
         nuevo_estado = self.request.data.get("estado")
         schema = self.request.data.get("schema")
         es_super = (
-            getattr(getattr(self.request.user, "global_role", None), "es_superadmin", False)
-            or getattr(getattr(self.request.user, "global_role", None), "es_empleado_interno", False)
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
         )
+
+        # Verificar permisos de edición (importante para comerciales)
+        if not es_super:
+            tenant_slug = schema or getattr(self.request.tenant, "schema_name", "").lower()
+            if not can_user_edit_object(
+                user=user,
+                obj=instance,
+                tenant_slug=tenant_slug,
+                tienda_field=self.tienda_field,
+                creador_field=self.creador_field
+            ):
+                raise serializers.ValidationError(
+                    "No tienes permisos para editar esta oportunidad. "
+                    "Los comerciales solo pueden editar oportunidades que ellos crearon."
+                )
 
         def _run_update(instance, tenant_schema_name: str):
             estado_anterior = instance.estado
