@@ -211,8 +211,7 @@ export function getRoleBadgeProps(rol: RolType | null) {
   const colors: Record<RolType, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'info'> = {
     manager: 'primary',
     store_manager: 'success',
-    comercial: 'info',
-    auditor: 'warning'
+    comercial: 'info'
   }
 
   return {
