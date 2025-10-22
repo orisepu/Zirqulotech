@@ -192,9 +192,20 @@ export default function TiendasPage() {
       toast.success('Tienda eliminada correctamente')
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { detail?: string } } }
-      const mensaje = err?.response?.data?.detail || 'Error al eliminar la tienda'
-      toast.error(mensaje)
+      const err = error as { response?: { data?: { detail?: string; message?: string; usuarios_asignados?: string[] } } }
+      const data = err?.response?.data
+
+      if (data?.usuarios_asignados && data.usuarios_asignados.length > 0) {
+        // Mostrar mensaje detallado con lista de usuarios
+        const usuariosList = data.usuarios_asignados.join('\n• ')
+        toast.error(
+          `${data.detail || 'No se puede eliminar la tienda'}\n\nUsuarios asignados:\n• ${usuariosList}`,
+          { autoClose: 8000 }
+        )
+      } else {
+        const mensaje = data?.detail || data?.message || 'Error al eliminar la tienda'
+        toast.error(mensaje)
+      }
     },
   })
 

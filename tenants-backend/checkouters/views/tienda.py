@@ -79,14 +79,24 @@ class TiendaViewSet(viewsets.ModelViewSet):
         # Verificar que no tenga usuarios asignados en el schema público
         public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
         with schema_context(public_schema):
-            usuarios_asignados = RolPorTenant.objects.filter(
+            roles_asignados = RolPorTenant.objects.filter(
                 tenant_slug=tenant_slug,
                 tienda_id=instance.id
-            ).count()
+            ).select_related('user_role__user')
 
-            if usuarios_asignados > 0:
+            if roles_asignados.exists():
+                usuarios_nombres = [
+                    f"{r.user_role.user.name} ({r.user_role.user.email})"
+                    for r in roles_asignados
+                ]
+                usuarios_lista = ", ".join(usuarios_nombres)
+
                 return Response(
-                    {"detail": f"No se puede eliminar una tienda con {usuarios_asignados} usuario(s) asignado(s)"},
+                    {
+                        "detail": f"No se puede eliminar una tienda con {roles_asignados.count()} usuario(s) asignado(s)",
+                        "usuarios_asignados": usuarios_nombres,
+                        "message": f"Usuarios asignados: {usuarios_lista}"
+                    },
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
