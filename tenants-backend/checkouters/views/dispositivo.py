@@ -18,6 +18,9 @@ from django.utils import timezone  # ya lo usas más abajo; si ya estaba, ignora
 from ..models.dispositivo import Dispositivo, DispositivoReal
 from ..models.oportunidad import Oportunidad,HistorialOportunidad
 from ..serializers import DispositivoSerializer, DispositivoRealSerializer
+from ..permissions import IsComercialOrAbove
+from ..mixins.role_based_viewset import RoleBasedQuerysetMixin, RoleInfoMixin
+from ..utils.role_filters import filter_queryset_by_role
 from django.shortcuts import get_object_or_404
 from ..serializers.producto import ModeloSerializer, CapacidadSerializer
 import re
@@ -31,9 +34,43 @@ class ModeloPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 200
 
-class DispositivoViewSet(viewsets.ModelViewSet):
-    queryset = Dispositivo.objects.all()
+class DispositivoViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelViewSet):
     serializer_class = DispositivoSerializer
+    permission_classes = [IsComercialOrAbove]
+
+    # Configuración para role-based filtering
+    # Los dispositivos se filtran por la oportunidad a la que pertenecen
+    enable_role_filtering = False  # Usaremos filtrado custom basado en oportunidad
+
+    def get_queryset(self):
+        """
+        Retorna dispositivos filtrados por rol del usuario.
+        Los dispositivos se filtran indirectamente a través de las oportunidades.
+        """
+        user = self.request.user
+        schema = self.request.query_params.get("schema")
+
+        # Base queryset
+        base_qs = Dispositivo.objects.select_related('oportunidad', 'oportunidad__tienda', 'oportunidad__usuario')
+
+        # Para dispositivos, filtramos por las oportunidades que el usuario puede ver
+        # Esto es más complejo porque necesitamos filtrar por oportunidad
+        from ..models.oportunidad import Oportunidad
+
+        # Obtener IDs de oportunidades accesibles
+        oportunidades_qs = Oportunidad.objects.all()
+        oportunidades_filtradas = filter_queryset_by_role(
+            queryset=oportunidades_qs,
+            user=user,
+            tenant_slug=schema,
+            tienda_field="tienda",
+            creador_field="usuario"
+        )
+
+        oportunidad_ids = oportunidades_filtradas.values_list('id', flat=True)
+
+        # Filtrar dispositivos por oportunidades accesibles
+        return base_qs.filter(oportunidad_id__in=oportunidad_ids)
 
     @staticmethod
     def _get_b2x_from_oportunidad(oportunidad):

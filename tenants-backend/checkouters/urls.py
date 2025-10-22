@@ -39,6 +39,10 @@ from .views import (
     # KPIs
     ValorPorTiendaAPIView,
     mi_dashboard,
+    kpi_comisiones_comercial,
+    kpi_comisiones_store_manager,
+    kpi_comisiones_manager,
+    kpi_resumen_por_rol,
     # Documento
     SubirFacturaView,
     descargar_documento,
@@ -92,6 +96,12 @@ urlpatterns = [
 
     # Otras rutas
     path('mi-dashboard/', mi_dashboard, name='mi-dashboard'),
+
+    # Endpoints de comisiones por rol jerárquico
+    path('kpi/comisiones/comercial/', kpi_comisiones_comercial, name='kpi-comisiones-comercial'),
+    path('kpi/comisiones/store-manager/', kpi_comisiones_store_manager, name='kpi-comisiones-store-manager'),
+    path('kpi/comisiones/manager/', kpi_comisiones_manager, name='kpi-comisiones-manager'),
+    path('kpi/comisiones/resumen/', kpi_resumen_por_rol, name='kpi-comisiones-resumen'),
     path('cambiar-contraseña/', cambiar_contraseña, name='cambiar-contraseña'),
     path('cambiar-password/', cambiar_contraseña_usuario),
     path("oportunidades-globales/<str:schema>/<uuid:oportunidad_id>/confirmar-recepcion/", ConfirmarRecepcionGlobalView.as_view()),
