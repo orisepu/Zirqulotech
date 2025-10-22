@@ -342,7 +342,7 @@ export default function PartnerDetailPage() {
             </Avatar>
             <Box>
               <Typography variant="h4" gutterBottom>
-                {partner.nombre}
+                {partner.name}
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Chip
@@ -635,7 +635,7 @@ export default function PartnerDetailPage() {
           {/* Datos Fiscales */}
           <Grid size={{ xs: 12, md: 6 }}>
             <ModernSection title="Datos Fiscales" icon={<BusinessIcon />} onEdit={() => openModal('fiscales')} editMode={editMode}>
-              <InfoItem label="Razón social" value={partner.nombre} />
+              <InfoItem label="Razón social" value={partner.name} />
               <InfoItem label="CIF" value={partner.cif} />
               <InfoItem
                 label="Dirección fiscal"
@@ -929,7 +929,7 @@ function EditModal({
     fiscales: {
         label: 'Editar datos fiscales',
         fields: [
-            { name: 'nombre', label: 'Razón social' },
+            { name: 'name', label: 'Razón social' },
             { name: 'cif', label: 'CIF' },
             { name: 'direccion_calle', label: 'Calle y número' },
             { name: 'direccion_piso', label: 'Piso' },

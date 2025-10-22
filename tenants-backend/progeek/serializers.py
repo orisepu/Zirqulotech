@@ -33,13 +33,14 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_tenant_model()
         fields = [
+            'name', 'cif',
             'contacto_comercial', 'telefono_comercial', 'correo_comercial',
             'contacto_financiero', 'telefono_financiero', 'correo_financiero',
             'direccion_calle', 'direccion_piso', 'direccion_puerta',
             'direccion_cp', 'direccion_poblacion', 'direccion_provincia', 'direccion_pais',
             'numero_empleados', 'vertical', 'vertical_secundaria',
             'web_corporativa', 'facturacion_anual', 'numero_tiendas_oficiales',
-            'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'cif', 'management_mode', 'legal_namespace', 'legal_slug',
+            'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'management_mode', 'legal_namespace', 'legal_slug',
             'legal_overrides', 'comision_pct', 'solo_empresas', 'es_demo', 'logo',
         ]
         extra_kwargs = {f: {"required": False} for f in fields}
