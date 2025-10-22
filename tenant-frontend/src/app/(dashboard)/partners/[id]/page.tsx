@@ -285,6 +285,14 @@ export default function PartnerDetailPage() {
 
   const handleSave = async () => {
     const payload = { ...formData }
+
+    // Mapear 'name' del form al campo del backend (el modelo Company usa 'name')
+    // El backend devuelve 'nombre' pero acepta 'name' en el serializer
+    if (payload.name !== undefined) {
+      // El serializer espera 'name', no 'nombre'
+      // No necesitamos hacer nada, ya está correcto
+    }
+
     // Si el usuario ha editado overrides como texto, intentamos parsear a objeto
     if (typeof payload.legal_overrides === 'string') {
       try {
@@ -342,7 +350,7 @@ export default function PartnerDetailPage() {
             </Avatar>
             <Box>
               <Typography variant="h4" gutterBottom>
-                {partner.name}
+                {partner.nombre}
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Chip
@@ -635,7 +643,7 @@ export default function PartnerDetailPage() {
           {/* Datos Fiscales */}
           <Grid size={{ xs: 12, md: 6 }}>
             <ModernSection title="Datos Fiscales" icon={<BusinessIcon />} onEdit={() => openModal('fiscales')} editMode={editMode}>
-              <InfoItem label="Razón social" value={partner.name} />
+              <InfoItem label="Razón social" value={partner.nombre} />
               <InfoItem label="CIF" value={partner.cif} />
               <InfoItem
                 label="Dirección fiscal"
