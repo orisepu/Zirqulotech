@@ -1,9 +1,10 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from django_tenants.utils import schema_context
+from django_tenants.utils import schema_context, get_public_schema_name
 from django.contrib.auth import authenticate
-from ..models.tienda import Tienda, UserTenantExtension
+from ..models.tienda import Tienda
 from ..serializers import TiendaSerializer
+from progeek.models import RolPorTenant
 
 
 class TiendaViewSet(viewsets.ModelViewSet):
@@ -75,13 +76,21 @@ class TiendaViewSet(viewsets.ModelViewSet):
         with schema_context(tenant_slug):
             instance = self.get_object()
 
-            # Verificar que no tenga usuarios asignados
-            usuarios_asignados = UserTenantExtension.objects.filter(tienda=instance).count()
+        # Verificar que no tenga usuarios asignados en el schema público
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        with schema_context(public_schema):
+            usuarios_asignados = RolPorTenant.objects.filter(
+                tenant_slug=tenant_slug,
+                tienda_id=instance.id
+            ).count()
+
             if usuarios_asignados > 0:
                 return Response(
-                    {"detail": "No se puede eliminar una tienda con usuarios asignados"},
+                    {"detail": f"No se puede eliminar una tienda con {usuarios_asignados} usuario(s) asignado(s)"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Eliminar la tienda en su schema
+        with schema_context(tenant_slug):
             instance.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
