@@ -47,8 +47,8 @@ type Usuario = {
   id: number
   name: string
   email: string
-  rol_lectura?: "comercial" | "store_manager" | "manager" | "auditor" | string
-  rol?: "comercial" | "store_manager" | "manager" | "auditor" | string
+  rol_lectura?: "comercial" | "store_manager" | "manager" | string
+  rol?: "comercial" | "store_manager" | "manager" | string
   tienda_id_lectura?: number | null
   tienda_id?: number | null
   managed_store_ids?: number[]
@@ -274,7 +274,7 @@ export default function UsuariosTenantPage() {
         <Collapse in={showRoleInfo}>
           <CardContent>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom>
                     👤 Comercial
@@ -290,7 +290,7 @@ export default function UsuariosTenantPage() {
                   </Typography>
                 </Box>
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="subtitle2" fontWeight="bold" color="success.main" gutterBottom>
                     🏪 Store Manager
@@ -306,7 +306,7 @@ export default function UsuariosTenantPage() {
                   </Typography>
                 </Box>
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="subtitle2" fontWeight="bold" color="primary.main" gutterBottom>
                     👔 Manager
@@ -319,22 +319,6 @@ export default function UsuariosTenantPage() {
                   </Typography>
                   <Typography variant="caption" color="success.main" fontWeight="bold">
                     KPI: Comisiones del equipo comercial y Store Managers
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
-                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="warning.main" gutterBottom>
-                    🔍 Auditor
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    • Acceso completo de solo lectura
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    • No puede realizar cambios en el sistema
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled" fontWeight="bold">
-                    Sin comisiones
                   </Typography>
                 </Box>
               </Grid>
@@ -392,7 +376,6 @@ export default function UsuariosTenantPage() {
                   <MenuItem value="comercial">Comercial</MenuItem>
                   <MenuItem value="store_manager">Store Manager</MenuItem>
                   <MenuItem value="manager">Manager</MenuItem>
-                  <MenuItem value="auditor">Auditor</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -483,12 +466,6 @@ export default function UsuariosTenantPage() {
                         <Stack direction="row" spacing={1} alignItems="center">
                           <AdminPanelSettingsIcon fontSize="small" />
                           <span>Manager</span>
-                        </Stack>
-                      </MenuItem>
-                      <MenuItem value="auditor">
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <AdminPanelSettingsIcon fontSize="small" color="action" />
-                          <span>Auditor</span>
                         </Stack>
                       </MenuItem>
                     </Select>

@@ -11,7 +11,7 @@
 import { useMemo } from 'react'
 import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
 
-export type RolType = 'comercial' | 'store_manager' | 'manager' | 'auditor'
+export type RolType = 'comercial' | 'store_manager' | 'manager'
 
 interface RolePermissions {
   // Información del rol
@@ -24,7 +24,6 @@ interface RolePermissions {
   isComercial: boolean
   isStoreManager: boolean
   isManager: boolean
-  isAuditor: boolean
   isGeneralManager: boolean
 
   // Permisos generales
@@ -43,15 +42,13 @@ interface RolePermissions {
 const ROLE_DESCRIPTIONS: Record<RolType, string> = {
   comercial: 'Crea y edita sus propios clientes, contactos y oportunidades. Puede ver el resto de la tienda.',
   store_manager: 'Gestiona todos los datos de su tienda. Puede ver y editar información de toda la tienda.',
-  manager: 'Gestiona múltiples tiendas (regional o general). Acceso completo a las tiendas asignadas.',
-  auditor: 'Acceso de solo lectura a todos los datos. No puede realizar cambios.'
+  manager: 'Gestiona múltiples tiendas (regional o general). Acceso completo a las tiendas asignadas.'
 }
 
 const ROLE_DISPLAY_NAMES: Record<RolType, string> = {
   comercial: 'Comercial',
   store_manager: 'Store Manager',
-  manager: 'Manager',
-  auditor: 'Auditor'
+  manager: 'Manager'
 }
 
 export function useUserPermissions(): RolePermissions {
@@ -68,7 +65,6 @@ export function useUserPermissions(): RolePermissions {
         isComercial: false,
         isStoreManager: false,
         isManager: false,
-        isAuditor: false,
         isGeneralManager: false,
         canEdit: false,
         canEditAll: false,
@@ -92,17 +88,15 @@ export function useUserPermissions(): RolePermissions {
     const isComercial = rol === 'comercial'
     const isStoreManager = rol === 'store_manager'
     const isManager = rol === 'manager'
-    const isAuditor = rol === 'auditor'
     const isGeneralManager = isManager && managedStoreIds.length === 0
 
     // Permisos generales
-    const canEdit = !isAuditor
+    const canEdit = true  // Todos pueden editar (no hay auditor)
     const canEditAll = isStoreManager || isManager
     const canViewAll = !isComercial  // Comercial solo ve lo suyo
 
     // Método para verificar si puede editar datos propios
     const canEditData = (createdBy?: number): boolean => {
-      if (isAuditor) return false
       if (canEditAll) return true
       if (isComercial) {
         // Comercial solo edita lo que creó
@@ -113,7 +107,6 @@ export function useUserPermissions(): RolePermissions {
 
     // Método para verificar si puede ver una tienda
     const canViewTienda = (targetTiendaId: number): boolean => {
-      if (isAuditor) return true  // Auditor ve todo
       if (isGeneralManager) return true  // General Manager ve todas
       if (isManager) {
         // Regional Manager ve sus tiendas asignadas
@@ -128,7 +121,6 @@ export function useUserPermissions(): RolePermissions {
 
     // Método para verificar si puede editar una tienda
     const canEditTienda = (targetTiendaId: number): boolean => {
-      if (isAuditor) return false  // Auditor no edita
       if (isGeneralManager) return true  // General Manager edita todas
       if (isManager) {
         // Regional Manager edita sus tiendas asignadas
@@ -156,7 +148,6 @@ export function useUserPermissions(): RolePermissions {
       if (isManager) return 'primary'
       if (isStoreManager) return 'success'
       if (isComercial) return 'info'
-      if (isAuditor) return 'warning'
       return 'default'
     }
 
@@ -168,7 +159,6 @@ export function useUserPermissions(): RolePermissions {
       isComercial,
       isStoreManager,
       isManager,
-      isAuditor,
       isGeneralManager,
       canEdit,
       canEditAll,
@@ -251,10 +241,6 @@ export function getCommissionInfo(rol: RolType | null) {
     manager: {
       individual: 0,
       description: 'Comisiones del equipo comercial y Store Managers'
-    },
-    auditor: {
-      individual: 0,
-      description: 'Sin comisiones (rol de auditoría)'
     }
   }
 

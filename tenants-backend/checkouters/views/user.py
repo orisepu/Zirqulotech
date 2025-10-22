@@ -43,7 +43,7 @@ class UsuarioTenantViewSet(viewsets.ModelViewSet):
         with schema_context(public_schema):
             qs_roles = RolPorTenant.objects.filter(
                 tenant_slug=tenant_slug,
-                rol__in=["manager", "empleado"],
+                rol__in=["comercial", "store_manager", "manager"],
             )
             ids = list(qs_roles.values_list("user_role__user_id", flat=True))
             logger.info(
