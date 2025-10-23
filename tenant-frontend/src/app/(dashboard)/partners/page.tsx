@@ -20,6 +20,8 @@ import AddIcon from '@mui/icons-material/Add'
 import BusinessIcon from '@mui/icons-material/Business'
 import ClearIcon from '@mui/icons-material/Clear'
 import FilterListIcon from '@mui/icons-material/FilterList'
+import DeleteIcon from '@mui/icons-material/Delete'
+import EditIcon from '@mui/icons-material/Edit'
 import { formatoBonito } from '@/context/precios'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import DoNotDisturbOnOutlinedIcon from '@mui/icons-material/DoNotDisturbOnOutlined'
@@ -40,6 +42,12 @@ export default function PartnerListPage() {
   const queryClient = useQueryClient()
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [partnerToDelete, setPartnerToDelete] = useState<any>(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [editSlugDialogOpen, setEditSlugDialogOpen] = useState(false)
+  const [partnerToEditSlug, setPartnerToEditSlug] = useState<any>(null)
+  const [newSlug, setNewSlug] = useState('')
   const [nuevoPartner, setNuevoPartner] = useState({
     name: "", schema: "", cif: "",
     direccion_calle: "", direccion_cp: "",
@@ -146,6 +154,18 @@ export default function PartnerListPage() {
     const totalTiendas = partnersArray.reduce((acc, p) => acc + (p.tiendas ?? 0), 0)
     return { total, activos, inactivos, totalTiendas }
   }, [partners])
+
+  // Handlers defined before columns
+  const handleOpenDeleteDialog = useCallback((partner: any) => {
+    setPartnerToDelete(partner)
+    setDeleteDialogOpen(true)
+  }, [])
+
+  const handleOpenEditSlugDialog = useCallback((partner: any) => {
+    setPartnerToEditSlug(partner)
+    setNewSlug(partner.schema || '')
+    setEditSlugDialogOpen(true)
+  }, [])
 
   // Table columns definition
   const columns = useMemo(() => [
@@ -267,10 +287,27 @@ export default function PartnerListPage() {
               <StoreIcon />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Editar slug">
+            <IconButton
+              size="small"
+              onClick={() => handleOpenEditSlugDialog(row.original)}
+            >
+              <EditIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Eliminar partner">
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleOpenDeleteDialog(row.original)}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
         </Stack>
       ),
     },
-  ], [router])
+  ], [router, handleOpenDeleteDialog, handleOpenEditSlugDialog])
 
   const crearPartnerMutation = useMutation({
     mutationFn: async (payload: typeof nuevoPartner) => {
@@ -305,6 +342,40 @@ export default function PartnerListPage() {
     onError: () => setSnackbar({ open: true, tipo: 'error', mensaje: 'No se pudo cambiar el estado.' })
   })
 
+  const deletePartnerMutation = useMutation({
+    mutationFn: async ({ id, password }: { id: number, password: string }) => {
+      return api.delete(`/api/tenants/${id}/`, { data: { password } })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      setDeleteDialogOpen(false)
+      setPartnerToDelete(null)
+      setDeletePassword('')
+      toast.success('Partner eliminado correctamente')
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.error || 'Error al eliminar el partner'
+      toast.error(msg)
+    }
+  })
+
+  const updateSlugMutation = useMutation({
+    mutationFn: async ({ id, slug }: { id: number, slug: string }) => {
+      return api.patch(`/api/tenants/${id}/`, { slug })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      setEditSlugDialogOpen(false)
+      setPartnerToEditSlug(null)
+      setNewSlug('')
+      toast.success('Slug actualizado correctamente')
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.error || 'Error al actualizar el slug'
+      toast.error(msg)
+    }
+  })
+
   function slugify(input: string) {
     return input
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -334,6 +405,17 @@ export default function PartnerListPage() {
       return
     }
     crearPartnerMutation.mutate(nuevoPartner)
+  }
+
+  const handleDeletePartner = () => {
+    if (!deletePassword.trim()) {
+      toast.error('Debes ingresar tu contraseña para confirmar la eliminación')
+      return
+    }
+    deletePartnerMutation.mutate({
+      id: partnerToDelete.id,
+      password: deletePassword
+    })
   }
 
   const clearSearch = useCallback(() => {
@@ -724,6 +806,14 @@ export default function PartnerListPage() {
                           <DashboardIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      <Tooltip title="Editar slug">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEditSlugDialog(partner)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title={(partner.estado ?? '').toLowerCase() === 'activo' ? 'Desactivar' : 'Activar'}>
                         <IconButton
                           size="small"
@@ -734,6 +824,15 @@ export default function PartnerListPage() {
                           color={(partner.estado ?? '').toLowerCase() === 'activo' ? 'error' : 'success'}
                         >
                           <PowerSettingsNewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Eliminar partner">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleOpenDeleteDialog(partner)}
+                        >
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </ButtonGroup>
@@ -935,6 +1034,114 @@ export default function PartnerListPage() {
               startIcon={crearPartnerMutation.isPending ? undefined : <AddIcon />}
             >
               {crearPartnerMutation.isPending ? 'Creando…' : 'Crear Partner'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Delete Partner Dialog */}
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false)
+            setPartnerToDelete(null)
+            setDeletePassword('')
+          }}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Confirmar eliminación de partner</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              ¿Está seguro que desea eliminar el partner &quot;{partnerToDelete?.nombre}&quot;?
+              Esta acción eliminará permanentemente todos los datos, usuarios y tiendas asociados.
+              Esta acción no se puede deshacer.
+            </Typography>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Por seguridad, ingrese su contraseña para confirmar la eliminación.
+            </Alert>
+            <TextField
+              label="Contraseña"
+              type="password"
+              fullWidth
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              autoFocus
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setPartnerToDelete(null)
+                setDeletePassword('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleDeletePartner}
+              disabled={deletePartnerMutation.isPending || !deletePassword.trim()}
+            >
+              {deletePartnerMutation.isPending ? 'Eliminando…' : 'Eliminar Partner'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Edit Slug Dialog */}
+        <Dialog
+          open={editSlugDialogOpen}
+          onClose={() => {
+            setEditSlugDialogOpen(false)
+            setPartnerToEditSlug(null)
+            setNewSlug('')
+          }}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Editar slug del partner</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Editar el slug de &quot;{partnerToEditSlug?.nombre}&quot;
+            </Typography>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              El slug es el identificador usado en el login. Cambiar este valor NO afecta el schema de PostgreSQL,
+              solo cambia cómo los usuarios identifican al partner al iniciar sesión.
+            </Alert>
+            <TextField
+              label="Nuevo slug"
+              fullWidth
+              value={newSlug}
+              onChange={(e) => setNewSlug(e.target.value.toLowerCase().trim())}
+              autoFocus
+              helperText="Solo letras minúsculas, números y guiones. Ej: mediamarkt, k-tuin"
+              sx={{ mt: 2 }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Schema actual (PostgreSQL): <strong>{partnerToEditSlug?.schema}</strong>
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setEditSlugDialogOpen(false)
+                setPartnerToEditSlug(null)
+                setNewSlug('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (partnerToEditSlug && newSlug.trim()) {
+                  updateSlugMutation.mutate({ id: partnerToEditSlug.id, slug: newSlug.trim() })
+                }
+              }}
+              disabled={updateSlugMutation.isPending || !newSlug.trim() || newSlug === partnerToEditSlug?.schema}
+            >
+              {updateSlugMutation.isPending ? 'Guardando…' : 'Guardar Slug'}
             </Button>
           </DialogActions>
         </Dialog>

@@ -30,7 +30,7 @@ import {
   DevicesOtherRounded,
   ConstructionRounded,
   CategoryRounded,
-  AdminPanelSettingsRounded,
+  PeopleAltRounded,
 } from '@mui/icons-material'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -40,7 +40,7 @@ import { useUsuario } from '@/context/UsuarioContext'
 import ToasterProvider from '@/components/ToasterProvider'
 import BuscadorUniversal from '@/components/BuscadorUniversal'
 import NotificacionesBell from '@/features/notifications/components/NotificacionesBell'
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { getSecureItem } from '@/shared/lib/secureStorage'
 import { getWebSocketUrl } from '@/shared/config/env'
 import { useWebSocketWithRetry } from '@/hooks/useWebSocketWithRetry'
@@ -139,6 +139,7 @@ export default function LayoutInternoShell({ children }: { children: React.React
     { label: 'Operaciones',             icon: <SettingsSuggestRounded />,to: '/oportunidades-global' },
     { label: 'Recepción',               icon: <MoveToInboxRounded />,    to: '/recepcion' },
     { label: 'Auditorias',              icon: <FactCheckRounded />,      to: '/auditorias' },
+    { label: 'Gestión de Usuarios',     icon: <PeopleAltRounded />,      to: '/gestion-usuarios' },
     { label: 'Dispositivos',            icon: <DevicesOtherRounded />,   to: '/dispositivos' },
     { label: 'Piezas',                  icon: <ConstructionRounded />,   to: '/dispositivos/piezas' },
     { label: 'Tipos Piezas',            icon: <CategoryRounded />,       to: '/dispositivos/piezas/tipos' },

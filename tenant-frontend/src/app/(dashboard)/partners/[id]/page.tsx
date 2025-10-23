@@ -112,9 +112,20 @@ export default function PartnerDetailPage() {
   }
 
   const { mutate: updatePartner, isPending: saving } = useMutation({
-    mutationFn: (data: any) => api.put(`/api/tenants/${data.id}/`, data),
-    onSuccess: (_, data) => {
-      queryClient.setQueryData(['partner', idStr], (prev: any) => ({ ...prev, ...data }))
+    mutationFn: (data: any) => {
+      // Siempre usar el endpoint con ID numérico para PUT
+      const updateEndpoint = `/api/tenants/${data.id}/`
+      return api.put(updateEndpoint, data)
+    },
+    onSuccess: async (response) => {
+      // response.data contiene los datos actualizados devueltos por el servidor
+      queryClient.setQueryData(['partner', idStr], response.data)
+      // Invalidar TODAS las queries relacionadas con este partner
+      await queryClient.invalidateQueries({ queryKey: ['partner', idStr] })
+      // También invalidar por ID si estamos usando schema
+      if (!isNumericId && response.data?.id) {
+        await queryClient.invalidateQueries({ queryKey: ['partner', String(response.data.id)] })
+      }
       closeModal()
       toast.success('Partner actualizado correctamente')
     },
@@ -274,6 +285,14 @@ export default function PartnerDetailPage() {
 
   const handleSave = async () => {
     const payload = { ...formData }
+
+    // Mapear 'name' del form al campo del backend (el modelo Company usa 'name')
+    // El backend devuelve 'nombre' pero acepta 'name' en el serializer
+    if (payload.name !== undefined) {
+      // El serializer espera 'name', no 'nombre'
+      // No necesitamos hacer nada, ya está correcto
+    }
+
     // Si el usuario ha editado overrides como texto, intentamos parsear a objeto
     if (typeof payload.legal_overrides === 'string') {
       try {
@@ -918,7 +937,7 @@ function EditModal({
     fiscales: {
         label: 'Editar datos fiscales',
         fields: [
-            { name: 'nombre', label: 'Razón social' },
+            { name: 'name', label: 'Razón social' },
             { name: 'cif', label: 'CIF' },
             { name: 'direccion_calle', label: 'Calle y número' },
             { name: 'direccion_piso', label: 'Piso' },

@@ -511,27 +511,27 @@ class LoteGlobalViewSet(viewsets.ModelViewSet):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dispositivos_de_oportunidad(request, pk):
-    print(f"➡️ Solicitud recibida para oportunidad_global {pk}")
+    logger.info("Solicitud recibida para oportunidad_global %s", pk)
 
     try:
         lote_global = LoteGlobal.objects.get(pk=pk)
-        print(f"✅ LoteGlobal encontrado: {lote_global}")
+        logger.debug("LoteGlobal encontrado: %s", lote_global)
     except LoteGlobal.DoesNotExist:
-        print("❌ LoteGlobal no encontrado")
+        logger.warning("❌ LoteGlobal no encontrado: %s", pk)
         return Response({"error": "Oportunidad no encontrada"}, status=404)
 
     tenant_slug = lote_global.tenant_slug
     lote_id = lote_global.lote_id
-    print(f"🌐 Cambiando a schema: {tenant_slug} / oportunidad_id: {lote_id}")
+    logger.debug("Cambiando a schema: %s / oportunidad_id: %s", tenant_slug, lote_id)
 
     with schema_context(tenant_slug):
         try:
             oportunidad = Oportunidad.objects.get(pk=lote_id)
-            print(f"✅ Oportunidad encontrada en tenant {tenant_slug}")
+            logger.debug("Oportunidad encontrada en tenant %s", tenant_slug)
             dispositivos = Dispositivo.objects.filter(oportunidad=oportunidad)
-            print(f"📦 Dispositivos encontrados: {dispositivos.count()}")
+            logger.debug("Dispositivos encontrados: %s", dispositivos.count())
         except Oportunidad.DoesNotExist:
-            print("❌ Oportunidad no existe en el schema del tenant")
+            logger.warning("❌ Oportunidad no existe en el schema del tenant %s", tenant_slug)
             return Response({"error": "Oportunidad no existe en el tenant"}, status=404)
 
         serializer = DispositivoSerializer(dispositivos, many=True)
@@ -786,11 +786,11 @@ def detalle_oportunidad_global(request, tenant, id):
         logger.error(f"❌ Global role no encontrado para user {request.user}")
         return Response({"detail": "No autorizado"}, status=403)
 
-    logger.info(f"🔍 Buscando oportunidad global - tenant={tenant}, id={id}")
+    logger.info("Buscando oportunidad global - tenant=%s, id=%s", tenant, id)
 
     try:
         with schema_context(tenant):
-            logger.info(f"🎯 Schema activado: {connection.tenant.schema_name}")
+            logger.debug("Schema activado: %s", connection.tenant.schema_name)
             oportunidad = Oportunidad.objects.get(uuid=id)
             data = OportunidadSerializer(oportunidad).data
             data["tenant"] = tenant
@@ -851,6 +851,7 @@ class YoAPIView(APIView):
                 r.tenant_slug: {
                     'rol': r.rol,
                     'tienda_id': r.tienda_id,
+                    'managed_store_ids': r.managed_store_ids if r.rol == 'manager' else [],
                 }
                 for r in global_role.roles.all()
             }
@@ -971,10 +972,72 @@ def listar_tenants(request):
 
     return Response(tenant_data)
 
-@api_view(['GET', 'PUT', 'PATCH'])
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def tenant_detail(request, id):
     TenantModel = get_tenant_model()
+
+    if request.method == 'DELETE':
+        # Verificar contraseña del usuario
+        password = request.data.get('password')
+        if not password:
+            return Response({"error": "Se requiere la contraseña para eliminar el partner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(password):
+            return Response({"error": "Contraseña incorrecta."}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = get_object_or_404(TenantModel, id=id)
+        schema_name = tenant.schema_name
+
+        try:
+            from django.contrib.auth import get_user_model
+            from django_tenants.utils import schema_context, get_public_schema_name
+
+            User = get_user_model()
+
+            # Obtener todos los usuarios que pertenecen SOLO a este tenant
+            users_in_this_tenant = User.objects.filter(tenants=tenant)
+
+            # Identificar usuarios que solo tienen este tenant
+            users_to_delete = []
+            for user in users_in_this_tenant:
+                tenant_count = user.tenants.count()
+                if tenant_count == 1:
+                    users_to_delete.append(user.id)
+
+            # Eliminar la relación many-to-many primero
+            tenant.user_set.clear()
+
+            # Eliminar dominios asociados
+            tenant.domains.all().delete()
+
+            # Cambiar el owner del schema al usuario actual de la base de datos
+            from django.db import connection
+            current_db_user = connection.settings_dict['USER']
+
+            with connection.cursor() as cursor:
+                # Cambiar el owner del schema al usuario actual de Django
+                cursor.execute(f'ALTER SCHEMA "{schema_name}" OWNER TO "{current_db_user}"')
+
+            # Ahora usar el método delete() de TenantMixin que maneja el DROP SCHEMA
+            from django_tenants.models import TenantMixin
+            TenantMixin.delete(tenant)
+
+            # Eliminar los usuarios que solo pertenecían a este tenant
+            if users_to_delete:
+                User.objects.filter(id__in=users_to_delete).delete()
+
+            return Response({
+                "message": f"Partner '{schema_name}' eliminado correctamente."
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            return Response({
+                "error": f"Error al eliminar el partner: {str(e)}",
+                "detail": error_detail
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     if request.method in ['PUT', 'PATCH']:
         with transaction.atomic():
             tenant = get_object_or_404(TenantModel.objects.select_for_update(), id=id)
@@ -1167,7 +1230,7 @@ class CrearCompanyAPIView(APIView):
             name=data["name"],
             schema_name=schema,
             slug=schema,
-            owner=owner or User.objects.get(email="admin@progeek.es"),
+            owner=owner or request.user,
             cif=data.get("cif", ""),
             direccion_calle=data.get("direccion_calle", ""),
             direccion_cp=data.get("direccion_cp", ""),
@@ -1202,6 +1265,12 @@ class CrearCompanyAPIView(APIView):
         # ✅ Crear el tenant
         company = Company.objects.create(**base_kwargs)
 
+        # ✅ Cambiar el owner del schema al usuario de Django
+        from django.db import connection
+        current_db_user = connection.settings_dict['USER']
+        with connection.cursor() as cursor:
+            cursor.execute(f'ALTER SCHEMA "{schema}" OWNER TO "{current_db_user}"')
+
         # ✅ Crear dominio dummy
         Domain.objects.create(
             domain=f"{company.schema_name}.fake",
@@ -1225,7 +1294,7 @@ class CrearCompanyAPIView(APIView):
             "estado": getattr(company, "estado", "pendiente"),
             "comision_pct": getattr(company, "comision_pct", None),
             "management_mode": getattr(company, "management_mode", None),
-            "owner_email": owner.email if owner else "admin@progeek.es",
+            "owner_email": owner.email if owner else request.user.email,
             "detail": "Partner creado correctamente.",
         }
         return Response(respuesta, status=status.HTTP_201_CREATED)
@@ -1323,7 +1392,7 @@ def detalle_oportunidad_completo(request, tenant, id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def generar_pdf_oportunidad_global(request, tenant, pk):
-    logger.info(f"➡️ [PDF] Generando PDF para oportunidad {pk} del tenant '{tenant}'...")
+    logger.info("Generando PDF para oportunidad %s del tenant '%s'...", pk, tenant)
 
     try:
         # Obtener el objeto Company para acceder al logo
@@ -1367,7 +1436,7 @@ def descargar_documento_global(request, tenant, documento_id):
             logger.error(f"❌ Error accediendo al documento: {e}")
             raise Http404("Documento inválido")
 
-        logger.info(f"✅ Acceso autorizado. Iniciando descarga de {doc.nombre_original}")
+        logger.info("Acceso autorizado. Iniciando descarga de %s", doc.nombre_original)
         return FileResponse(
             doc.archivo.open(),
             as_attachment=True,
@@ -1396,7 +1465,7 @@ class SubirFacturaGlobalView(generics.CreateAPIView):
             serializer.is_valid(raise_exception=True)
 
             serializer.save(subido_por=request.user, tipo="factura")
-            logger.info(f"✅ Factura subida correctamente para oportunidad ID {oportunidad.id}")
+            logger.info("Factura subida correctamente para oportunidad ID %s", oportunidad.id)
 
             # Historial: subida
             HistorialOportunidad.objects.create(
@@ -1405,14 +1474,14 @@ class SubirFacturaGlobalView(generics.CreateAPIView):
                 descripcion=f"{request.user.get_full_name() or request.user.email} subió una factura",
                 usuario=request.user
             )
-            logger.info("📝 Historial 'factura_subida' registrado")
+            logger.debug("Historial 'factura_subida' registrado")
 
             # Cambio de estado automático
             if oportunidad.estado == "pendiente_factura":
                 estado_anterior = oportunidad.estado
                 oportunidad.estado = "factura_recibida"
                 oportunidad.save(update_fields=["estado"])
-                logger.info("🔄 Estado actualizado a 'factura_recibida'")
+                logger.info("Estado actualizado a 'factura_recibida'")
                 HistorialOportunidad.objects.create(
                     oportunidad=oportunidad,
                     tipo_evento="cambio_estado",
@@ -1463,7 +1532,7 @@ class BorrarDispositivoGlobalAPIView(APIView):
         ):
             return Response({"error": "No autorizado"}, status=403)
 
-        logger.info(f"🗑️ [GLOBAL] Solicitud para borrar dispositivo {dispositivo_id} del tenant '{tenant}'")
+        logger.info("Solicitud para borrar dispositivo %s del tenant '%s'", dispositivo_id, tenant)
 
         with schema_context(tenant):
             dispositivo = get_object_or_404(Dispositivo, id=dispositivo_id)
@@ -1472,7 +1541,7 @@ class BorrarDispositivoGlobalAPIView(APIView):
                 return Response({"error": "No puedes eliminar un dispositivo vinculado a una oportunidad cerrada."}, status=400)
 
             dispositivo.delete()
-            logger.info(f"✅ Dispositivo {dispositivo_id} eliminado correctamente de '{tenant}'")
+            logger.info("Dispositivo %s eliminado correctamente de '%s'", dispositivo_id, tenant)
             return Response(status=204)
      
 @api_view(['GET'])

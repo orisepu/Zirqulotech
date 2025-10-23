@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.db import transaction
 from django_tenants.utils import schema_context
 from checkouters.mixins import SchemaAwareCreateMixin
+from checkouters.mixins.role_based_viewset import RoleBasedQuerysetMixin, RoleInfoMixin
 import re
 from rest_framework.pagination import PageNumberPagination
 
@@ -16,7 +17,8 @@ from ..models.oportunidad import Oportunidad, HistorialOportunidad,ComentarioOpo
 from ..models.dispositivo import Dispositivo, DispositivoReal
 from ..serializers import OportunidadSerializer, HistorialOportunidadSerializer,ComentarioOportunidadSerializer
 from ..estado_oportunidad import obtener_transiciones
-from ..permissions import IsTenantManagerOrSuper
+from ..permissions import IsComercialOrAbove
+from ..utils.role_filters import filter_queryset_by_role, can_user_edit_object
 from progeek.models import RolPorTenant
 from progeek.utils import enviar_correo
 
@@ -26,10 +28,15 @@ NUM_REGEX = re.compile(r"^\d+$")
 
 
 
-class OportunidadViewSet(viewsets.ModelViewSet):
+class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelViewSet):
     serializer_class = OportunidadSerializer
+    permission_classes = [IsComercialOrAbove]
     tanstack_page_index_param = "pageIndex"
     tanstack_page_size_param = "pageSize"
+
+    # Configuración para el mixin de role-based filtering
+    tienda_field = "tienda"
+    creador_field = "usuario"  # Oportunidades usan 'usuario' en lugar de 'creado_por'
 
     def list(self, request, *args, **kwargs):
         page_index_raw = request.query_params.get(self.tanstack_page_index_param)
@@ -90,67 +97,78 @@ class OportunidadViewSet(viewsets.ModelViewSet):
         return get_object_or_404(qs, pk=-1)
     
     def get_queryset(self):
+        """
+        Retorna queryset filtrado por rol y parámetros adicionales.
+        Usa RoleBasedQuerysetMixin para filtrado automático por permisos.
+        """
         user = self.request.user
         schema = self.request.query_params.get("schema")
-        es_super = (
-            getattr(getattr(user, "global_role", None), "es_superadmin", False)
-            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
-        )
 
+        # Base queryset con optimizaciones
         base_qs = (
             Oportunidad.objects.select_related("cliente", "tienda", "usuario")
             .prefetch_related("comentarios", "dispositivos_oportunidad", "dispositivos_reales")
         )
 
+        # Filtros adicionales de búsqueda
         cliente = self.request.query_params.get("cliente") or ""
         fecha_inicio = self.request.query_params.get("fecha_inicio")
         fecha_fin = self.request.query_params.get("fecha_fin")
-        
+        usuario_id = self.request.query_params.get("usuario")
+
         estados = self.request.query_params.getlist("estado")
         if len(estados) == 1 and "," in estados[0]:
             estados = [e.strip() for e in estados[0].split(",") if e.strip()]
 
-        def _apply_filters(qs):
-            if estados:
-                qs = qs.filter(estado__in=estados)
-            if cliente:
-                qs = qs.filter(cliente__razon_social__icontains=cliente)
-            if fecha_inicio:
-                qs = qs.filter(fecha_creacion__gte=fecha_inicio)
-            if fecha_fin:
-                qs = qs.filter(fecha_creacion__lte=fecha_fin)
-            return qs.order_by("-fecha_creacion")
+        # Aplicar filtros de búsqueda
+        if estados:
+            base_qs = base_qs.filter(estado__in=estados)
+        if cliente:
+            base_qs = base_qs.filter(cliente__razon_social__icontains=cliente)
+        if fecha_inicio:
+            base_qs = base_qs.filter(fecha_creacion__gte=fecha_inicio)
+        if fecha_fin:
+            base_qs = base_qs.filter(fecha_creacion__lte=fecha_fin)
+        if usuario_id:
+            base_qs = base_qs.filter(usuario_id=usuario_id)
 
-        if es_super and schema:
-            try:
-                with schema_context(schema):
-                    return _apply_filters(base_qs.all())
-            except Exception:
-                return Oportunidad.objects.none()
+        base_qs = base_qs.order_by("-fecha_creacion")
 
-        tenant_slug = getattr(self.request.tenant, "schema_name", "").lower()
-        qs = _apply_filters(base_qs)
-
-        if es_super:
-            return qs
-
-        try:
-            rol = user.global_role.roles.get(tenant_slug=tenant_slug)
-        except RolPorTenant.DoesNotExist:
-            return Oportunidad.objects.none()
-
-        if rol.rol == "manager":
-            return qs
-        elif rol.tienda_id:
-            return qs.filter(tienda_id=rol.tienda_id)
-
-        return Oportunidad.objects.none()
+        # Aplicar filtrado basado en roles usando el mixin
+        # El mixin maneja automáticamente:
+        # - Superadmin/soporte: ve todo
+        # - Manager (general): ve todo
+        # - Manager (regional): ve tiendas gestionadas
+        # - Store Manager: ve su tienda
+        # - Comercial: ve TODAS las oportunidades de su tienda (solo lectura)
+        #   pero solo puede editar las que creó (verificado en perform_update/destroy)
+        return filter_queryset_by_role(
+            queryset=base_qs,
+            user=user,
+            tenant_slug=schema,
+            tienda_field=self.tienda_field,
+            creador_field=self.creador_field,
+            read_only_for_comercial=True  # Permite ver todo en su tienda
+        )
 
     def perform_create(self, serializer):
+        """
+        Crea una oportunidad asignando automáticamente usuario y tienda según el rol.
+
+        Comportamiento por rol:
+        - Comercial/Store Manager: Oportunidad asignada a su tienda
+        - Manager (general): Oportunidad sin tienda específica (o seleccionada en el form)
+        - Manager (regional): Oportunidad en una de sus tiendas gestionadas
+        """
         user = self.request.user
         schema = self.request.data.get("schema")
         cliente_id = self.request.data.get("cliente")
+        tienda_id_request = self.request.data.get("tienda")  # Tienda seleccionada en el form
 
+        if not cliente_id:
+            raise serializers.ValidationError({"cliente": "Este campo es obligatorio."})
+
+        # Superadmin/soporte: puede crear en cualquier schema/tienda
         es_super = (
             getattr(getattr(user, "global_role", None), "es_superadmin", False)
             or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
@@ -158,37 +176,75 @@ class OportunidadViewSet(viewsets.ModelViewSet):
 
         if es_super and schema:
             with schema_context(schema):
-                if not cliente_id:
-                    raise serializers.ValidationError({"cliente": "Este campo es obligatorio."})
-                serializer.save(usuario=user, cliente_id=cliente_id)
+                serializer.save(usuario=user, cliente_id=cliente_id, tienda_id=tienda_id_request)
                 return
 
+        # Obtener rol del usuario
         tenant_slug = getattr(self.request.tenant, "schema_name", "").lower()
-
-        if not cliente_id:
-            raise serializers.ValidationError({"cliente": "Este campo es obligatorio."})
-
         try:
             rol = user.global_role.roles.get(tenant_slug=tenant_slug)
         except RolPorTenant.DoesNotExist:
             raise serializers.ValidationError("No tienes permisos para crear oportunidades.")
 
-        if rol.rol == "manager":
-            serializer.save(usuario=user, cliente_id=cliente_id)
+        # Auditor no puede crear (solo lectura)
+        if rol.rol == "auditor":
+            raise serializers.ValidationError("Los auditores solo tienen permisos de lectura.")
+
+        # Manager (general): puede crear sin tienda específica o en cualquier tienda
+        if rol.es_manager() and rol.gestiona_todas_tiendas():
+            serializer.save(usuario=user, cliente_id=cliente_id, tienda_id=tienda_id_request)
             return
 
-        if not rol.tienda_id:
-            raise serializers.ValidationError("Debes tener una tienda asignada para crear oportunidades.")
+        # Manager (regional): puede crear en tiendas gestionadas
+        if rol.es_manager():
+            if tienda_id_request and tienda_id_request in rol.managed_store_ids:
+                serializer.save(usuario=user, cliente_id=cliente_id, tienda_id=tienda_id_request)
+                return
+            # Si no especificó tienda, usar la primera gestionada
+            if rol.managed_store_ids:
+                serializer.save(usuario=user, cliente_id=cliente_id, tienda_id=rol.managed_store_ids[0])
+                return
+            raise serializers.ValidationError("No tienes tiendas asignadas para crear oportunidades.")
 
-        serializer.save(usuario=user, tienda_id=rol.tienda_id, cliente_id=cliente_id)
+        # Store Manager y Comercial: oportunidad en su tienda
+        if rol.es_store_manager() or rol.es_comercial():
+            if not rol.tienda_id:
+                raise serializers.ValidationError("Debes tener una tienda asignada para crear oportunidades.")
+            serializer.save(usuario=user, tienda_id=rol.tienda_id, cliente_id=cliente_id)
+            return
+
+        raise serializers.ValidationError("No tienes permisos para crear oportunidades.")
 
     def perform_update(self, serializer):
+        """
+        Actualiza una oportunidad validando permisos de edición.
+
+        Los comerciales solo pueden editar oportunidades que ellos crearon.
+        Store Managers y Managers pueden editar cualquier oportunidad en su ámbito.
+        """
+        instance = self.get_object()
+        user = self.request.user
         nuevo_estado = self.request.data.get("estado")
         schema = self.request.data.get("schema")
         es_super = (
-            getattr(getattr(self.request.user, "global_role", None), "es_superadmin", False)
-            or getattr(getattr(self.request.user, "global_role", None), "es_empleado_interno", False)
+            getattr(getattr(user, "global_role", None), "es_superadmin", False)
+            or getattr(getattr(user, "global_role", None), "es_empleado_interno", False)
         )
+
+        # Verificar permisos de edición (importante para comerciales)
+        if not es_super:
+            tenant_slug = schema or getattr(self.request.tenant, "schema_name", "").lower()
+            if not can_user_edit_object(
+                user=user,
+                obj=instance,
+                tenant_slug=tenant_slug,
+                tienda_field=self.tienda_field,
+                creador_field=self.creador_field
+            ):
+                raise serializers.ValidationError(
+                    "No tienes permisos para editar esta oportunidad. "
+                    "Los comerciales solo pueden editar oportunidades que ellos crearon."
+                )
 
         def _run_update(instance, tenant_schema_name: str):
             estado_anterior = instance.estado

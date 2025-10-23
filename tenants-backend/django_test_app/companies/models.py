@@ -104,6 +104,19 @@ class Company(TenantBase):
         help_text="Modo demo: permite usar cualquier correo, DNI, CIF, etc. sin validación estricta."
     )
 
+    # Estado del partner
+    ESTADO_CHOICES = [
+        ("activo", "Activo"),
+        ("inactivo", "Inactivo"),
+        ("pendiente", "Pendiente"),
+    ]
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default="activo",
+        help_text="Estado operativo del partner."
+    )
+
     # Logo opcional
     logo = models.ImageField(
         upload_to=logo_upload_path,

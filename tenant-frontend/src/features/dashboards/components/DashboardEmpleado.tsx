@@ -27,6 +27,7 @@ import api from '@/services/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ESTADOS_META } from '@/context/estados';
 import { useUsuario } from '@/context/UsuarioContext';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
 
 import { PipelinePie } from './pipelineQueso';
 import { TopProductosChart } from './TopProductosChart';
@@ -76,13 +77,13 @@ function Sparkline({ data, height = 40 }: { data: number[]; height?: number }) {
 
 /* ---------------- API fetchers + tipos ---------------- */
 type TasaConversion = { total: number; finalizadas: number; tasa_conversion: number };
-async function fetchTasaConversion(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null }) {
+async function fetchTasaConversion(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
   const { data } = await api.get('/api/dashboard/tasa-conversion/', { params });
   return data as TasaConversion;
 }
 
 type PipelineRow = { estado: string; count?: number; valor?: number } & Record<string, unknown>;
-async function fetchPipelineEstados(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null }) {
+async function fetchPipelineEstados(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
   const { data } = await api.get('/api/dashboard/estado-pipeline/', { params });
   return (Array.isArray(data) ? data : []) as PipelineRow[];
 }
@@ -97,7 +98,7 @@ type RankingItem = {
   valor?: number;
   cantidad?: number;
 };
-async function fetchRankingProductos(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null }) {
+async function fetchRankingProductos(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
   const { data } = await api.get('/api/dashboard/ranking-productos/', { params });
   return (Array.isArray(data) ? data : []) as RankingItem[];
 }
@@ -114,13 +115,14 @@ async function fetchTiempoEntreEstados(params: {
   tienda?: string | null;
   estado_inicio?: string;
   estado_fin?: string;
+  usuario?: number | null;
 }) {
   const { data } = await api.get('/api/dashboard/tiempo-entre-estados/', { params });
   return data as TiempoEntreEstados;
 }
 
 type TotalPagado = { total_pagado?: number; total?: number };
-async function fetchTotalPagado(params: { fecha_inicio: string; fecha_fin: string; tienda_id?: string | null }) {
+async function fetchTotalPagado(params: { fecha_inicio: string; fecha_fin: string; tienda_id?: string | null; usuario_id?: number | null }) {
   const { data } = await api.get('/api/dashboard/total-pagado/', { params });
   return data as TotalPagado;
 }
@@ -139,6 +141,7 @@ async function fetchValorPorTiendaTransform({
   tiendaNombre,
   granularidad = 'mes',
   estado_minimo = 'Oferta confirmada',
+  usuario,
 }: {
   fecha_inicio: string;
   fecha_fin: string;
@@ -146,9 +149,11 @@ async function fetchValorPorTiendaTransform({
   tiendaNombre?: string | null;
   granularidad?: 'dia' | 'semana' | 'mes';
   estado_minimo?: string;
+  usuario?: number | null;
 }): Promise<KPIs> {
   const params: Record<string, string | number | null | undefined> = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
   if (tiendaId) params.tienda = tiendaId;
+  if (usuario) params.usuario = usuario;
 
   const { data } = await api.get('/api/dashboard/valor-por-tienda/', { params });
   if (!Array.isArray(data)) {
@@ -214,6 +219,7 @@ async function fetchOportunidadesRecientes(params: {
   fecha_fin: string;
   tienda?: string | null;
   limit?: number;
+  usuario?: number | null;
 }) {
   const size = Math.max(1, params.limit ?? 5);
   const q: Record<string, unknown> = {
@@ -243,7 +249,8 @@ export default function TenantDashboardPage() {
   const [estadoMinimo, setEstadoMinimo] = useState<string>('Oferta confirmada');
 
   const _queryClient = useQueryClient();
-  const usuario = useUsuario() as { tienda_id?: number | string; tienda_nombre?: string } | null; // acceso laxo con tipo mínimo
+  const usuario = useUsuario() as { tienda_id?: number | string; tienda_nombre?: string; id?: number } | null; // acceso laxo con tipo mínimo
+  const { isComercial } = useUserPermissions();
   const tiendaIdEfectiva = usuario?.tienda_id ? String(usuario.tienda_id) : '';
   const tiendaNombre = usuario?.tienda_nombre ?? null;
 
@@ -254,7 +261,7 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoKpis,
     refetch: refetchKpis,
   } = useQuery<KPIs>({
-    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo],
+    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo, isComercial, usuario?.id],
     queryFn: () =>
       fetchValorPorTiendaTransform({
         fecha_inicio: fechaInicio,
@@ -263,6 +270,7 @@ export default function TenantDashboardPage() {
         tiendaNombre,
         granularidad,
         estado_minimo: estadoMinimo,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
@@ -273,13 +281,14 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoRecientes,
     refetch: refetchRecientes,
   } = useQuery<OportunidadRow[]>({
-    queryKey: ['oportunidades-recientes', fechaInicio, fechaFin, tiendaIdEfectiva || null],
+    queryKey: ['oportunidades-recientes', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
     queryFn: () =>
       fetchOportunidadesRecientes({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
         limit: 5,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
@@ -288,32 +297,35 @@ export default function TenantDashboardPage() {
     data: tasa = { total: 0, finalizadas: 0, tasa_conversion: 0 },
     isLoading: cargandoTasa,
   } = useQuery<TasaConversion>({
-    queryKey: ['tasa-conversion', fechaInicio, fechaFin, tiendaIdEfectiva || null],
+    queryKey: ['tasa-conversion', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
     queryFn: () =>
       fetchTasaConversion({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
   const { data: pipeline = [], isLoading: cargandoPipeline } = useQuery<PipelineRow[]>({
-    queryKey: ['pipeline-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null],
+    queryKey: ['pipeline-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
     queryFn: () =>
       fetchPipelineEstados({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
   const { data: rankingProductos = [], isLoading: cargandoRanking } = useQuery<RankingItem[]>({
-    queryKey: ['ranking-productos', fechaInicio, fechaFin, tiendaIdEfectiva || null],
+    queryKey: ['ranking-productos', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
     queryFn: () =>
       fetchRankingProductos({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
@@ -326,7 +338,7 @@ export default function TenantDashboardPage() {
     },
     isLoading: cargandoTiempo,
   } = useQuery<TiempoEntreEstados>({
-    queryKey: ['tiempo-entre-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, 'Recibido', 'Pagado'],
+    queryKey: ['tiempo-entre-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, 'Recibido', 'Pagado', isComercial, usuario?.id],
     queryFn: () =>
       fetchTiempoEntreEstados({
         fecha_inicio: fechaInicio,
@@ -334,16 +346,18 @@ export default function TenantDashboardPage() {
         tienda: tiendaIdEfectiva || null,
         estado_inicio: 'Recibido',
         estado_fin: 'Pagado',
+        ...(isComercial && { usuario: usuario?.id ?? null }),
       }),
   });
 
   const { data: totalPagado = { total_pagado: 0 }, isLoading: cargandoTotalPagado } = useQuery<TotalPagado>({
-    queryKey: ['total-pagado', fechaInicio, fechaFin, tiendaIdEfectiva || null],
+    queryKey: ['total-pagado', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
     queryFn: () =>
       fetchTotalPagado({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda_id: tiendaIdEfectiva || null,
+        ...(isComercial && { usuario_id: usuario?.id ?? null }),
       }),
   });
 

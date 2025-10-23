@@ -26,6 +26,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
         required=False
     )
     management_mode = serializers.ChoiceField(choices=[("default","default"),("autoadmin","autoadmin")], required=False)
+    estado = serializers.ChoiceField(choices=[("activo","activo"),("inactivo","inactivo"),("pendiente","pendiente")], required=False)
     legal_overrides = FlexibleJSONField(required=False)
     acuerdo_empresas_pdf = serializers.FileField(required=False, allow_null=True)
     logo = serializers.ImageField(required=False, allow_null=True)
@@ -33,13 +34,14 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_tenant_model()
         fields = [
+            'name', 'cif', 'estado', 'slug',
             'contacto_comercial', 'telefono_comercial', 'correo_comercial',
             'contacto_financiero', 'telefono_financiero', 'correo_financiero',
             'direccion_calle', 'direccion_piso', 'direccion_puerta',
             'direccion_cp', 'direccion_poblacion', 'direccion_provincia', 'direccion_pais',
             'numero_empleados', 'vertical', 'vertical_secundaria',
             'web_corporativa', 'facturacion_anual', 'numero_tiendas_oficiales',
-            'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'cif', 'management_mode', 'legal_namespace', 'legal_slug',
+            'goal', 'acuerdo_empresas', 'acuerdo_empresas_pdf', 'management_mode', 'legal_namespace', 'legal_slug',
             'legal_overrides', 'comision_pct', 'solo_empresas', 'es_demo', 'logo',
         ]
         extra_kwargs = {f: {"required": False} for f in fields}

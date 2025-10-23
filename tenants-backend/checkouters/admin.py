@@ -106,7 +106,74 @@ class HistorialCambioAdmin(admin.ModelAdmin):
 
 @admin.register(Tienda)
 class TiendaAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'responsable')
+    list_display = ('nombre', 'is_active', 'responsable', 'get_usuarios_asignados_count', 'direccion_completa')
+    list_filter = ('is_active',)
+    search_fields = ('nombre', 'direccion_poblacion', 'direccion_provincia')
+    readonly_fields = ('get_usuarios_asignados_detail',)
+
+    class Media:
+        js = ('admin/js/preserve_schema.js',)
+
+    def get_usuarios_asignados_count(self, obj):
+        """Cuenta de usuarios asignados a esta tienda"""
+        from django.db import connection
+        from django_tenants.utils import schema_context, get_public_schema_name
+        from progeek.models import RolPorTenant
+
+        tenant_slug = connection.schema_name
+        if not tenant_slug or tenant_slug == 'public':
+            return '-'
+
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        with schema_context(public_schema):
+            count = RolPorTenant.objects.filter(
+                tenant_slug=tenant_slug,
+                tienda_id=obj.id
+            ).count()
+        return count
+    get_usuarios_asignados_count.short_description = 'Usuarios Asignados'
+
+    def get_usuarios_asignados_detail(self, obj):
+        """Lista detallada de usuarios asignados"""
+        from django.db import connection
+        from django_tenants.utils import schema_context, get_public_schema_name
+        from progeek.models import RolPorTenant
+        from django.utils.html import format_html
+
+        tenant_slug = connection.schema_name
+        if not tenant_slug or tenant_slug == 'public':
+            return '-'
+
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        with schema_context(public_schema):
+            roles = RolPorTenant.objects.filter(
+                tenant_slug=tenant_slug,
+                tienda_id=obj.id
+            ).select_related('user_role__user')
+
+        if not roles.exists():
+            return format_html('<em>No hay usuarios asignados</em>')
+
+        usuarios_html = '<ul>'
+        for rol in roles:
+            user = rol.user_role.user
+            usuarios_html += f'<li><strong>{user.name}</strong> ({user.email}) - Rol: {rol.rol}</li>'
+        usuarios_html += '</ul>'
+
+        return format_html(usuarios_html)
+    get_usuarios_asignados_detail.short_description = 'Detalle de Usuarios Asignados'
+
+    def direccion_completa(self, obj):
+        """Dirección completa de la tienda"""
+        partes = []
+        if obj.direccion_calle:
+            partes.append(obj.direccion_calle)
+        if obj.direccion_cp:
+            partes.append(obj.direccion_cp)
+        if obj.direccion_poblacion:
+            partes.append(obj.direccion_poblacion)
+        return ', '.join(partes) if partes else '-'
+    direccion_completa.short_description = 'Dirección'
 
 
 @admin.register(Oportunidad)

@@ -6,18 +6,18 @@ from colorama import Fore, Style
 logger = logging.getLogger(__name__)
 
 def log_http_response(method, path, status, duration, ip, host, tenant):
+    # Solo loggear errores 4xx y 5xx
     if status >= 500:
         color, icon = Fore.RED, "❌"
+        logger.error(
+            f"{color}{icon} [{status}] {method} {path} | {duration}ms | IP: {ip} | Host: {host} | X-Tenant: {tenant}"
+        )
     elif status >= 400:
         color, icon = Fore.YELLOW, "⚠️"
-    elif status >= 300:
-        color, icon = Fore.CYAN, "🔄"
-    else:
-        color, icon = Fore.GREEN, "✅"
-
-    logger.info(
-        f"{color}{icon} [{status}] {method} {path} | {duration}ms | IP: {ip} | Host: {host} | X-Tenant: {tenant}"
-    )
+        logger.warning(
+            f"{color}{icon} [{status}] {method} {path} | {duration}ms | IP: {ip} | Host: {host} | X-Tenant: {tenant}"
+        )
+    # No loggear respuestas exitosas (2xx) ni redirecciones (3xx)
 
 def log_exception(method, path="—", exception=None, ip="—", host="—", tenant="—"):
     logger.error(

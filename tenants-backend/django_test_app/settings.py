@@ -255,38 +255,38 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'stream': sys.stdout,
-            'formatter': 'simple',  
+            'formatter': 'detailed',
         },
     },
     'formatters': {
-        'simple': {
-            'format': '[{levelname}] {message}',
+        'detailed': {
+            'format': '[{levelname}] {name}: {message}',
             'style': '{',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': 'WARNING',  # Nivel base más restrictivo
         'propagate': False,
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'WARNING',  # Solo warnings y errores de Django
         },
         'django_test_app.middleware': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'WARNING',  # Solo errores HTTP 4xx/5xx
             'propagate': False,
         },
         'django_test_app.middleware.custom_tenant_middleware': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'WARNING',  # Solo problemas de tenant resolution
             'propagate': False,
         },
         'checkouters': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',  # Reducido de DEBUG a INFO
             'propagate': False,
         },
         "b2c.contratos": {
@@ -295,7 +295,37 @@ LOGGING = {
         },
         'security': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'INFO',  # Mantener info para logins
+            'propagate': False,
+        },
+        'chat': {
+            'handlers': ['console'],
+            'level': 'INFO',  # Info para conexiones WebSocket
+            'propagate': False,
+        },
+        'notificaciones': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Solo warnings (rechazos) y errores
+            'propagate': False,
+        },
+        'productos': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Reducir ruido de auto_learning
+            'propagate': False,
+        },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'ERROR',  # Solo errores críticos de Daphne (WebSocket server)
+            'propagate': False,
+        },
+        'daphne.server': {
+            'handlers': ['console'],
+            'level': 'ERROR',  # Silenciar logs de conexiones WebSocket
+            'propagate': False,
+        },
+        'daphne.ws_protocol': {
+            'handlers': ['console'],
+            'level': 'ERROR',  # Silenciar logs de protocolo WebSocket
             'propagate': False,
         },
     },
@@ -351,8 +381,8 @@ AXES_RESET_ON_SUCCESS = True
 # Registrar intentos de acceso en la base de datos
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
 
-# Verbose logging
-AXES_VERBOSE = True
+# Verbose logging (desactivado para reducir ruido en consola)
+AXES_VERBOSE = False
 
 # No bloquear IPs de whitelist (localhost, IPs privadas)
 # Comentado temporalmente para testing

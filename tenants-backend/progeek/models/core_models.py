@@ -105,11 +105,17 @@ class RolPorTenant(models.Model):
     user_role = models.ForeignKey("UserGlobalRole", on_delete=models.CASCADE, related_name="roles")
     tenant_slug = models.CharField(max_length=100)
     rol = models.CharField(max_length=20, choices=[
+        ("comercial", "Comercial"),
+        ("store_manager", "Store Manager"),
         ("manager", "Manager"),
-        ("empleado", "Empleado"),
         ("auditor", "Auditor"),
     ])
-    tienda_id = models.IntegerField(null=True, blank=True)
+    tienda_id = models.IntegerField(null=True, blank=True, help_text="Tienda asignada para Comercial y Store Manager")
+    managed_store_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="IDs de tiendas gestionadas por Manager (regional o general). Lista vacía = todas las tiendas."
+    )
 
     class Meta:
         unique_together = ("user_role", "tenant_slug")
@@ -117,7 +123,53 @@ class RolPorTenant(models.Model):
         verbose_name_plural = "Roles por tenant"
 
     def __str__(self):
-        return f"{self.user_role.user.email} en {self.tenant_slug}: {self.rol}"
+        return f"{self.user_role.user.email} en {self.tenant_slug}: {self.get_rol_display()}"
+
+    def es_comercial(self):
+        """Retorna True si el rol es Comercial"""
+        return self.rol == "comercial"
+
+    def es_store_manager(self):
+        """Retorna True si el rol es Store Manager"""
+        return self.rol == "store_manager"
+
+    def es_manager(self):
+        """Retorna True si el rol es Manager (regional o general)"""
+        return self.rol == "manager"
+
+    def gestiona_todas_tiendas(self):
+        """Retorna True si el Manager gestiona todas las tiendas (General Manager)"""
+        return self.es_manager() and (not self.managed_store_ids or len(self.managed_store_ids) == 0)
+
+    def puede_editar_tienda(self, tienda_id: int) -> bool:
+        """Verifica si el usuario puede editar datos de una tienda específica"""
+        if self.es_comercial():
+            # Comercial solo puede editar su propia tienda
+            return self.tienda_id == tienda_id
+        elif self.es_store_manager():
+            # Store Manager puede editar su tienda asignada
+            return self.tienda_id == tienda_id
+        elif self.es_manager():
+            # Manager puede editar tiendas gestionadas (o todas si es General Manager)
+            if self.gestiona_todas_tiendas():
+                return True
+            return tienda_id in (self.managed_store_ids or [])
+        return False
+
+    def puede_ver_tienda(self, tienda_id: int) -> bool:
+        """Verifica si el usuario puede ver datos de una tienda específica"""
+        if self.es_comercial():
+            # Comercial puede ver toda su tienda (pero solo editar lo suyo)
+            return self.tienda_id == tienda_id
+        elif self.es_store_manager():
+            # Store Manager puede ver su tienda
+            return self.tienda_id == tienda_id
+        elif self.es_manager():
+            # Manager puede ver tiendas gestionadas (o todas si es General Manager)
+            if self.gestiona_todas_tiendas():
+                return True
+            return tienda_id in (self.managed_store_ids or [])
+        return False
     
 
 

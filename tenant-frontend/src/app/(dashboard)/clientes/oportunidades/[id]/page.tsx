@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  Box, Grid, Paper, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  Box, Grid, Paper, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip, Alert,
 } from '@mui/material'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import PersonIcon from '@mui/icons-material/Person'
 
 import { useOportunidadData, toastApiError } from '@/shared/hooks/useOportunidadData'
 import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
+import { useUserPermissions } from '@/hooks/useUserPermissions'
 
 import CabeceraOportunidad from '@/features/opportunities/components/CabeceraOportunidad'
 import ComentariosPanel from '@/features/opportunities/components/ComentariosPanel'
@@ -37,6 +40,7 @@ export default function OportunidadDetallePage() {
   const { id } = useParams()
   const router = useRouter()
   const usuario = useUsuarioActual()
+  const { isComercial } = useUserPermissions()
   const [tabActivo, setTabActivo] = useState(0)
   const [realesIdx, setRealesIdx] = useState<number | null>(null)
   // UI state (solo diálogos y pequeñas ayudas)
@@ -54,7 +58,11 @@ export default function OportunidadDetallePage() {
     oportunidad, transiciones, historial, reales,
     guardarEstado, enviarComentario, eliminarDispositivo, guardarRecogida,
     generarPDF, subirFactura, descargarDocumento, verDocumentoURL,
+    canEdit, creadorInfo,
   } = useOportunidadData(String(id))
+
+  // Mostrar badge solo si es comercial y NO puede editar
+  const isReadOnly = isComercial && !canEdit
 
   const cargando =
     oportunidad.isLoading ||
@@ -172,6 +180,35 @@ export default function OportunidadDetallePage() {
   return (
     <>
       <Box>
+        {/* Badges de información de permisos */}
+        {(isReadOnly || creadorInfo) && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            {isReadOnly && (
+              <Chip
+                label="Solo lectura"
+                color="warning"
+                size="small"
+                icon={<VisibilityIcon />}
+              />
+            )}
+            {creadorInfo && (
+              <Chip
+                label={`Creado por: ${creadorInfo.nombre}`}
+                variant="outlined"
+                size="small"
+                icon={<PersonIcon />}
+              />
+            )}
+          </Box>
+        )}
+
+        {/* Alerta para comerciales en modo read-only */}
+        {isReadOnly && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Solo puedes ver esta oportunidad. Para editarla, contacta a {creadorInfo?.nombre || 'el creador'}.
+          </Alert>
+        )}
+
         {/* Cabecera + acciones */}
         <CabeceraOportunidad
           oportunidad={opp}
@@ -186,6 +223,7 @@ export default function OportunidadDetallePage() {
           onIrAuditoria={onIrAuditoria}
           onSubirFactura={onSubirFactura}
           onAbrirFacturas={onAbrirFacturas}
+          canEdit={canEdit}
         />
 
 
@@ -205,6 +243,7 @@ export default function OportunidadDetallePage() {
                 setTabActivo(i)
                 if (info && typeof info.realesIdx === 'number') setRealesIdx(info.realesIdx)
               }}
+              canEdit={canEdit}
             />
           </Grid>
 

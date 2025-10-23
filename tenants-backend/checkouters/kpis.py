@@ -1,3 +1,4 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import OuterRef, Subquery, F, ExpressionWrapper, DurationField, Avg,Count, Q
@@ -13,6 +14,9 @@ from django.db.models import Sum,DecimalField
 from .serializers import DashboardManagerSerializer
 from django.db.models.functions import Coalesce
 from django.db.models import F, Sum, ExpressionWrapper, DecimalField,Value
+
+logger = logging.getLogger(__name__)
+
 DECIMAL = DecimalField(max_digits=12, decimal_places=2)
 ZERO_DEC = Value(0, output_field=DECIMAL)
 
@@ -94,16 +98,16 @@ class TasaConversionAPIView(APIView):
            
         if fecha_inicio:
             qs = qs.filter(fecha_creacion__date__gte=parse_date(fecha_inicio))
-            print(f"🔎 tras filtro fecha_inicio → {qs.count()} oportunidades")
+            logger.debug("Tras filtro fecha_inicio: %s oportunidades", qs.count())
         if fecha_fin:
             qs = qs.filter(fecha_creacion__date__lte=parse_date(fecha_fin))
-            print(f"🔎 tras filtro fecha_fin → {qs.count()} oportunidades")
+            logger.debug("Tras filtro fecha_fin: %s oportunidades", qs.count())
         total = qs.count()
         finalizadas = qs.filter(estado__in=['Pagado']).count()
-        print(f"📊 total oportunidades: {total}")
-        print(f"✅ oportunidades finalizadas (pagado): {finalizadas}")
+        logger.debug("Total oportunidades: %s", total)
+        logger.debug("Oportunidades finalizadas (pagado): %s", finalizadas)
         tasa_conversion = (finalizadas / total) * 100 if total > 0 else 0
-        print(f"📈 tasa de conversión: {tasa_conversion:.2f}%")
+        logger.debug("Tasa de conversión: %.2f%%", tasa_conversion)
         return Response({
             "total": total,
             "finalizadas": finalizadas,

@@ -6,7 +6,8 @@ import {
   Box, Card, CardContent, Typography, Button, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions,
   FormControl, TextField, Select, MenuItem, Chip, IconButton,
-  Avatar, Stack, Alert, CircularProgress, CardHeader, CardActions
+  Avatar, Stack, Alert, CircularProgress, CardHeader, CardActions,
+  Menu, OutlinedInput, InputLabel
 } from "@mui/material"
 import StoreIcon from "@mui/icons-material/Store"
 import PersonIcon from "@mui/icons-material/Person"
@@ -17,10 +18,18 @@ import EditIcon from "@mui/icons-material/Edit"
 import ArrowBackIcon from "@mui/icons-material/ArrowBack"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import CancelIcon from "@mui/icons-material/Cancel"
+import DeleteIcon from "@mui/icons-material/Delete"
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"
+import MoreVertIcon from "@mui/icons-material/MoreVert"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import api from "@/services/api"
 import { toast } from 'react-toastify'
+import { UserEditDialog } from '@/features/users/components/UserEditDialog'
+import { useCreateUser } from '@/features/users/hooks/useGlobalUsers'
+import type { UserApiResponse } from '@/features/users/types'
+import ValidatingTextField from '@/shared/components/forms/inputs/ValidatingTextField'
 
 type Tienda = {
   id: number;
@@ -33,6 +42,7 @@ type Tienda = {
   responsable?: number | '';
   responsable_nombre?: string;
   responsable_email?: string;
+  is_active?: boolean;
 };
 
 type UsuarioTenant = {
@@ -57,16 +67,44 @@ export default function TiendasPage() {
   const qc = useQueryClient()
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalEditarTienda, setModalEditarTienda] = useState(false)
   const [tiendaSeleccionada, setTiendaSeleccionada] = useState<Tienda | null>(null)
   const [mostrarTodosUsuarios, setMostrarTodosUsuarios] = useState(false)
 
   const [nuevaTienda, setNuevaTienda] = useState({
     nombre: "", direccion_calle: "", direccion_cp: "", direccion_poblacion: "",
-    direccion_provincia: "", direccion_pais: "", responsable: "" as number | '' 
+    direccion_provincia: "", direccion_pais: "", responsable: "" as number | ''
   })
 
-  const [usuarioEditando, setUsuarioEditando] = useState<UsuarioTenant | null>(null)
-  const [contrasenaEditando, setContrasenaEditando] = useState("")
+  const [tiendaEditando, setTiendaEditando] = useState({
+    nombre: "", direccion_calle: "", direccion_cp: "", direccion_poblacion: "",
+    direccion_provincia: "", direccion_pais: "", responsable: "" as number | ''
+  })
+
+  const [usuarioEditando, setUsuarioEditando] = useState<UserApiResponse | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false)
+  const [nuevoUsuario, setNuevoUsuario] = useState({
+    name: '',
+    email: '',
+    password: '',
+    rol: 'comercial',
+    tienda_id: null as number | null,
+    managed_store_ids: [] as number[],
+  })
+  const [emailValido, setEmailValido] = useState(true)
+
+  // Estados para confirmación de contraseña
+  const [modalConfirmacion, setModalConfirmacion] = useState<{
+    open: boolean;
+    action: 'delete' | 'disable' | 'enable' | null;
+    tienda: Tienda | null;
+  }>({ open: false, action: null, tienda: null })
+  const [passwordConfirmacion, setPasswordConfirmacion] = useState("")
+
+  // Estado para menú contextual
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [tiendaMenuActual, setTiendaMenuActual] = useState<Tienda | null>(null)
 
   // --- Queries ---
   const { data: tiendas = [], isLoading: loadingTiendas } = useQuery({
@@ -78,7 +116,7 @@ export default function TiendasPage() {
     },
   })
 
-  const { data: usuarios = [], isLoading: loadingUsuarios } = useQuery({
+  const { data: usuarios = [] } = useQuery({
     queryKey: ["usuariosTenant", schema],
     enabled: !!schema,
     queryFn: async () => {
@@ -120,43 +158,132 @@ export default function TiendasPage() {
     },
   })
 
-  const updateUserMutation = useMutation({
-    // Patch rol/activo y, si hay contraseña, también la cambia
-    mutationFn: async (payload: {
-      user: UsuarioTenant,
-      newPassword?: string
-    }) => {
-      const { user, newPassword } = payload
-      const { id, is_active, rol_lectura } = user
+  const editarTiendaMutation = useMutation({
+    mutationFn: async () => {
+      if (!tiendaSeleccionada) return
+      const { data } = await api.patch(`/api/tiendas/${tiendaSeleccionada.id}/`, tiendaEditando, { params: { schema } })
+      return data as Tienda
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tiendas", schema] })
+      setModalEditarTienda(false)
+      toast.success('Tienda actualizada correctamente')
+    },
+    onError: () => {
+      toast.error('Error al actualizar la tienda')
+    },
+  })
 
-      if (newPassword) {
-        await api.post("/api/cambiar-password/", {
-          user_id: id,
-          new_password: newPassword,
+  const createUserMutation = useCreateUser(schema)
+
+  // Handler for edit user
+  const handleEditUser = (user: UserApiResponse) => {
+    setUsuarioEditando(user)
+    setEditDialogOpen(true)
+  }
+
+  // Handler for close edit dialog
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false)
+    setUsuarioEditando(null)
+  }
+
+  // Handler for edit tienda
+  const handleEditarTienda = () => {
+    // Use tiendaMenuActual if available (from context menu), otherwise use tiendaSeleccionada
+    const tienda = tiendaMenuActual || tiendaSeleccionada
+    if (!tienda) return
+
+    setTiendaSeleccionada(tienda)
+    setTiendaEditando({
+      nombre: tienda.nombre || '',
+      direccion_calle: tienda.direccion_calle || '',
+      direccion_cp: tienda.direccion_cp || '',
+      direccion_poblacion: tienda.direccion_poblacion || '',
+      direccion_provincia: tienda.direccion_provincia || '',
+      direccion_pais: tienda.direccion_pais || '',
+      responsable: tienda.responsable || '',
+    })
+    setModalEditarTienda(true)
+  }
+
+  // Handler for create user
+  const handleCreateUser = () => {
+    if (!emailValido || !nuevoUsuario.name.trim() || !nuevoUsuario.email.trim() || !nuevoUsuario.password.trim()) {
+      return
+    }
+
+    // Set tienda_id to the current selected tienda (only for non-managers)
+    const userData = {
+      ...nuevoUsuario,
+      tienda_id: nuevoUsuario.rol === 'manager' ? null : (tiendaSeleccionada?.id || null),
+    }
+
+    createUserMutation.mutate(userData, {
+      onSuccess: () => {
+        setCreateUserDialogOpen(false)
+        setNuevoUsuario({
+          name: '',
+          email: '',
+          password: '',
+          rol: 'comercial',
+          tienda_id: null,
+          managed_store_ids: [],
         })
-      }
+        setEmailValido(true)
+      },
+    })
+  }
 
-      const patchData: { is_active: boolean; rol?: string } = { is_active }
-      if (rol_lectura) patchData.rol = rol_lectura
-
-      const { data } = await api.patch(`/api/usuarios-tenant/${id}/`, patchData, {
+  const eliminarTiendaMutation = useMutation({
+    mutationFn: async ({ tiendaId, password }: { tiendaId: number; password: string }) => {
+      await api.delete(`/api/tiendas/${tiendaId}/`, {
         params: { schema },
+        data: { password }
       })
-      return data as UsuarioTenant
     },
-    onMutate: async ({ user }) => {
-      // Optimistic update en cache de usuarios
-      await qc.cancelQueries({ queryKey: ["usuariosTenant", schema] })
-      const prev = qc.getQueryData<UsuarioTenant[]>(["usuariosTenant", schema]) || []
-      const updated = prev.map(u => (u.id === user.id ? { ...u, ...user } : u))
-      qc.setQueryData(["usuariosTenant", schema], updated)
-      return { prev }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tiendas", schema] })
+      setModalConfirmacion({ open: false, action: null, tienda: null })
+      setPasswordConfirmacion("")
+      toast.success('Tienda eliminada correctamente')
     },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["usuariosTenant", schema], ctx.prev)
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string; message?: string; usuarios_asignados?: string[] } } }
+      const data = err?.response?.data
+
+      if (data?.usuarios_asignados && data.usuarios_asignados.length > 0) {
+        // Mostrar mensaje detallado con lista de usuarios
+        const usuariosList = data.usuarios_asignados.join('\n• ')
+        toast.error(
+          `${data.detail || 'No se puede eliminar la tienda'}\n\nUsuarios asignados:\n• ${usuariosList}`,
+          { autoClose: 8000 }
+        )
+      } else {
+        const mensaje = data?.detail || data?.message || 'Error al eliminar la tienda'
+        toast.error(mensaje)
+      }
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["usuariosTenant", schema] })
+  })
+
+  const toggleTiendaMutation = useMutation({
+    mutationFn: async ({ tiendaId, isActive }: { tiendaId: number; isActive: boolean }) => {
+      const { data } = await api.patch(`/api/tiendas/${tiendaId}/`, { is_active: isActive }, {
+        params: { schema }
+      })
+      return data as Tienda
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["tiendas", schema] })
+      setModalConfirmacion({ open: false, action: null, tienda: null })
+      setPasswordConfirmacion("")
+      const accion = variables.isActive ? 'habilitada' : 'deshabilitada'
+      toast.success(`Tienda ${accion} correctamente`)
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      const mensaje = err?.response?.data?.detail || 'Error al cambiar estado de la tienda'
+      toast.error(mensaje)
     },
   })
 
@@ -166,20 +293,42 @@ export default function TiendasPage() {
     setMostrarTodosUsuarios(false)
   }
 
-  const handleGuardarUsuario = async () => {
-    if (!usuarioEditando) return
-    try {
-      await updateUserMutation.mutateAsync({
-        user: usuarioEditando,
-        newPassword: contrasenaEditando || undefined,
+
+  const handleConfirmarAccion = async () => {
+    if (!modalConfirmacion.tienda) return
+
+    if (modalConfirmacion.action === 'delete') {
+      if (!passwordConfirmacion) {
+        toast.error('Debe ingresar su contraseña')
+        return
+      }
+      await eliminarTiendaMutation.mutateAsync({
+        tiendaId: modalConfirmacion.tienda.id,
+        password: passwordConfirmacion
       })
-      setUsuarioEditando(null)
-      setContrasenaEditando("")
-      toast.success('Usuario actualizado correctamente')
-    } catch (e) {
-      console.error(e)
-      toast.error('Error al actualizar el usuario')
+    } else if (modalConfirmacion.action === 'enable' || modalConfirmacion.action === 'disable') {
+      await toggleTiendaMutation.mutateAsync({
+        tiendaId: modalConfirmacion.tienda.id,
+        isActive: modalConfirmacion.action === 'enable'
+      })
     }
+  }
+
+  const handleAbrirMenu = (event: React.MouseEvent<HTMLElement>, tienda: Tienda) => {
+    event.stopPropagation()
+    setMenuAnchor(event.currentTarget)
+    setTiendaMenuActual(tienda)
+  }
+
+  const handleCerrarMenu = () => {
+    setMenuAnchor(null)
+    setTiendaMenuActual(null)
+  }
+
+  const handleAccionMenu = (action: 'delete' | 'disable' | 'enable') => {
+    if (!tiendaMenuActual) return
+    setModalConfirmacion({ open: true, action, tienda: tiendaMenuActual })
+    handleCerrarMenu()
   }
 
   if (!schema) {
@@ -258,20 +407,54 @@ export default function TiendasPage() {
                     cursor: "pointer",
                     height: "100%",
                     transition: 'all 0.2s',
+                    opacity: tienda.is_active === false ? 0.6 : 1,
+                    filter: tienda.is_active === false ? 'grayscale(30%)' : 'none',
+                    border: tienda.is_active === false ? '2px dashed' : '1px solid',
+                    borderColor: tienda.is_active === false ? 'error.main' : 'divider',
                     '&:hover': {
                       transform: 'translateY(-2px)',
-                      boxShadow: 4
+                      boxShadow: 4,
+                      opacity: tienda.is_active === false ? 0.8 : 1
                     }
                   }}
                 >
                   <CardHeader
                     avatar={
-                      <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      <Avatar sx={{ bgcolor: tienda.is_active === false ? 'grey.400' : 'primary.main' }}>
                         <StoreIcon />
                       </Avatar>
                     }
-                    title={tienda.nombre}
+                    title={
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            textDecoration: tienda.is_active === false ? 'line-through' : 'none',
+                            color: tienda.is_active === false ? 'text.disabled' : 'text.primary'
+                          }}
+                        >
+                          {tienda.nombre}
+                        </Typography>
+                        {tienda.is_active === false && (
+                          <Chip
+                            label="Inactiva"
+                            size="small"
+                            color="error"
+                            variant="filled"
+                            icon={<CancelIcon />}
+                          />
+                        )}
+                      </Stack>
+                    }
                     subheader={`${usuariosEnTienda.length} usuarios asignados`}
+                    action={
+                      <IconButton
+                        onClick={(e) => handleAbrirMenu(e, tienda)}
+                        aria-label="opciones"
+                      >
+                        <MoreVertIcon />
+                      </IconButton>
+                    }
                   />
                   <CardContent>
                     <Stack spacing={2}>
@@ -373,7 +556,19 @@ export default function TiendasPage() {
         maxWidth="md"
       >
         <DialogTitle>
-          Usuarios asignados: {tiendaSeleccionada?.nombre}
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              Usuarios asignados: {tiendaSeleccionada?.nombre}
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateUserDialogOpen(true)}
+            >
+              Crear Usuario
+            </Button>
+          </Stack>
         </DialogTitle>
         <DialogContent dividers>
           {/* KPIs opcionales */}
@@ -434,10 +629,7 @@ export default function TiendasPage() {
                   </Stack>
 
                   <IconButton
-                    onClick={() => {
-                      setUsuarioEditando(u)
-                      setContrasenaEditando("")
-                    }}
+                    onClick={() => handleEditUser(u as UserApiResponse)}
                     color="primary"
                   >
                     <EditIcon />
@@ -454,67 +646,246 @@ export default function TiendasPage() {
       </Dialog>
 
       {/* Modal editar usuario */}
-      <Dialog
-        open={!!usuarioEditando}
-        onClose={() => setUsuarioEditando(null)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Editar usuario</DialogTitle>
-        <DialogContent dividers>
-          <TextField
-            label="Nombre"
-            fullWidth
-            margin="dense"
-            value={usuarioEditando?.name || ""}
-            onChange={(e) =>
-              setUsuarioEditando((prev) => prev ? { ...prev, name: e.target.value } as UsuarioTenant : prev)
-            }
-          />
-          <TextField label="Correo" fullWidth margin="dense" value={usuarioEditando?.email || ""} disabled />
-          <TextField
-            label="Nueva contraseña"
-            fullWidth
-            margin="dense"
-            type="password"
-            value={contrasenaEditando}
-            onChange={(e) => setContrasenaEditando(e.target.value)}
-          />
-          <FormControl fullWidth margin="dense">
+      <UserEditDialog
+        open={editDialogOpen}
+        onClose={handleCloseEditDialog}
+        user={usuarioEditando}
+        tenantSlug={schema}
+      />
+
+      {/* Modal editar tienda */}
+      <Dialog open={modalEditarTienda} onClose={() => setModalEditarTienda(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Editar tienda</DialogTitle>
+        <DialogContent>
+          <TextField label="Nombre" fullWidth margin="dense" value={tiendaEditando.nombre}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, nombre: e.target.value })} />
+          <TextField label="Calle" fullWidth margin="dense" value={tiendaEditando.direccion_calle}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, direccion_calle: e.target.value })} />
+          <TextField label="Código Postal" fullWidth margin="dense" value={tiendaEditando.direccion_cp}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, direccion_cp: e.target.value })} />
+          <TextField label="Población" fullWidth margin="dense" value={tiendaEditando.direccion_poblacion}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, direccion_poblacion: e.target.value })} />
+          <TextField label="Provincia" fullWidth margin="dense" value={tiendaEditando.direccion_provincia}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, direccion_provincia: e.target.value })} />
+          <TextField label="País" fullWidth margin="dense" value={tiendaEditando.direccion_pais}
+            onChange={e => setTiendaEditando({ ...tiendaEditando, direccion_pais: e.target.value })} />
+          <FormControl fullWidth margin="dense" size="small">
             <Select
-              value={usuarioEditando?.rol_lectura || ""}
-              onChange={(e) =>
-                setUsuarioEditando((prev) =>
-                  prev ? { ...prev, rol_lectura: e.target.value as UsuarioTenant['rol_lectura'] } : prev
-                )
-              }
+              value={tiendaEditando.responsable}
+              onChange={(e) => setTiendaEditando({ ...tiendaEditando, responsable: e.target.value as number | '' })}
+              displayEmpty
             >
-              <MenuItem value="manager">Manager</MenuItem>
-              <MenuItem value="empleado">Empleado</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="dense">
-            <Select
-              value={usuarioEditando?.is_active ? "activo" : "inactivo"}
-              onChange={(e) =>
-                setUsuarioEditando((prev) =>
-                  prev ? { ...prev, is_active: e.target.value === "activo" } as UsuarioTenant : prev
-                )
-              }
-            >
-              <MenuItem value="activo">Activo</MenuItem>
-              <MenuItem value="inactivo">Inactivo</MenuItem>
+              <MenuItem value="">Sin responsable</MenuItem>
+              {usuarios.map((u) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUsuarioEditando(null)}>Cancelar</Button>
+          <Button onClick={() => setModalEditarTienda(false)}>Cancelar</Button>
           <Button
             variant="contained"
-            disabled={!usuarioEditando || updateUserMutation.isPending}
-            onClick={handleGuardarUsuario}
+            onClick={() => editarTiendaMutation.mutate()}
+            disabled={editarTiendaMutation.isPending || !schema || !tiendaEditando.nombre.trim()}
           >
-            {updateUserMutation.isPending ? "Guardando…" : "Guardar"}
+            {editarTiendaMutation.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal crear usuario */}
+      <Dialog open={createUserDialogOpen} onClose={() => setCreateUserDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Crear usuario</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, mt: 1 }}>
+          <TextField
+            label="Nombre"
+            value={nuevoUsuario.name}
+            onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, name: e.target.value })}
+            size="small"
+            fullWidth
+          />
+          <ValidatingTextField
+            label="Email"
+            value={nuevoUsuario.email}
+            onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, email: e.target.value })}
+            kind="email"
+            type="email"
+            required
+            size="small"
+            fullWidth
+            validateOnChange
+            onValidChange={(isValid) => setEmailValido(isValid)}
+          />
+          <FormControl fullWidth size="small">
+            <InputLabel id="nuevo-rol-tienda">Rol</InputLabel>
+            <Select
+              labelId="nuevo-rol-tienda"
+              label="Rol"
+              value={nuevoUsuario.rol}
+              onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, rol: e.target.value })}
+            >
+              <MenuItem value="comercial">Comercial</MenuItem>
+              <MenuItem value="store_manager">Store Manager</MenuItem>
+              <MenuItem value="manager">Manager</MenuItem>
+            </Select>
+          </FormControl>
+
+          {nuevoUsuario.rol === 'manager' && (
+            <FormControl fullWidth size="small">
+              <InputLabel id="nuevo-managed-stores-tienda">Tiendas gestionadas</InputLabel>
+              <Select
+                labelId="nuevo-managed-stores-tienda"
+                label="Tiendas gestionadas"
+                multiple
+                value={nuevoUsuario.managed_store_ids}
+                onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, managed_store_ids: typeof e.target.value === 'string' ? [] : e.target.value })}
+                input={<OutlinedInput label="Tiendas gestionadas" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((storeId) => {
+                      const tienda = tiendas.find((t) => t.id === storeId)
+                      return (
+                        <Chip
+                          key={storeId}
+                          label={tienda?.nombre || `ID: ${storeId}`}
+                          size="small"
+                        />
+                      )
+                    })}
+                  </Box>
+                )}
+              >
+                {tiendas.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>{t.nombre}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <TextField
+            label="Contraseña"
+            type="password"
+            value={nuevoUsuario.password}
+            onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, password: e.target.value })}
+            size="small"
+            fullWidth
+          />
+          {nuevoUsuario.rol !== 'manager' && (
+            <Alert severity="info">
+              El usuario será asignado automáticamente a la tienda: <strong>{tiendaSeleccionada?.nombre}</strong>
+            </Alert>
+          )}
+          {nuevoUsuario.rol === 'manager' && (
+            <Alert severity="info">
+              Los managers pueden gestionar múltiples tiendas. Selecciona las tiendas que gestionará este usuario.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateUserDialogOpen(false)}>Cancelar</Button>
+          <Button
+            onClick={handleCreateUser}
+            variant="contained"
+            disabled={!nuevoUsuario.name || !nuevoUsuario.email || !nuevoUsuario.password || !emailValido || createUserMutation.isPending}
+          >
+            {createUserMutation.isPending ? 'Creando...' : 'Crear'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Menú contextual de tienda */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleCerrarMenu}
+      >
+        <MenuItem onClick={() => {
+          handleEditarTienda()
+          handleCerrarMenu()
+        }}>
+          <EditIcon fontSize="small" sx={{ mr: 1 }} />
+          Editar tienda
+        </MenuItem>
+        {tiendaMenuActual?.is_active !== false ? (
+          <MenuItem onClick={() => handleAccionMenu('disable')}>
+            <ToggleOffIcon fontSize="small" sx={{ mr: 1 }} />
+            Deshabilitar tienda
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => handleAccionMenu('enable')}>
+            <ToggleOnIcon fontSize="small" sx={{ mr: 1 }} />
+            Habilitar tienda
+          </MenuItem>
+        )}
+        <MenuItem onClick={() => handleAccionMenu('delete')} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          Eliminar tienda
+        </MenuItem>
+      </Menu>
+
+      {/* Modal de confirmación de contraseña */}
+      <Dialog
+        open={modalConfirmacion.open}
+        onClose={() => {
+          setModalConfirmacion({ open: false, action: null, tienda: null })
+          setPasswordConfirmacion("")
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {modalConfirmacion.action === 'delete' && 'Confirmar eliminación'}
+          {modalConfirmacion.action === 'disable' && 'Confirmar deshabilitación'}
+          {modalConfirmacion.action === 'enable' && 'Confirmar habilitación'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            {modalConfirmacion.action === 'delete' &&
+              `¿Está seguro que desea eliminar la tienda "${modalConfirmacion.tienda?.nombre}"? Esta acción no se puede deshacer.`}
+            {modalConfirmacion.action === 'disable' &&
+              `¿Está seguro que desea deshabilitar la tienda "${modalConfirmacion.tienda?.nombre}"?`}
+            {modalConfirmacion.action === 'enable' &&
+              `¿Está seguro que desea habilitar la tienda "${modalConfirmacion.tienda?.nombre}"?`}
+          </Typography>
+          {modalConfirmacion.action === 'delete' && (
+            <>
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Por seguridad, ingrese su contraseña para confirmar la eliminación.
+              </Alert>
+              <TextField
+                label="Contraseña"
+                type="password"
+                fullWidth
+                value={passwordConfirmacion}
+                onChange={(e) => setPasswordConfirmacion(e.target.value)}
+                autoFocus
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setModalConfirmacion({ open: false, action: null, tienda: null })
+              setPasswordConfirmacion("")
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color={modalConfirmacion.action === 'delete' ? 'error' : 'primary'}
+            onClick={handleConfirmarAccion}
+            disabled={
+              eliminarTiendaMutation.isPending ||
+              toggleTiendaMutation.isPending ||
+              (modalConfirmacion.action === 'delete' && !passwordConfirmacion)
+            }
+          >
+            {(eliminarTiendaMutation.isPending || toggleTiendaMutation.isPending) ? 'Procesando…' : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>

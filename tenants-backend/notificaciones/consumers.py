@@ -1,23 +1,27 @@
+import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django_test_app.logging_utils import log_ws_event
 
+logger = logging.getLogger(__name__)
+
 class NotificacionesConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        print("📢 Entrando a NotificacionesConsumer.connect")
         user = self.scope.get("user")
         if not user or not user.is_authenticated:
+            logger.warning("WebSocket notificaciones rechazado: usuario no autenticado")
             await self.close()
             return
 
         self.group_name = f"user_{user.id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
-        log_ws_event("✅ Conexión aceptada a notificaciones", user=user)
+        logger.info("Conexión WebSocket notificaciones aceptada: user=%s", user.email if hasattr(user, 'email') else user.id)
 
     async def disconnect(self, close_code):
         user = self.scope.get("user")
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
-        log_ws_event("🔌 Desconectado WebSocket notificaciones: {close_code}", user=user)
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        logger.debug("WebSocket notificaciones desconectado: code=%s, user=%s", close_code, user.email if user and hasattr(user, 'email') else 'anon')
 
     async def nueva_notificacion(self, event):
         await self.send_json({

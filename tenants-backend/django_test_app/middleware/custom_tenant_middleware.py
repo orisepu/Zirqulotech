@@ -30,10 +30,30 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
     def process_request(self, request):
         self.request = request
 
+        # Verificar si hay parámetro schema o header X-Tenant para el admin
+        schema_param = request.headers.get("X-Tenant") or request.headers.get("x-tenant") or request.GET.get("schema")
+
+        # Si es admin con schema específico, NO hacer bypass
+        if request.path.startswith("/admin/") and schema_param:
+            logger.debug("Admin con schema específico: %s → procesando con tenant resolution", schema_param)
+            # Continuar con el proceso normal de tenant resolution
+            response = super().process_request(request)
+
+            user = getattr(request, "user", None)
+            if user and user.is_authenticated:
+                # Solo verificar permisos si no estamos en el esquema `public`
+                if connection.schema_name != 'public':
+                    try:
+                        _ = user.usertenantpermissions
+                    except UserTenantPermissions.DoesNotExist:
+                        raise PermissionDenied("No tienes permisos en este tenant.")
+
+            return response
+
         # Bypass para rutas públicas - establecer schema público como base
         # El view puede usar schema_context() para cambiar temporalmente
         if any(request.path.startswith(route) for route in PUBLIC_ROUTES):
-            logger.info("🌐 Ruta pública detectada: %s → estableciendo base en schema público", request.path)
+            logger.debug("Ruta pública detectada: %s → estableciendo base en schema público", request.path)
             connection.set_schema_to_public()
             # Establecer un tenant público mínimo para evitar errores
             from django_tenants.utils import get_tenant_model, get_public_schema_name
@@ -70,7 +90,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
             if not schema:
                 schema = request.GET.get("schema")
 
-        logger.info("🧭 Middleware activado. Cabecera schema=%s", schema)
+        logger.debug("Middleware activado. Cabecera schema=%s", schema)
 
         if schema:
             from django_tenants.utils import get_tenant_model
@@ -78,7 +98,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
             TenantModel = get_tenant_model()
             try:
                 tenant = TenantModel.objects.get(schema_name=schema)
-                logger.debug("✅ Tenant resuelto por cabecera/schema=%s", schema)
+                logger.debug("Tenant resuelto por cabecera/schema=%s", schema)
                 return tenant
             except TenantModel.DoesNotExist:
                 logger.warning("❌ Tenant no encontrado para schema_name='%s'", schema)

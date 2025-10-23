@@ -74,3 +74,50 @@ class UserGlobalRoleAdmin(admin.ModelAdmin):
     list_display = ("user", "es_superadmin", "es_empleado_interno")
     search_fields = ("user__email",)
     inlines = [RolPorTenantInline]
+
+# Admin standalone para RolPorTenant para gestión rápida
+@admin.register(RolPorTenant)
+class RolPorTenantAdmin(admin.ModelAdmin):
+    form = RolPorTenantForm
+    list_display = ("get_user_name", "get_user_email", "tenant_slug", "rol", "get_tienda_nombre", "get_tenant_admin_link")
+    list_filter = ("tenant_slug", "rol")
+    search_fields = ("user_role__user__email", "user_role__user__name", "tenant_slug")
+    list_per_page = 50
+
+    def get_tenant_admin_link(self, obj):
+        from django.utils.html import format_html
+        url = f"/admin/checkouters/tienda/?schema={obj.tenant_slug}"
+        return format_html(
+            '<a href="{}" target="_blank" style="color: #447e9b;">📋 Ver tiendas</a>',
+            url
+        )
+    get_tenant_admin_link.short_description = "Admin Tiendas"
+
+    def get_user_name(self, obj):
+        return obj.user_role.user.name
+    get_user_name.short_description = "Usuario"
+    get_user_name.admin_order_field = "user_role__user__name"
+
+    def get_user_email(self, obj):
+        return obj.user_role.user.email
+    get_user_email.short_description = "Email"
+    get_user_email.admin_order_field = "user_role__user__email"
+
+    def get_tienda_nombre(self, obj):
+        from django.utils.html import format_html
+        if not obj.tienda_id:
+            return "-"
+        try:
+            with schema_context(obj.tenant_slug):
+                tienda = Tienda.objects.get(id=obj.tienda_id)
+                # Crear link al admin del tenant
+                url = f"/admin/checkouters/tienda/{tienda.id}/change/?schema={obj.tenant_slug}"
+                return format_html(
+                    '<a href="{}" target="_blank">{}</a>',
+                    url,
+                    tienda.nombre
+                )
+        except:
+            return f"ID: {obj.tienda_id} (no encontrada)"
+    get_tienda_nombre.short_description = "Tienda Asignada"
+    get_tienda_nombre.admin_order_field = "tienda_id"

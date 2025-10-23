@@ -1,8 +1,11 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django_tenants.utils import schema_context
 from django_test_app.logging_utils import log_exception, log_ws_event
+
+logger = logging.getLogger(__name__)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -42,7 +45,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
         await self.channel_layer.group_discard(f"user_{self.scope['user'].id}", self.channel_name)
-        print(f"🔌 Desconectado WebSocket: code={close_code}, user={self.scope.get('user')}")
+        logger.debug("Desconectado WebSocket: code=%s, user=%s", close_code, self.scope.get('user'))
 
     async def receive(self, text_data):
         try:
@@ -138,7 +141,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         from django.db import connection
 
         with schema_context(self.tenant_schema):
-            print(f"📝 Guardando mensaje en schema: {connection.schema_name}")
+            logger.debug("Guardando mensaje en schema: %s", connection.schema_name)
             mensaje = Mensaje.objects.create(
                 chat_id=self.chat_id,
                 autor_id=user_id,
@@ -175,10 +178,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     url_relacionada=url,
                     leida=False
                 )
-                print(f"✅ Notificación creada: ID={notificacion.id}, usuario={user_id}, schema={self.tenant_schema}")
+                logger.info("Notificación creada: ID=%s, usuario=%s, schema=%s", notificacion.id, user_id, self.tenant_schema)
                 return notificacion
             except Exception as e:
-                print(f"❌ Error creando notificación: {e}")
+                logger.error("❌ Error creando notificación: %s", e)
                 return None
 
 
@@ -193,11 +196,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
 
         with schema_context(self.tenant_schema):
-            print(f"🔍 [DEBUG] Schema actual al validar conexión: {connection.schema_name}")
-            
+            logger.debug("Schema actual al validar conexión: %s", connection.schema_name)
+
             try:
                 chat = Chat.objects.only("cliente_id").get(id=chat_id)
-                print(f"🔎 Chat encontrado: chat_id={chat.id}, cliente_id={chat.cliente_id}")
+                logger.debug("Chat encontrado: chat_id=%s, cliente_id=%s", chat.id, chat.cliente_id)
 
                 if chat.cliente_id == user_id:
                     return True
@@ -226,9 +229,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 chat = Chat.objects.get(id=chat_id)
                 chat.ultimo_mensaje_fecha = timezone.now()
                 chat.save(update_fields=['ultimo_mensaje_fecha'])
-                print(f"✅ Actualizada fecha último mensaje para chat {chat_id}")
+                logger.debug("Actualizada fecha último mensaje para chat %s", chat_id)
             except Chat.DoesNotExist:
-                print(f"❌ Chat {chat_id} no encontrado al actualizar fecha")
+                logger.warning("❌ Chat %s no encontrado al actualizar fecha", chat_id)
 
     async def notificar_managers_nuevo_mensaje(self, texto):
         """Notifica a managers/admins que hay un nuevo mensaje (tipo WhatsApp)"""
@@ -253,7 +256,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     }
                 )
 
-        print(f"✅ Notificación enviada a {len(managers)} managers sobre mensaje en chat {self.chat_id}")
+        logger.info("Notificación enviada a %s managers sobre mensaje en chat %s", len(managers), self.chat_id)
 
     @database_sync_to_async
     def _get_managers(self):

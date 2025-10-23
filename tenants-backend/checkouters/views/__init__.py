@@ -26,7 +26,14 @@ from .legal import (
     LegalRenderPreviewView,
 )
 from .user import UsuarioTenantViewSet, cambiar_contraseña, cambiar_contraseña_usuario
-from .kpis import ValorPorTiendaAPIView, mi_dashboard
+from .kpis import (
+    ValorPorTiendaAPIView,
+    mi_dashboard,
+    kpi_comisiones_comercial,
+    kpi_comisiones_store_manager,
+    kpi_comisiones_manager,
+    kpi_resumen_por_rol,
+)
 from .documento import SubirFacturaView, descargar_documento
 from .objetivo import ObjetivoViewSet, ObjetivoResumenAPIView
 
@@ -63,6 +70,10 @@ __all__ = [
     "cambiar_contraseña_usuario",
     "ValorPorTiendaAPIView",
     "mi_dashboard",
+    "kpi_comisiones_comercial",
+    "kpi_comisiones_store_manager",
+    "kpi_comisiones_manager",
+    "kpi_resumen_por_rol",
     "SubirFacturaView",
     "descargar_documento",
     "ObjetivoViewSet",
