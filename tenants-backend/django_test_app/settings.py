@@ -183,7 +183,6 @@ DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",
 AUTH_PASSWORD_VALIDATORS = []
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.progeek\.es$",
     r"^https://.*\.zirqulotech\.com$",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + ["Authorization", "X-Tenant"]
