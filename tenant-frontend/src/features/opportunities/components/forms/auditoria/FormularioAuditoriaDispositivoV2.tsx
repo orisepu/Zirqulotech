@@ -38,12 +38,14 @@ import {
   PasoPantalla,
   PasoFuncional,
   PasoChasisEstetica,
+  PasoDeducciones,
   PasoPrecioNotas,
   type FMIStatus,
   type SIMLockStatus,
   type MDMStatus,
   type BlacklistStatus,
 } from './steps'
+import type { DeduccionesManuales } from './utils/auditoriaTypes'
 import { BannerEstadoPrecio, PanelDebugBackend } from './components'
 import type { FuncPantallaValue, EsteticaKey, EsteticaPantallaKey } from '../tipos'
 
@@ -152,6 +154,14 @@ export default function FormularioAuditoriaDispositivoV2({
   const [precioFinalManual, setPrecioFinalManual] = useState<number | null>(null)
   const [gradoManual, setGradoManual] = useState<Grade | null>(null)
 
+  // Deducciones manuales
+  const [deduccionesManuales, setDeduccionesManuales] = useState<DeduccionesManuales>({
+    bateria: null,
+    pantalla: null,
+    chasis: null,
+    costoReparacion: 0,
+  })
+
   // Determinar tipo de dispositivo y capacidades
   const tipo = useMemo(() => inferTipoFromDispositivo(dispositivo), [dispositivo])
   const capabilities = useMemo(() => getDeviceCapabilities(tipo), [tipo])
@@ -190,6 +200,10 @@ export default function FormularioAuditoriaDispositivoV2({
     funcChecks,
     precio_por_estado: dispositivo?.precio_por_estado,
     valoracionTecnica,
+    costoReparacion: deduccionesManuales.costoReparacion,
+    deduccionBateriaManual: deduccionesManuales.bateria,
+    deduccionPantallaManual: deduccionesManuales.pantalla,
+    deduccionChasisManual: deduccionesManuales.chasis,
     isSecurityKO,
     editadoPorUsuario,
   })
@@ -204,7 +218,7 @@ export default function FormularioAuditoriaDispositivoV2({
     const steps = ['Seguridad']
     if (capabilities.hasBattery) steps.push('Batería')
     if (capabilities.hasDisplay) steps.push('Pantalla')
-    steps.push('Funcionalidad', 'Exterior', 'Precio y notas')
+    steps.push('Funcionalidad', 'Exterior', 'Deducciones', 'Precio y notas')
     return steps as string[]
   }, [isSecurityKO, capabilities])
 
@@ -362,6 +376,32 @@ export default function FormularioAuditoriaDispositivoV2({
               setEstadoLados={setEstadoLados}
               estadoEspalda={estadoEspalda}
               setEstadoEspalda={setEstadoEspalda}
+            />
+          )}
+
+          {current === 'Deducciones' && (
+            <PasoDeducciones
+              deduccionesAutomaticas={{
+                bateria: deducciones.bateria,
+                pantalla: deducciones.pantalla,
+                chasis: deducciones.chasis,
+              }}
+              deduccionesManuales={deduccionesManuales}
+              setDeduccionesManuales={setDeduccionesManuales}
+              precioBase={precioBase}
+              precioFinal={precioFinal}
+              saludBateria={saludBateria}
+              tienePantallaIssues={
+                Boolean(pantallaIssues.length) ||
+                estadoPantalla === 'agrietado_roto' ||
+                estadoPantalla === 'astillado'
+              }
+              tieneChasisDesgaste={
+                estadoLados === 'desgaste_visible' ||
+                estadoLados === 'agrietado_roto' ||
+                estadoEspalda === 'desgaste_visible' ||
+                estadoEspalda === 'agrietado_roto'
+              }
             />
           )}
 

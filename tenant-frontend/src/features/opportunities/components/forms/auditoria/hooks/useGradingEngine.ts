@@ -37,6 +37,11 @@ interface UseGradingEngineParams {
   // Costes de reparación adicionales
   costoReparacion?: number
 
+  // Deducciones manuales (null = usar automáticas)
+  deduccionBateriaManual?: number | null
+  deduccionPantallaManual?: number | null
+  deduccionChasisManual?: number | null
+
   // Gates
   isSecurityKO?: boolean
 
@@ -82,6 +87,9 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     precio_por_estado,
     valoracionTecnica,
     costoReparacion = 0,
+    deduccionBateriaManual = null,
+    deduccionPantallaManual = null,
+    deduccionChasisManual = null,
     isSecurityKO = false,
     editadoPorUsuario = false,
   } = params
@@ -157,26 +165,44 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
 
     const backendDeducciones = valoracionTecnica?.deducciones
 
-    const bateria = backendDeducciones
+    // Calcular deducción automática de batería
+    const bateriaAuto = backendDeducciones
       ? backendDeducciones.pr_bat
       : bat !== null && bat < 85
         ? PR_BATERIA_DEFAULT
         : 0
 
-    const pantalla = backendDeducciones
+    // Calcular deducción automática de pantalla
+    const pantallaAuto = backendDeducciones
       ? backendDeducciones.pr_pant
       : hasPantIssue
         ? PR_PANTALLA_DEFAULT
         : 0
 
-    const chasis = backendDeducciones
+    // Calcular deducción automática de chasis
+    const chasisAuto = backendDeducciones
       ? backendDeducciones.pr_chas
       : worstExt === 'desgaste_visible' || worstExt === 'agrietado_roto'
         ? PR_CHASIS_DEFAULT
         : 0
 
+    // Usar manual si existe, sino usar automático
+    const bateria = deduccionBateriaManual !== null ? deduccionBateriaManual : bateriaAuto
+    const pantalla = deduccionPantallaManual !== null ? deduccionPantallaManual : pantallaAuto
+    const chasis = deduccionChasisManual !== null ? deduccionChasisManual : chasisAuto
+
     return { bateria, pantalla, chasis }
-  }, [estadoDetallado, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda, valoracionTecnica])
+  }, [
+    estadoDetallado,
+    pantallaIssues,
+    estadoPantalla,
+    estadoLados,
+    estadoEspalda,
+    valoracionTecnica,
+    deduccionBateriaManual,
+    deduccionPantallaManual,
+    deduccionChasisManual,
+  ])
 
   // Calcular precio base
   const precioBase = useMemo<number | undefined>(() => {

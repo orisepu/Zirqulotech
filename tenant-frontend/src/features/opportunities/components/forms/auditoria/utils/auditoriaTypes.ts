@@ -156,3 +156,43 @@ export interface DispositivoIds {
   capacidad_id: number | null
   dispositivo_personalizado_id: number | null
 }
+
+/**
+ * Deducciones manuales aplicadas por el usuario
+ * null = usar valor automático calculado
+ */
+export interface DeduccionesManuales {
+  bateria: number | null
+  pantalla: number | null
+  chasis: number | null
+  costoReparacion: number
+}
+
+/**
+ * Props para el paso de deducciones
+ */
+export interface PasoDeduccionesProps {
+  // Deducciones automáticas calculadas
+  deduccionesAutomaticas: {
+    bateria: number
+    pantalla: number
+    chasis: number
+  }
+
+  // Deducciones manuales (null = usar automáticas)
+  deduccionesManuales: DeduccionesManuales
+  setDeduccionesManuales: (deducciones: DeduccionesManuales) => void
+
+  // Precios para cálculo
+  precioBase: number | undefined
+  precioFinal: number | null
+
+  // Información contextual
+  saludBateria: number | ''
+  tienePantallaIssues: boolean
+  tieneChasisDesgaste: boolean
+
+  // Callbacks
+  onNext?: () => void
+  onBack?: () => void
+}

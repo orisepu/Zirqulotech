@@ -6,6 +6,7 @@ export { default as PasoFuncional } from './PasoFuncional'
 export { default as PasoPantallaFuncional } from './PasoPantallaFuncional'
 export { default as PasoPantallaEstetica } from './PasoPantallaEstetica'
 export { default as PasoChasisEstetica } from './PasoChasisEstetica'
+export { default as PasoDeducciones } from './PasoDeducciones'
 export { default as PasoPrecioNotas } from './PasoPrecioNotas'
 export { default as PasoPantalla } from './PasoPantalla'
 
