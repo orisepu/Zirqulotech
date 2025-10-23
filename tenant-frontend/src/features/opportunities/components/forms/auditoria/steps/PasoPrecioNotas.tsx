@@ -19,6 +19,16 @@ export interface PasoPrecioNotasProps {
   gradoCalculado?: Grade
   gradoManual: Grade | null
   setGradoManual: (val: Grade | null) => void
+
+  // Deducciones aplicadas (para mostrar desglose)
+  deducciones?: {
+    bateria: number
+    pantalla: number
+    chasis: number
+  }
+  costoReparacion?: number
+  precioCalculado?: number | null // Precio final calculado automáticamente (con deducciones)
+  precioSuelo?: number // Precio suelo (v_suelo) del dispositivo
 }
 
 /**
@@ -39,6 +49,10 @@ export default function PasoPrecioNotas({
   gradoCalculado,
   gradoManual,
   setGradoManual,
+  deducciones,
+  costoReparacion = 0,
+  precioCalculado,
+  precioSuelo = 0,
 }: PasoPrecioNotasProps) {
 
   const handlePrecioChange = (raw: string) => {
@@ -53,6 +67,25 @@ export default function PasoPrecioNotas({
     setPrecioFinal(parsed)
     setEditadoPorUsuario(true) // Marca como editado manualmente
   }
+
+  // Calcular total de deducciones
+  const totalDeducciones = deducciones
+    ? deducciones.bateria + deducciones.pantalla + deducciones.chasis + costoReparacion
+    : 0
+
+  // Determinar si hay deducciones aplicadas
+  const hayDeducciones = totalDeducciones > 0
+
+  // Calcular precio antes del suelo (precio con deducciones pero sin aplicar floor)
+  const precioAntesSuelo = precioBase !== undefined ? precioBase - totalDeducciones : null
+
+  // Verificar si se aplicó el precio suelo
+  const seAplicoPrecioSuelo =
+    precioSuelo > 0 &&
+    precioAntesSuelo !== null &&
+    precioAntesSuelo < precioSuelo &&
+    precioCalculado !== null &&
+    precioCalculado === precioSuelo
 
   return (
     <Paper
@@ -69,6 +102,111 @@ export default function PasoPrecioNotas({
       </Typography>
 
       <Grid container spacing={2}>
+        {/* Mostrar desglose de deducciones si existen */}
+        {hayDeducciones && precioBase != null && (
+          <Grid size={{ xs: 12 }}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                bgcolor: 'background.default',
+                borderLeft: 3,
+                borderColor: 'info.main',
+              }}
+            >
+              <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+                Desglose de precio
+              </Typography>
+              <Box display="flex" justifyContent="space-between" mb={0.5}>
+                <Typography variant="body2" color="text.secondary">
+                  Precio base ({grado}):
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {fmtEUR(precioBase)}
+                </Typography>
+              </Box>
+              {deducciones && deducciones.bateria > 0 && (
+                <Box display="flex" justifyContent="space-between" mb={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    Deducción batería:
+                  </Typography>
+                  <Typography variant="body2" color="error">
+                    -{fmtEUR(deducciones.bateria)}
+                  </Typography>
+                </Box>
+              )}
+              {deducciones && deducciones.pantalla > 0 && (
+                <Box display="flex" justifyContent="space-between" mb={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    Deducción pantalla:
+                  </Typography>
+                  <Typography variant="body2" color="error">
+                    -{fmtEUR(deducciones.pantalla)}
+                  </Typography>
+                </Box>
+              )}
+              {deducciones && deducciones.chasis > 0 && (
+                <Box display="flex" justifyContent="space-between" mb={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    Deducción chasis:
+                  </Typography>
+                  <Typography variant="body2" color="error">
+                    -{fmtEUR(deducciones.chasis)}
+                  </Typography>
+                </Box>
+              )}
+              {costoReparacion > 0 && (
+                <Box display="flex" justifyContent="space-between" mb={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    Costos de reparación:
+                  </Typography>
+                  <Typography variant="body2" color="error">
+                    -{fmtEUR(costoReparacion)}
+                  </Typography>
+                </Box>
+              )}
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                mt={1}
+                pt={1}
+                borderTop="1px solid"
+                borderColor="divider"
+              >
+                <Typography variant="body2" fontWeight={600}>
+                  {seAplicoPrecioSuelo ? 'Precio antes del suelo:' : 'Precio calculado:'}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  fontWeight={seAplicoPrecioSuelo ? 500 : 700}
+                  color={seAplicoPrecioSuelo ? 'text.secondary' : 'primary'}
+                  sx={seAplicoPrecioSuelo ? { textDecoration: 'line-through' } : {}}
+                >
+                  {precioAntesSuelo !== null ? fmtEUR(precioAntesSuelo) : 'Calculando...'}
+                </Typography>
+              </Box>
+
+              {seAplicoPrecioSuelo && (
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  mt={1}
+                  p={1}
+                  bgcolor="success.lighter"
+                  borderRadius={1}
+                >
+                  <Typography variant="body2" fontWeight={600}>
+                    Precio suelo aplicado:
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700} color="success.main">
+                    {fmtEUR(precioSuelo)}
+                  </Typography>
+                </Box>
+              )}
+            </Paper>
+          </Grid>
+        )}
+
         <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             label="Precio final (€)"
@@ -77,16 +215,13 @@ export default function PasoPrecioNotas({
             value={precioFinal ?? ''}
             onChange={(e) => handlePrecioChange(e.target.value)}
             helperText={
-              <>
-                {precioBase != null && grado && (
-                  <>
-                    Sugerido por estado ({grado}): <strong>{fmtEUR(precioBase)}</strong>
-                  </>
-                )}
-                {!precioBase && grado && (
-                  <>Grado calculado: {grado}</>
-                )}
-              </>
+              hayDeducciones
+                ? `Calculado con deducciones: ${precioCalculado !== null && precioCalculado !== undefined ? fmtEUR(precioCalculado) : 'Calculando...'}`
+                : precioBase != null && grado
+                  ? `Sugerido por estado (${grado}): ${fmtEUR(precioBase)}`
+                  : grado
+                    ? `Grado calculado: ${grado}`
+                    : 'Ingrese el precio final'
             }
           />
         </Grid>

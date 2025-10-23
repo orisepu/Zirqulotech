@@ -230,6 +230,13 @@ export default function FormularioAuditoriaDispositivoV2({
     if (open) setStep(0)
   }, [open])
 
+  // Sincronizar precioFinalManual con precioFinal calculado (solo si no editado manualmente)
+  useEffect(() => {
+    if (!editadoPorUsuario && precioFinal !== null) {
+      setPrecioFinalManual(precioFinal)
+    }
+  }, [precioFinal, editadoPorUsuario])
+
   // Debug logging
   useEffect(() => {
     if (valoracionTecnica) {
@@ -238,8 +245,8 @@ export default function FormularioAuditoriaDispositivoV2({
   }, [valoracionTecnica])
 
   useEffect(() => {
-    audLog('Estado grading', { grado, precioFinal, precioBase, deducciones, editadoPorUsuario })
-  }, [grado, precioFinal, precioBase, deducciones, editadoPorUsuario])
+    audLog('Estado grading', { grado, precioFinal, precioBase, deducciones, editadoPorUsuario, precioFinalManual })
+  }, [grado, precioFinal, precioBase, deducciones, editadoPorUsuario, precioFinalManual])
 
   const handleNext = () => {
     if (step < pasos.length - 1) setStep(step + 1)
@@ -417,6 +424,17 @@ export default function FormularioAuditoriaDispositivoV2({
               gradoCalculado={grado}
               gradoManual={gradoManual}
               setGradoManual={setGradoManual}
+              deducciones={deducciones}
+              costoReparacion={deduccionesManuales.costoReparacion}
+              precioCalculado={precioFinal}
+              precioSuelo={
+                dispositivo?.precio_por_estado?.v_suelo ??
+                dispositivo?.precio_por_estado?.V_suelo ??
+                (dispositivo?.precio_por_estado as any)?.params?.V_suelo ??
+                (dispositivo?.precio_por_estado as any)?.params?.v_suelo ??
+                (dispositivo?.precio_por_estado as any)?.calculo?.suelo ??
+                0
+              }
             />
           )}
 

@@ -248,25 +248,56 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     return precio_por_estado[gradeToPrecioKey(pick)]
   }, [grado, precio_por_estado, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
 
-  // Calcular precio final
+  // Calcular precio final con lógica de precio suelo
   const precioFinal = useMemo<number | null>(() => {
+    // Detectar si hay deducciones manuales aplicadas
+    const hayDeduccionesManuales =
+      deduccionBateriaManual !== null ||
+      deduccionPantallaManual !== null ||
+      deduccionChasisManual !== null ||
+      costoReparacion > 0
+
     if (isSecurityKO) return 0
     if (editadoPorUsuario) return null // no sobrescribir si editado manualmente
 
-    // Usar backend si disponible
-    if (valoracionTecnica) {
+    // Usar backend solo si NO hay deducciones manuales
+    // (porque el backend no recalcula con deducciones manuales)
+    if (valoracionTecnica && !hayDeduccionesManuales) {
       const oferta = Number(valoracionTecnica.oferta)
       return Math.max(0, oferta - costoReparacion)
     }
 
-    // Calcular local
+    // Calcular local (cuando hay deducciones manuales o no hay backend)
     if (typeof precioBase !== 'undefined') {
       const totalDeducciones = deducciones.bateria + deducciones.pantalla + deducciones.chasis
-      return Math.max(0, Number(precioBase) - totalDeducciones - costoReparacion)
+      const precioConDeducciones = Number(precioBase) - totalDeducciones - costoReparacion
+
+      // Aplicar precio suelo (floor price): precio final = max(precio_calculado, v_suelo, 0)
+      // Intentar múltiples ubicaciones donde puede estar v_suelo
+      const vSuelo =
+        precio_por_estado?.v_suelo ??
+        precio_por_estado?.V_suelo ??
+        (precio_por_estado as any)?.params?.V_suelo ??
+        (precio_por_estado as any)?.params?.v_suelo ??
+        (precio_por_estado as any)?.calculo?.suelo ??
+        0
+
+      return Math.max(precioConDeducciones, vSuelo, 0)
     }
 
     return null
-  }, [isSecurityKO, editadoPorUsuario, valoracionTecnica, precioBase, deducciones, costoReparacion])
+  }, [
+    isSecurityKO,
+    editadoPorUsuario,
+    valoracionTecnica,
+    precioBase,
+    deducciones,
+    costoReparacion,
+    precio_por_estado,
+    deduccionBateriaManual,
+    deduccionPantallaManual,
+    deduccionChasisManual,
+  ])
 
   return {
     grado,
