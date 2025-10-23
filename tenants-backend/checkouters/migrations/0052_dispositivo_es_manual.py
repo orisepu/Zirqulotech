@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='dispositivo',
-            name='es_manual',
-            field=models.BooleanField(default=False),
-        ),
     ]
