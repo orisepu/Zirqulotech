@@ -26,6 +26,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
         required=False
     )
     management_mode = serializers.ChoiceField(choices=[("default","default"),("autoadmin","autoadmin")], required=False)
+    estado = serializers.ChoiceField(choices=[("activo","activo"),("inactivo","inactivo"),("pendiente","pendiente")], required=False)
     legal_overrides = FlexibleJSONField(required=False)
     acuerdo_empresas_pdf = serializers.FileField(required=False, allow_null=True)
     logo = serializers.ImageField(required=False, allow_null=True)
@@ -33,7 +34,7 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_tenant_model()
         fields = [
-            'name', 'cif',
+            'name', 'cif', 'estado', 'slug',
             'contacto_comercial', 'telefono_comercial', 'correo_comercial',
             'contacto_financiero', 'telefono_financiero', 'correo_financiero',
             'direccion_calle', 'direccion_piso', 'direccion_puerta',
