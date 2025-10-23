@@ -17,7 +17,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def generar_pdf_view(request, pk):
-    logger.info(f"➡️ Generando PDF para oportunidad {pk}...")
+    logger.info("Generando PDF para oportunidad %s...", pk)
 
     try:
         oportunidad = Oportunidad.objects.select_related('cliente').prefetch_related(
@@ -33,7 +33,7 @@ def generar_pdf_view(request, pk):
 
     try:
         pdf_buffer = generar_pdf_oportunidad(oportunidad, tenant=tenant)
-        logger.info(f"✅ PDF generado correctamente para oportunidad {pk}")
+        logger.info("PDF generado correctamente para oportunidad %s", pk)
     except Exception as e:
         logger.exception(f"❌ Error al generar el PDF para oportunidad {pk}: {e}")
         return HttpResponse("Error interno al generar el PDF", status=500)
@@ -48,7 +48,7 @@ def generar_pdf_oferta_formal(request, pk):
     Genera PDF de oferta formal con dispositivos auditados (DispositivoReal).
     Usa precio_final en lugar de precio_orientativo.
     """
-    logger.info(f"➡️ Generando PDF oferta formal para oportunidad {pk}...")
+    logger.info("Generando PDF oferta formal para oportunidad %s...", pk)
 
     try:
         oportunidad = Oportunidad.objects.select_related('cliente').get(pk=pk)
@@ -74,7 +74,7 @@ def generar_pdf_oferta_formal(request, pk):
             tenant=tenant,
             dispositivos_override=list(dispositivos_reales)
         )
-        logger.info(f"✅ PDF oferta formal generado correctamente para oportunidad {pk}")
+        logger.info("PDF oferta formal generado correctamente para oportunidad %s", pk)
     except Exception as e:
         logger.exception(f"❌ Error al generar PDF oferta formal para oportunidad {pk}: {e}")
         return HttpResponse("Error interno al generar el PDF", status=500)
@@ -115,6 +115,6 @@ def enviar_correo_oferta(request, id):
         }
 
         enviar_correo(evento, contexto)
-        print("[DEBUG EMAIL] Contexto:", contexto)
-    
+        logger.debug("Contexto de email enviado: %s", contexto)
+
         return Response({"ok": True})

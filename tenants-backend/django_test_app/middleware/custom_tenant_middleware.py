@@ -35,7 +35,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
 
         # Si es admin con schema específico, NO hacer bypass
         if request.path.startswith("/admin/") and schema_param:
-            logger.info("🔧 Admin con schema específico: %s → procesando con tenant resolution", schema_param)
+            logger.debug("Admin con schema específico: %s → procesando con tenant resolution", schema_param)
             # Continuar con el proceso normal de tenant resolution
             response = super().process_request(request)
 
@@ -53,7 +53,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
         # Bypass para rutas públicas - establecer schema público como base
         # El view puede usar schema_context() para cambiar temporalmente
         if any(request.path.startswith(route) for route in PUBLIC_ROUTES):
-            logger.info("🌐 Ruta pública detectada: %s → estableciendo base en schema público", request.path)
+            logger.debug("Ruta pública detectada: %s → estableciendo base en schema público", request.path)
             connection.set_schema_to_public()
             # Establecer un tenant público mínimo para evitar errores
             from django_tenants.utils import get_tenant_model, get_public_schema_name
@@ -90,7 +90,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
             if not schema:
                 schema = request.GET.get("schema")
 
-        logger.info("🧭 Middleware activado. Cabecera schema=%s", schema)
+        logger.debug("Middleware activado. Cabecera schema=%s", schema)
 
         if schema:
             from django_tenants.utils import get_tenant_model
@@ -98,7 +98,7 @@ class HeaderTenantMiddleware(TenantMainMiddleware):
             TenantModel = get_tenant_model()
             try:
                 tenant = TenantModel.objects.get(schema_name=schema)
-                logger.debug("✅ Tenant resuelto por cabecera/schema=%s", schema)
+                logger.debug("Tenant resuelto por cabecera/schema=%s", schema)
                 return tenant
             except TenantModel.DoesNotExist:
                 logger.warning("❌ Tenant no encontrado para schema_name='%s'", schema)

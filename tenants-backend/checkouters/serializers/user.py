@@ -71,7 +71,10 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
             try:
                 rol = user.global_role.roles.get(tenant_slug=tenant_slug).rol
                 return rol
-            except RolPorTenant.DoesNotExist:
+            except (RolPorTenant.DoesNotExist, AttributeError):
+                return None
+            except Exception:
+                # Handle case where user has no global_role
                 return None
             
     def get_tienda_id_lectura(self, user):
@@ -79,7 +82,9 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
         if not tenant_slug: return None
         try:
             return user.global_role.roles.get(tenant_slug=tenant_slug).tienda_id
-        except RolPorTenant.DoesNotExist:
+        except (RolPorTenant.DoesNotExist, AttributeError):
+            return None
+        except Exception:
             return None
 
     def get_managed_store_ids_lectura(self, user):
@@ -87,7 +92,9 @@ class UsuarioTenantSerializer(serializers.ModelSerializer):
         if not tenant_slug: return []
         try:
             return user.global_role.roles.get(tenant_slug=tenant_slug).managed_store_ids or []
-        except RolPorTenant.DoesNotExist:
+        except (RolPorTenant.DoesNotExist, AttributeError):
+            return []
+        except Exception:
             return []
 
     def create(self, validated_data):

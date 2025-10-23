@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
@@ -90,6 +90,24 @@ class UsuarioTenantViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         out = self.get_serializer(instance).data
         return Response(out, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='todos')
+    def todos(self, request):
+        """
+        Endpoint to get ALL users from public schema.
+        Route: /api/usuarios-tenant/todos/
+        """
+        public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
+        logger.debug("Fetching ALL users from public schema")
+
+        with schema_context(public_schema):
+            # Get all users
+            users_qs = get_user_model().objects.all().order_by("id")
+            logger.info("Total users fetched: %d", users_qs.count())
+
+            # Serialize with context (no specific tenant_slug)
+            serializer = self.get_serializer(users_qs, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])

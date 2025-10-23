@@ -45,10 +45,10 @@ class LocationSecurityService:
             self.reader = geoip2.database.Reader(geoip_db_path)
             logger.info(f"GeoIP2 database loaded from {geoip_db_path}")
         except FileNotFoundError:
-            logger.error(f"GeoIP2 database not found at {geoip_db_path}")
+            logger.warning(f"GeoIP2 database not found at {geoip_db_path} - geolocation disabled")
             self.reader = None
         except Exception as e:
-            logger.error(f"Error loading GeoIP2 database: {e}")
+            logger.warning(f"Error loading GeoIP2 database: {e} - geolocation disabled")
             self.reader = None
 
     def get_location(self, ip):
