@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { login as loginRequest } from "@/services/api";
 import { setSecureItem } from "@/shared/lib/secureStorage";
 import {
@@ -58,9 +59,10 @@ export default function LoginForm() {
     return okEmpresa && okEmail && okPass;
   }, [empresa, email, password]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isValid) return;
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (!isValid) {
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -98,7 +100,6 @@ export default function LoginForm() {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       router.push("/dashboard");
-      // Evitamos que Snackbar quede abierto
       setShowError(false);
     } catch (err: any) {
       const detail =
@@ -140,19 +141,25 @@ export default function LoginForm() {
               : `1px solid ${alpha(theme.palette.common.black, 0.06)}`,
         }}
       >
-        <CardContent
-          component="form"
-          onSubmit={handleLogin}
-          noValidate
-          autoComplete="on"
-          sx={{ p: 4 }}
-        >
+        <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
             Iniciar sesión en la app
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Accede con tus credenciales de empresa.
           </Typography>
+
+          <form
+            onSubmit={(e) => {
+              console.log('🔍 [LOGIN] Form onSubmit disparado');
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('🔍 [LOGIN] preventDefault y stopPropagation ejecutados');
+              handleLogin(e);
+            }}
+            noValidate
+            autoComplete="on"
+          >
 
           {/* Empresa */}
           <TextField
@@ -239,9 +246,10 @@ export default function LoginForm() {
             />
             {/* SECURITY FIX (MED-03): Enlace a recuperación de contraseña */}
             <Button
+              component={Link}
+              href="/forgot-password"
               variant="text"
               size="small"
-              onClick={() => router.push("/forgot-password")}
               sx={{ textTransform: "none" }}
             >
               ¿Olvidaste tu contraseña?
@@ -272,6 +280,7 @@ export default function LoginForm() {
           >
             {loading ? <CircularProgress size={24} /> : "Entrar"}
           </Button>
+          </form>
         </CardContent>
       </Card>
 
