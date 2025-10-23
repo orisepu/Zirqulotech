@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation'
 import api from '@/services/api'
 
 // Rutas públicas donde NO se debe verificar autenticación
-const PUBLIC_ROUTES = ['/login', '/gracias', '/']
+const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password', '/gracias', '/']
 
 export default function useUsuarioActual() {
   const pathname = usePathname()
