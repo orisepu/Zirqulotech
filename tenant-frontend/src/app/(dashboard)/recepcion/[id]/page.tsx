@@ -16,6 +16,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 type Modelo = { id: number; descripcion: string };
 type Capacidad = { id: number; tamaño: string };
+type DispositivoPersonalizado = {
+  id: number;
+  marca: string;
+  modelo: string;
+  capacidad?: string;
+  tipo: string;
+  descripcion_completa: string;
+};
 
 type DispositivoRow = {
   id: string;
@@ -23,9 +31,10 @@ type DispositivoRow = {
   copia_n: number;
   modelo: Modelo | null;
   capacidad: Capacidad | null;
+  dispositivo_personalizado: DispositivoPersonalizado | null;
   imei: string;
   numero_serie: string;
-  oportunidad: string;          
+  oportunidad: string;
   real_id: number | null;
   imei_original: string;
   numero_serie_original: string;
@@ -71,9 +80,10 @@ export default function RecepcionDispositivosPage() {
     copia_n: 1,
     modelo: null,
     capacidad: null,
+    dispositivo_personalizado: null,
     imei: '',
     numero_serie: '',
-    oportunidad: opId,         
+    oportunidad: opId,
     real_id: null,
     imei_original: '',
     numero_serie_original: '',
@@ -106,6 +116,7 @@ export default function RecepcionDispositivosPage() {
         copia_n: i + 1,
         modelo: d.modelo ?? null,
         capacidad: d.capacidad ?? null,
+        dispositivo_personalizado: d.dispositivo_personalizado ?? null,
         imei: '',
         numero_serie: '',
         oportunidad: oppId,
@@ -187,7 +198,8 @@ export default function RecepcionDispositivosPage() {
 
   const handleChangeCampo = async (value: string, index: number, field: 'imei' | 'numero_serie') => {
     const current = cliente[index];
-    if (!current?.modelo?.id) return;
+    // Validar que haya un modelo (Apple) o dispositivo personalizado
+    if (!current?.modelo?.id && !current?.dispositivo_personalizado?.id) return;
 
     const rawValue = typeof value === 'string' ? value.trim() : '';
     const normalizeDigits = (s: string) => s.replace(/\D/g, '');
@@ -238,8 +250,9 @@ export default function RecepcionDispositivosPage() {
     }
 
     const payload = {
-      modelo_id: current.modelo.id,
+      modelo_id: current.modelo?.id || null,
       capacidad_id: current.capacidad?.id || null,
+      dispositivo_personalizado_id: current.dispositivo_personalizado?.id || null,
       imei: imeiFinal || null,
       numero_serie: snFinal || null,
       oportunidad: id,
@@ -322,14 +335,22 @@ export default function RecepcionDispositivosPage() {
 
 
   const handleVisualizarPDF = async (d: any) => {
+    // Para dispositivos personalizados, usar la descripción completa
+    const modelo = d.dispositivo_personalizado
+      ? d.dispositivo_personalizado.descripcion_completa
+      : (d.modelo?.descripcion || '');
+    const capacidad = d.dispositivo_personalizado
+      ? '' // La capacidad ya está incluida en descripcion_completa
+      : (d.capacidad?.tamaño || '');
+
     const blob = await pdf(
       <EtiquetaTerminalPDFDoc
         tenant={tenant}
         oportunidad={String(d.oportunidad)}
         imei={d.imei}
         numeroSerie={d.numero_serie}
-        modelo={d.modelo?.descripcion || ''}
-        capacidad={d.capacidad?.tamaño || ''}
+        modelo={modelo}
+        capacidad={capacidad}
       />
     ).toBlob();
 
@@ -383,7 +404,9 @@ export default function RecepcionDispositivosPage() {
                 >
                   <TableCell>{d.id}</TableCell>
                   <TableCell>
-                    {d.modelo?.id ? (
+                    {d.dispositivo_personalizado ? (
+                      d.dispositivo_personalizado.descripcion_completa
+                    ) : d.modelo?.id ? (
                       d.modelo.descripcion
                     ) : (
                       <Autocomplete
@@ -411,18 +434,24 @@ export default function RecepcionDispositivosPage() {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const modeloId = d.modelo?.id;      
-                      if (!modeloId) return null;         
+                      // Si es dispositivo personalizado, mostrar su capacidad (si existe)
+                      if (d.dispositivo_personalizado) {
+                        return d.dispositivo_personalizado.capacidad || '-';
+                      }
+
+                      // Si no es dispositivo personalizado, debe tener modelo Apple
+                      const modeloId = d.modelo?.id;
+                      if (!modeloId) return null;
 
                       return d.capacidad?.id ? (
                         d.capacidad.tamaño
                       ) : (
                         <Select
                           size="small"
-                          value={d.capacidad?.id ?? ''}     
+                          value={d.capacidad?.id ?? ''}
                           onChange={(e) => {
                             const selectedCapacidadId = Number(e.target.value);
-                            if (!modeloId) return;         
+                            if (!modeloId) return;
                             const opciones = capacidades[modeloId] ?? [];
                             const capSel = opciones.find(c => c.id === selectedCapacidadId) ?? null;
 

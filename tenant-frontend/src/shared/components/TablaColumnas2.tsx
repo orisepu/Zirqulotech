@@ -497,8 +497,21 @@ export const columnasTenant: ResponsiveColumnDef<GenericRow>[] = [
 // ============================================================================
 
 export const columnasDispositivosReales: ResponsiveColumnDef<GenericRow>[] = [
-  createTextColumn<GenericRow>('modelo', 'Modelo', (r) => r.modelo, 200, 450),
-  createTextColumn<GenericRow>('capacidad', 'Capacidad', (r) => r.capacidad, 150),
+  createTextColumn<GenericRow>('modelo', 'Modelo', (r) => {
+    // Para dispositivos personalizados, usar descripcion_completa
+    if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
+      const dp = r.dispositivo_personalizado as Record<string, unknown>
+      return dp.descripcion_completa as string || r.modelo
+    }
+    return r.modelo
+  }, 200, 450),
+  createTextColumn<GenericRow>('capacidad', 'Capacidad', (r) => {
+    // Para dispositivos personalizados, la capacidad ya está en descripcion_completa
+    if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
+      return '—' // O mostrar la capacidad específica si existe
+    }
+    return r.capacidad
+  }, 150),
   createTextColumn<GenericRow>('imei', 'IMEI', (r) => r.imei, 150, 250),
   createTextColumn<GenericRow>('numero_serie', 'Nº Serie', (r) => r.numero_serie, 150, 250),
   createTextColumn<GenericRow>('estado_fisico', 'Estado Físico', (r) => r.estado_fisico, 150),
@@ -602,8 +615,20 @@ export function getColumnasAuditoria<T = any>({
   const updateHandler = handleChange || onUpdate
 
   const columnas: ResponsiveColumnDef<T>[] = [
-    createTextColumn<T>('modelo', 'Modelo', (r: any) => r.modelo || '—', 300),
-    createTextColumn<T>('capacidad', 'Capacidad', (r: any) => r.capacidad || '—', 100),
+    createTextColumn<T>('modelo', 'Modelo', (r: any) => {
+      // Para dispositivos personalizados, usar descripcion_completa
+      if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
+        return r.dispositivo_personalizado.descripcion_completa || r.modelo || '—'
+      }
+      return r.modelo || '—'
+    }, 300),
+    createTextColumn<T>('capacidad', 'Capacidad', (r: any) => {
+      // Para dispositivos personalizados, la capacidad ya está en descripcion_completa
+      if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
+        return '—'
+      }
+      return r.capacidad || '—'
+    }, 100),
     createTextColumn<T>('imei', 'IMEI', (r: any) => r.imei || '—', 200),
     createTextColumn<T>('Numero_Serie', 'Nº Serie', (r: any) => r.numero_serie || '—', 200),
 

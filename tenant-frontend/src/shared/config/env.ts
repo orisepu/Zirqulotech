@@ -29,7 +29,7 @@ export const API_BASE_URL =
 
 // WebSocket Base URL (sin protocolo ws:// o wss://)
 export const WS_BASE_HOST = process.env.NEXT_PUBLIC_WS_HOST ||
-  (typeof window !== "undefined" ? window.location.host : "zirqulotech.com");
+  (typeof window !== "undefined" ? window.location.host : "zirqulotech");
 
 /**
  * Obtiene la URL completa del WebSocket con el protocolo correcto

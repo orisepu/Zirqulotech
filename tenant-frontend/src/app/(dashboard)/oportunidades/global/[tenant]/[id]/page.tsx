@@ -275,7 +275,10 @@ export default function OportunidadDetallePageGlobal() {
     if (!oportunidad?.id) return
     try {
       const res = await api.get(`/api/oportunidades/${oportunidad.id}/generar-pdf-formal/`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        headers: {
+          'X-Tenant': tenant as string
+        }
       })
       const blob = new Blob([res.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
@@ -588,7 +591,8 @@ export default function OportunidadDetallePageGlobal() {
         fullWidth
       >
         <FormularioValoracionOportunidad
-          oportunidadId={Number(id)}
+          oportunidadId={oportunidad.id}
+          oportunidadUuid={String(id)}
           item={itemAEditar ? {
             id: itemAEditar.id,
             modelo: itemAEditar.modelo ? {

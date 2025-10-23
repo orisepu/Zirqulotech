@@ -28,8 +28,10 @@ api.interceptors.request.use(async (config) => {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Solo establecer X-Tenant del storage si NO viene ya en los headers de la petición
+    // Esto permite que las peticiones específicas sobrescriban el tenant (ej: modo global)
     const tenantHeader = schema || currentTenant;
-    if (tenantHeader && config.headers) {
+    if (tenantHeader && config.headers && !config.headers["X-Tenant"]) {
       config.headers["X-Tenant"] = tenantHeader;
     }
 

@@ -19,7 +19,7 @@ interface Usuario {
 const UsuarioContext = createContext<Usuario | null | undefined>(undefined);
 
 // Rutas públicas donde NO se debe verificar autenticación
-const PUBLIC_ROUTES = ['/login', '/gracias']
+const PUBLIC_ROUTES = ['/login', '/gracias', '/']
 
 export const UsuarioProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname()

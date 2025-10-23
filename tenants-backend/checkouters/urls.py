@@ -45,6 +45,8 @@ from .views import (
     ObjetivoViewSet,
     ObjetivoResumenAPIView,
 )
+# ELIMINADO: DispositivoPersonalizadoViewSet ahora está en productos (SHARED_APPS)
+# from .views.dispositivo_personalizado import DispositivoPersonalizadoViewSet
 from .views.contrato import generar_pdf_view, generar_pdf_oferta_formal, enviar_correo_oferta
 
 from .views.dispositivo import (
@@ -64,6 +66,8 @@ from .views.dispositivo import ModeloViewSet, CapacidadViewSet
 from .kpisutils import DashboardTotalPagadoAPIView
 router = DefaultRouter()
 router.register(r'dispositivos', DispositivoViewSet)
+# ELIMINADO: dispositivos-personalizados ahora está en productos/urls.py (SHARED_APPS)
+# router.register(r'dispositivos-personalizados', DispositivoPersonalizadoViewSet, basename='dispositivo-personalizado')
 router.register(r'modelos', ModeloViewSet)
 router.register(r'capacidades', CapacidadViewSet)
 router.register(r'clientes', ClienteViewSet, basename='cliente')

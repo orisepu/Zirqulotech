@@ -7,6 +7,8 @@ from .dispositivo import (
     NotaInterna,
     HistorialCambio,
 )
+# IMPORTANTE: DispositivoPersonalizado ahora está en productos (SHARED_APPS)
+# from .dispositivo_personalizado import DispositivoPersonalizado
 from .cliente import Cliente, ComentarioCliente, ConsultaCliente
 from .tienda import Tienda, UserTenantExtension
 from .objetivo import Objetivo
@@ -20,6 +22,7 @@ __all__ = [
     "ComentarioOportunidad",
     "Dispositivo",
     "DispositivoReal",
+    # "DispositivoPersonalizado",  # Movido a productos (SHARED_APPS)
     "Valoracion",
     "Reparacion",
     "NotaInterna",
