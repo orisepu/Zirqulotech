@@ -42,6 +42,8 @@ export default function ForgotPasswordPage() {
   const router = useRouter();
   const theme = useTheme();
 
+  console.log('🔍 [FORGOT-PASSWORD] Componente montado');
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -109,8 +111,12 @@ export default function ForgotPasswordPage() {
         <CardContent sx={{ p: 4 }}>
           {/* Botón de volver */}
           <Button
+            type="button"
             startIcon={<ArrowBackIcon />}
-            onClick={() => router.push("/login")}
+            onClick={(e) => {
+              e.preventDefault();
+              router.push("/login");
+            }}
             sx={{ mb: 2 }}
           >
             Volver al login
