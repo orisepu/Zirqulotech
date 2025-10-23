@@ -7,7 +7,10 @@ const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password', '/gracia
 
 export default function useUsuarioActual() {
   const pathname = usePathname()
-  const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+  // Soportar rutas dinámicas usando startsWith para /reset-password/[token]
+  const isPublicRoute = PUBLIC_ROUTES.some(route =>
+    pathname === route || pathname.startsWith(route + '/')
+  )
 
   const { data } = useQuery({
     queryKey: ['usuario-actual'],
