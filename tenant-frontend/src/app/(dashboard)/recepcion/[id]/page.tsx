@@ -4,9 +4,9 @@ import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Box, Typography, Table, TableHead, TableRow, TableCell, TableBody,Autocomplete,
-  Button, TextField, CircularProgress, TablePagination, IconButton,MenuItem,Select
+  Button, TextField, CircularProgress, TablePagination, IconButton,MenuItem,Select, Tooltip
 } from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Print as PrintIcon } from '@mui/icons-material';
 import api from '@/services/api';
 import { Snackbar, Alert } from '@mui/material';
 import type { AlertColor } from '@mui/material';
@@ -67,6 +67,7 @@ export default function RecepcionDispositivosPage() {
   const [estadoOportunidad, setEstadoOportunidad] = useState<string | null>(null)
   const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>('success');
   const [cliente, setCliente] = useState<DispositivoRow[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   // loading gestionado por React Query
 
@@ -74,6 +75,7 @@ export default function RecepcionDispositivosPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [guardados, setGuardados] = useState<string[]>([]);
+  const [pageAnnouncement, setPageAnnouncement] = useState('');
   const makeEmptyRow = (opId: string, nextIndex: number): DispositivoRow => ({
     id: `nuevo-${nextIndex + 1}`,
     origen: null,
@@ -198,6 +200,15 @@ export default function RecepcionDispositivosPage() {
 
   const handleChangeCampo = async (value: string, index: number, field: 'imei' | 'numero_serie') => {
     const current = cliente[index];
+    const errorKey = `${field}-${index}`;
+
+    // Clear previous error for this field
+    setFieldErrors(prev => {
+      const next = { ...prev };
+      delete next[errorKey];
+      return next;
+    });
+
     // Validar que haya un modelo (Apple) o dispositivo personalizado
     if (!current?.modelo?.id && !current?.dispositivo_personalizado?.id) return;
 
@@ -228,7 +239,9 @@ export default function RecepcionDispositivosPage() {
     // Validación estricta solo en producción: si hay IMEI, debe ser válido
     const isProd = process.env.NODE_ENV === 'production'
     if (isProd && imeiFinal && !isValidIMEI(imeiFinal)) {
-      setSnackbarMsg('❌ IMEI inválido. Debe tener 15 dígitos y checksum válido.');
+      const errorMsg = 'IMEI inválido. Debe tener 15 dígitos y checksum válido.';
+      setFieldErrors(prev => ({ ...prev, [errorKey]: errorMsg }));
+      setSnackbarMsg(`❌ ${errorMsg}`);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
       return;
@@ -243,7 +256,11 @@ export default function RecepcionDispositivosPage() {
     });
 
     if (yaExiste) {
-      setSnackbarMsg("Este IMEI o número de serie ya ha sido registrado.");
+      const errorMsg = field === 'imei'
+        ? 'Este IMEI ya ha sido registrado en otro dispositivo.'
+        : 'Este número de serie ya ha sido registrado.';
+      setFieldErrors(prev => ({ ...prev, [errorKey]: errorMsg }));
+      setSnackbarMsg(errorMsg);
       setSnackbarSeverity('warning');
       setSnackbarOpen(true);
       return;
@@ -281,7 +298,12 @@ export default function RecepcionDispositivosPage() {
         updated[index].imei_original = imeiFinal;
         updated[index].numero_serie_original = snFinal;
         setGuardados((prev) => [...prev, imeiFinal, snFinal].filter(Boolean));
-        if (imeiRefs.current[index + 1]) imeiRefs.current[index + 1]?.focus();
+        if (imeiRefs.current[index + 1]) {
+          imeiRefs.current[index + 1]?.focus();
+        } else {
+          // Last row - focus the "Add Row" button
+          document.querySelector<HTMLButtonElement>('[data-add-row]')?.focus();
+        }
       }
       setCliente(updated);
     } catch (err) {
@@ -308,6 +330,17 @@ export default function RecepcionDispositivosPage() {
     const updated = [...cliente];
     updated.splice(index, 1);
     setCliente(updated);
+
+    // Manage focus after deletion
+    setTimeout(() => {
+      const nextIndex = Math.min(index, updated.length - 1);
+      if (nextIndex >= 0 && imeiRefs.current[nextIndex]) {
+        imeiRefs.current[nextIndex]?.focus();
+      } else {
+        // If no rows left, focus the "Add Row" button
+        document.querySelector<HTMLButtonElement>('[data-add-row]')?.focus();
+      }
+    }, 100);
   };
 
     const confirmarRecepcion = async () => {
@@ -326,7 +359,10 @@ export default function RecepcionDispositivosPage() {
         }
     };
 
-  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => {
+    setPage(newPage);
+    setPageAnnouncement(`Página ${newPage + 1} de ${Math.ceil(cliente.length / rowsPerPage)}`);
+  };
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
@@ -365,6 +401,7 @@ export default function RecepcionDispositivosPage() {
     </Typography>
     <Button
       variant="outlined"
+      data-add-row
       onClick={() => {
         setCliente(prev => [...prev, makeEmptyRow(String(id), prev.length)]);
       }}
@@ -374,8 +411,28 @@ export default function RecepcionDispositivosPage() {
     </Box>
 
     {recepcionQuery.isLoading ? (
-      <Box display="flex" justifyContent="center" my={4}>
-        <CircularProgress />
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        my={4}
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <CircularProgress aria-label="Cargando dispositivos" />
+        <Typography sx={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          border: 0
+        }}>Cargando información de dispositivos...</Typography>
       </Box>
     ) : (
       <>
@@ -383,7 +440,17 @@ export default function RecepcionDispositivosPage() {
           Dispositivos informados por el cliente
         </Typography>
 
-        <Table size="small" sx={{ mb: 0 }}>
+        <Table id="devices-table" aria-labelledby="devices-table-label" size="small" sx={{ mb: 0 }}>
+          <caption id="devices-table-label" style={{
+            position: 'absolute',
+            left: '-10000px',
+            top: 'auto',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden'
+          }}>
+            Dispositivos informados por el cliente
+          </caption>
           <TableHead>
             <TableRow>
               <TableCell sx={{ width: 70 }}>ID</TableCell>
@@ -427,7 +494,13 @@ export default function RecepcionDispositivosPage() {
                           ensureCapacidades(newValue.id);
                         }}
                         renderInput={(params) => (
-                          <TextField {...params} size="small" placeholder="Buscar modelo" />
+                          <TextField
+                            {...params}
+                            size="small"
+                            label="Modelo"
+                            placeholder="Buscar modelo"
+                            aria-label="Seleccionar modelo del dispositivo"
+                          />
                         )}
                       />
                     )}
@@ -475,8 +548,27 @@ export default function RecepcionDispositivosPage() {
                   <TableCell>
                     <TextField
                       value={d.imei || ''}
+                      label="IMEI"
                       inputRef={(el) => (imeiRefs.current[globalIndex] = el)}
-                      inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 15 }}
+                      error={!!fieldErrors[`imei-${globalIndex}`]}
+                      helperText={fieldErrors[`imei-${globalIndex}`] || 'IMEI (15 dígitos) o Nº Serie requerido'}
+                      inputProps={{
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*',
+                        maxLength: 15,
+                        'aria-label': 'IMEI del dispositivo',
+                        'aria-invalid': !!fieldErrors[`imei-${globalIndex}`],
+                        'aria-describedby': fieldErrors[`imei-${globalIndex}`]
+                          ? `imei-error-${globalIndex}`
+                          : `imei-helper-${globalIndex}`,
+                        'aria-required': !d.numero_serie
+                      }}
+                      FormHelperTextProps={{
+                        id: fieldErrors[`imei-${globalIndex}`]
+                          ? `imei-error-${globalIndex}`
+                          : `imei-helper-${globalIndex}`,
+                        role: fieldErrors[`imei-${globalIndex}`] ? 'alert' : undefined
+                      }}
                       onChange={(e) => {
                         const onlyDigits = (e.target.value || '').replace(/\D/g, '').slice(0, 15)
                         const updated = [...cliente];
@@ -499,6 +591,23 @@ export default function RecepcionDispositivosPage() {
                   <TableCell>
                     <TextField
                       value={d.numero_serie || ''}
+                      label="Nº Serie"
+                      error={!!fieldErrors[`numero_serie-${globalIndex}`]}
+                      helperText={fieldErrors[`numero_serie-${globalIndex}`] || 'IMEI o Nº Serie requerido'}
+                      inputProps={{
+                        'aria-label': 'Número de serie del dispositivo',
+                        'aria-invalid': !!fieldErrors[`numero_serie-${globalIndex}`],
+                        'aria-describedby': fieldErrors[`numero_serie-${globalIndex}`]
+                          ? `numero-serie-error-${globalIndex}`
+                          : `numero-serie-helper-${globalIndex}`,
+                        'aria-required': !d.imei
+                      }}
+                      FormHelperTextProps={{
+                        id: fieldErrors[`numero_serie-${globalIndex}`]
+                          ? `numero-serie-error-${globalIndex}`
+                          : `numero-serie-helper-${globalIndex}`,
+                        role: fieldErrors[`numero_serie-${globalIndex}`] ? 'alert' : undefined
+                      }}
                       onChange={(e) => {
                         const updated = [...cliente];
                         updated[globalIndex].numero_serie = e.target.value;
@@ -508,7 +617,7 @@ export default function RecepcionDispositivosPage() {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           handleChangeCampo((e.target as HTMLInputElement).value, globalIndex, 'numero_serie');
-                        }                       
+                        }
                       }}
                       onBlur={(e) => {
                         handleChangeCampo((e.target as HTMLInputElement).value, globalIndex, 'numero_serie');
@@ -518,12 +627,24 @@ export default function RecepcionDispositivosPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    <IconButton onClick={() => eliminarFila(globalIndex)} size="small">
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => handleVisualizarPDF(d)}>
-                      🖨️
-                    </IconButton>
+                    <Tooltip title="Eliminar dispositivo">
+                      <IconButton
+                        onClick={() => eliminarFila(globalIndex)}
+                        size="small"
+                        aria-label={`Eliminar dispositivo ${d.id}`}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Imprimir etiqueta">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleVisualizarPDF(d)}
+                        aria-label={`Imprimir etiqueta del dispositivo ${d.id}`}
+                      >
+                        <PrintIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               );
@@ -539,12 +660,44 @@ export default function RecepcionDispositivosPage() {
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           rowsPerPageOptions={[10, 25, 50, 100]}
+          aria-label="Paginación de tabla"
         />
+        <Typography
+          sx={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0
+          }}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {pageAnnouncement}
+        </Typography>
 
         <Box display="flex" justifyContent="flex-end" mt={3}>
-          <Button onClick={confirmarRecepcion} variant="contained" color="primary" disabled={estadoOportunidad == "Rdecibido"} >
-            Confirmar recepción
-          </Button>
+          <Tooltip
+            title={estadoOportunidad === "Rdecibido" ? "La recepción ya ha sido confirmada para esta oportunidad" : ""}
+            arrow
+          >
+            <span>
+              <Button
+                onClick={confirmarRecepcion}
+                variant="contained"
+                color="primary"
+                disabled={estadoOportunidad === "Rdecibido"}
+                aria-disabled={estadoOportunidad === "Rdecibido"}
+              >
+                Confirmar recepción
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
       </>
     )}
@@ -555,7 +708,13 @@ export default function RecepcionDispositivosPage() {
       onClose={() => setSnackbarOpen(false)}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
     >
-      <Alert severity={snackbarSeverity} variant="filled" onClose={() => setSnackbarOpen(false)}>
+      <Alert
+        severity={snackbarSeverity}
+        variant="filled"
+        onClose={() => setSnackbarOpen(false)}
+        role={snackbarSeverity === 'error' ? 'alert' : 'status'}
+        aria-live={snackbarSeverity === 'error' ? 'assertive' : 'polite'}
+      >
         {snackbarMsg}
       </Alert>
     </Snackbar>

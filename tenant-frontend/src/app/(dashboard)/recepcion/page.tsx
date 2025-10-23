@@ -23,6 +23,8 @@ export default function ListaOportunidadesEnTransito() {
   const [search, setSearch] = useState('');
   const [orderBy, setOrderBy] = useState('fecha_creacion');
   const [order, setOrder] = useState<Order>('desc');
+  const [searchAnnouncement, setSearchAnnouncement] = useState('');
+  const [pageAnnouncement, setPageAnnouncement] = useState('');
   // función debounced
   const debouncedSearch = useCallback(
     debounce((value: string) => {
@@ -61,6 +63,14 @@ export default function ListaOportunidadesEnTransito() {
     fetchData();
   }, [limit, offset, search]);
 
+  useEffect(() => {
+    if (!loading && search) {
+      setSearchAnnouncement(`${total} oportunidades encontradas para "${search}"`);
+    } else if (!loading) {
+      setSearchAnnouncement(`${total} oportunidades en tránsito`);
+    }
+  }, [total, search, loading]);
+
   const handleSort = (column: string) => {
     const isAsc = orderBy === column && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
@@ -70,6 +80,7 @@ export default function ListaOportunidadesEnTransito() {
 
   const handleChangePage = (_: unknown, newPage: number) => {
     setOffset(newPage * limit);
+    setPageAnnouncement(`Página ${newPage + 1} de ${Math.ceil(total / limit)}`);
   };
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,13 +100,58 @@ export default function ListaOportunidadesEnTransito() {
         sx={{ my: 2 }}
         value={searchRaw}
         onChange={handleSearchChange}
+        aria-describedby="search-results-status"
+        aria-controls="opportunities-table"
       />
 
+      <Typography
+        id="search-results-status"
+        sx={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          border: 0
+        }}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {searchAnnouncement}
+      </Typography>
+
       {loading ? (
-        <CircularProgress />
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={4} role="status" aria-live="polite" aria-busy="true">
+          <CircularProgress aria-label="Cargando oportunidades" />
+          <Typography sx={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0
+          }}>Cargando datos...</Typography>
+        </Box>
       ) : (
         <>
-          <Table size="small">
+          <Table id="opportunities-table" aria-labelledby="opportunities-table-label" size="small">
+            <caption id="opportunities-table-label" style={{
+              position: 'absolute',
+              left: '-10000px',
+              top: 'auto',
+              width: '1px',
+              height: '1px',
+              overflow: 'hidden'
+            }}>
+              Oportunidades en tránsito para recepción
+            </caption>
             <TableHead>
               <TableRow>
                 <TableCell>ID</TableCell>
@@ -166,7 +222,26 @@ export default function ListaOportunidadesEnTransito() {
             rowsPerPage={limit}
             onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[10, 25, 50]}
+            aria-label="Paginación de tabla"
           />
+          <Typography
+            sx={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0
+            }}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {pageAnnouncement}
+          </Typography>
         </>
       )}
     </Box>
