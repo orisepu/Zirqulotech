@@ -3,11 +3,14 @@ import { usePathname } from 'next/navigation'
 import api from '@/services/api'
 
 // Rutas públicas donde NO se debe verificar autenticación
-const PUBLIC_ROUTES = ['/login', '/gracias', '/']
+const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password', '/gracias', '/']
 
 export default function useUsuarioActual() {
   const pathname = usePathname()
-  const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+  // Soportar rutas dinámicas usando startsWith para /reset-password/[token]
+  const isPublicRoute = PUBLIC_ROUTES.some(route =>
+    pathname === route || pathname.startsWith(route + '/')
+  )
 
   const { data } = useQuery({
     queryKey: ['usuario-actual'],

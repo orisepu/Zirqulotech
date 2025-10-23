@@ -149,6 +149,30 @@ export const setupAuthenticatedState = () => {
         return null
     }
   })
+
+  // Configure secure storage mocks (they should be set up in setup.ts)
+  const { getSecureItem, setSecureItem } = require('@/shared/lib/secureStorage')
+
+  if (jest.isMockFunction(getSecureItem)) {
+    getSecureItem.mockImplementation((key: string) => {
+      switch (key) {
+        case 'access':
+          return Promise.resolve('mock-access-token')
+        case 'refresh':
+          return Promise.resolve('mock-refresh-token')
+        case 'schema':
+          return Promise.resolve('test-tenant')
+        case 'currentTenant':
+          return Promise.resolve('test-tenant')
+        default:
+          return Promise.resolve(null)
+      }
+    })
+  }
+
+  if (jest.isMockFunction(setSecureItem)) {
+    setSecureItem.mockResolvedValue(undefined)
+  }
 }
 
 // Helper to simulate API delay

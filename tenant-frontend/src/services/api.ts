@@ -62,9 +62,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // No intentar refrescar token si la petición tiene la flag skipAuthRefresh
+    // (usado para login y otras peticiones de autenticación)
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
+      !originalRequest.skipAuthRefresh &&
       typeof window !== "undefined"
     ) {
       originalRequest._retry = true;
@@ -89,15 +92,19 @@ api.interceptors.response.use(
 export default api;
 
 export function login(empresa: string, email: string, password: string) {
-  return axios.post(
-    `${BASE_URL}/api/login/`,
+  // Usar la instancia 'api' configurada con baseURL en lugar de axios directo
+  return api.post(
+    '/api/login/',
     { empresa, email, password },
     {
       headers: {
         "Content-Type": "application/json",
         "X-Tenant": empresa,
       },
-    }
+      // Evitar que el interceptor intente refrescar el token en caso de 401
+      // (credenciales incorrectas no deberían causar recarga de página)
+      skipAuthRefresh: true,
+    } as any  // TypeScript no reconoce propiedades custom en AxiosRequestConfig
   );
 }
 

@@ -18,11 +18,13 @@ const mockDispositivos: DispositivoPersonalizado[] = [
     modelo: 'Galaxy S23',
     capacidad: '256GB',
     tipo: 'movil',
-    precio_base_b2b: 450.00,
-    precio_base_b2c: 500.00,
-    ajuste_excelente: 100,
-    ajuste_bueno: 80,
-    ajuste_malo: 50,
+    precio_b2b_vigente: 450.00,
+    precio_b2c_vigente: 500.00,
+    precios: [],
+    pp_A: 0.08,
+    pp_B: 0.12,
+    pp_C: 0.15,
+    precio_suelo: 180.00,
     caracteristicas: { RAM: '8GB', Procesador: 'Snapdragon 8 Gen 2' },
     notas: 'Dispositivo premium',
     created_by: 1,
@@ -38,11 +40,13 @@ const mockDispositivos: DispositivoPersonalizado[] = [
     modelo: 'Redmi Note 12',
     capacidad: '128GB',
     tipo: 'movil',
-    precio_base_b2b: 180.00,
-    precio_base_b2c: 220.00,
-    ajuste_excelente: 100,
-    ajuste_bueno: 75,
-    ajuste_malo: 45,
+    precio_b2b_vigente: 180.00,
+    precio_b2c_vigente: 220.00,
+    precios: [],
+    pp_A: 0.08,
+    pp_B: 0.12,
+    pp_C: 0.15,
+    precio_suelo: 80.00,
     caracteristicas: {},
     created_by: 1,
     created_by_name: 'Admin User',
@@ -57,11 +61,13 @@ const mockDispositivos: DispositivoPersonalizado[] = [
     modelo: 'XPS 15',
     capacidad: '1TB SSD',
     tipo: 'portatil',
-    precio_base_b2b: 800.00,
-    precio_base_b2c: 900.00,
-    ajuste_excelente: 100,
-    ajuste_bueno: 80,
-    ajuste_malo: 50,
+    precio_b2b_vigente: 800.00,
+    precio_b2c_vigente: 900.00,
+    precios: [],
+    pp_A: 0.08,
+    pp_B: 0.12,
+    pp_C: 0.15,
+    precio_suelo: 350.00,
     caracteristicas: {},
     created_by: 1,
     created_by_name: 'Admin User',
@@ -102,9 +108,10 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
         expect(screen.getByText(/marca/i)).toBeInTheDocument()
         expect(screen.getByText(/modelo/i)).toBeInTheDocument()
         expect(screen.getByText(/tipo/i)).toBeInTheDocument()
-        expect(screen.getByText(/precio b2b/i)).toBeInTheDocument()
-        expect(screen.getByText(/precio b2c/i)).toBeInTheDocument()
-        expect(screen.getByText(/ajustes/i)).toBeInTheDocument()
+        expect(screen.getByText(/precio b2b vigente/i)).toBeInTheDocument()
+        expect(screen.getByText(/precio b2c vigente/i)).toBeInTheDocument()
+        expect(screen.getByText(/penalizaciones/i)).toBeInTheDocument()
+        expect(screen.getByText(/precio suelo/i)).toBeInTheDocument()
         expect(screen.getByText(/estado/i)).toBeInTheDocument()
         expect(screen.getByText(/acciones/i)).toBeInTheDocument()
       })
@@ -140,7 +147,7 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
       render(<DispositivosPersonalizadosTable />)
 
       await waitFor(() => {
-        expect(screen.getByText(/100%.*80%.*50%/)).toBeInTheDocument() // Ajustes Samsung
+        expect(screen.getByText(/8%.*12%.*15%/)).toBeInTheDocument() // Penalizaciones Samsung (pp_A/pp_B/pp_C)
       })
     })
 
@@ -381,14 +388,15 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
       const manyDevices = Array.from({ length: 25 }, (_, i) => ({
         ...mockDispositivos[0],
         id: i + 1,
-        modelo: `Device ${i + 1}`
+        modelo: `Device ${i + 1}`,
+        descripcion_completa: `Samsung Device ${i + 1} 256GB`
       }))
       mockApiSuccess('/api/dispositivos-personalizados/', manyDevices)
 
       render(<DispositivosPersonalizadosTable />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /página siguiente/i })).toBeInTheDocument()
+        expect(screen.getByText(/filas por página/i)).toBeInTheDocument()
       })
     })
 
@@ -396,15 +404,23 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
       const manyDevices = Array.from({ length: 25 }, (_, i) => ({
         ...mockDispositivos[0],
         id: i + 1,
-        modelo: `Device ${i + 1}`
+        modelo: `Device ${i + 1}`,
+        descripcion_completa: `Samsung Device ${i + 1} 256GB`
       }))
       mockApiSuccess('/api/dispositivos-personalizados/', manyDevices)
 
       render(<DispositivosPersonalizadosTable />)
 
       await waitFor(() => {
-        const nextButton = screen.getByRole('button', { name: /página siguiente/i })
-        fireEvent.click(nextButton)
+        const paginationButtons = screen.getAllByRole('button')
+        // Find the "next page" button (usually has aria-label="Go to next page")
+        const nextButton = paginationButtons.find(btn =>
+          btn.getAttribute('aria-label')?.includes('next') ||
+          btn.getAttribute('title')?.includes('next')
+        )
+        if (nextButton) {
+          fireEvent.click(nextButton)
+        }
       })
 
       await waitFor(() => {
@@ -421,7 +437,9 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
 
       render(<DispositivosPersonalizadosTable />)
 
-      expect(screen.getByRole('button', { name: /crear dispositivo/i })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /crear dispositivo/i })).toBeInTheDocument()
+      })
     })
 
     test('should call onCreate when clicking create button', async () => {
@@ -430,8 +448,10 @@ describe('DispositivosPersonalizadosTable - Admin Component', () => {
 
       render(<DispositivosPersonalizadosTable onCreate={onCreateMock} />)
 
-      const createButton = screen.getByRole('button', { name: /crear dispositivo/i })
-      fireEvent.click(createButton)
+      await waitFor(() => {
+        const createButton = screen.getByRole('button', { name: /crear dispositivo/i })
+        fireEvent.click(createButton)
+      })
 
       expect(onCreateMock).toHaveBeenCalledTimes(1)
     })

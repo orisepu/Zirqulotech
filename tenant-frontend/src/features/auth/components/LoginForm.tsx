@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { login as loginRequest } from "@/services/api";
 import { setSecureItem } from "@/shared/lib/secureStorage";
 import {
@@ -52,14 +53,16 @@ export default function LoginForm() {
   // Validación simple
   const isValid = useMemo(() => {
     const okEmpresa = empresa.trim().length > 0;
-    const okEmail = /\S+@\S+\.\S+/.test(email);
-    const okPass = password.length >= 4; // mínimo 8 caracteres
+    // SECURITY FIX (CRIT-02): RFC 5322 simplified regex - rechaza XSS/SQLi payloads
+    const okEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
+    const okPass = password.length >= 8; // SECURITY FIX (CRIT-01): Forzar mínimo 8 caracteres (OWASP ASVS 2.1.1)
     return okEmpresa && okEmail && okPass;
   }, [empresa, email, password]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isValid) return;
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (!isValid) {
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -80,6 +83,12 @@ export default function LoginForm() {
         setSecureItem("tenantAccess", JSON.stringify(tenantAccess)),
       ]);
 
+      // SECURITY FIX: Set HTTP cookie flag for middleware authentication check
+      // Note: The actual token stays secure in sessionStorage, this is just a flag
+      // Middleware needs this cookie to verify authentication on server-side
+      const isProduction = window.location.protocol === 'https:';
+      document.cookie = `access=true; path=/; max-age=86400; SameSite=Lax${isProduction ? '; Secure' : ''}`;
+
       // Empresa recordada puede quedarse en localStorage (no es sensible)
       if (rememberEmpresa) {
         localStorage.setItem("rememberedEmpresa", empresa.trim());
@@ -91,7 +100,6 @@ export default function LoginForm() {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       router.push("/dashboard");
-      // Evitamos que Snackbar quede abierto
       setShowError(false);
     } catch (err: any) {
       const detail =
@@ -133,19 +141,25 @@ export default function LoginForm() {
               : `1px solid ${alpha(theme.palette.common.black, 0.06)}`,
         }}
       >
-        <CardContent
-          component="form"
-          onSubmit={handleLogin}
-          noValidate
-          autoComplete="on"
-          sx={{ p: 4 }}
-        >
+        <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
             Iniciar sesión en la app
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Accede con tus credenciales de empresa.
           </Typography>
+
+          <form
+            onSubmit={(e) => {
+              console.log('🔍 [LOGIN] Form onSubmit disparado');
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('🔍 [LOGIN] preventDefault y stopPropagation ejecutados');
+              handleLogin(e);
+            }}
+            noValidate
+            autoComplete="on"
+          >
 
           {/* Empresa */}
           <TextField
@@ -219,16 +233,28 @@ export default function LoginForm() {
             helperText="Mínimo 8 caracteres"
           />
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={rememberEmpresa}
-                onChange={(e) => setRememberEmpresa(e.target.checked)}
-              />
-            }
-            label="Recordar empresa"
-            sx={{ mt: 1, color: "text.secondary" }}
-          />
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberEmpresa}
+                  onChange={(e) => setRememberEmpresa(e.target.checked)}
+                />
+              }
+              label="Recordar empresa"
+              sx={{ color: "text.secondary" }}
+            />
+            {/* SECURITY FIX (MED-03): Enlace a recuperación de contraseña */}
+            <Button
+              component={Link}
+              href="/forgot-password"
+              variant="text"
+              size="small"
+              sx={{ textTransform: "none" }}
+            >
+              ¿Olvidaste tu contraseña?
+            </Button>
+          </Box>
 
           {/* Botón: refuerzo de contraste cuando está deshabilitado en dark */}
           <Button
@@ -254,6 +280,7 @@ export default function LoginForm() {
           >
             {loading ? <CircularProgress size={24} /> : "Entrar"}
           </Button>
+          </form>
         </CardContent>
       </Card>
 

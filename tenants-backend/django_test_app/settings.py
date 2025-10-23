@@ -32,7 +32,13 @@ EQUIVALENCIAS_CSV = config("EQUIVALENCIAS_CSV", default="/srv/checkouters/Partne
 SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
+# SECURITY FIX (HIGH-01): Doble verificación - detectar automáticamente producción
+ENVIRONMENT = config("ENVIRONMENT", default="production")
 DEBUG = config("DEBUG", default=False, cast=bool)
+
+# SECURITY FIX (HIGH-01): Forzar DEBUG=False en producción incluso si está mal configurado
+if ENVIRONMENT == "production":
+    DEBUG = False  # Nunca permitir DEBUG=True en producción
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv())
 
@@ -132,6 +138,17 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    # SECURITY FIX (MED-01): Rate Limiting Global con DRF throttling
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': config('THROTTLE_RATE_ANON', default='100/hour'),  # Usuarios anónimos: 100 req/hora
+        'user': config('THROTTLE_RATE_USER', default='1000/hour'),  # Usuarios autenticados: 1000 req/hora
+        'login': config('THROTTLE_RATE_LOGIN', default='5/minute'),  # Login: 5 intentos/minuto
+        'sensitive': config('THROTTLE_RATE_SENSITIVE', default='10/minute'),  # Endpoints sensibles
+    },
 }
 CHANNEL_LAYERS = {
     "default": {
@@ -166,7 +183,6 @@ DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",
 AUTH_PASSWORD_VALIDATORS = []
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.progeek\.es$",
     r"^https://.*\.zirqulotech\.com$",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + ["Authorization", "X-Tenant"]
@@ -186,16 +202,21 @@ USE_L10N = True
 USE_TZ = True
 
 # Email Configuration
-# Soporta tanto OAuth2 (Microsoft 365) como SMTP tradicional
+# SECURITY FIX (MED-03): Soporta tanto OAuth2 (Microsoft 365) como SMTP tradicional
+# La configuración se toma desde .env:
+# - Para Microsoft OAuth2: EMAIL_BACKEND=security.email_backend.MicrosoftOAuth2EmailBackend
+# - Para SMTP tradicional: EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@zirqulotech.com")
 
-# Microsoft 365 OAuth2 Configuration (preferido)
+# Microsoft 365 OAuth2 Configuration
+# Usado si EMAIL_BACKEND=security.email_backend.MicrosoftOAuth2EmailBackend
 MICROSOFT_CLIENT_ID = config("MICROSOFT_CLIENT_ID", default="")
 MICROSOFT_CLIENT_SECRET = config("MICROSOFT_CLIENT_SECRET", default="")
 MICROSOFT_TENANT_ID = config("MICROSOFT_TENANT_ID", default="")
 
 # SMTP Configuration (fallback)
+# Usado si EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
@@ -219,6 +240,9 @@ PRIVATE_MEDIA_ROOT = MEDIA_ROOT / "media_private"
 OTP_TTL_MINUTES = config("OTP_TTL_MINUTES", default=10, cast=int)
 OTP_COOLDOWN_SECONDS = config("OTP_COOLDOWN_SECONDS", default=60, cast=int)
 
+# SECURITY FIX (MED-03): Password Reset Configuration
+PASSWORD_RESET_TIMEOUT_HOURS = config("PASSWORD_RESET_TIMEOUT_HOURS", default=1, cast=int)  # 1 hora por defecto
+
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="https://zirqulotech.com")
 LEGAL_DEFAULT_OVERRIDES = {
     "operador": {
@@ -238,16 +262,76 @@ MAPPING_V2_PERCENTAGE = config("MAPPING_V2_PERCENTAGE", default=100, cast=int)
 MAPPING_V2_DEVICE_TYPES = config("MAPPING_V2_DEVICE_TYPES", default="mac,iphone,ipad", cast=Csv())
 COMPARE_MAPPING_VERSIONS = config("COMPARE_MAPPING_VERSIONS", default=True, cast=bool)
 
-# Security Configuration
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
-SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
-CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
+# ========================================
+# SECURITY: Production-only settings
+# ========================================
+
+# SECURITY FIX (HIGH-02): Forzar cookies seguras en producción
+# En desarrollo, estas pueden ser configurables desde .env
+# En producción, SIEMPRE deben ser True independientemente de .env
+if ENVIRONMENT == "production":
+    # Forzar HTTPS
+    SECURE_SSL_REDIRECT = True
+
+    # Forzar cookies seguras (solo se envían por HTTPS)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # SameSite para protección adicional contra CSRF
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = "Lax"
+
+    # HTTPOnly para prevenir acceso desde JavaScript
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # Debe ser False para que frontend pueda leer el token
+
+    # SECURITY FIX (HIGH-03): Security Headers en producción
+    # ========================================
+
+    # HSTS (HTTP Strict Transport Security)
+    # Fuerza navegadores a usar HTTPS durante 1 año
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # X-Content-Type-Options: nosniff
+    # Previene MIME type sniffing
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    # X-Frame-Options: DENY
+    # Previene clickjacking
+    X_FRAME_OPTIONS = "DENY"
+
+    # Secure Referrer Policy
+    # Controla qué información de referrer se envía
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+    # Secure Browser XSS Filter
+    SECURE_BROWSER_XSS_FILTER = True
+
+else:
+    # Desarrollo: Usar configuración de .env
+    SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+    SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
+    CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
+    SESSION_COOKIE_SAMESITE = config("SESSION_COOKIE_SAMESITE", default="Lax")
+    CSRF_COOKIE_SAMESITE = config("CSRF_COOKIE_SAMESITE", default="Lax")
+
+    # En desarrollo, security headers más relajados
+    SECURE_HSTS_SECONDS = 0  # No forzar HSTS en desarrollo
+    SECURE_CONTENT_TYPE_NOSNIFF = True  # Mantener incluso en desarrollo
+    X_FRAME_OPTIONS = "SAMEORIGIN"  # Permitir iframes de mismo origen en desarrollo
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    SECURE_BROWSER_XSS_FILTER = True
+
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", cast=Csv())
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# SECURITY FIX (MED-04): Logging mejorado para eventos de seguridad críticos
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -255,77 +339,82 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'stream': sys.stdout,
-            'formatter': 'detailed',
+            'formatter': 'verbose',
+        },
+        # Handler de archivo para logs de seguridad (solo producción)
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 10,
+            'formatter': 'security',
+            'level': 'WARNING',  # Solo eventos de seguridad importantes
+        } if ENVIRONMENT == 'production' else {
+            'class': 'logging.NullHandler',  # No usar en desarrollo
         },
     },
     'formatters': {
-        'detailed': {
-            'format': '[{levelname}] {name}: {message}',
+        'simple': {
+            'format': '[{levelname}] {message}',
             'style': '{',
+        },
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        # Formatter específico para eventos de seguridad
+        'security': {
+            'format': '{asctime} [SECURITY-{levelname}] {name} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S %Z',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'WARNING',  # Nivel base más restrictivo
+        'level': 'INFO' if ENVIRONMENT == 'production' else 'DEBUG',
         'propagate': False,
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Solo warnings y errores de Django
+            'level': 'INFO',
         },
         'django_test_app.middleware': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Solo errores HTTP 4xx/5xx
+            'level': 'INFO',
             'propagate': False,
         },
         'django_test_app.middleware.custom_tenant_middleware': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Solo problemas de tenant resolution
+            'level': 'INFO',
             'propagate': False,
         },
         'checkouters': {
             'handlers': ['console'],
-            'level': 'INFO',  # Reducido de DEBUG a INFO
+            'level': 'DEBUG' if ENVIRONMENT == 'development' else 'INFO',
             'propagate': False,
         },
         "b2c.contratos": {
             "handlers": ["console"],
             "level": "INFO"
         },
+        # SECURITY FIX (MED-04): Logger dedicado para eventos de seguridad
         'security': {
-            'handlers': ['console'],
-            'level': 'INFO',  # Mantener info para logins
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
-        'chat': {
-            'handlers': ['console'],
-            'level': 'INFO',  # Info para conexiones WebSocket
+        # Logger para Django Axes (intentos de login fallidos)
+        'axes': {
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
+            'level': 'WARNING',  # Solo alertas y errores
             'propagate': False,
         },
-        'notificaciones': {
-            'handlers': ['console'],
-            'level': 'WARNING',  # Solo warnings (rechazos) y errores
-            'propagate': False,
-        },
-        'productos': {
-            'handlers': ['console'],
-            'level': 'WARNING',  # Reducir ruido de auto_learning
-            'propagate': False,
-        },
-        'daphne': {
-            'handlers': ['console'],
-            'level': 'ERROR',  # Solo errores críticos de Daphne (WebSocket server)
-            'propagate': False,
-        },
-        'daphne.server': {
-            'handlers': ['console'],
-            'level': 'ERROR',  # Silenciar logs de conexiones WebSocket
-            'propagate': False,
-        },
-        'daphne.ws_protocol': {
-            'handlers': ['console'],
-            'level': 'ERROR',  # Silenciar logs de protocolo WebSocket
+        # Logger para autenticación (login, logout, cambios de password)
+        'django_test_app.users': {
+            'handlers': ['console', 'security_file'] if ENVIRONMENT == 'production' else ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
@@ -381,8 +470,8 @@ AXES_RESET_ON_SUCCESS = True
 # Registrar intentos de acceso en la base de datos
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
 
-# Verbose logging (desactivado para reducir ruido en consola)
-AXES_VERBOSE = False
+# Verbose logging
+AXES_VERBOSE = True
 
 # No bloquear IPs de whitelist (localhost, IPs privadas)
 # Comentado temporalmente para testing
