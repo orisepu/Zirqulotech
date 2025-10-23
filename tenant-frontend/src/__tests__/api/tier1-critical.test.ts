@@ -399,22 +399,31 @@ describe('Tier 1 - Critical API Tests', () => {
 describe('API Infrastructure Tests', () => {
 
   test('should include authorization header when token exists', async () => {
-    setupAuthenticatedState()
-    mockApiSuccess('/api/test/', {})
+    const { getSecureItem } = require('@/shared/lib/secureStorage')
+    // Mock getSecureItem to return token
+    getSecureItem.mockResolvedValueOnce('test-token') // access token
+    getSecureItem.mockResolvedValueOnce('test-schema') // schema
+    getSecureItem.mockResolvedValueOnce(null) // currentTenant
 
+    mockApiSuccess('/api/test/', {})
     await api.get('/api/test/')
 
-    // This would be verified by the mock interceptor
-    expect(localStorage.getItem).toHaveBeenCalledWith('access')
+    // Verify getSecureItem was called for access token
+    expect(getSecureItem).toHaveBeenCalledWith('access')
   })
 
   test('should include tenant header when schema exists', async () => {
-    setupAuthenticatedState()
-    mockApiSuccess('/api/test/', {})
+    const { getSecureItem } = require('@/shared/lib/secureStorage')
+    // Mock getSecureItem to return schema
+    getSecureItem.mockResolvedValueOnce('test-token') // access token
+    getSecureItem.mockResolvedValueOnce('test-schema') // schema
+    getSecureItem.mockResolvedValueOnce(null) // currentTenant
 
+    mockApiSuccess('/api/test/', {})
     await api.get('/api/test/')
 
-    expect(localStorage.getItem).toHaveBeenCalledWith('schema')
+    // Verify getSecureItem was called for schema
+    expect(getSecureItem).toHaveBeenCalledWith('schema')
   })
 
   test('should handle network errors gracefully', async () => {
