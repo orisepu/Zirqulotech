@@ -16,7 +16,7 @@ function formatInt(n: number) {
 
 export default function PipelineChart({ data }: { data: Row[] }) {
   const theme = useTheme()
-  const [metric, setMetric] = useState<'count' | 'valor'>('valor')
+  const [metric, setMetric] = useState<'count' | 'valor'>('count')
 
   const normalized = useMemo(() => {
     const acc = new Map<string, Row>()
