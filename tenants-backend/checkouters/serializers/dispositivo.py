@@ -348,6 +348,11 @@ class DispositivoRealSerializer(serializers.ModelSerializer):
         return attrs
 
     def get_estado_valoracion(self, obj):
+        # Si ya fue auditado y tiene estado_valoracion guardado, devolverlo
+        if hasattr(obj, 'estado_valoracion') and obj.estado_valoracion:
+            return obj.estado_valoracion
+
+        # Fallback a lógica antigua para dispositivos no auditados
         fisico = obj.estado_fisico
         funcional = obj.estado_funcional
         criticos = ['no_enciende', 'pantalla_rota', 'otros']
@@ -401,6 +406,11 @@ class DispositivoRealSerializer(serializers.ModelSerializer):
             "a_revision": 0,
         })
     def get_precio_orientativo(self, obj):
+        # Si tiene precio_orientativo guardado, devolverlo
+        if hasattr(obj, 'precio_orientativo') and obj.precio_orientativo is not None:
+            return obj.precio_orientativo
+
+        # Fallback a cálculo dinámico para dispositivos no auditados
         origen = getattr(obj, 'origen', None)
         if not origen or not origen.precio_orientativoexcelente:
             return None
