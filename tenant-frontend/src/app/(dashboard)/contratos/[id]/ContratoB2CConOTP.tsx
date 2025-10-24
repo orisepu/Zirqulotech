@@ -83,7 +83,7 @@ export default function ContratoB2CConOTP({ contratoId }: { contratoId: string |
       const { data } = await api.post(`/api/b2c/contratos/${contratoId}/enviar-otp/`, {})
       return data
     },
-    onSuccess: (data:any) => {
+    onSuccess: () => {
       setSnack({open:true,msg:'Código enviado. Revisa tu correo/SMS.',type:'success'})
       setOpenOTP(true)
       refetch()
@@ -100,7 +100,7 @@ export default function ContratoB2CConOTP({ contratoId }: { contratoId: string |
       const { data } = await api.post(`/api/b2c/contratos/${contratoId}/verificar-otp/`, { otp })
       return data
     },
-    onSuccess: (data:any) => {
+    onSuccess: () => {
       setSnack({open:true,msg:'Contrato firmado con éxito.',type:'success'})
       setOpenOTP(false)
       setOtp('')

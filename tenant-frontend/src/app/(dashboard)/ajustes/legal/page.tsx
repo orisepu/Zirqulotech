@@ -127,7 +127,6 @@ export default function AjustesLegalesPage() {
   const [tplTitle, setTplTitle] = useState('')
   const [tplVersion, setTplVersion] = useState('')
   const [tplContent, setTplContent] = useState('')
-  const editorRef = useRef<any>(null)
 
   useEffect(() => {
     if (tpl) {
@@ -205,8 +204,6 @@ export default function AjustesLegalesPage() {
     onSuccess: () => { setToast({open:true, msg:'Variables guardadas', sev:'success'}); refetchDef() },
     onError: (e: any) => setToast({open:true, msg: e?.response?.data?.detail || 'Error al guardar variables', sev:'error'})
   })
-
-  const loading = loadTpl || loadDef
 
   // insertar en el editor (append al final)
   const insertAtEnd = (text: string) =>

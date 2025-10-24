@@ -50,12 +50,10 @@ export default function ClientesPage() {
   const soloEmpresas = usuario?.tenant?.solo_empresas ?? false;
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', type: 'success' });
   const queryClient = useQueryClient();
-  const { columnas, zoom } = useMemo(() => getColumnasClientes<Cliente>(), []);
+  const { columnas } = useMemo(() => getColumnasClientes<Cliente>(), []);
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);        // 1-based aquí
   const [porPagina, setPorPagina] = useState(10);
-  const pasos = ['Comerciales', 'Financieros', 'Dirección', 'Sector'];
-  const handleBack = () => setPasoActivo((prev) => prev - 1);
   const [nuevo, setNuevo] = useState<Partial<Cliente>>({});
   const [pasoActivo, setPasoActivo] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -82,9 +80,6 @@ export default function ClientesPage() {
     },
   });
 
-  const totalPaginas = data?.count
-    ? Math.ceil(data.count / porPagina)
-    : 1;
   function esCorreoValido(correo: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo);
   }
@@ -107,10 +102,7 @@ export default function ClientesPage() {
     }
     return true;
   };
-  const handleNext = () => {
-    if (!validarPaso()) return;
-    setPasoActivo((prev) => prev + 1);
-  };
+
   // Crear cliente con React Query Mutation
   const crearCliente = useMutation({
     mutationFn: async (nuevoCliente: Partial<Cliente>) => {
@@ -134,14 +126,6 @@ export default function ClientesPage() {
       setSnackbar({ open: true, message: 'No se pudieron cargar los clientes.', type: 'error' });
     }
   }, [isError, snackbar.open]);
-  const validarAntesDeCrear = () => {
-    const t = nuevo.tipo_cliente;
-    const falta = (f: keyof Cliente) => !nuevo[f] || (nuevo[f] as string).trim() === '';
-    if (t === 'empresa' && (falta('razon_social') || falta('cif'))) return false;
-    if (t === 'autonomo' && (falta('nombre') || falta('apellidos') || falta('nif'))) return false;
-    if (t === 'particular' && (falta('nombre') || falta('apellidos') || falta('dni_nie'))) return false;
-    return true;
-  };
 
   return (
     <Box>

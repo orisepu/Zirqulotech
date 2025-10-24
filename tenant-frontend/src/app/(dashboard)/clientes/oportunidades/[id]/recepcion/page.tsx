@@ -59,7 +59,7 @@ export default function RecepcionDispositivosPartnerPage() {
     },
   });
   const dispositivos = q.data ?? [];
-  const { isLoading, isError, error } = q;
+  const { isLoading, isError } = q;
 
   useEffect(() => {
     if (isError && !snackbar.open) {
