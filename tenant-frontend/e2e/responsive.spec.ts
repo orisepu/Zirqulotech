@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Responsive E2E tests for critical pages
@@ -10,12 +10,12 @@ import { test, expect } from '@playwright/test';
  */
 
 // Test utilities
-const waitForPageLoad = async (page: any) => {
+const waitForPageLoad = async (page: Page) => {
   await page.waitForLoadState('networkidle');
   await page.waitForSelector('body', { state: 'visible' });
 };
 
-const takeResponsiveScreenshot = async (page: any, name: string) => {
+const takeResponsiveScreenshot = async (page: Page, name: string) => {
   const viewport = page.viewportSize();
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
   await page.screenshot({
@@ -25,7 +25,7 @@ const takeResponsiveScreenshot = async (page: any, name: string) => {
 };
 
 // Authentication helper (adjust based on your auth flow)
-const login = async (page: any) => {
+const login = async (page: Page) => {
   // Skip if already logged in
   const isLoggedIn = await page.locator('[data-testid="user-menu"], [data-testid="dashboard"]').count() > 0;
   if (isLoggedIn) return;

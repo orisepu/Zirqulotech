@@ -126,7 +126,7 @@ async function main() {
 
   // Launch all viewports
   let index = 0;
-  for (const [key, viewport] of Object.entries(VIEWPORTS)) {
+  for (const viewport of Object.values(VIEWPORTS)) {
     const instance = await testViewport(viewport, index++);
     instances.push({ ...instance, viewport });
   }

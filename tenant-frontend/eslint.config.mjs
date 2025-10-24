@@ -16,7 +16,7 @@ const compat = new FlatCompat({
 });
 
 // ── Export principal de la config (Flat Config) ────────────────────────────────
-export default [
+const eslintConfig = [
   // ⛔ Ignorar artefactos de build y dependencias
   {
     ignores: [
@@ -25,6 +25,12 @@ export default [
       "dist/**",
       "coverage/**",
       "public/**",
+      "next-env.d.ts",
+      "jest.config.js",
+      "next.config.ts",
+      "server.js",
+      "scripts/**/*.mjs",
+      "e2e/**/*.ts",
     ],
   },
 
@@ -113,6 +119,8 @@ export default [
     },
   },
 ];
+
+export default eslintConfig;
 
 // Nota: no añadimos logs; si necesitas trazar qué override aplica, avísame y meto
 //       un "TEMP LOG" con console.warn() y un flag que puedas borrar en prod.
