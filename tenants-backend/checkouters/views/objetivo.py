@@ -20,6 +20,7 @@ from progeek.models import RolPorTenant
 from ..models import DispositivoReal, Objetivo, Oportunidad, Tienda
 from ..permissions import IsTenantManagerOrSuper
 from ..serializers.objetivo import ObjetivoSerializer, _parse_periodo
+from ..utils.role_filters import get_tienda_ids_for_user
 
 
 def _period_bounds(periodo: str, periodo_tipo: str) -> tuple[date, datetime, datetime]:
@@ -115,6 +116,9 @@ class ObjetivoResumenAPIView(APIView):
             tenant_slug = request.query_params.get("schema")
         tenant_slug = (tenant_slug or "").lower()
 
+        # Obtener IDs de tiendas permitidas según rol del usuario
+        tienda_ids_permitidas = get_tienda_ids_for_user(request.user, tenant_slug)
+
         if scope == "tienda":
             objetivos = Objetivo.objects.filter(
                 tipo="tienda",
@@ -122,7 +126,13 @@ class ObjetivoResumenAPIView(APIView):
                 periodo_inicio=periodo_inicio,
             ).select_related("tienda")
             objetivos_map: Dict[int, Objetivo] = {obj.tienda_id: obj for obj in objetivos if obj.tienda_id}
-            targets: Iterable[Tienda] = Tienda.objects.all().order_by("nombre")
+
+            # Filtrar tiendas según rol del usuario
+            tiendas_qs = Tienda.objects.all().order_by("nombre")
+            if tienda_ids_permitidas is not None:  # None = acceso a todas
+                tiendas_qs = tiendas_qs.filter(id__in=tienda_ids_permitidas)
+            targets: Iterable[Tienda] = tiendas_qs
+
             group_field = "oportunidad__tienda_id"
         else:
             objetivos = Objetivo.objects.filter(
@@ -135,12 +145,17 @@ class ObjetivoResumenAPIView(APIView):
             group_field = "oportunidad__usuario_id"
 
         valor_por_target = defaultdict(lambda: Decimal("0"))
+        valor_filter = {
+            "oportunidad__estado__iexact": "Pagado",
+            "oportunidad__fecha_inicio_pago__gte": inicio_dt,
+            "oportunidad__fecha_inicio_pago__lte": fin_dt,
+        }
+        # Filtrar por tiendas permitidas si scope es tienda
+        if scope == "tienda" and tienda_ids_permitidas is not None:
+            valor_filter["oportunidad__tienda_id__in"] = tienda_ids_permitidas
+
         valor_rows = (
-            DispositivoReal.objects.filter(
-                oportunidad__estado__iexact="Pagado",
-                oportunidad__fecha_inicio_pago__gte=inicio_dt,
-                oportunidad__fecha_inicio_pago__lte=fin_dt,
-            )
+            DispositivoReal.objects.filter(**valor_filter)
             .values(group_field)
             .annotate(total=Coalesce(Sum("precio_final"), Decimal("0")))
         )
@@ -154,12 +169,18 @@ class ObjetivoResumenAPIView(APIView):
             group_values = "tienda_id"
         else:
             group_values = "usuario_id"
+
+        operaciones_filter = {
+            "estado__iexact": "Pagado",
+            "fecha_inicio_pago__gte": inicio_dt,
+            "fecha_inicio_pago__lte": fin_dt,
+        }
+        # Filtrar por tiendas permitidas si scope es tienda
+        if scope == "tienda" and tienda_ids_permitidas is not None:
+            operaciones_filter["tienda_id__in"] = tienda_ids_permitidas
+
         operaciones_rows = (
-            Oportunidad.objects.filter(
-                estado__iexact="Pagado",
-                fecha_inicio_pago__gte=inicio_dt,
-                fecha_inicio_pago__lte=fin_dt,
-            )
+            Oportunidad.objects.filter(**operaciones_filter)
             .values(group_values)
             .annotate(total=Count("id"))
         )
@@ -170,12 +191,17 @@ class ObjetivoResumenAPIView(APIView):
 
         usuarios_por_tienda: Dict[int, Dict[int, dict]] = defaultdict(dict)
         if scope == "tienda":
+            usuarios_valor_filter = {
+                "oportunidad__estado__iexact": "Pagado",
+                "oportunidad__fecha_inicio_pago__gte": inicio_dt,
+                "oportunidad__fecha_inicio_pago__lte": fin_dt,
+            }
+            # Filtrar por tiendas permitidas
+            if tienda_ids_permitidas is not None:
+                usuarios_valor_filter["oportunidad__tienda_id__in"] = tienda_ids_permitidas
+
             usuarios_valor_rows = (
-                DispositivoReal.objects.filter(
-                    oportunidad__estado__iexact="Pagado",
-                    oportunidad__fecha_inicio_pago__gte=inicio_dt,
-                    oportunidad__fecha_inicio_pago__lte=fin_dt,
-                )
+                DispositivoReal.objects.filter(**usuarios_valor_filter)
                 .values("oportunidad__tienda_id", "oportunidad__usuario_id")
                 .annotate(total=Coalesce(Sum("precio_final"), Decimal("0")))
             )
@@ -193,12 +219,17 @@ class ObjetivoResumenAPIView(APIView):
                     },
                 )["progreso_valor"] = Decimal(row["total"] or 0)
 
+            usuarios_ops_filter = {
+                "estado__iexact": "Pagado",
+                "fecha_inicio_pago__gte": inicio_dt,
+                "fecha_inicio_pago__lte": fin_dt,
+            }
+            # Filtrar por tiendas permitidas
+            if tienda_ids_permitidas is not None:
+                usuarios_ops_filter["tienda_id__in"] = tienda_ids_permitidas
+
             usuarios_ops_rows = (
-                Oportunidad.objects.filter(
-                    estado__iexact="Pagado",
-                    fecha_inicio_pago__gte=inicio_dt,
-                    fecha_inicio_pago__lte=fin_dt,
-                )
+                Oportunidad.objects.filter(**usuarios_ops_filter)
                 .values("tienda_id", "usuario_id")
                 .annotate(total=Count("id"))
             )
