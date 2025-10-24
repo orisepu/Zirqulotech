@@ -6,7 +6,7 @@ import {
   DialogTitle, DialogContent, DialogActions, Button, TextField, Chip
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
-import { useEffect, useState,useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import api from '@/services/api'
 
 
@@ -24,7 +24,7 @@ export default function PlantillasCorreoPage() {
   const variables = seleccionada?.variables_disponibles?.variables || []
   const destinatarios = seleccionada?.variables_disponibles?.destinatarios || []
 
-  const fetchPlantillas = async () => {
+  const fetchPlantillas = useCallback(async () => {
     try {
       const res = await api.get('api/plantillas-correo/')
       const ordenadas = [...res.data].sort(
@@ -33,11 +33,11 @@ export default function PlantillasCorreoPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchPlantillas()
-  }, [])
+  }, [fetchPlantillas])
 
   const handleEditar = (plantilla: any) => {
     setSeleccionada(plantilla)

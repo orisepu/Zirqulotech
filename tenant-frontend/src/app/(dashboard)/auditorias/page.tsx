@@ -38,7 +38,7 @@ export default function ListaOportunidadesEnTransito() {
     setSearchRaw(value);
     debouncedSearch(value);
   };
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/api/oportunidades-globales/', {
@@ -57,11 +57,11 @@ export default function ListaOportunidadesEnTransito() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit, offset, search]);
 
   useEffect(() => {
     fetchData();
-  }, [limit, offset, search]);
+  }, [fetchData]);
 
   const handleSort = (column: string) => {
     const isAsc = orderBy === column && order === 'asc';

@@ -717,14 +717,14 @@ export default function LikewizeB2BPage() {
     }
 
     return [...new Set(suggestions)].slice(0, 3) // Remove duplicates and limit to 3
-  }, [mapTarget, getMappingAnalysis])
+  }, [mapTarget])
 
   // Auto-suggest searches when dialog opens
   useEffect(() => {
     if (mapTarget && getSmartSuggestions.length > 0 && !modeloSearchTerm) {
       setModeloSearchTerm(getSmartSuggestions[0])
     }
-  }, [mapTarget, getSmartSuggestions])
+  }, [mapTarget, getSmartSuggestions, modeloSearchTerm])
 
   // Auto-select exact matches when found
   useEffect(() => {
@@ -1103,7 +1103,7 @@ export default function LikewizeB2BPage() {
 
       return true
     })
-  }, [diff.data?.changes, showDeactivated, searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, capStatus, capMarcaLookup, getMappingConfidence, getMappingAnalysis])
+  }, [diff.data?.changes, showDeactivated, searchTerm, filterKind, filterMarca, filterConfidence, showOnlyProblematic, capStatus, capMarcaLookup])
 
   // Paginated changes
   const paginatedChanges = useMemo(() => {
@@ -1128,7 +1128,7 @@ export default function LikewizeB2BPage() {
       .filter((c) => seleccion.has(c.id) && c.kind === 'DELETE' && c.capacidad_id)
       .map((c) => c.capacidad_id!)
     return Array.from(new Set(ids))
-  }, [filteredChanges, seleccion])
+  }, [diff.data, filteredChanges, seleccion])
 
 
   // Reset page when filters change

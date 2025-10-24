@@ -339,7 +339,7 @@ export default function GestionarUsuariosPage() {
         minWidth: 280,
       },
     },
-  ], [tiendas, contrasenas, handlePasswordChange, handleRolChange, handleTiendaChange, toggleActivo.mutate]);
+  ], [tiendas, contrasenas, handlePasswordChange, handleRolChange, handleTiendaChange, toggleActivo]);
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
