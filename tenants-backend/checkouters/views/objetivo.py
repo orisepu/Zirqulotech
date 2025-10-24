@@ -44,15 +44,24 @@ def _period_bounds(periodo: str, periodo_tipo: str) -> tuple[date, datetime, dat
     return inicio_date, inicio_dt, fin_dt
 
 
-def _fetch_usuarios_manager(tenant_slug: str):
+def _fetch_usuarios_manager(tenant_slug: str, tienda_ids_permitidas=None):
+    """
+    Obtiene usuarios manager/empleado del tenant.
+    Si tienda_ids_permitidas se proporciona, solo retorna usuarios de esas tiendas.
+    """
     User = get_user_model()
     public_schema = get_public_schema_name() if callable(get_public_schema_name) else "public"
     with schema_context(public_schema):
+        rol_filter = {
+            "tenant_slug": tenant_slug,
+            "rol__in": ["manager", "empleado"],
+        }
+        # Si hay tiendas permitidas, filtrar por ellas
+        if tienda_ids_permitidas is not None:
+            rol_filter["tienda_id__in"] = tienda_ids_permitidas
+
         ids = list(
-            RolPorTenant.objects.filter(
-                tenant_slug=tenant_slug,
-                rol__in=["manager", "empleado"],
-            ).values_list("user_role__user_id", flat=True)
+            RolPorTenant.objects.filter(**rol_filter).values_list("user_role__user_id", flat=True)
         )
         usuarios = User.objects.filter(id__in=ids).order_by("name", "email")
         return list(usuarios)
@@ -141,7 +150,8 @@ class ObjetivoResumenAPIView(APIView):
                 periodo_inicio=periodo_inicio,
             ).select_related("usuario")
             objetivos_map = {obj.usuario_id: obj for obj in objetivos if obj.usuario_id}
-            targets = _fetch_usuarios_manager(tenant_slug)
+            # Filtrar usuarios por tiendas permitidas
+            targets = _fetch_usuarios_manager(tenant_slug, tienda_ids_permitidas)
             group_field = "oportunidad__usuario_id"
 
         valor_por_target = defaultdict(lambda: Decimal("0"))
@@ -150,8 +160,8 @@ class ObjetivoResumenAPIView(APIView):
             "oportunidad__fecha_inicio_pago__gte": inicio_dt,
             "oportunidad__fecha_inicio_pago__lte": fin_dt,
         }
-        # Filtrar por tiendas permitidas si scope es tienda
-        if scope == "tienda" and tienda_ids_permitidas is not None:
+        # Filtrar por tiendas permitidas (tanto para scope tienda como usuario)
+        if tienda_ids_permitidas is not None:
             valor_filter["oportunidad__tienda_id__in"] = tienda_ids_permitidas
 
         valor_rows = (
@@ -175,8 +185,8 @@ class ObjetivoResumenAPIView(APIView):
             "fecha_inicio_pago__gte": inicio_dt,
             "fecha_inicio_pago__lte": fin_dt,
         }
-        # Filtrar por tiendas permitidas si scope es tienda
-        if scope == "tienda" and tienda_ids_permitidas is not None:
+        # Filtrar por tiendas permitidas (tanto para scope tienda como usuario)
+        if tienda_ids_permitidas is not None:
             operaciones_filter["tienda_id__in"] = tienda_ids_permitidas
 
         operaciones_rows = (
@@ -272,7 +282,7 @@ class ObjetivoResumenAPIView(APIView):
             }
             usuarios_info = {
                 user.id: user
-                for user in _fetch_usuarios_manager(tenant_slug)
+                for user in _fetch_usuarios_manager(tenant_slug, tienda_ids_permitidas)
                 if user.id in usuarios_ids
             }
 
