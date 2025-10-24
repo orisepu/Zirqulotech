@@ -1702,31 +1702,72 @@ class GuardarAuditoriaGlobalAPIView(APIView):
         if not role or not role.es_empleado_interno:
             return Response({"detail": "No autorizado"}, status=403)
 
+        # Campos obligatorios
         dispositivo_id = request.data.get("dispositivo_id")
         estado_fisico = request.data.get("estado_fisico")
         estado_funcional = request.data.get("estado_funcional")
-        observaciones = request.data.get("observaciones", "")
-        precio_final = request.data.get("precio_final")
 
         if not dispositivo_id or not estado_fisico or not estado_funcional:
             return Response({"detail": "Campos obligatorios faltantes"}, status=400)
+
+        # Campos opcionales
+        observaciones = request.data.get("observaciones", "")
+        precio_final = request.data.get("precio_final")
+        estado_valoracion = request.data.get("estado_valoracion")
+
+        # Campos de batería
+        salud_bateria_pct = request.data.get("salud_bateria_pct")
+        ciclos_bateria = request.data.get("ciclos_bateria")
+
+        # Campos de pantalla
+        pantalla_funcional_puntos_bril = request.data.get("pantalla_funcional_puntos_bril", False)
+        pantalla_funcional_pixeles_muertos = request.data.get("pantalla_funcional_pixeles_muertos", False)
+        pantalla_funcional_lineas_quemaduras = request.data.get("pantalla_funcional_lineas_quemaduras", False)
+
+        # Campos de desgaste
+        desgaste_lateral = request.data.get("desgaste_lateral", "ninguno")
+        desgaste_trasero = request.data.get("desgaste_trasero", "ninguno")
 
         try:
             with schema_context(tenant):
                 from checkouters.models.dispositivo import DispositivoReal  # importa dentro del contexto
 
                 dispositivo = DispositivoReal.objects.get(id=dispositivo_id)
+
+                # Campos obligatorios
                 dispositivo.estado_fisico = estado_fisico
                 dispositivo.estado_funcional = estado_funcional
                 dispositivo.observaciones = observaciones
                 dispositivo.auditado = True
                 dispositivo.usuario_auditor = user
                 dispositivo.fecha_auditoria = timezone.now()
+
+                # Grado de valoración (A+/A/B/C/D/R)
+                if estado_valoracion:
+                    dispositivo.estado_valoracion = estado_valoracion
+
+                # Precio final
                 if precio_final is not None:
                     try:
                         dispositivo.precio_final = Decimal(precio_final)
                     except (ValueError, InvalidOperation):
                         return Response({"detail": "Precio final inválido"}, status=400)
+
+                # Batería
+                if salud_bateria_pct is not None:
+                    dispositivo.salud_bateria_pct = salud_bateria_pct
+                if ciclos_bateria is not None:
+                    dispositivo.ciclos_bateria = ciclos_bateria
+
+                # Pantalla
+                dispositivo.pantalla_funcional_puntos_bril = pantalla_funcional_puntos_bril
+                dispositivo.pantalla_funcional_pixeles_muertos = pantalla_funcional_pixeles_muertos
+                dispositivo.pantalla_funcional_lineas_quemaduras = pantalla_funcional_lineas_quemaduras
+
+                # Desgaste
+                dispositivo.desgaste_lateral = desgaste_lateral
+                dispositivo.desgaste_trasero = desgaste_trasero
+
                 dispositivo.save()
 
         except DispositivoReal.DoesNotExist:
