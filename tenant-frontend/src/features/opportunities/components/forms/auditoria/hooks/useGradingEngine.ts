@@ -42,14 +42,14 @@ interface UseGradingEngineParams {
   deduccionPantallaManual?: number | null
   deduccionChasisManual?: number | null
 
+  // Grado manual (si el usuario lo sobrescribe)
+  gradoManual?: Grade | null
+
   // Gates
   isSecurityKO?: boolean
 
   // Flag de edición manual
   editadoPorUsuario?: boolean
-
-  // Grado manual (override)
-  gradoManual?: Grade | null
 }
 
 interface UseGradingEngineResult {
@@ -69,8 +69,18 @@ interface UseGradingEngineResult {
   // Estado detallado (para persistir)
   estadoDetallado: ReturnType<typeof buildDetalladoFromUI>
 
-  // Base antes de deducciones
+  // Base antes de deducciones (para el grado actual)
   precioBase: number | undefined
+
+  // Precios base para TODOS los grados (A+, A, B, C, D, R)
+  preciosBase: {
+    'A+': number | undefined
+    'A': number | undefined
+    'B': number | undefined
+    'C': number | undefined
+    'D': number | undefined
+    'R': number | undefined
+  }
 }
 
 /**
@@ -93,9 +103,9 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     deduccionBateriaManual = null,
     deduccionPantallaManual = null,
     deduccionChasisManual = null,
+    gradoManual = null,
     isSecurityKO = false,
     editadoPorUsuario = false,
-    gradoManual = null,
   } = params
 
   // Construir estado detallado desde UI
@@ -255,6 +265,74 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     return precio_por_estado[gradeToPrecioKey(pick)]
   }, [grado, gradoManual, precio_por_estado, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
 
+  // Calcular precios base para TODOS los grados (A+, A, B, C, D, R)
+  const preciosBase = useMemo(() => {
+    if (!precio_por_estado) {
+      return {
+        'A+': undefined,
+        'A': undefined,
+        'B': undefined,
+        'C': undefined,
+        'D': undefined,
+        'R': undefined,
+      }
+    }
+
+    // Obtener precio base A+ (excelente)
+    const vAplus = precio_por_estado[gradeToPrecioKey('A+')]
+
+    if (typeof vAplus !== 'number') {
+      return {
+        'A+': undefined,
+        'A': undefined,
+        'B': undefined,
+        'C': undefined,
+        'D': undefined,
+        'R': undefined,
+      }
+    }
+
+    // Obtener porcentajes de penalización (desde backend o defaults)
+    const params = (precio_por_estado as any)?.params
+    const ppA = params?.pp_A ?? 0.08 // 8% de A+ a A
+    const ppB = params?.pp_B ?? 0.12 // 12% de A a B
+    const ppC = params?.pp_C ?? 0.15 // 15% de B a C
+
+    // Calcular precios según documento MD (líneas 124-131)
+    const vA = Math.round(vAplus * (1 - ppA))
+    const vB = Math.round(vA * (1 - ppB))
+    const vC = Math.round(vB * (1 - ppC))
+
+    // Para D, usar la misma lógica que precioBase para grado D
+    let vD: number | undefined = undefined
+    if (grado === 'D') {
+      vD = precioBase
+    } else {
+      // Si no es D actualmente, calcular un estimado conservador
+      // D podría usar cualquier precio base dependiendo de qué componente causó el D
+      vD = vC // Usar C como fallback conservador
+    }
+
+    // Para R (Reciclaje), usar V_suelo (valor mínimo)
+    const vSuelo =
+      precio_por_estado?.v_suelo ??
+      precio_por_estado?.V_suelo ??
+      (precio_por_estado as any)?.params?.V_suelo ??
+      (precio_por_estado as any)?.params?.v_suelo ??
+      (precio_por_estado as any)?.calculo?.suelo ??
+      0
+    const vR = vSuelo
+
+    return {
+      'A+': vAplus,
+      'A': vA,
+      'B': vB,
+      'C': vC,
+      'D': vD,
+      'R': vR,
+    }
+  }, [precio_por_estado, grado, precioBase])
+
   // Calcular precio final con lógica de precio suelo
   const precioFinal = useMemo<number | null>(() => {
     // Detectar si hay deducciones manuales aplicadas
@@ -267,17 +345,23 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     if (isSecurityKO) return 0
     if (editadoPorUsuario) return null // no sobrescribir si editado manualmente
 
-    // Usar backend solo si NO hay deducciones manuales
-    // (porque el backend no recalcula con deducciones manuales)
-    if (valoracionTecnica && !hayDeduccionesManuales) {
+    // Determinar grado final (manual si existe, sino calculado)
+    const gradoFinal = gradoManual ?? grado
+
+    // Usar backend solo si NO hay deducciones manuales ni grado manual
+    // (porque el backend no recalcula con deducciones manuales ni grado manual)
+    if (valoracionTecnica && !hayDeduccionesManuales && !gradoManual) {
       const oferta = Number(valoracionTecnica.oferta)
       return Math.max(0, oferta - costoReparacion)
     }
 
-    // Calcular local (cuando hay deducciones manuales o no hay backend)
-    if (typeof precioBase !== 'undefined') {
+    // Calcular local (cuando hay deducciones manuales o grado manual o no hay backend)
+    // Usar el precio del grado final (manual o calculado)
+    const precioBaseGradoFinal = preciosBase[gradoFinal]
+
+    if (typeof precioBaseGradoFinal !== 'undefined') {
       const totalDeducciones = deducciones.bateria + deducciones.pantalla + deducciones.chasis
-      const precioConDeducciones = Number(precioBase) - totalDeducciones - costoReparacion
+      const precioConDeducciones = Number(precioBaseGradoFinal) - totalDeducciones - costoReparacion
 
       // Aplicar precio suelo (floor price): precio final = max(precio_calculado, v_suelo, 0)
       // Intentar múltiples ubicaciones donde puede estar v_suelo
@@ -297,7 +381,9 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     isSecurityKO,
     editadoPorUsuario,
     valoracionTecnica,
-    precioBase,
+    grado,
+    gradoManual,
+    preciosBase,
     deducciones,
     costoReparacion,
     precio_por_estado,
@@ -312,5 +398,6 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     deducciones,
     estadoDetallado,
     precioBase,
+    preciosBase,
   }
 }

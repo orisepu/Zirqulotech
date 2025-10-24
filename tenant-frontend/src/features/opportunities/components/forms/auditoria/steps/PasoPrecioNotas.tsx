@@ -15,6 +15,16 @@ export interface PasoPrecioNotasProps {
   grado?: Grade
   precioBase?: number
 
+  // Precios base para TODOS los grados
+  preciosBase?: {
+    'A+': number | undefined
+    'A': number | undefined
+    'B': number | undefined
+    'C': number | undefined
+    'D': number | undefined
+    'R': number | undefined
+  }
+
   // Para editar grado manualmente
   gradoCalculado?: Grade
   gradoManual: Grade | null
@@ -46,6 +56,7 @@ export default function PasoPrecioNotas({
   setEditadoPorUsuario,
   grado,
   precioBase,
+  preciosBase,
   gradoCalculado,
   gradoManual,
   setGradoManual,
@@ -54,6 +65,10 @@ export default function PasoPrecioNotas({
   precioCalculado,
   precioSuelo = 0,
 }: PasoPrecioNotasProps) {
+
+  // Calcular precio sugerido según el grado seleccionado (manual o calculado)
+  const gradoActual = gradoManual ?? gradoCalculado ?? grado
+  const precioSugeridoParaGrado = gradoActual && preciosBase ? preciosBase[gradoActual] : precioBase
 
   const handlePrecioChange = (raw: string) => {
     let parsed: number | null
@@ -77,7 +92,10 @@ export default function PasoPrecioNotas({
   const hayDeducciones = totalDeducciones > 0
 
   // Calcular precio antes del suelo (precio con deducciones pero sin aplicar floor)
-  const precioAntesSuelo = precioBase !== undefined ? precioBase - totalDeducciones : null
+  // Usar el precio del grado seleccionado (manual o calculado), no precioBase
+  const precioAntesSuelo = precioSugeridoParaGrado !== undefined
+    ? precioSugeridoParaGrado - totalDeducciones
+    : null
 
   // Verificar si se aplicó el precio suelo
   const seAplicoPrecioSuelo =
@@ -119,10 +137,10 @@ export default function PasoPrecioNotas({
               </Typography>
               <Box display="flex" justifyContent="space-between" mb={0.5}>
                 <Typography variant="body2" color="text.secondary">
-                  Precio base ({grado}):
+                  Precio base ({gradoActual}):
                 </Typography>
                 <Typography variant="body2" fontWeight={500}>
-                  {fmtEUR(precioBase)}
+                  {precioSugeridoParaGrado != null ? fmtEUR(precioSugeridoParaGrado) : fmtEUR(precioBase ?? 0)}
                 </Typography>
               </Box>
               {deducciones && deducciones.bateria > 0 && (
@@ -217,10 +235,10 @@ export default function PasoPrecioNotas({
             helperText={
               hayDeducciones
                 ? `Calculado con deducciones: ${precioCalculado !== null && precioCalculado !== undefined ? fmtEUR(precioCalculado) : 'Calculando...'}`
-                : precioBase != null && grado
-                  ? `Sugerido por estado (${grado}): ${fmtEUR(precioBase)}`
-                  : grado
-                    ? `Grado calculado: ${grado}`
+                : precioSugeridoParaGrado != null && gradoActual
+                  ? `Sugerido por estado (${gradoActual}): ${fmtEUR(precioSugeridoParaGrado)}`
+                  : gradoActual
+                    ? `Grado calculado: ${gradoActual}`
                     : 'Ingrese el precio final'
             }
           />

@@ -19,9 +19,8 @@ import {
   Stepper,
   Step,
   StepLabel,
-  StepButton,
   Box,
-  TextField,
+  Typography,
 } from '@mui/material'
 import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
 import type { Grade } from '@/shared/types/grading'
@@ -155,6 +154,10 @@ export default function FormularioAuditoriaDispositivoV2({
   const [precioFinalManual, setPrecioFinalManual] = useState<number | null>(null)
   const [gradoManual, setGradoManual] = useState<Grade | null>(null)
 
+  // Confirmación de cierre
+  const [showConfirmClose, setShowConfirmClose] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
   // Deducciones manuales
   const [deduccionesManuales, setDeduccionesManuales] = useState<DeduccionesManuales>({
     bateria: null,
@@ -167,7 +170,7 @@ export default function FormularioAuditoriaDispositivoV2({
   const tipo = useMemo(() => inferTipoFromDispositivo(dispositivo), [dispositivo])
   const capabilities = useMemo(() => getDeviceCapabilities(tipo), [tipo])
   const catalog = useMemo(() => buildCatalogByTipo(tipo), [tipo])
-  const ids = useMemo(() => pickIdsFromDispositivo(dispositivo), [dispositivo])
+  const _ids = useMemo(() => pickIdsFromDispositivo(dispositivo), [dispositivo])
 
   // Integración backend
   const { valoracionTecnica } = useValoracionTecnica({
@@ -189,7 +192,7 @@ export default function FormularioAuditoriaDispositivoV2({
   })
 
   // Motor de grading
-  const { grado, precioFinal, deducciones, estadoDetallado, precioBase } = useGradingEngine({
+  const { grado, precioFinal, deducciones, estadoDetallado, precioBase, preciosBase } = useGradingEngine({
     saludBateria,
     ciclosBateria,
     pantallaIssues,
@@ -205,9 +208,9 @@ export default function FormularioAuditoriaDispositivoV2({
     deduccionBateriaManual: deduccionesManuales.bateria,
     deduccionPantallaManual: deduccionesManuales.pantalla,
     deduccionChasisManual: deduccionesManuales.chasis,
+    gradoManual,
     isSecurityKO,
     editadoPorUsuario,
-    gradoManual,
   })
 
   // Grado final: manual si existe, sino el calculado
@@ -231,6 +234,50 @@ export default function FormularioAuditoriaDispositivoV2({
   useEffect(() => {
     if (open) setStep(0)
   }, [open])
+
+  // Rastrear cambios no guardados
+  useEffect(() => {
+    const hasChanges =
+      fmiStatus !== '' ||
+      simLock !== '' ||
+      mdm !== '' ||
+      blacklist !== '' ||
+      enciende !== null ||
+      cargaOk !== null ||
+      saludBateria !== '' ||
+      ciclosBateria !== '' ||
+      funcChecks.some((check) => check !== null) ||
+      pantallaIssues.length > 0 ||
+      estadoPantalla !== '' ||
+      estadoLados !== '' ||
+      estadoEspalda !== '' ||
+      observaciones !== '' ||
+      precioFinalManual !== null ||
+      gradoManual !== null ||
+      deduccionesManuales.bateria !== null ||
+      deduccionesManuales.pantalla !== null ||
+      deduccionesManuales.chasis !== null ||
+      deduccionesManuales.costoReparacion !== 0
+    setHasUnsavedChanges(hasChanges)
+  }, [
+    fmiStatus,
+    simLock,
+    mdm,
+    blacklist,
+    enciende,
+    cargaOk,
+    saludBateria,
+    ciclosBateria,
+    funcChecks,
+    pantallaIssues,
+    estadoPantalla,
+    estadoLados,
+    estadoEspalda,
+    observaciones,
+    precioFinalManual,
+    gradoManual,
+    deduccionesManuales,
+  ])
 
   // Sincronizar precioFinalManual con precioFinal calculado (solo si no editado manualmente)
   useEffect(() => {
@@ -256,6 +303,19 @@ export default function FormularioAuditoriaDispositivoV2({
 
   const handleBack = () => {
     if (step > 0) setStep(step - 1)
+  }
+
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      setShowConfirmClose(true)
+    } else {
+      onClose()
+    }
+  }
+
+  const handleConfirmClose = () => {
+    setShowConfirmClose(false)
+    onClose()
   }
 
   const handleSubmit = () => {
@@ -289,8 +349,9 @@ export default function FormularioAuditoriaDispositivoV2({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{titulo || buildTituloAuditoria(dispositivo)}</DialogTitle>
+    <>
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+        <DialogTitle>{titulo || buildTituloAuditoria(dispositivo)}</DialogTitle>
 
       <DialogContent>
         {/* Banner global: siempre visible */}
@@ -300,12 +361,42 @@ export default function FormularioAuditoriaDispositivoV2({
           precio_por_estado={dispositivo?.precio_por_estado}
         />
 
-        <Stepper activeStep={step} nonLinear sx={{ mb: 3 }}>
+        <Stepper activeStep={step} sx={{ mb: 3 }}>
           {pasos.map((label, index) => (
             <Step key={label}>
-              <StepButton onClick={() => setStep(index)}>
-                {label}
-              </StepButton>
+              <Box
+                component="button"
+                type="button"
+                onClick={() => setStep(index)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setStep(index)
+                  }
+                }}
+                aria-label={`Ir a paso ${index + 1}: ${label}`}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left',
+                  transition: 'all 0.2s ease',
+                  '&:hover .MuiStepLabel-label': {
+                    color: 'primary.main',
+                    textDecoration: 'underline',
+                  },
+                  '&:focus-visible': {
+                    outline: '2px solid',
+                    outlineColor: 'primary.main',
+                    outlineOffset: '2px',
+                    borderRadius: '4px',
+                  },
+                }}
+              >
+                <StepLabel>{label}</StepLabel>
+              </Box>
             </Step>
           ))}
         </Stepper>
@@ -425,6 +516,7 @@ export default function FormularioAuditoriaDispositivoV2({
               setEditadoPorUsuario={setEditadoPorUsuario}
               grado={gradoFinal}
               precioBase={precioBase}
+              preciosBase={preciosBase}
               gradoCalculado={grado}
               gradoManual={gradoManual}
               setGradoManual={setGradoManual}
@@ -447,7 +539,7 @@ export default function FormularioAuditoriaDispositivoV2({
 
       <DialogActions sx={{ flexDirection: 'column', alignItems: 'stretch', gap: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-          <Button onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleClose}>Cancelar</Button>
           <Box display="flex" gap={1}>
             <Button onClick={handleBack} disabled={step === 0}>
               Atrás
@@ -479,5 +571,29 @@ export default function FormularioAuditoriaDispositivoV2({
         )}
       </DialogActions>
     </Dialog>
+
+    {/* Diálogo de confirmación para descartar cambios */}
+    <Dialog
+      open={showConfirmClose}
+      onClose={() => setShowConfirmClose(false)}
+      aria-labelledby="confirm-close-title"
+      aria-describedby="confirm-close-description"
+    >
+      <DialogTitle id="confirm-close-title">¿Descartar cambios?</DialogTitle>
+      <DialogContent>
+        <Typography id="confirm-close-description">
+          Tienes cambios sin guardar en esta auditoría. ¿Estás seguro de que deseas salir sin guardar?
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setShowConfirmClose(false)} autoFocus>
+          Continuar editando
+        </Button>
+        <Button onClick={handleConfirmClose} color="error" variant="contained">
+          Descartar cambios
+        </Button>
+      </DialogActions>
+    </Dialog>
+  </>
   )
 }
