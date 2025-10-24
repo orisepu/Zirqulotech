@@ -171,21 +171,8 @@ export default function AuditoriaDispositivosPage() {
     }
   }, [enviarCorreo, showSuccess, showError]);
 
-  // Table columns
-  const { columnas, zoom } = useMemo(
-    () =>
-      getColumnasAuditoria({
-        handleChange: () => {},
-        guardarAuditoria: () => {},
-        filaEditando: null,
-        setFilaEditando: () => {},
-        dispositivosEditables: dispositivosOrdenados,
-        calcularEstadoValoracion: () => 'bueno',
-        formTemporal: {},
-        setFormTemporal: () => {},
-      }),
-    [dispositivosOrdenados]
-  );
+  // Table columns - now static, only needs to calculate once
+  const { columnas, zoom } = useMemo(() => getColumnasAuditoria(), []);
 
   const columnasConAccion = useMemo(() => {
     const extra: ColumnDef<DispositivoReal, unknown> = {

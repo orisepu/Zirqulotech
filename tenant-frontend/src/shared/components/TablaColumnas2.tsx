@@ -589,147 +589,100 @@ export function getColumnasContactos<T extends ClienteLike = ClienteLike>(): {
 // FUNCIÓN GENERADORA - COLUMNAS AUDITORÍA
 // ============================================================================
 
-export function getColumnasAuditoria<T = any>({
-  dispositivos = [],
-  onUpdate = () => {},
-  handleChange,
-  guardarAuditoria,
-  dispositivosEditables,
-  filaEditando,
-  setFilaEditando,
-  calcularEstadoValoracion,
-  formTemporal,
-  setFormTemporal,
-}: {
-  dispositivos?: T[]
-  onUpdate?: (id: number, field: string, value: any) => void
-  handleChange?: ((id: number, field: string, value: any) => void) | ((index: number, field: string, value: string) => void)
-  guardarAuditoria?: () => void
-  dispositivosEditables?: T[]
-  filaEditando?: number | null
-  setFilaEditando?: (id: number | null) => void
-  calcularEstadoValoracion?: (index: number) => string
-  formTemporal?: Record<string, any>
-  setFormTemporal?: (form: Record<string, any>) => void
-}): { columnas: ResponsiveColumnDef<T>[]; zoom: number } {
-  const updateHandler = handleChange || onUpdate
-
+/**
+ * Generates column definitions for the audit table (consultation mode)
+ *
+ * @description Creates a readonly table view showing device audit status,
+ * grades, and pricing. Used in the /auditorias/[id] page for reviewing
+ * audited devices. All editing is done in the modal form, not in the table.
+ *
+ * @template T - Device type extending DispositivoReal
+ * @returns Object with columnas (column definitions) and zoom level
+ *
+ * @example
+ * ```tsx
+ * const { columnas, zoom } = getColumnasAuditoria();
+ * <TablaReactiva data={devices} columns={columnas} />
+ * ```
+ */
+export function getColumnasAuditoria<T = any>(): {
+  columnas: ResponsiveColumnDef<T>[];
+  zoom: number;
+} {
   const columnas: ResponsiveColumnDef<T>[] = [
-    createTextColumn<T>('modelo', 'Modelo', (r: any) => {
-      // Para dispositivos personalizados, usar descripcion_completa
-      if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
-        return r.dispositivo_personalizado.descripcion_completa || r.modelo || '—'
-      }
-      return r.modelo || '—'
-    }, 300),
-    createTextColumn<T>('capacidad', 'Capacidad', (r: any) => {
-      // Para dispositivos personalizados, la capacidad ya está en descripcion_completa
-      if (r.dispositivo_personalizado && typeof r.dispositivo_personalizado === 'object') {
-        return '—'
-      }
-      return r.capacidad || '—'
-    }, 100),
+    // Identificación del dispositivo
+    createTextColumn<T>('modelo', 'Modelo', (r: any) => r.modelo || '—', 300),
+    createTextColumn<T>('capacidad', 'Capacidad', (r: any) => r.capacidad || '—', 100),
     createTextColumn<T>('imei', 'IMEI', (r: any) => r.imei || '—', 200),
     createTextColumn<T>('Numero_Serie', 'Nº Serie', (r: any) => r.numero_serie || '—', 200),
 
-    // Columnas editables (estado_fisico, estado_funcional, etc.) - mantener lógica original
-    new ColumnBuilder<T>('estado_fisico')
-      .header('Estado Físico')
-      .accessor((r: any) => r.estado_fisico)
-      .size(120, 160)
+    // Estado de auditoría (chip visual)
+    new ColumnBuilder<T>('auditado')
+      .header('Estado')
+      .accessor((r: any) => r.auditado)
+      .size(120, 150)
       .align('center')
-      .persist(true)
+      .label('Estado Auditoría')
       .cell(({ row }) => {
         const disp = row.original as any
+        // Use Boolean() to prevent empty strings from being truthy
+        const auditado =
+          disp.auditado === true &&
+          disp.precio_final != null &&
+          Boolean(disp.estado_fisico) &&
+          Boolean(disp.estado_funcional)
         return (
-          <Select
-            value={disp.estado_fisico || ''}
+          <Chip
+            label={auditado ? 'Auditado' : 'Pendiente'}
+            color={auditado ? 'success' : 'default'}
             size="small"
-            onChange={(e) => updateHandler(disp.id, 'estado_fisico', e.target.value)}
-            sx={{ width: '100%' }}
-          >
-            <MenuItem value="">—</MenuItem>
-            <MenuItem value="SIN_SIGNOS">Sin signos</MenuItem>
-            <MenuItem value="MINIMOS">Mínimos</MenuItem>
-            <MenuItem value="ALGUNOS">Algunos</MenuItem>
-            <MenuItem value="DESGASTE_VISIBLE">Desgaste visible</MenuItem>
-            <MenuItem value="DOBLADO">Doblado</MenuItem>
-          </Select>
-        )
-      })
-      .build(),
-
-    new ColumnBuilder<T>('estado_funcional')
-      .header('Estado Funcional')
-      .accessor((r: any) => r.estado_funcional)
-      .size(120, 160)
-      .align('center')
-      .persist(true)
-      .cell(({ row }) => {
-        const disp = row.original as any
-        return (
-          <Select
-            value={disp.estado_funcional || ''}
-            size="small"
-            onChange={(e) => updateHandler(disp.id, 'estado_funcional', e.target.value)}
-            sx={{ width: '100%' }}
-          >
-            <MenuItem value="">—</MenuItem>
-            <MenuItem value="OK">OK</MenuItem>
-            <MenuItem value="PROBLEMAS">Problemas</MenuItem>
-          </Select>
-        )
-      })
-      .build(),
-
-    new ColumnBuilder<T>('estado_valoracion')
-      .header('Estado Valoración')
-      .accessor((r: any) => r.estado_valoracion)
-      .size(130, 170)
-      .align('center')
-      .persist(true)
-      .cell(({ row }) => {
-        const disp = row.original as any
-        return (
-          <Select
-            value={disp.estado_valoracion || ''}
-            size="small"
-            onChange={(e) => updateHandler(disp.id, 'estado_valoracion', e.target.value)}
-            sx={{ width: '100%' }}
-          >
-            <MenuItem value="">—</MenuItem>
-            <MenuItem value="A+">A+</MenuItem>
-            <MenuItem value="A">A</MenuItem>
-            <MenuItem value="B">B</MenuItem>
-            <MenuItem value="C">C</MenuItem>
-            <MenuItem value="D">D</MenuItem>
-          </Select>
-        )
-      })
-      .build(),
-
-    createCurrencyColumn<T>('precio_final', 'Precio Final', (r: any) => r.precio_final, 125, 180),
-
-    new ColumnBuilder<T>('observaciones')
-      .header('Observaciones')
-      .accessor((r: any) => r.observaciones)
-      .size(500)
-      .align('center')
-      .alignHeader('left')
-      .persist(true)
-      .cell(({ row }) => {
-        const disp = row.original as any
-        return (
-          <TextField
-            value={disp.observaciones || ''}
-            multiline
-            size="small"
-            onChange={(e) => updateHandler(disp.id, 'observaciones', e.target.value)}
-            sx={{ minWidth: pxToResponsiveRem(280) }}
+            sx={{ fontWeight: 500 }}
+            aria-label={
+              auditado
+                ? 'Estado de auditoría: Completado'
+                : 'Estado de auditoría: Pendiente de revisar'
+            }
           />
         )
       })
       .build(),
+
+    // Grado (texto readonly)
+    new ColumnBuilder<T>('grado')
+      .header('Grado')
+      .accessor((r: any) => r.estado_valoracion)
+      .size(80, 100)
+      .align('center')
+      .label('Grado')
+      .cell(({ getValue }) => {
+        const grado = getValue()
+        if (!grado) return '—'
+
+        // Use theme colors instead of hardcoded values
+        let color: string = 'text.primary'
+        if (grado === 'A+' || grado === 'A') color = 'success.main'
+        else if (grado === 'B') color = 'warning.main'
+        else if (grado === 'C' || grado === 'D') color = 'error.main'
+        else if (grado === 'R') color = 'text.disabled' // Reciclaje
+
+        return (
+          <Typography
+            component="span"
+            sx={{
+              fontWeight: 600,
+              color,
+              fontSize: '0.875rem',
+            }}
+          >
+            {grado}
+          </Typography>
+        )
+      })
+      .build(),
+
+    // Precios
+    createCurrencyColumn<T>('precio_orientativo', 'Precio Orientativo', (r: any) => r.precio_orientativo, 140, 200),
+    createCurrencyColumn<T>('precio_final', 'Precio Final', (r: any) => r.precio_final, 140, 200),
   ]
 
   return { columnas, zoom: 1.0 }
