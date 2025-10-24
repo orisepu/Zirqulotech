@@ -46,7 +46,7 @@ def _period_bounds(periodo: str, periodo_tipo: str) -> tuple[date, datetime, dat
 
 def _fetch_usuarios_manager(tenant_slug: str, tienda_ids_permitidas=None):
     """
-    Obtiene usuarios manager/empleado del tenant.
+    Obtiene usuarios con roles operativos del tenant (manager, store_manager, comercial, empleado).
     Si tienda_ids_permitidas se proporciona, solo retorna usuarios de esas tiendas.
     """
     User = get_user_model()
@@ -54,7 +54,7 @@ def _fetch_usuarios_manager(tenant_slug: str, tienda_ids_permitidas=None):
     with schema_context(public_schema):
         rol_filter = {
             "tenant_slug": tenant_slug,
-            "rol__in": ["manager", "empleado"],
+            "rol__in": ["manager", "store_manager", "comercial", "empleado"],
         }
         # Si hay tiendas permitidas, filtrar por ellas
         if tienda_ids_permitidas is not None:
