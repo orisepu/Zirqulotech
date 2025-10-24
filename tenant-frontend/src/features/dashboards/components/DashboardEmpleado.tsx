@@ -168,7 +168,6 @@ async function fetchValorPorTiendaTransform({
   tiendaId,
   tiendaNombre,
   granularidad = 'mes',
-  estado_minimo = 'Oferta confirmada',
   usuario,
 }: {
   fecha_inicio: string;
@@ -176,9 +175,10 @@ async function fetchValorPorTiendaTransform({
   tiendaId?: string | null;
   tiendaNombre?: string | null;
   granularidad?: 'dia' | 'semana' | 'mes';
-  estado_minimo?: string;
   usuario?: number | null;
 }): Promise<KPIs> {
+  // Estado mínimo fijo para OPERACIONES (valor confirmado)
+  const estado_minimo = 'Oferta confirmada';
   const params: Record<string, string | number | null | undefined> = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
   if (tiendaId) params.tienda = tiendaId;
   if (usuario) params.usuario = usuario;
@@ -274,7 +274,6 @@ export default function TenantDashboardPage() {
   const [fechaInicio, setFechaInicio] = useState(fechaISO(startOfMonth()));
   const [fechaFin, setFechaFin] = useState(fechaISO(endOfToday()));
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('mes');
-  const [estadoMinimo, setEstadoMinimo] = useState<string>('Oferta confirmada');
 
   const _queryClient = useQueryClient();
   const usuario = useUsuario() as { tienda_id?: number | string; tienda_nombre?: string; id?: number } | null; // acceso laxo con tipo mínimo
@@ -293,7 +292,7 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoKpis,
     refetch: refetchKpis,
   } = useQuery<KPIs>({
-    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo, usuarioIdFiltro],
+    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, usuarioIdFiltro],
     queryFn: () =>
       fetchValorPorTiendaTransform({
         fecha_inicio: fechaInicio,
@@ -301,7 +300,6 @@ export default function TenantDashboardPage() {
         tiendaId: tiendaIdEfectiva || null,
         tiendaNombre,
         granularidad,
-        estado_minimo: estadoMinimo,
         usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
@@ -478,26 +476,6 @@ export default function TenantDashboardPage() {
                   <MenuItem value="dia">Día</MenuItem>
                   <MenuItem value="semana">Semana</MenuItem>
                   <MenuItem value="mes">Mes</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid>
-                <TextField
-                  select
-                  fullWidth
-                  label="Estado mínimo"
-                  value={estadoMinimo}
-                  onChange={(e) => setEstadoMinimo(e.target.value)}
-                  size="small"
-                >
-                  {[
-                    'Pendiente', 'Aceptado', 'Cancelado', 'Recogida generada', 'En tránsito', 'Recibido',
-                    'En revisión', 'Oferta confirmada', 'Pendiente factura', 'Factura recibida',
-                    'Pendiente de pago', 'Pagado', 'Nueva oferta enviada', 'Rechazada',
-                    'Devolución iniciada', 'Equipo enviado', 'Recibido por el cliente',
-                    'Nueva oferta confirmada', 'Nuevo contrato', 'Contrato',
-                  ].map((est, idx) => (
-                    <MenuItem key={`${est}-${idx}`} value={est}>{est}</MenuItem>
-                  ))}
                 </TextField>
               </Grid>
               <Grid>
