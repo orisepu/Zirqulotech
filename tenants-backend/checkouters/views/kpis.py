@@ -53,22 +53,31 @@ class ValorPorTiendaAPIView(APIView):
 
         granularidad = request.query_params.get("granularidad", "mes")
 
+        # Estados completos del flujo
         ESTADOS = [
-            "Pendiente", "Aceptado", "Cancelado", "Recogida generada", "En tránsito", "Recibido",
-            "En revisión", "Oferta confirmada", "Pendiente factura", "Factura recibida", "Pendiente de pago",
+            "Pendiente", "Aceptado", "Cancelado", "Recogida solicitada", "Recogida generada", "En tránsito", "Recibido",
+            "Check in OK", "En revisión", "Oferta confirmada", "Pendiente factura", "Factura recibida", "Pendiente de pago",
             "Pagado", "Nueva oferta enviada", "Rechazada", "Devolución iniciada", "Equipo enviado",
             "Recibido por el cliente", "Nueva oferta confirmada", "Nuevo contrato", "Contrato",
         ]
+
+        # Estados de OPORTUNIDAD (antes de confirmación) para el KPI "Oportunidades"
+        ESTADOS_OPORTUNIDAD = [
+            "Pendiente", "Aceptado", "Recogida solicitada", "Recogida generada",
+            "En tránsito", "Recibido", "Check in OK", "En revisión"
+        ]
+
+        # Estados excluidos del cálculo de valor (no tienen valor confirmado)
         ESTADOS_EXCLUIDOS_VALOR = [
             "Nueva oferta enviada","Rechazada", "Devolución iniciada", "Equipo enviado", "Recibido por el cliente","Pendiente",
-            "Aceptado", "Cancelado", "Recogida generada", "En tránsito", "Recibido","En revisión",
+            "Aceptado", "Cancelado", "Recogida solicitada", "Recogida generada", "En tránsito", "Recibido","Check in OK", "En revisión",
         ]
 
         if estado_minimo not in ESTADOS:
             return Response({"error": "Estado no válido"}, status=400)
 
         idx = ESTADOS.index(estado_minimo)
-        estados_filtrados = ESTADOS[idx:]
+        estados_filtrados = ESTADOS[idx:]  # Para valor y dispositivos (OPERACIONES)
 
         truncador = {
             "dia": TruncDay,
@@ -78,9 +87,10 @@ class ValorPorTiendaAPIView(APIView):
 
         tiendas = list(Tienda.objects.values_list("nombre", flat=True))
 
+        # Valores: Solo dispositivos reales de OPERACIONES (con valor confirmado)
         valores = DispositivoReal.objects.filter(
             oportunidad__estado__in=estados_filtrados,
-            oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
+            oportunidad__fecha_creacion__date__range=[fecha_inicio.date(), fecha_fin.date()]
         ).exclude(
             oportunidad__estado__in=ESTADOS_EXCLUIDOS_VALOR
         )
@@ -96,9 +106,10 @@ class ValorPorTiendaAPIView(APIView):
             total=Sum(Coalesce("precio_final", Value(0), output_field=DecimalField(max_digits=12, decimal_places=0)))
         )
 
+        # Dispositivos: De OPERACIONES (confirmadas)
         dispositivos = Dispositivo.objects.filter(
             oportunidad__estado__in=estados_filtrados,
-            oportunidad__fecha_creacion__range=[fecha_inicio, fecha_fin]
+            oportunidad__fecha_creacion__date__range=[fecha_inicio.date(), fecha_fin.date()]
         )
 
         if usuario_id:
@@ -112,9 +123,10 @@ class ValorPorTiendaAPIView(APIView):
             cantidad_dispositivos=Sum("cantidad")
         )
 
+        # Oportunidades: Solo estados de OPORTUNIDAD (antes de confirmación)
         oportunidades = Oportunidad.objects.filter(
-            estado__in=estados_filtrados,
-            fecha_creacion__range=[fecha_inicio, fecha_fin]
+            estado__in=ESTADOS_OPORTUNIDAD,
+            fecha_creacion__date__range=[fecha_inicio.date(), fecha_fin.date()]
         )
 
         if usuario_id:
