@@ -47,6 +47,9 @@ interface UseGradingEngineParams {
 
   // Flag de edición manual
   editadoPorUsuario?: boolean
+
+  // Grado manual (override)
+  gradoManual?: Grade | null
 }
 
 interface UseGradingEngineResult {
@@ -92,6 +95,7 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     deduccionChasisManual = null,
     isSecurityKO = false,
     editadoPorUsuario = false,
+    gradoManual = null,
   } = params
 
   // Construir estado detallado desde UI
@@ -208,8 +212,11 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
   const precioBase = useMemo<number | undefined>(() => {
     if (!precio_por_estado) return undefined
 
-    if (grado !== 'D') {
-      return precio_por_estado[gradeToPrecioKey(grado)]
+    // Usar grado manual si existe, sino el calculado
+    const gradoParaPrecio = gradoManual ?? grado
+
+    if (gradoParaPrecio !== 'D') {
+      return precio_por_estado[gradeToPrecioKey(gradoParaPrecio)]
     }
 
     // D defectuoso: aplicar reglas espejo simplificadas
@@ -246,7 +253,7 @@ export function useGradingEngine(params: UseGradingEngineParams): UseGradingEngi
     }
 
     return precio_por_estado[gradeToPrecioKey(pick)]
-  }, [grado, precio_por_estado, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
+  }, [grado, gradoManual, precio_por_estado, pantallaIssues, estadoPantalla, estadoLados, estadoEspalda])
 
   // Calcular precio final con lógica de precio suelo
   const precioFinal = useMemo<number | null>(() => {
