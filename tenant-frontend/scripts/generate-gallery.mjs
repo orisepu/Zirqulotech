@@ -9,7 +9,7 @@
  */
 
 import { readdirSync, statSync, writeFileSync, existsSync } from 'fs';
-import { join, basename, dirname } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
