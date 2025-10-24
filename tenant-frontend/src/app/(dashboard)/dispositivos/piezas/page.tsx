@@ -170,7 +170,7 @@ export default function AdminCostesReparacionPorModelo() {
   const modeloIds = useMemo(() => modelos.map(m => m.id), [modelos])
 
   const { data: coverage = [], isFetching: coverageLoading } = useQuery({
-  queryKey: ['admin-costos-pieza-coverage', modeloIds.join(','), q, tipo],
+  queryKey: ['admin-costos-pieza-coverage', modeloIds, q, tipo],
   queryFn: () => fetchCoverage(modeloIds, { search: q || undefined, tipo: tipo || undefined }),
   enabled: modeloIds.length > 0,
   staleTime: 30_000,})

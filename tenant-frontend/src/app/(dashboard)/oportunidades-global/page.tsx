@@ -4,7 +4,7 @@ import {
   Box, Typography, Paper, CircularProgress, TextField, Button,
   Grid, Popover, Chip
 } from '@mui/material'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import api from '@/services/api'
 import { useRouter } from 'next/navigation'
 import { getIdlink } from '@/shared/utils/id'
@@ -26,14 +26,14 @@ export default function OportunidadesGlobalPage() {
     return Array.isArray(ESTADOS_FIJOS) ? ESTADOS_FIJOS : Object.keys(ESTADOS_FIJOS);
   }, [ESTADOS_FIJOS]);
 
-  const normalizeEstado = (e: any) => {
+  const normalizeEstado = useCallback((e: any) => {
     // si viene índice (número o string numérico), mapéalo al nombre
     if (typeof e === 'number' || /^\d+$/.test(String(e))) {
       const idx = Number(e);
       return ESTADOS_DEFAULT[idx] ?? String(e);
     }
     return String(e);
-  };
+  }, [ESTADOS_DEFAULT]);
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
   const [estado, setEstado] = useState<string[]>([])
@@ -59,8 +59,8 @@ export default function OportunidadesGlobalPage() {
   const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc')
   const queryKey = useMemo(() => [
     'oportunidades-globales',
-    { estado, busqueda: dBusqueda, fechaInicio, fechaFin, orderBy, orderDirection }
-  ], [estado, dBusqueda, fechaInicio, fechaFin, orderBy, orderDirection])
+    { estado, busqueda: dBusqueda, fechaInicio, fechaFin, orderBy, orderDirection, ESTADOS_DEFAULT, normalizeEstado }
+  ], [estado, dBusqueda, fechaInicio, fechaFin, orderBy, orderDirection, ESTADOS_DEFAULT, normalizeEstado])
 
   const { data: oportunidades = [], isLoading } = useQuery<any[]>({
     queryKey,

@@ -173,7 +173,7 @@ export default function OportunidadDetallePageGlobal() {
   
   // === useQuery: detalle unificado ===
   const { data, isLoading } = useQuery<DetalleOportunidadGlobal>({
-    queryKey: detalleQueryKey,
+    queryKey: ['oportunidad-global', String(tenant), String(id)] as const,
     queryFn: async () => {
       const { data } = await api.get(`/api/oportunidades-globales/${tenant}/${id}/detalle-completo/`)
       const payload: DetalleOportunidadGlobal = {

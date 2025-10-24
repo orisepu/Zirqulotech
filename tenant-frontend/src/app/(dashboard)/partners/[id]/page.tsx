@@ -80,7 +80,7 @@ export default function PartnerDetailPage() {
   const [cargandoLogo, setCargandoLogo] = useState(false)
 
   const { data: partner, isLoading: loading, error } = useQuery({
-    queryKey: ['partner', idStr],
+    queryKey: ['partner', idStr, partnerEndpoint],
     queryFn: () => api.get(partnerEndpoint).then(res => res.data),
     enabled: !!idStr,
   })

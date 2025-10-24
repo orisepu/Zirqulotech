@@ -659,7 +659,7 @@ export default function LikewizeB2BPage() {
   })
 
   const modelosSearch = useQuery<ModeloMini[]>({
-    queryKey: ['admin-modelos-search', modeloSearchTerm, mapTarget?.tipo, mapTarget?.marca],
+    queryKey: ['admin-modelos-search', modeloSearchTerm, mapTarget?.tipo, mapTarget?.marca, mapTarget?.capacidad_id, mapTarget?.capacidad_id ? capMarcaLookup[mapTarget.capacidad_id] : undefined],
     queryFn: async () => {
       const params: Record<string, string> = { q: modeloSearchTerm }
       if (mapTarget?.tipo) params.tipo = mapTarget.tipo

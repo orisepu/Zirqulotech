@@ -47,7 +47,7 @@ export default function OperacionesTenantPage() {
 
   const queryKey = [
     "operaciones-tenant",
-    { cliente, fechaInicio, fechaFin, estado: estado.slice().sort().join(",") },
+    { cliente, fechaInicio, fechaFin, estado },
   ];
 
   const { data: operaciones = [], isLoading, refetch } = useQuery<any[]>({
