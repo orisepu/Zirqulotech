@@ -191,15 +191,16 @@ export function useOportunidadData(id: string | number) {
   // Calcular si puede editar esta oportunidad
   const canEdit = useMemo(() => {
     if (!oportunidad.data) return false
-    // Extraer ID del creador (puede venir como objeto o ID directo)
-    const creadorId = oportunidad.data.usuario?.id || oportunidad.data.usuario
+    // Extraer ID del creador desde usuario_info (usuario es write_only en el serializer)
+    const creadorId = oportunidad.data.usuario_info?.id || oportunidad.data.usuario?.id || oportunidad.data.usuario
     return canEditData(creadorId)
   }, [oportunidad.data, canEditData])
 
   // Información del creador para mostrar
   const creadorInfo = useMemo(() => {
-    if (!oportunidad.data?.usuario) return null
-    const usuario = oportunidad.data.usuario
+    // Priorizar usuario_info ya que usuario es write_only en el serializer
+    const usuario = oportunidad.data?.usuario_info || oportunidad.data?.usuario
+    if (!usuario) return null
     return {
       id: usuario.id || usuario,
       nombre: usuario.name || usuario.email || 'Usuario',
