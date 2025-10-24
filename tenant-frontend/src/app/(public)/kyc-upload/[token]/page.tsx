@@ -19,40 +19,6 @@ import CircularProgress from '@mui/material/CircularProgress'
 type FlagsResponse = { tiene_dni_anverso: boolean; tiene_dni_reverso: boolean }
 type KycInfo = { tipo: 'marco' | 'acta' | string; requiere_dni?: boolean };
 
-
-function ContratoInline() {
-  return (
-    <Box sx={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6 }}>
-      {`Contrato de compra-venta (B2C)
-
-1. Objeto
-El presente contrato regula la compraventa del/los dispositivo(s) del cliente a PROGEEK (Checkouters), conforme a la oferta aceptada.
-
-2. Proceso
-2.1. Recepción y revisión técnica.
-2.2. Posible ajuste de oferta si el estado difiere sustancialmente de lo declarado.
-2.3. Pago tras aceptación final.
-
-3. Identificación y verificación (KYC)
-El cliente declara que es titular legítimo del dispositivo y acepta facilitar su DNI/NIE por motivos legales de prevención del fraude.
-
-4. Datos y privacidad
-Los datos se tratan conforme al RGPD. Conservación según obligaciones legales (p. ej. art. 25 LOPDGDD).
-
-5. Garantías y responsabilidad
-El cliente garantiza que el equipo no es robado, no tiene cargas y está libre de bloqueo iCloud/MDM, salvo pacto expreso.
-
-6. Precio y pago
-El precio se abonará según los métodos ofrecidos por PROGEEK, en el plazo comunicado tras la aceptación final.
-
-7. Jurisdicción
-Se aplica la legislación española. Cualquier disputa se resolverá en los juzgados competentes.
-
-Marcando "He leído y acepto", el cliente consiente expresamente los términos anteriores.`}
-    </Box>
-  )
-}
-
 /** fetchFlags: PROPAGA code y detail para depurar */
 async function fetchFlags(token: string): Promise<FlagsResponse> {
   try {
@@ -193,16 +159,6 @@ export default function KycPage() {
     qc.invalidateQueries({ queryKey: ['kyc-flags', tokenStr] })
   }, [qc, tokenStr])
 
-  const finalizarKyc = useMutation({
-    mutationFn: async () => apiPublic.post(`/api/b2c/contratos/kyc/${tokenStr}/finalizar/`, {}),
-    onSuccess: () => router.push('/gracias'),
-    onError: (err: any) => {
-      const status = err?.response?.status
-      const detail = err?.response?.data?.detail
-      if (status === 410) setHardError('410: Enlace expirado o ya utilizado.')
-      else setHardError(detail || 'No se pudo finalizar el KYC.')
-    },
-  })
   // Tick del cooldown de reenvío
   useEffect(() => {
     if (!showOtp || resendIn <= 0) return;
@@ -260,7 +216,6 @@ export default function KycPage() {
   // —— Motivo exacto de bloqueo/indisponibilidad ——
   const infoErr = infoError as any
   const infoCode: number | undefined   = infoErr?.code ?? infoErr?.response?.status
-  const infoDetail: string | undefined = infoErr?.detail ?? infoErr?.response?.data?.detail
 
   const fatal: string | null = (() => {
     if (hardError) return hardError

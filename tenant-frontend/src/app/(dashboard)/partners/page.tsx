@@ -19,7 +19,6 @@ import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew'
 import AddIcon from '@mui/icons-material/Add'
 import BusinessIcon from '@mui/icons-material/Business'
 import ClearIcon from '@mui/icons-material/Clear'
-import FilterListIcon from '@mui/icons-material/FilterList'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import { formatoBonito } from '@/context/precios'
@@ -32,10 +31,7 @@ import PercentIcon from '@mui/icons-material/Percent'
 import ViewModuleIcon from '@mui/icons-material/ViewModule'
 import TableRowsIcon from '@mui/icons-material/TableRows'
 import TablaReactiva2 from '@/shared/components/TablaReactiva2'
-import { createColumnHelper } from '@tanstack/react-table'
 import { toast } from 'react-toastify'
-
-const columnHelper = createColumnHelper<any>()
 
 export default function PartnerListPage() {
   const router = useRouter()
