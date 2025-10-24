@@ -9,6 +9,7 @@ from django.core.exceptions import FieldError
 from ..models.dispositivo import DispositivoReal
 from ..models.oportunidad import Oportunidad,HistorialOportunidad
 from ..models.tienda import Tienda
+from .role_filters import filter_queryset_by_role, get_tienda_ids_for_user
 # Estados pipeline abiertos y cierre:
 PIPELINE_ESTADOS = [
     "Pendiente","Aceptado","Recogida solicitada", "Recogida generada", "En tránsito", "Check in OK","Recibido","Pendiente factura",
@@ -86,20 +87,30 @@ def _oportunidades_ids_en_rango(fecha_inicio, fecha_fin):
     # Fallback: sin filtro por fecha si ninguno coincide (mejor que romper)
     return Oportunidad.objects.all().values_list("id", flat=True)
 
-def _base_qs(fecha_inicio, fecha_fin, filtros, opciones):
+def _base_qs(fecha_inicio, fecha_fin, filtros, opciones, request=None):
     """
     QS de DispositivoReal con join a Oportunidad, filtrando por
     estados >= factura recibida (opciones['estados_factura_adelante']).
+    Aplica filtros de rol si se proporciona request.
     """
     estados_ok = set(opciones.get("estados_factura_adelante") or [])
     opp_ids = _oportunidades_ids_en_rango(fecha_inicio, fecha_fin)
 
+    # Aplicar filtro de rol a Oportunidades primero
+    opp_qs = Oportunidad.objects.filter(id__in=opp_ids, estado__in=estados_ok)
+
+    if request and hasattr(request, 'user'):
+        # Aplicar filtros basados en rol del usuario
+        opp_qs = filter_queryset_by_role(
+            opp_qs,
+            request.user,
+            tienda_field="tienda",
+            creador_field="usuario"
+        )
+
     qs = (DispositivoReal.objects
           .select_related("oportunidad", "oportunidad__tienda", "oportunidad__usuario")
-          .filter(
-              oportunidad__estado__in=estados_ok,
-              oportunidad_id__in=opp_ids
-          ))
+          .filter(oportunidad_id__in=opp_qs.values_list('id', flat=True)))
 
     if filtros.get("tienda_id"):
         qs = qs.filter(oportunidad__tienda_id=filtros["tienda_id"])
@@ -122,21 +133,21 @@ def _valor_total_qs(qs):
         )
     )["v"]
 
-def kpi_valor_total(fecha_inicio, fecha_fin, filtros, opciones):
-    return _valor_total_qs(_base_qs(fecha_inicio, fecha_fin, filtros, opciones)) or Decimal("0")
+def kpi_valor_total(fecha_inicio, fecha_fin, filtros, opciones, request=None):
+    return _valor_total_qs(_base_qs(fecha_inicio, fecha_fin, filtros, opciones, request)) or Decimal("0")
 
-def _ops_qs(fecha_inicio, fecha_fin, filtros, opciones):
-    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def _ops_qs(fecha_inicio, fecha_fin, filtros, opciones, request=None):
+    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     # operaciones = oportunidades distintas con al menos un DispositivoReal en el rango y estados válidos
     return qs.values("oportunidad_id").distinct()
 
-def kpi_ticket_medio(fecha_inicio, fecha_fin, filtros, opciones):
-    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def kpi_ticket_medio(fecha_inicio, fecha_fin, filtros, opciones, request=None):
+    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     valor = _valor_total_qs(qs)
-    ops = _ops_qs(fecha_inicio, fecha_fin, filtros, opciones).count() or 1
+    ops = _ops_qs(fecha_inicio, fecha_fin, filtros, opciones, request).count() or 1
     return (valor or Decimal("0")) / Decimal(ops)
 
-def kpi_margen_medio(fecha_inicio, fecha_fin, filtros, opciones):
+def kpi_margen_medio(fecha_inicio, fecha_fin, filtros, opciones, request=None):
     """
     Si tienes coste/venta en otra tabla, calcula margen aquí.
     Por ahora None para no inventar.
@@ -191,8 +202,8 @@ def _serie_vacia_desde_hasta(fecha_inicio, fecha_fin, granularidad):
             m, y = 1, y + 1
     return puntos
 
-def serie_evolucion_valor(fecha_inicio, fecha_fin, granularidad, filtros, opciones):
-    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def serie_evolucion_valor(fecha_inicio, fecha_fin, granularidad, filtros, opciones, request=None):
+    qs = _base_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     t = _trunc_by(granularidad)
     rows = (qs
             .annotate(p=t)
@@ -230,13 +241,13 @@ def _fechas_periodo_anterior(fecha_inicio, fecha_fin):
     ini_ant = fin_ant - timedelta(days=dias - 1)
     return ini_ant, fin_ant
 
-def comparativa_periodo(evolucion_actual, fecha_inicio, fecha_fin, granularidad, filtros, opciones, comparar: bool):
+def comparativa_periodo(evolucion_actual, fecha_inicio, fecha_fin, granularidad, filtros, opciones, comparar: bool, request=None):
     actual = _sum_evolucion(evolucion_actual)
     if not comparar:
         return {"actual": actual, "anterior": None, "variacion_pct": None}
 
     ini_ant, fin_ant = _fechas_periodo_anterior(fecha_inicio, fecha_fin)
-    evolucion_anterior = serie_evolucion_valor(ini_ant, fin_ant, granularidad, filtros, opciones)
+    evolucion_anterior = serie_evolucion_valor(ini_ant, fin_ant, granularidad, filtros, opciones, request)
     anterior = _sum_evolucion(evolucion_anterior)
 
     variacion = None
@@ -249,11 +260,11 @@ def comparativa_periodo(evolucion_actual, fecha_inicio, fecha_fin, granularidad,
         "variacion_pct": None if variacion is None else round(variacion, 2)
     }
 
-def _rank_qs(fecha_inicio, fecha_fin, filtros, opciones):
-    return _base_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request=None):
+    return _base_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
 
-def rank_categorias(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def rank_categorias(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     return list(
         qs.values(nombre=F("categoria_nombre"))  # ajusta campo
           .annotate(valor=Coalesce(
@@ -263,8 +274,8 @@ def rank_categorias(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
           .order_by("-valor")[:limit]
     )
 
-def rank_productos(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def rank_productos(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
 
     # Agrupa por la descripción del modelo (FK a public_productos_modelo)
     return list(
@@ -277,10 +288,10 @@ def rank_productos(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
           )
           .order_by("-valor")[:limit]
     )
-    
 
-def rank_tiendas_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+
+def rank_tiendas_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     return list(
         qs.values(tienda_id=F("oportunidad__tienda_id"), nombre=F("oportunidad__tienda__nombre"))
           .annotate(valor=Coalesce(
@@ -290,8 +301,8 @@ def rank_tiendas_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
           .order_by("-valor")[:limit]
     )
 
-def rank_usuarios_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def rank_usuarios_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     # Detecta campo de nombre del usuario (name → email → id)
     try:
         list(qs.values(usuario=F("oportunidad__usuario__name"))[:1])
@@ -314,16 +325,16 @@ def rank_usuarios_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
           .order_by("-valor")[:limit]
     )
 
-def rank_tiendas_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def rank_tiendas_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     return list(
         qs.values(tienda_id=F("oportunidad__tienda_id"), nombre=F("oportunidad__tienda__nombre"))
           .annotate(ops=Count("oportunidad", distinct=True))
           .order_by("-ops")[:limit]
     )
 
-def rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10):
-    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones)
+def rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=None):
+    qs = _rank_qs(fecha_inicio, fecha_fin, filtros, opciones, request)
     # Detecta campo de nombre del usuario (name → email → id)
     try:
         list(qs.values(usuario=F("oportunidad__usuario__name"))[:1])
@@ -377,10 +388,15 @@ def kpi_pipeline_actual(filtros):
         "por_estado": por_estado
     }
 
-def kpi_operativa(fecha_inicio, fecha_fin, filtros, opciones):
+def kpi_operativa(fecha_inicio, fecha_fin, filtros, opciones, request=None):
     # Recibidas = todas las Oportunidades creadas en rango (independiente del estado)
     campo_fecha = _campo_fecha_oportunidad()
     oqs = Oportunidad.objects.filter(**{f"{campo_fecha}__range": [fecha_inicio, fecha_fin]})
+
+    # Aplicar filtro de rol
+    if request and hasattr(request, 'user'):
+        oqs = filter_queryset_by_role(oqs, request.user, tienda_field="tienda", creador_field="usuario")
+
     if filtros.get("tienda_id"):
         oqs = oqs.filter(tienda_id=filtros["tienda_id"])
     if filtros.get("usuario_id"):

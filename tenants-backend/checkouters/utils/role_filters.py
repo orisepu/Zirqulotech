@@ -95,8 +95,15 @@ def filter_queryset_by_role(queryset: QuerySet, user, tenant_slug=None, tienda_f
         managed_ids = rol_tenant.managed_store_ids or []
         return queryset.filter(**{f"{tienda_field}__in": managed_ids})
 
-    # Store Manager: solo su tienda
+    # Store Manager: puede gestionar múltiples tiendas
     if rol == "store_manager":
+        # Si managed_store_ids está definido y es lista vacía, gestiona TODAS las tiendas
+        if hasattr(rol_tenant, 'managed_store_ids') and rol_tenant.managed_store_ids is not None:
+            if len(rol_tenant.managed_store_ids) == 0:
+                return queryset  # Lista vacía = todas las tiendas
+            else:
+                return queryset.filter(**{f"{tienda_field}__in": rol_tenant.managed_store_ids})
+        # Fallback: filtrar por tienda_id (comportamiento original para registros antiguos)
         if not rol_tenant.tienda_id:
             return queryset.none()
         return queryset.filter(**{tienda_field: rol_tenant.tienda_id})
@@ -176,8 +183,19 @@ def can_user_edit_object(user, obj, tenant_slug=None, tienda_field="tienda", cre
             return tienda_id in (rol_tenant.managed_store_ids or [])
         return False
 
-    # Store Manager: edita objetos de su tienda
+    # Store Manager: edita objetos de tiendas gestionadas
     if rol == "store_manager":
+        # Si managed_store_ids está definido y es lista vacía, edita TODO
+        if hasattr(rol_tenant, 'managed_store_ids') and rol_tenant.managed_store_ids is not None:
+            if len(rol_tenant.managed_store_ids) == 0:
+                return True  # Lista vacía = gestiona todas las tiendas
+            else:
+                obj_tienda = getattr(obj, tienda_field, None)
+                if obj_tienda:
+                    tienda_id = obj_tienda.id if hasattr(obj_tienda, 'id') else obj_tienda
+                    return tienda_id in rol_tenant.managed_store_ids
+                return False
+        # Fallback: solo su tienda (comportamiento original)
         if not rol_tenant.tienda_id:
             return False
         obj_tienda = getattr(obj, tienda_field, None)
@@ -252,8 +270,15 @@ def get_tienda_ids_for_user(user, tenant_slug=None):
         # Regional Manager: lista de tiendas gestionadas
         return rol_tenant.managed_store_ids or []
 
-    # Store Manager: solo su tienda
+    # Store Manager: puede gestionar múltiples tiendas
     if rol == "store_manager":
+        # Si managed_store_ids está definido y es lista vacía, acceso a TODAS
+        if hasattr(rol_tenant, 'managed_store_ids') and rol_tenant.managed_store_ids is not None:
+            if len(rol_tenant.managed_store_ids) == 0:
+                return None  # Lista vacía = acceso a todas las tiendas
+            else:
+                return rol_tenant.managed_store_ids
+        # Fallback: solo su tienda (comportamiento original)
         return [rol_tenant.tienda_id] if rol_tenant.tienda_id else []
 
     # Comercial: solo su tienda

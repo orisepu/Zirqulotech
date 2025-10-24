@@ -244,7 +244,7 @@ export default function PasoValoracion({
                   {precioMaximo == null ? '—' : fmtEURSinDecimales(precioMaximo)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Estimado para un dispositivo en estado excelente. Se ajustará tras la auditoría.
+                  Estimado para un dispositivo en estado "Como nuevo". Se ajustará tras la auditoría.
                 </Typography>
               </Box>
             </Grid>

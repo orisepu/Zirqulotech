@@ -16,27 +16,27 @@ class DashboardManagerSerializer(serializers.Serializer):
         except Exception:
             pass
         # 1) Bloque negocio (factura adelante)
-        valor_total = kpis.kpi_valor_total(fecha_inicio, fecha_fin, filtros, opciones)
-        ticket_medio = kpis.kpi_ticket_medio(fecha_inicio, fecha_fin, filtros, opciones)
+        valor_total = kpis.kpi_valor_total(fecha_inicio, fecha_fin, filtros, opciones, request)
+        ticket_medio = kpis.kpi_ticket_medio(fecha_inicio, fecha_fin, filtros, opciones, request)
         comision_total = (valor_total or Decimal("0")) * pct
         comision_media = (ticket_medio or Decimal("0")) * pct
 
-        margen_medio = kpis.kpi_margen_medio(fecha_inicio, fecha_fin, filtros, opciones)  # si procede (puede ser None)
+        margen_medio = kpis.kpi_margen_medio(fecha_inicio, fecha_fin, filtros, opciones, request)  # si procede (puede ser None)
 
-        evolucion = kpis.serie_evolucion_valor(fecha_inicio, fecha_fin, granularidad, filtros, opciones)
-        comparativa = kpis.comparativa_periodo(evolucion, fecha_inicio, fecha_fin, granularidad, filtros, opciones, opciones.get("comparar", False))
-        
+        evolucion = kpis.serie_evolucion_valor(fecha_inicio, fecha_fin, granularidad, filtros, opciones, request)
+        comparativa = kpis.comparativa_periodo(evolucion, fecha_inicio, fecha_fin, granularidad, filtros, opciones, opciones.get("comparar", False), request)
+
         rankings = {
-            "productos": kpis.rank_productos(fecha_inicio, fecha_fin, filtros, opciones, limit=10),
-            "tiendas_por_valor": kpis.rank_tiendas_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10),
-            "usuarios_por_valor": kpis.rank_usuarios_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10),
-            "tiendas_por_operaciones": kpis.rank_tiendas_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10),
-            "usuarios_por_operaciones": kpis.rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10),
+            "productos": kpis.rank_productos(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
+            "tiendas_por_valor": kpis.rank_tiendas_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
+            "usuarios_por_valor": kpis.rank_usuarios_valor(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
+            "tiendas_por_operaciones": kpis.rank_tiendas_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
+            "usuarios_por_operaciones": kpis.rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
         }
 
         pipeline = kpis.kpi_pipeline_actual(filtros)
 
-        operativa = kpis.kpi_operativa(fecha_inicio, fecha_fin, filtros, opciones)
+        operativa = kpis.kpi_operativa(fecha_inicio, fecha_fin, filtros, opciones, request)
 
         return {
             "resumen": {
