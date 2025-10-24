@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Box, Stack, Card, CardHeader, Tabs, Tab, Alert, Button, Switch, FormControlLabel } from '@mui/material'
+import { Box, Stack, Card, CardHeader, Tabs, Tab, Alert, Switch, FormControlLabel } from '@mui/material'
 import { Settings as SettingsIcon, Speed as SpeedIcon } from '@mui/icons-material'
 
 // Import the enhanced components
 import MappingMetrics from '@/features/opportunities/components/devices/MappingMetrics'
-import IncrementalUpdateControls from '@/features/opportunities/components/devices/IncrementalUpdateControls'
 import EnhancedLikewizePage from '@/features/opportunities/components/devices/EnhancedLikewizePage'
 
 // Import the original page component

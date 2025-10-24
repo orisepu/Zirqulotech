@@ -51,19 +51,10 @@ interface Oportunidad {
 
 export default function ClienteDetallePage() {
   const { id } = useParams();
-  const [comentario, setComentario] = useState("");
- 
+
   const [abrirEditarCliente, setAbrirEditarCliente] = useState(false);
   const [clienteEditado, setClienteEditado] = useState<Partial<Cliente>>({});
-  const pasos = ["Comercial", "Financiero", "Dirección", "Sector"];
-  const [pasoActivo, setPasoActivo] = useState(0);
   const queryClient = useQueryClient();
-  const [verTodas, setVerTodas] = useState(false);
-
-  
-
-  const handleNext = () => setPasoActivo((prev) => prev + 1);
-  const handleBack = () => setPasoActivo((prev) => prev - 1);
 
   const { data: cliente, isLoading } = useQuery<Cliente>({
     queryKey: ["cliente", id],
@@ -77,7 +68,6 @@ export default function ClienteDetallePage() {
   const enviarComentarioMutation = useMutation({
     mutationFn: (texto: string) => api.post(`/api/comentarios-cliente/`, { cliente: id, texto }),
     onSuccess: () => {
-      setComentario("");
       queryClient.invalidateQueries({ queryKey: ["cliente", id] });
     },
     onError: () => alert("❌ Error al añadir comentario"),
@@ -92,13 +82,7 @@ export default function ClienteDetallePage() {
   });
  
   if (isLoading || !cliente) return <Typography>Cargando...</Typography>;
-  const oportunidadesOrdenadas = [...cliente.oportunidades].sort(
-    (a, b) => new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime()
-  );
 
-  const oportunidadesMostradas = verTodas
-    ? oportunidadesOrdenadas
-    : oportunidadesOrdenadas.slice(0, 3);
   return (
     <Box >
       <Grid container spacing={1} alignItems="stretch" sx={{ minHeight: 'calc(100vh - 160px)' }}>
@@ -107,7 +91,7 @@ export default function ClienteDetallePage() {
           <Grid size={{ xs: 12, md: 8 }} sx={{ display: 'flex', flexDirection: 'column',minHeight: 'calc(100vh - 160px)',overflow: 'hidden', }}>
             {/* Ficha del cliente */}
             <Box sx={{ flexShrink: 0 }}>
-              <FichaCliente cliente={cliente as any} onEditar={() => { setClienteEditado(cliente); setPasoActivo(0); setAbrirEditarCliente(true); }} />
+              <FichaCliente cliente={cliente as any} onEditar={() => { setClienteEditado(cliente); setAbrirEditarCliente(true); }} />
             </Box>
             {/* Oportunidades */}
           <OportunidadesCard 

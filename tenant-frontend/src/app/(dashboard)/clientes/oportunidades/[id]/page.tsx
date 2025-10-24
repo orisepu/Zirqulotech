@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Box, Grid, Paper, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip, Alert,
@@ -8,7 +8,7 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import PersonIcon from '@mui/icons-material/Person'
 
-import { useOportunidadData, toastApiError } from '@/shared/hooks/useOportunidadData'
+import { useOportunidadData } from '@/shared/hooks/useOportunidadData'
 import useUsuarioActual from '@/shared/hooks/useUsuarioActual'
 import { useUserPermissions } from '@/hooks/useUserPermissions'
 

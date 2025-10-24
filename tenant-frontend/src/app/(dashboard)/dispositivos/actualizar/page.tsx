@@ -11,7 +11,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import {
-  FilterList as FilterListIcon,
   Search as SearchIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,

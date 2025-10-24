@@ -23,7 +23,7 @@ async function postResults(sessionId: string, partial: Partial<ResultKeys>) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(partial),
     })
-  } catch (e) {
+  } catch {
     // ignore network errors silently (user can retry)
   }
 }
