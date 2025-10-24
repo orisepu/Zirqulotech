@@ -37,7 +37,7 @@ def mi_dashboard(request):
 
 class ValorPorTiendaAPIView(APIView):
     def get(self, request):
-        estado_minimo = request.query_params.get("estado_minimo", "Oferta confirmada")
+        estado_minimo = request.query_params.get("estado_minimo", "Factura recibida")
         fecha_inicio_raw = request.query_params.get("fecha_inicio")
         fecha_fin_raw = request.query_params.get("fecha_fin")
         usuario_id = request.query_params.get("usuario")
@@ -67,10 +67,11 @@ class ValorPorTiendaAPIView(APIView):
             "En tránsito", "Recibido", "Check in OK", "En revisión"
         ]
 
-        # Estados excluidos del cálculo de valor (no tienen valor confirmado)
+        # Estados excluidos del cálculo de valor (antes de "Factura recibida" o rechazados)
         ESTADOS_EXCLUIDOS_VALOR = [
             "Nueva oferta enviada","Rechazada", "Devolución iniciada", "Equipo enviado", "Recibido por el cliente","Pendiente",
             "Aceptado", "Cancelado", "Recogida solicitada", "Recogida generada", "En tránsito", "Recibido","Check in OK", "En revisión",
+            "Oferta confirmada", "Pendiente factura",  # Excluir hasta que llegue a "Factura recibida"
         ]
 
         if estado_minimo not in ESTADOS:

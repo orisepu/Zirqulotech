@@ -177,8 +177,8 @@ async function fetchValorPorTiendaTransform({
   granularidad?: 'dia' | 'semana' | 'mes';
   usuario?: number | null;
 }): Promise<KPIs> {
-  // Estado mínimo fijo para OPERACIONES (valor confirmado)
-  const estado_minimo = 'Oferta confirmada';
+  // Estado mínimo para VALOR GENERADO (desde factura recibida en adelante)
+  const estado_minimo = 'Factura recibida';
   const params: Record<string, string | number | null | undefined> = { fecha_inicio, fecha_fin, granularidad, estado_minimo };
   if (tiendaId) params.tienda = tiendaId;
   if (usuario) params.usuario = usuario;
