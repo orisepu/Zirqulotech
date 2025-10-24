@@ -19,6 +19,7 @@ import {
   Stepper,
   Step,
   StepLabel,
+  StepButton,
   Box,
   TextField,
 } from '@mui/material'
@@ -206,6 +207,7 @@ export default function FormularioAuditoriaDispositivoV2({
     deduccionChasisManual: deduccionesManuales.chasis,
     isSecurityKO,
     editadoPorUsuario,
+    gradoManual,
   })
 
   // Grado final: manual si existe, sino el calculado
@@ -299,9 +301,11 @@ export default function FormularioAuditoriaDispositivoV2({
         />
 
         <Stepper activeStep={step} sx={{ mb: 3 }}>
-          {pasos.map((label) => (
+          {pasos.map((label, index) => (
             <Step key={label}>
-              <StepLabel>{label}</StepLabel>
+              <StepButton onClick={() => setStep(index)}>
+                {label}
+              </StepButton>
             </Step>
           ))}
         </Stepper>
