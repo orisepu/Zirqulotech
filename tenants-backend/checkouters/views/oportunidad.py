@@ -140,15 +140,22 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         # - Manager (general): ve todo
         # - Manager (regional): ve tiendas gestionadas
         # - Store Manager: ve su tienda
-        # - Comercial: ve TODAS las oportunidades de su tienda (solo lectura)
+        # - Comercial:
+        #   * Sin usuario_id: ve TODAS las oportunidades de su tienda (solo lectura)
+        #   * Con usuario_id: respeta el filtro manual (ej: dashboard muestra solo las suyas)
         #   pero solo puede editar las que creó (verificado en perform_update/destroy)
+
+        # Si se especificó usuario_id explícito, no aplicar filtro automático adicional
+        # para respetar el filtro manual (importante para dashboards de comerciales)
+        use_read_only_comercial = not bool(usuario_id)
+
         return filter_queryset_by_role(
             queryset=base_qs,
             user=user,
             tenant_slug=schema,
             tienda_field=self.tienda_field,
             creador_field=self.creador_field,
-            read_only_for_comercial=True  # Permite ver todo en su tienda
+            read_only_for_comercial=use_read_only_comercial
         )
 
     def perform_create(self, serializer):
