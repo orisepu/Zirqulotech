@@ -151,6 +151,7 @@ export const setupAuthenticatedState = () => {
   })
 
   // Configure secure storage mocks (they should be set up in setup.ts)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getSecureItem, setSecureItem } = require('@/shared/lib/secureStorage')
 
   if (jest.isMockFunction(getSecureItem)) {

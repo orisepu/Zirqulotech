@@ -272,6 +272,8 @@ COMPARE_MAPPING_VERSIONS = config("COMPARE_MAPPING_VERSIONS", default=True, cast
 if ENVIRONMENT == "production":
     # Forzar HTTPS
     SECURE_SSL_REDIRECT = True
+    # Indicar que Django está detrás de un proxy HTTPS (Nginx)
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
     # Forzar cookies seguras (solo se envían por HTTPS)
     SESSION_COOKIE_SECURE = True
