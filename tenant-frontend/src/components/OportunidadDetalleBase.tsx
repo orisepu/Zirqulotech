@@ -56,6 +56,9 @@ interface Props {
   onGuardarRecogida: (data: any) => Promise<void>;
   puedeEditarRecogida: boolean;
   puedeVerFacturas?: boolean;
+  puedeVerDispositivosAuditados?: boolean;
+  esSuperadmin?: boolean;
+  onRefrescar?: () => void;
 }
 
 export default function OportunidadDetalleBase({

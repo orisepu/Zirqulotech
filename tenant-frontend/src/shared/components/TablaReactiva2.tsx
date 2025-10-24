@@ -74,7 +74,7 @@ interface TableToolbarProps {
   hideColumnSelector?: boolean
 }
 
-interface ResponsiveCellProps {
+interface ResponsiveCellProps<T = any> {
   cell: any
   meta?: ResponsiveColumnMeta
   density: TableDensity
