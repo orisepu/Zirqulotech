@@ -1,5 +1,17 @@
 'use client';
 
+/**
+ * Dashboard para empleados (Comercial, Store Manager, etc.)
+ *
+ * FILTRADO POR ROL:
+ * - Comercial: Solo ve sus propios datos (filtrado por usuario_id)
+ * - Store Manager / Manager: Ven todos los datos de su tienda/ámbito
+ *
+ * IMPORTANTE: Todos los endpoints reciben el parámetro 'usuario' o 'usuario_id'
+ * para filtrar los datos según el rol. El filtrado se aplica explícitamente
+ * mediante la variable usuarioIdFiltro calculada en base a isComercial.
+ */
+
 import { useMemo, useState } from 'react';
 import {
   Box,
@@ -254,6 +266,10 @@ export default function TenantDashboardPage() {
   const tiendaIdEfectiva = usuario?.tienda_id ? String(usuario.tienda_id) : '';
   const tiendaNombre = usuario?.tienda_nombre ?? null;
 
+  // FILTRADO POR USUARIO: Comerciales solo ven sus datos, otros roles ven todo de su tienda
+  // Solo aplicar filtro si isComercial Y hay un ID válido
+  const usuarioIdFiltro = (isComercial && usuario?.id) ? usuario.id : null;
+
   // KPIs base
   const {
     data: kpis = { total_valor: 0, total_dispositivos: 0, total_oportunidades: 0, serie: [] },
@@ -261,7 +277,7 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoKpis,
     refetch: refetchKpis,
   } = useQuery<KPIs>({
-    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo, isComercial, usuario?.id],
+    queryKey: ['kpis-tenant', fechaInicio, fechaFin, tiendaIdEfectiva || null, tiendaNombre || null, granularidad, estadoMinimo, usuarioIdFiltro],
     queryFn: () =>
       fetchValorPorTiendaTransform({
         fecha_inicio: fechaInicio,
@@ -270,7 +286,7 @@ export default function TenantDashboardPage() {
         tiendaNombre,
         granularidad,
         estado_minimo: estadoMinimo,
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
@@ -281,14 +297,14 @@ export default function TenantDashboardPage() {
     isFetching: refrescandoRecientes,
     refetch: refetchRecientes,
   } = useQuery<OportunidadRow[]>({
-    queryKey: ['oportunidades-recientes', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
+    queryKey: ['oportunidades-recientes', fechaInicio, fechaFin, tiendaIdEfectiva || null, usuarioIdFiltro],
     queryFn: () =>
       fetchOportunidadesRecientes({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
         limit: 5,
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
@@ -297,35 +313,35 @@ export default function TenantDashboardPage() {
     data: tasa = { total: 0, finalizadas: 0, tasa_conversion: 0 },
     isLoading: cargandoTasa,
   } = useQuery<TasaConversion>({
-    queryKey: ['tasa-conversion', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
+    queryKey: ['tasa-conversion', fechaInicio, fechaFin, tiendaIdEfectiva || null, usuarioIdFiltro],
     queryFn: () =>
       fetchTasaConversion({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
   const { data: pipeline = [], isLoading: cargandoPipeline } = useQuery<PipelineRow[]>({
-    queryKey: ['pipeline-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
+    queryKey: ['pipeline-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, usuarioIdFiltro],
     queryFn: () =>
       fetchPipelineEstados({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
   const { data: rankingProductos = [], isLoading: cargandoRanking } = useQuery<RankingItem[]>({
-    queryKey: ['ranking-productos', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
+    queryKey: ['ranking-productos', fechaInicio, fechaFin, tiendaIdEfectiva || null, usuarioIdFiltro],
     queryFn: () =>
       fetchRankingProductos({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda: tiendaIdEfectiva || null,
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
@@ -338,7 +354,7 @@ export default function TenantDashboardPage() {
     },
     isLoading: cargandoTiempo,
   } = useQuery<TiempoEntreEstados>({
-    queryKey: ['tiempo-entre-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, 'Recibido', 'Pagado', isComercial, usuario?.id],
+    queryKey: ['tiempo-entre-estados', fechaInicio, fechaFin, tiendaIdEfectiva || null, 'Recibido', 'Pagado', usuarioIdFiltro],
     queryFn: () =>
       fetchTiempoEntreEstados({
         fecha_inicio: fechaInicio,
@@ -346,18 +362,18 @@ export default function TenantDashboardPage() {
         tienda: tiendaIdEfectiva || null,
         estado_inicio: 'Recibido',
         estado_fin: 'Pagado',
-        ...(isComercial && { usuario: usuario?.id ?? null }),
+        usuario: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente
       }),
   });
 
   const { data: totalPagado = { total_pagado: 0 }, isLoading: cargandoTotalPagado } = useQuery<TotalPagado>({
-    queryKey: ['total-pagado', fechaInicio, fechaFin, tiendaIdEfectiva || null, isComercial, usuario?.id],
+    queryKey: ['total-pagado', fechaInicio, fechaFin, tiendaIdEfectiva || null, usuarioIdFiltro],
     queryFn: () =>
       fetchTotalPagado({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         tienda_id: tiendaIdEfectiva || null,
-        ...(isComercial && { usuario_id: usuario?.id ?? null }),
+        usuario_id: usuarioIdFiltro, // Aplicar filtro de usuario explícitamente (nota: este endpoint usa usuario_id)
       }),
   });
 
