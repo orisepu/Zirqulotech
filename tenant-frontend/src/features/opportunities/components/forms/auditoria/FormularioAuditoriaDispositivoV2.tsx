@@ -300,7 +300,7 @@ export default function FormularioAuditoriaDispositivoV2({
           precio_por_estado={dispositivo?.precio_por_estado}
         />
 
-        <Stepper activeStep={step} sx={{ mb: 3 }}>
+        <Stepper activeStep={step} nonLinear sx={{ mb: 3 }}>
           {pasos.map((label, index) => (
             <Step key={label}>
               <StepButton onClick={() => setStep(index)}>
