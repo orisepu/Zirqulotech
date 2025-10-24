@@ -14,7 +14,7 @@
  * @date 2025-10-01
  */
 
-import React, { useMemo, useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Table,
   TableHead,
@@ -30,7 +30,6 @@ import {
   IconButton,
   TableContainer,
   Checkbox,
-  Button,
   TablePagination,
 } from '@mui/material'
 import {
@@ -54,7 +53,6 @@ import {
   getCellStyles,
   getHeaderStyles,
   getTableContainerStyles,
-  getDensityPadding,
   calculateEllipsisMaxWidth,
 } from '@/shared/utils/tableResponsive.v2'
 import type {
@@ -76,7 +74,7 @@ interface TableToolbarProps {
   hideColumnSelector?: boolean
 }
 
-interface ResponsiveCellProps<T> {
+interface ResponsiveCellProps {
   cell: any
   meta?: ResponsiveColumnMeta
   density: TableDensity

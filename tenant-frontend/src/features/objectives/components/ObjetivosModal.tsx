@@ -273,7 +273,7 @@ export function ObjetivosModal({
       toast.success("Objetivos guardados correctamente");
       queryClient.invalidateQueries({ queryKey: ["objetivos-resumen"], exact: false });
       onClose();
-    } catch (error) {
+    } catch {
       toast.error("Error al guardar los objetivos");
     } finally {
       setIsSaving(false);

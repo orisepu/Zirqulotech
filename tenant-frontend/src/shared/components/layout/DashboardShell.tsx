@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { AppBar, Toolbar, Typography, IconButton, Box, Drawer, List, ListItem, ListItemIcon, ListItemText, CssBaseline, Divider, useTheme, useMediaQuery, Skeleton, Tooltip } from "@mui/material";
-import GroupsIcon from "@mui/icons-material/Groups";
 import MenuIcon from "@mui/icons-material/Menu";
 import SpaceDashboardIcon from "@mui/icons-material/SpaceDashboard";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";

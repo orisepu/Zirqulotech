@@ -11,7 +11,7 @@ import BoltIcon from '@mui/icons-material/Bolt'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { CatalogoValoracion, FuncPantallaValue } from './tipos'
 import { getDeviceCapabilities } from '@/shared/utils/gradingCalcs'
-import { GRADE_DESCRIPTIONS, type Grade } from '@/shared/types/grading'
+import { GRADE_DESCRIPTIONS } from '@/shared/types/grading'
 
 function Row({
   icon, label, value, clamp = false,
