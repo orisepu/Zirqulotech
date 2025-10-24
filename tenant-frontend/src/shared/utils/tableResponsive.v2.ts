@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react'
 import { useDpiDetection } from '@/hooks/useDpiDetection'
-import type { ResponsiveSize, ResponsiveColumnMeta, TableDensity, DENSITY_PADDING_MAP } from '@/shared/types/table.types'
+import type { ResponsiveSize, ResponsiveColumnMeta, TableDensity } from '@/shared/types/table.types'
 
 /**
  * Mapeo de niveles de DPI a factor de escala
