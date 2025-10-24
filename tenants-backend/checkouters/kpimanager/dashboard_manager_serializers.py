@@ -34,7 +34,7 @@ class DashboardManagerSerializer(serializers.Serializer):
             "usuarios_por_operaciones": kpis.rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, request=request),
         }
 
-        pipeline = kpis.kpi_pipeline_actual(filtros)
+        pipeline = kpis.kpi_pipeline_actual(filtros, request)
 
         operativa = kpis.kpi_operativa(fecha_inicio, fecha_fin, filtros, opciones, request)
 

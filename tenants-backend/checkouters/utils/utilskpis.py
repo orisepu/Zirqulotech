@@ -352,10 +352,15 @@ def rank_usuarios_ops(fecha_inicio, fecha_fin, filtros, opciones, limit=10, requ
           .order_by("-ops")[:limit]
     )
 
-def kpi_pipeline_actual(filtros):
+def kpi_pipeline_actual(filtros, request=None):
     qs = (Oportunidad.objects
           .select_related("tienda", "usuario")
           .filter(estado__in=PIPELINE_ESTADOS))
+
+    # Aplicar filtro de rol
+    if request and hasattr(request, 'user'):
+        qs = filter_queryset_by_role(qs, request.user, tienda_field="tienda", creador_field="usuario")
+
     if filtros.get("tienda_id"):
         qs = qs.filter(tienda_id=filtros["tienda_id"])
     if filtros.get("usuario_id"):
