@@ -13,7 +13,6 @@ import {
   Chip,
   Stack,
   Button,
-  Box,
 } from "@mui/material";
 import { type ObjetivoResumenItem, type ObjetivoScope } from "@/services/api";
 

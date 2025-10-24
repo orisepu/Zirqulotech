@@ -23,7 +23,6 @@ import {
   guardarObjetivo,
   type ObjetivoResumenItem,
   type PeriodoTipo,
-  type ObjetivoScope,
 } from "@/services/api";
 import { UserAllocationPanel, type UserAllocation } from "./UserAllocationPanel";
 import { MonthlyDistributionPanel, type MonthlyDistribution } from "./MonthlyDistributionPanel";

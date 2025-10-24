@@ -3,7 +3,6 @@
 import { Box, Chip, Tooltip, Typography, LinearProgress } from '@mui/material'
 import {
   CheckCircle,
-  Warning,
   Error,
   Info,
   Psychology,

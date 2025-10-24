@@ -5,7 +5,7 @@
  * Shows count of completed vs total devices with visual and semantic feedback.
  */
 
-import { Box, Typography, Alert } from '@mui/material';
+import { Typography, Alert } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 

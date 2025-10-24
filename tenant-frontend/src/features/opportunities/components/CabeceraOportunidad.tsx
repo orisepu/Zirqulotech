@@ -1,5 +1,5 @@
 'use client'
-import { Box, Paper, Stack, Typography, Button } from '@mui/material'
+import { Box, Stack, Typography, Button } from '@mui/material'
 import { getId } from '@/shared/utils/id'
 import EstadoChipSelector from '@/shared/components/cambiosestadochipselector'
 import { ESTADOS_META } from '@/context/estados'

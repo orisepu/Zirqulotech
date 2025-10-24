@@ -61,12 +61,6 @@ function endOfMonthISO(d = dayjs()) {
   return d.endOf('month').format('YYYY-MM-DD')
 }
 
-function getCurrentQuarterPreset(): 'q1' | 'q2' | 'q3' | 'q4' {
-  const month = dayjs().month();
-  const q = Math.floor(month / 3) + 1;
-  return (`q${q}`) as 'q1' | 'q2' | 'q3' | 'q4';
-}
-
 function deriveQuarterBounds(preset: Exclude<PeriodPreset, 'custom' | 'ultimo_mes'>) {
   const year = dayjs().year()
   const bounds: Record<'q1' | 'q2' | 'q3' | 'q4', { start: number; end: number }> = {

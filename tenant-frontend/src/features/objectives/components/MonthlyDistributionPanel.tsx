@@ -10,7 +10,6 @@ import {
   Alert,
   InputAdornment,
 } from "@mui/material";
-import dayjs from "dayjs";
 
 export type MonthlyDistribution = {
   month: string;
