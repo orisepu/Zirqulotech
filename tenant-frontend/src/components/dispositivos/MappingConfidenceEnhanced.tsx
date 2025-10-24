@@ -27,13 +27,10 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
-  Info as InfoIcon,
   Feedback as FeedbackIcon,
   Psychology as PsychologyIcon,
-  Speed as SpeedIcon,
   Cached as CachedIcon,
   Search as SearchIcon,
-  AutoFixHigh as AutoFixHighIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material'

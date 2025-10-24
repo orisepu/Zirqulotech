@@ -59,7 +59,7 @@ export default function LoginForm() {
     return okEmpresa && okEmail && okPass;
   }, [empresa, email, password]);
 
-  const handleLogin = async (e?: React.FormEvent) => {
+  const handleLogin = async () => {
     if (!isValid) {
       return;
     }
@@ -155,7 +155,7 @@ export default function LoginForm() {
               e.preventDefault();
               e.stopPropagation();
               console.log('🔍 [LOGIN] preventDefault y stopPropagation ejecutados');
-              handleLogin(e);
+              handleLogin();
             }}
             noValidate
             autoComplete="on"

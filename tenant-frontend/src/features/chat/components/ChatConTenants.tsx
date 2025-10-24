@@ -13,13 +13,12 @@ const calcularRetryDelay = (intentos: number, initialDelay = 1000, maxDelay = 30
 import {
   Box, Paper, Typography, Button, TextField, Tabs, Tab,
   Badge, IconButton, ListItemText, ListItemButton, Avatar,
-  Dialog, DialogTitle, DialogContent, DialogActions, Chip, Divider, Tooltip
+  Dialog, DialogTitle, DialogContent, DialogActions, Chip, Tooltip
 } from '@mui/material'
 import ChatIcon from '@mui/icons-material/Chat'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import CloseIcon from '@mui/icons-material/Close'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from 'react-toastify'

@@ -1,7 +1,7 @@
 // src/components/formularios/Clientes/TipoClienteStep.tsx
 "use client";
 import { useEffect } from "react";
-import { Box, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Tooltip } from "@mui/material";
+import { Box, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio } from "@mui/material";
 
 type Tipo = "empresa" | "autonomo" | "particular";
 
