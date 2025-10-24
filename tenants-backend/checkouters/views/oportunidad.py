@@ -126,9 +126,11 @@ class OportunidadViewSet(RoleBasedQuerysetMixin, RoleInfoMixin, viewsets.ModelVi
         if cliente:
             base_qs = base_qs.filter(cliente__razon_social__icontains=cliente)
         if fecha_inicio:
-            base_qs = base_qs.filter(fecha_creacion__gte=fecha_inicio)
+            # Usar __date para comparar solo fechas (ignora hora/timezone)
+            base_qs = base_qs.filter(fecha_creacion__date__gte=fecha_inicio)
         if fecha_fin:
-            base_qs = base_qs.filter(fecha_creacion__lte=fecha_fin)
+            # Usar __date para comparar solo fechas (ignora hora/timezone)
+            base_qs = base_qs.filter(fecha_creacion__date__lte=fecha_fin)
         if usuario_id:
             base_qs = base_qs.filter(usuario_id=usuario_id)
 
