@@ -87,16 +87,32 @@ function Sparkline({ data, height = 40 }: { data: number[]; height?: number }) {
   );
 }
 
+/* ---------------- Helper para limpiar parámetros null/undefined ---------------- */
+/**
+ * Elimina valores null y undefined de un objeto de parámetros antes de enviarlo a la API.
+ * Esto previene problemas de serialización inconsistente en axios donde null puede
+ * convertirse en "null" (string) o "" (empty string).
+ */
+function cleanParams(params: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
 /* ---------------- API fetchers + tipos ---------------- */
 type TasaConversion = { total: number; finalizadas: number; tasa_conversion: number };
 async function fetchTasaConversion(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
-  const { data } = await api.get('/api/dashboard/tasa-conversion/', { params });
+  const { data } = await api.get('/api/dashboard/tasa-conversion/', { params: cleanParams(params) });
   return data as TasaConversion;
 }
 
 type PipelineRow = { estado: string; count?: number; valor?: number } & Record<string, unknown>;
 async function fetchPipelineEstados(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
-  const { data } = await api.get('/api/dashboard/estado-pipeline/', { params });
+  const { data } = await api.get('/api/dashboard/estado-pipeline/', { params: cleanParams(params) });
   return (Array.isArray(data) ? data : []) as PipelineRow[];
 }
 
@@ -111,7 +127,7 @@ type RankingItem = {
   cantidad?: number;
 };
 async function fetchRankingProductos(params: { fecha_inicio: string; fecha_fin: string; tienda?: string | null; usuario?: number | null }) {
-  const { data } = await api.get('/api/dashboard/ranking-productos/', { params });
+  const { data } = await api.get('/api/dashboard/ranking-productos/', { params: cleanParams(params) });
   return (Array.isArray(data) ? data : []) as RankingItem[];
 }
 
@@ -129,13 +145,13 @@ async function fetchTiempoEntreEstados(params: {
   estado_fin?: string;
   usuario?: number | null;
 }) {
-  const { data } = await api.get('/api/dashboard/tiempo-entre-estados/', { params });
+  const { data } = await api.get('/api/dashboard/tiempo-entre-estados/', { params: cleanParams(params) });
   return data as TiempoEntreEstados;
 }
 
 type TotalPagado = { total_pagado?: number; total?: number };
 async function fetchTotalPagado(params: { fecha_inicio: string; fecha_fin: string; tienda_id?: string | null; usuario_id?: number | null }) {
-  const { data } = await api.get('/api/dashboard/total-pagado/', { params });
+  const { data } = await api.get('/api/dashboard/total-pagado/', { params: cleanParams(params) });
   return data as TotalPagado;
 }
 
@@ -167,7 +183,7 @@ async function fetchValorPorTiendaTransform({
   if (tiendaId) params.tienda = tiendaId;
   if (usuario) params.usuario = usuario;
 
-  const { data } = await api.get('/api/dashboard/valor-por-tienda/', { params });
+  const { data } = await api.get('/api/dashboard/valor-por-tienda/', { params: cleanParams(params) });
   if (!Array.isArray(data)) {
     return { total_valor: 0, total_oportunidades: 0, total_dispositivos: 0, serie: [] };
   }
@@ -226,6 +242,7 @@ type OportunidadRow = {
   fecha_creacion?: string;
   tienda_nombre?: string | null;
 };
+
 async function fetchOportunidadesRecientes(params: {
   fecha_inicio: string;
   fecha_fin: string;
@@ -235,12 +252,11 @@ async function fetchOportunidadesRecientes(params: {
 }) {
   const size = Math.max(1, params.limit ?? 5);
   const q: Record<string, unknown> = {
-    ...params,
+    ...cleanParams(params),
     ordering: '-fecha_creacion',
     pageIndex: 0,
     pageSize: size,
     page_size: size,
-    limit: undefined,
   };
   const { data } = await api.get('/api/oportunidades/', { params: q });
   const rows = Array.isArray(data?.results)
